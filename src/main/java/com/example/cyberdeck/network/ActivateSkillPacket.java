@@ -2,7 +2,7 @@ package com.example.cyberdeck.network;
 
 import com.example.cyberdeck.Cyberdeck;
 import com.example.cyberdeck.CyberdeckState;
-import com.example.cyberdeck.ram.RamAttachments;
+import com.example.cyberdeck.skill.QuickhackUploads;
 import com.example.cyberdeck.skill.Skill;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
@@ -21,7 +21,7 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 /**
  * Sent from the client to the server when the player clicks a skill slot while targeting an entity.
  *
- * @param slot     the hotbar slot / skill index (0-7)
+ * @param slot     scanner quickhack index (0-6)
  * @param targetId the network id of the targeted entity
  */
 public record ActivateSkillPacket(int slot, int targetId) implements CustomPacketPayload {
@@ -49,35 +49,65 @@ public record ActivateSkillPacket(int slot, int targetId) implements CustomPacke
                 return;
             }
             Skill skill = Skill.fromSlot(packet.slot());
-            if (skill == null) {
+            if (skill == null || skill == Skill.STANDBY) {
                 return;
             }
+            // Selection belongs to the scanner sidebar, not to vanilla's hotbar. The server still
+            // constrains the packet to a real, non-standby Skill and owns every target/RAM check.
             if (!(player.level() instanceof ServerLevel level)) {
                 return;
             }
             Entity target = level.getEntity(packet.targetId());
             if (!(target instanceof LivingEntity living) || !living.isAlive()) {
+                sendFailure(player, "message.cyberdeck.quickhack_invalid_target");
                 return;
             }
-            // Range guard: prevent applying skills to far away entities.
-            if (player.distanceToSqr(living) > 64 * 64) {
-                return;
+
+            QuickhackUploads.EnqueueResult result =
+                    QuickhackUploads.enqueue(player, skill, living, level);
+            switch (result.status()) {
+                case ACCEPTED -> {
+                    // The scanner list, RAM rail and upload marker acknowledge this without a
+                    // vanilla action-bar line obscuring the cinematic HUD.
+                }
+                case INSUFFICIENT_RAM -> {
+                    player.sendSystemMessage(Component.translatable("message.cyberdeck.no_ram",
+                            skill.ramCost(), result.availableRam()), true);
+                    playFailure(player);
+                }
+                case QUEUE_FULL -> {
+                    player.sendSystemMessage(Component.translatable(
+                            "message.cyberdeck.quickhack_queue_full",
+                            QuickhackUploads.MAX_QUEUE_SIZE), true);
+                    playFailure(player);
+                }
+                case DUPLICATE_SKILL -> {
+                    player.sendSystemMessage(Component.translatable(
+                            "message.cyberdeck.quickhack_duplicate", skill.displayName()), true);
+                    playFailure(player);
+                }
+                case TARGET_MISMATCH -> {
+                    player.sendSystemMessage(Component.translatable(
+                            "message.cyberdeck.quickhack_target_mismatch"), true);
+                    playFailure(player);
+                }
+                case INVALID_TARGET -> sendFailure(
+                        player, "message.cyberdeck.quickhack_invalid_target");
+                case INACTIVE, INVALID_SKILL -> {
+                    // Mode and skill checks above normally make these unreachable. Keep the
+                    // queue API defensive without giving packet spoofers additional information.
+                }
             }
-            // One upload at a time per caster.
-            if (com.example.cyberdeck.skill.QuickhackUploads.isUploading(player)) {
-                return;
-            }
-            // RAM gate: quickhacks consume RAM. Fail with feedback if the player cannot afford it.
-            int cost = skill.ramCost();
-            if (cost > 0 && !RamAttachments.spend(player, cost)) {
-                player.sendSystemMessage(Component.translatable("message.cyberdeck.no_ram",
-                        cost, RamAttachments.get(player)), true);
-                player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
-                        SoundEvents.NOTE_BLOCK_BASS.value(), SoundSource.PLAYERS, 0.7f, 0.6f);
-                return;
-            }
-            // Quickhacks upload onto the target over time before taking effect.
-            com.example.cyberdeck.skill.QuickhackUploads.start(player, skill, living, level);
         });
+    }
+
+    private static void sendFailure(ServerPlayer player, String translationKey) {
+        player.sendSystemMessage(Component.translatable(translationKey), true);
+        playFailure(player);
+    }
+
+    private static void playFailure(ServerPlayer player) {
+        player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
+                SoundEvents.NOTE_BLOCK_BASS.value(), SoundSource.PLAYERS, 0.7f, 0.6f);
     }
 }

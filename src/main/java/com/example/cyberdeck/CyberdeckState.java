@@ -45,6 +45,17 @@ public final class CyberdeckState {
         }
     }
 
+    /** Sets scanner mode explicitly, used by the key toggle and the accessible command fallback. */
+    public static void setActive(ServerPlayer player, boolean active) {
+        if (active) {
+            if (!isActive(player) && isWearingCyberdeck(player)) {
+                activate(player);
+            }
+        } else {
+            deactivate(player);
+        }
+    }
+
     private static void activate(ServerPlayer player) {
         // Save the current hotbar so we can restore it later.
         ItemStack[] saved = new ItemStack[HOTBAR_SIZE];
@@ -64,6 +75,9 @@ public final class CyberdeckState {
     }
 
     public static void deactivate(ServerPlayer player) {
+        // Release queue reservations immediately. Waiting for the next player tick would allow a
+        // head that completes on the toggle tick to execute after quickhacking was switched off.
+        com.example.cyberdeck.skill.QuickhackUploads.cancel(player);
         if (!player.getPersistentData().getBoolean(ACTIVE_KEY).orElse(false)) {
             return;
         }

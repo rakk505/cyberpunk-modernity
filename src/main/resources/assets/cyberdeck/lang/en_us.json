@@ -22,6 +22,9 @@
   "key.cyberdeck.thretevac": "Activate Threat Detector",
   "key.cyberdeck.optical_camo": "Toggle Optical Camo",
   "key.cyberdeck.reload": "Reload Gun",
+  "key.cyberdeck.quickhack_previous": "Previous Quickhack",
+  "key.cyberdeck.quickhack_next": "Next Quickhack",
+  "key.cyberdeck.quickhack_queue": "Queue Quickhack",
 
   "screen.cyberdeck.cyberware": "Cyberware",
   "screen.cyberdeck.slots": "Body Slots",
@@ -37,6 +40,12 @@
   "message.cyberdeck.thretevac": "Threat detection online",
   "message.cyberdeck.camo_on": "Optical Camo active",
   "message.cyberdeck.camo_off": "Optical Camo disengaged",
+  "message.cyberdeck.no_ram": "Requires %s RAM; %s available",
+  "message.cyberdeck.quickhack_queued": "%s queued (%s/%s)",
+  "message.cyberdeck.quickhack_queue_full": "Quickhack queue full (%s maximum)",
+  "message.cyberdeck.quickhack_duplicate": "%s is already queued on this target",
+  "message.cyberdeck.quickhack_target_mismatch": "Finish or cancel the current target's queue first",
+  "message.cyberdeck.quickhack_invalid_target": "Invalid quickhack target",
 
   "tooltip.cyberdeck.slot": "Slot: %s",
   "tooltip.cyberdeck.cyberware.sandevistan": "Slows time for everything but you and boosts your speed.",

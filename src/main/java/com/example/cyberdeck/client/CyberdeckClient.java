@@ -2,8 +2,7 @@ package com.example.cyberdeck.client;
 
 import com.example.cyberdeck.Cyberdeck;
 import com.example.cyberdeck.client.hud.AmmoHudOverlay;
-import com.example.cyberdeck.client.hud.QuickhackUploadOverlay;
-import com.example.cyberdeck.client.hud.RamHudOverlay;
+import com.example.cyberdeck.client.hud.QuickhackScannerOverlay;
 import com.example.cyberdeck.client.hud.SmartLockOverlay;
 import com.example.cyberdeck.client.gun.GenericGunClientExtension;
 import com.example.cyberdeck.client.render.FactionEnemyRenderer;
@@ -12,13 +11,17 @@ import com.example.cyberdeck.faction.FactionEntities;
 import com.example.cyberdeck.weapon.WeaponEntities;
 import com.example.cyberdeck.weapon.GunType;
 import com.example.cyberdeck.weapon.WeaponItems;
+import com.google.common.reflect.TypeToken;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.renderer.entity.ThrownItemRenderer;
 import net.minecraft.client.renderer.entity.NoopRenderer;
+import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.client.renderer.entity.player.AvatarRenderer;
+import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
 import net.minecraft.resources.Identifier;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.PlayerModelType;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
@@ -28,6 +31,7 @@ import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.extensions.common.RegisterClientExtensionsEvent;
 import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
+import net.neoforged.neoforge.client.renderstate.RegisterRenderStateModifiersEvent;
 import org.lwjgl.glfw.GLFW;
 
 @Mod(value = Cyberdeck.MODID, dist = Dist.CLIENT)
@@ -84,12 +88,32 @@ public final class CyberdeckClient {
             GLFW.GLFW_KEY_R,
             CATEGORY);
 
+    // Scanner navigation mirrors Cyberpunk's keyboard layout.
+    public static final KeyMapping PREVIOUS_QUICKHACK_KEY = new KeyMapping(
+            "key.cyberdeck.quickhack_previous",
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_1,
+            CATEGORY);
+
+    public static final KeyMapping NEXT_QUICKHACK_KEY = new KeyMapping(
+            "key.cyberdeck.quickhack_next",
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_3,
+            CATEGORY);
+
+    public static final KeyMapping QUEUE_QUICKHACK_KEY = new KeyMapping(
+            "key.cyberdeck.quickhack_queue",
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_F,
+            CATEGORY);
+
     public CyberdeckClient(IEventBus modEventBus) {
         modEventBus.addListener(this::registerKeyMappings);
         modEventBus.addListener(this::addLayers);
         modEventBus.addListener(this::registerGuiLayers);
         modEventBus.addListener(this::registerRenderers);
         modEventBus.addListener(this::registerClientExtensions);
+        modEventBus.addListener(this::registerRenderStateModifiers);
     }
 
     private void registerClientExtensions(RegisterClientExtensionsEvent event) {
@@ -108,17 +132,27 @@ public final class CyberdeckClient {
 
     private void registerGuiLayers(RegisterGuiLayersEvent event) {
         event.registerAbove(VanillaGuiLayers.HOTBAR,
-                Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "ram_hud"),
-                new RamHudOverlay());
-        event.registerAbove(VanillaGuiLayers.HOTBAR,
                 Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "ammo_hud"),
                 new AmmoHudOverlay());
         event.registerAbove(VanillaGuiLayers.CROSSHAIR,
-                Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "quickhack_upload"),
-                new QuickhackUploadOverlay());
-        event.registerAbove(VanillaGuiLayers.CROSSHAIR,
                 Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "smart_lock"),
                 new SmartLockOverlay());
+        event.registerAbove(VanillaGuiLayers.EFFECTS,
+                Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "quickhack_scanner"),
+                new QuickhackScannerOverlay());
+    }
+
+    /** Adds the scanner's orange silhouette to only the entity under the reticle. */
+    private void registerRenderStateModifiers(RegisterRenderStateModifiersEvent event) {
+        event.registerEntityModifier(
+                new TypeToken<LivingEntityRenderer<LivingEntity, LivingEntityRenderState, ?>>() {},
+                (entity, state) -> {
+                    if (QuickhackScannerClient.isActive()
+                            && entity.getId() == QuickhackScannerClient.targetId()) {
+                        state.outlineColor = 0xFFFF653C;
+                        state.hasRedOverlay = true;
+                    }
+                });
     }
 
     private void addLayers(EntityRenderersEvent.AddLayers event) {
@@ -139,5 +173,8 @@ public final class CyberdeckClient {
         event.register(THRETEVAC_KEY);
         event.register(OPTICAL_CAMO_KEY);
         event.register(RELOAD_KEY);
+        event.register(PREVIOUS_QUICKHACK_KEY);
+        event.register(NEXT_QUICKHACK_KEY);
+        event.register(QUEUE_QUICKHACK_KEY);
     }
 }

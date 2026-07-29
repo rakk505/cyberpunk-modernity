@@ -6,22 +6,17 @@ import com.example.cyberdeck.network.ActivateSkillPacket;
 import com.example.cyberdeck.network.CyberwareActionPacket;
 import com.example.cyberdeck.network.ToggleInterfacePacket;
 import net.minecraft.client.Minecraft;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.entity.projectile.ProjectileUtil;
-import net.minecraft.world.level.ClipContext;
-import net.minecraft.world.phys.AABB;
-import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.EntityHitResult;
-import net.minecraft.world.phys.HitResult;
-import net.minecraft.world.phys.Vec3;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.InputEvent;
+import net.neoforged.neoforge.client.event.RenderGuiLayerEvent;
+import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
 import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 
 /**
@@ -30,14 +25,37 @@ import net.neoforged.neoforge.client.network.ClientPacketDistributor;
  */
 @EventBusSubscriber(modid = Cyberdeck.MODID, value = Dist.CLIENT)
 public final class CyberdeckClientEvents {
+    private static boolean quickhackUseLatched;
 
     private CyberdeckClientEvents() {
+    }
+
+    /** Queue on F before vanilla handles its swap-offhand mapping. */
+    @SubscribeEvent
+    public static void onClientTickPre(ClientTickEvent.Pre event) {
+        Minecraft mc = Minecraft.getInstance();
+        QuickhackScannerClient.tick(mc);
+        if (!mc.options.keyUse.isDown()) {
+            quickhackUseLatched = false;
+        }
+        while (CyberdeckClient.QUEUE_QUICKHACK_KEY.consumeClick()) {
+            if (!QuickhackScannerClient.isActive() || mc.player == null) {
+                continue;
+            }
+            if (mc.options.keySwapOffhand.same(CyberdeckClient.QUEUE_QUICKHACK_KEY)) {
+                while (mc.options.keySwapOffhand.consumeClick()) {
+                    // Drain the conflicting vanilla click while the scanner owns F.
+                }
+            }
+            queueSelectedQuickhack(mc);
+        }
     }
 
     @SubscribeEvent
     public static void onClientTick(ClientTickEvent.Post event) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) {
+            QuickhackScannerClient.reset();
             return;
         }
 
@@ -47,6 +65,8 @@ public final class CyberdeckClientEvents {
                 mc.setScreenAndShow(new com.example.cyberdeck.client.screen.CyberwareScreen());
             }
         }
+
+        QuickhackScannerClient.tick(mc);
 
         // The remaining inputs are only meaningful when a screen is not open.
         if (mc.gui.screen() != null) {
@@ -58,6 +78,17 @@ public final class CyberdeckClientEvents {
         while (CyberdeckClient.TOGGLE_KEY.consumeClick()) {
             if (isWearingCyberdeck(mc.player)) {
                 ClientPacketDistributor.sendToServer(new ToggleInterfacePacket());
+            }
+        }
+
+        while (CyberdeckClient.PREVIOUS_QUICKHACK_KEY.consumeClick()) {
+            if (QuickhackScannerClient.isActive()) {
+                QuickhackScannerClient.cycle(mc.player, -1);
+            }
+        }
+        while (CyberdeckClient.NEXT_QUICKHACK_KEY.consumeClick()) {
+            if (QuickhackScannerClient.isActive()) {
+                QuickhackScannerClient.cycle(mc.player, 1);
             }
         }
 
@@ -115,7 +146,7 @@ public final class CyberdeckClientEvents {
         jumpKeyWasDown = false;
     }
 
-    // Intercept the "use item" (right click) input while the interface is active and an entity is targeted.
+    // RMB is a second queue control and can be cancelled cleanly by NeoForge.
     @SubscribeEvent
     public static void onUseInput(InputEvent.InteractionKeyMappingTriggered event) {
         if (!event.isUseItem()) {
@@ -125,69 +156,57 @@ public final class CyberdeckClientEvents {
         if (mc.player == null) {
             return;
         }
-        if (!isWearingCyberdeck(mc.player) || !holdingSkillBlock(mc)) {
+        if (!QuickhackScannerClient.isActive()) {
             return;
         }
-        LivingEntity target = getTargetedEntity(mc);
-        if (target == null) {
-            return;
+        if (!quickhackUseLatched) {
+            quickhackUseLatched = true;
+            queueSelectedQuickhack(mc);
         }
-        int slot = mc.player.getInventory().getSelectedSlot();
-        ClientPacketDistributor.sendToServer(new ActivateSkillPacket(slot, target.getId()));
         // Prevent the vanilla place/use action from also firing.
         event.setCanceled(true);
-        event.setSwingHand(true);
+        event.setSwingHand(false);
+    }
+
+    /** Removes vanilla HUD pieces replaced by the scanner composition. */
+    @SubscribeEvent
+    public static void onGuiLayer(RenderGuiLayerEvent.Pre event) {
+        if (!QuickhackScannerClient.isActive()) {
+            return;
+        }
+        var layer = event.getName();
+        if (layer.equals(VanillaGuiLayers.CROSSHAIR)
+                || layer.equals(VanillaGuiLayers.HOTBAR)
+                || layer.equals(VanillaGuiLayers.SELECTED_ITEM_NAME)
+                || layer.equals(VanillaGuiLayers.PLAYER_HEALTH)
+                || layer.equals(VanillaGuiLayers.ARMOR_LEVEL)
+                || layer.equals(VanillaGuiLayers.FOOD_LEVEL)
+                || layer.equals(VanillaGuiLayers.CONTEXTUAL_INFO_BAR_BACKGROUND)
+                || layer.equals(VanillaGuiLayers.EXPERIENCE_LEVEL)
+                || layer.equals(VanillaGuiLayers.CONTEXTUAL_INFO_BAR)
+                || layer.equals(VanillaGuiLayers.TAB_LIST)) {
+            event.setCanceled(true);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onLogout(ClientPlayerNetworkEvent.LoggingOut event) {
+        quickhackUseLatched = false;
+        QuickhackScannerClient.reset();
+        QuickhackUploadClient.set(com.example.cyberdeck.network.QuickhackUploadPacket.NONE);
     }
 
     private static boolean isWearingCyberdeck(Player player) {
         return player.getItemBySlot(EquipmentSlot.HEAD).is(CyberdeckItems.CYBERDECK.get());
     }
 
-    // Heuristic: the interface is active client-side when the selected hotbar item is one of our
-    // custom quickhack items (plain items, so they can never be placed as blocks on the ground).
-    private static boolean holdingSkillBlock(Minecraft mc) {
-        return mc.player != null
-                && com.example.cyberdeck.QuickhackItems.isQuickhackItem(mc.player.getMainHandItem().getItem());
-    }
-
-    // Maximum ranged targeting distance for skills.
-    private static final double MAX_TARGET_RANGE = 48.0;
-
-    /**
-     * Ranged, line-of-sight targeting: casts a ray from the player's eyes along their look vector
-     * up to {@link #MAX_TARGET_RANGE} blocks and returns the first living entity under the crosshair,
-     * provided no solid block obstructs the line of sight.
-     */
-    private static LivingEntity getTargetedEntity(Minecraft mc) {
-        Player player = mc.player;
-        if (player == null) {
-            return null;
+    private static boolean queueSelectedQuickhack(Minecraft minecraft) {
+        LivingEntity target = QuickhackScannerClient.target(minecraft.level);
+        if (target == null) {
+            return false;
         }
-        Vec3 eye = player.getEyePosition(1.0f);
-        Vec3 look = player.getViewVector(1.0f).normalize();
-        Vec3 reachEnd = eye.add(look.scale(MAX_TARGET_RANGE));
-
-        // Find the first blocking terrain hit so entities behind walls cannot be targeted.
-        BlockHitResult blockHit = player.level().clip(new ClipContext(
-                eye, reachEnd, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player));
-        double reach = MAX_TARGET_RANGE;
-        Vec3 losEnd = reachEnd;
-        if (blockHit.getType() != HitResult.Type.MISS) {
-            losEnd = blockHit.getLocation();
-            reach = eye.distanceTo(losEnd);
-        }
-
-        AABB searchBox = player.getBoundingBox()
-                .expandTowards(look.scale(reach))
-                .inflate(1.0);
-        EntityHitResult entityHit = ProjectileUtil.getEntityHitResult(
-                player, eye, losEnd, searchBox,
-                e -> e instanceof LivingEntity && e != player && !e.isSpectator() && e.isPickable(),
-                reach * reach);
-
-        if (entityHit != null && entityHit.getEntity() instanceof LivingEntity living) {
-            return living;
-        }
-        return null;
+        ClientPacketDistributor.sendToServer(new ActivateSkillPacket(
+                QuickhackScannerClient.selectedSkillOrdinal(), target.getId()));
+        return true;
     }
 }

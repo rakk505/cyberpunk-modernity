@@ -71,6 +71,10 @@ public final class CyberwareTickHandler {
     @SubscribeEvent
     public void onLogout(PlayerEvent.PlayerLoggedOutEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
+            // The logout event fires before player data is saved, so restore the real hotbar rather
+            // than persisting transient quickhack icons across the next login.
+            com.example.cyberdeck.CyberdeckState.deactivate(player);
+            com.example.cyberdeck.skill.QuickhackUploads.forget(player.getUUID());
             ActiveAbilities.forget(player.getUUID());
             LegSpeed.forget(player.getUUID());
         }
@@ -79,9 +83,17 @@ public final class CyberwareTickHandler {
     @SubscribeEvent
     public void onRespawn(PlayerEvent.PlayerRespawnEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
+            // Queues are transient and bound to the old entity's combat context. Reserved RAM was
+            // not spent, so clearing the queue releases it without modifying the copied attachment.
+            com.example.cyberdeck.skill.QuickhackUploads.cancel(player);
             // copyOnDeath keeps the data; make sure passives are re-applied to the new entity.
             CyberwarePassives.reapply(player);
         }
+    }
+
+    @SubscribeEvent
+    public void onServerStopping(net.neoforged.neoforge.event.server.ServerStoppingEvent event) {
+        com.example.cyberdeck.skill.QuickhackUploads.clearAll();
     }
 
     private void tickHyenaSprint(ServerPlayer player) {
