@@ -1,5 +1,6 @@
 package com.example.cyberdeck.npc;
 
+import com.example.cyberdeck.Cyberdeck;
 import com.example.cyberdeck.city.CityWorlds;
 import java.util.HashSet;
 import java.util.List;
@@ -61,6 +62,8 @@ public final class CityNpcSpawns {
         BlockPos anchor = CityWorlds.findStreetNear(
                 level, player.blockPosition(), 16, 42, 32, random);
         if (anchor == null) {
+            Cyberdeck.LOGGER.debug("No loaded walkable city street found near {} in {}",
+                    player.getScoreboardName(), CityWorlds.kind(level));
             return;
         }
 
@@ -93,6 +96,10 @@ public final class CityNpcSpawns {
             if (level.addFreshEntity(npc)) {
                 spawned++;
             }
+        }
+        if (spawned > 0) {
+            Cyberdeck.LOGGER.info("Spawned {} city civilians near {} in {}",
+                    spawned, player.getScoreboardName(), CityWorlds.kind(level));
         }
     }
 

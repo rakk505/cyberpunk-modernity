@@ -144,6 +144,34 @@ public final class CityWorlds {
                 return candidate;
             }
         }
+
+        // Generated streets can be sparse around large parcels. A deterministic perimeter scan
+        // guarantees that random misses do not suppress an entire civilian population cycle.
+        int feetY = kind.streetY() + 1;
+        for (int radius = minDistance; radius <= maxDistance; radius += 2) {
+            for (int offset = -radius; offset <= radius; offset += 2) {
+                BlockPos north = new BlockPos(
+                        origin.getX() + offset, feetY, origin.getZ() - radius);
+                if (isWalkableStreet(level, north)) {
+                    return north;
+                }
+                BlockPos south = new BlockPos(
+                        origin.getX() + offset, feetY, origin.getZ() + radius);
+                if (isWalkableStreet(level, south)) {
+                    return south;
+                }
+                BlockPos west = new BlockPos(
+                        origin.getX() - radius, feetY, origin.getZ() + offset);
+                if (isWalkableStreet(level, west)) {
+                    return west;
+                }
+                BlockPos east = new BlockPos(
+                        origin.getX() + radius, feetY, origin.getZ() + offset);
+                if (isWalkableStreet(level, east)) {
+                    return east;
+                }
+            }
+        }
         return null;
     }
 
