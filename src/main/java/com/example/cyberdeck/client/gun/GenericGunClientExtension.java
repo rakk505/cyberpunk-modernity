@@ -38,6 +38,24 @@ public final class GenericGunClientExtension implements IClientItemExtensions {
         // turning firearms sideways while preserving each model's first-person display transform.
         poseStack.translate(side * 0.56F, -0.52F - equipProgress * 0.6F, -0.72F);
 
+        // Match the Blockbench-authored root stance used by native Bedrock gun rigs. These fallback
+        // JSON models have no bones to sample, so the same subtle lowering/step sway is applied to
+        // the hand transform directly.
+        float crouchBlend = CrouchAnimationController.update(player);
+        if (crouchBlend > 0.0F) {
+            float age = player.tickCount + partialTick;
+            float stride = CrouchAnimationController.isMoving(player)
+                    ? Mth.sin(age * 0.40F)
+                    : Mth.sin(age * 0.05F) * 0.2F;
+            poseStack.translate(
+                    side * stride * 0.005F * crouchBlend,
+                    (-0.045F + Math.abs(stride) * 0.006F) * crouchBlend,
+                    0.028F * crouchBlend);
+            poseStack.mulPose(Axis.XP.rotationDegrees((4.0F + Math.abs(stride) * 2.0F)
+                    * crouchBlend));
+            poseStack.mulPose(Axis.ZP.rotationDegrees(side * stride * 0.8F * crouchBlend));
+        }
+
         GunType gun = gunItem.gun();
         int magazine = magazine(stack, gun);
         Integer previous = lastMagazine.put(gun, magazine);
