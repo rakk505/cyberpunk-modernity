@@ -19,22 +19,26 @@ SPEC.loader.exec_module(MODULE)
 
 class ImporterTests(unittest.TestCase):
     def test_selection_parsing_and_limits(self) -> None:
-        value = MODULE.parse_selection("plaza=-2,4:0,6")
-        self.assertEqual((value.chunks_x, value.chunks_z), (3, 3))
-        self.assertEqual((value.size_x, value.size_z), (48, 48))
+        value = MODULE.parse_selection("plaza=-2,4:5,11")
+        self.assertEqual((value.chunks_x, value.chunks_z), (8, 8))
+        self.assertEqual((value.size_x, value.size_z), (128, 128))
         tiles = MODULE.split_selection(value)
-        self.assertEqual(len(tiles), 9)
+        self.assertEqual(len(tiles), 64)
         self.assertEqual(tiles[0].name, "plaza_0_0")
-        self.assertEqual(tiles[-1].name, "plaza_2_2")
+        self.assertEqual(tiles[-1].name, "plaza_7_7")
         self.assertTrue(all(tile.chunks_x == tile.chunks_z == 1 for tile in tiles))
         with self.assertRaises(Exception):
-            MODULE.parse_selection("too_big=0,0:3,0")
+            MODULE.parse_selection("too_big=0,0:16,0")
 
     def test_district_contract_is_exactly_a_through_z(self) -> None:
         self.assertTrue(MODULE._DISTRICT.fullmatch("A"))
         self.assertTrue(MODULE._DISTRICT.fullmatch("Z"))
         self.assertIsNone(MODULE._DISTRICT.fullmatch("AA"))
         self.assertIsNone(MODULE._DISTRICT.fullmatch("A-1"))
+
+    def test_only_urban_district_zones_can_receive_arnis_atlases(self) -> None:
+        self.assertEqual(MODULE.PLACEMENT_ZONES, {"NEST", "BACKSTREETS"})
+        self.assertNotIn("OUTSKIRTS", MODULE.PLACEMENT_ZONES)
 
     def test_structure_is_deterministic_and_safe(self) -> None:
         stone = MODULE.State("minecraft:stone", ())

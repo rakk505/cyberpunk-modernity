@@ -1,0 +1,71 @@
+{
+  "bbox": [
+    21.031,
+    105.848,
+    21.035,
+    105.854
+  ],
+  "city": "Hanoi / Old Quarter",
+  "culture": "Hanoi shop-house fabric with industrial extraction outskirts",
+  "district": "X",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "schema_version": 1,
+  "slug": "hanoi_old_quarter",
+  "source": {
+    "osm_file": "provenance/arnis_districts/x/hanoi_old_quarter_osm.json",
+    "osm_sha256": "bc594ba7be270c667594a15802eed19d256a131230320c3528530a435f7670c7"
+  },
+  "world": {
+    "build_path": "build/arnis_districts/x/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "ba32e7cc34b5ea87596958accb225294359fbfd788a1662d56f7f1a122da30ab",
+    "metadata": {
+      "maxGeoLat": 21.035,
+      "maxGeoLon": 105.854,
+      "maxMcX": 622,
+      "maxMcZ": 444,
+      "minGeoLat": 21.031,
+      "minGeoLon": 105.848,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "61474d094973ce2bae98198089cae3a594bed5a1e71112901c3f84597f53851a",
+    "preview_sha256": "8a2511ac28a922d6435aa5a6b8358e9af924f7ab199d95b632c16ab0e4860949",
+    "regions": [
+      {
+        "bytes": 4685824,
+        "file": "r.0.0.mca",
+        "sha256": "5cb8dd701ffbb7db32084c1bdaaca394f38ec6c65293a2ac5e4a1b0208320ea4"
+      },
+      {
+        "bytes": 4218880,
+        "file": "r.1.0.mca",
+        "sha256": "928a104ff5c17fc135759a1a3696e09d3cb616c92d52c3c605073d8737c1560f"
+      }
+    ]
+  }
+}

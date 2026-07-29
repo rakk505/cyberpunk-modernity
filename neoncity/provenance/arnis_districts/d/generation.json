@@ -1,0 +1,66 @@
+{
+  "bbox": [
+    47.608,
+    -122.204,
+    47.612,
+    -122.1975
+  ],
+  "city": "Bellevue downtown",
+  "culture": "Seattle-Bellevue glass skyline threaded through evergreens",
+  "district": "D",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "schema_version": 1,
+  "slug": "bellevue",
+  "source": {
+    "osm_file": "provenance/arnis_districts/d/bellevue_osm.json",
+    "osm_sha256": "ed1f06eec68afe0eeaede6f512afa850491090a6474b4dc5a501727bc0f33a90"
+  },
+  "world": {
+    "build_path": "build/arnis_districts/d/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "0b60bf5ab4d48f708f5dc617fa86f9ce0e6f8afea3e2277032394c86e9d6d630",
+    "metadata": {
+      "maxGeoLat": 47.612,
+      "maxGeoLon": -122.1975,
+      "maxMcX": 487,
+      "maxMcZ": 444,
+      "minGeoLat": 47.608,
+      "minGeoLon": -122.204,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "cb7a922a4e929a95b905f455947fac03edf31f39dccaa8fb0fbab76d00036f17",
+    "preview_sha256": "32eb9580b0b579b2119d5d57eadafd8ffb67732917c9a734902fbd08d6c5ee1f",
+    "regions": [
+      {
+        "bytes": 4202496,
+        "file": "r.0.0.mca",
+        "sha256": "af48c5f6aefcd0adc45d3524c5be90a220fe1d324219cc11a44e641831eebd46"
+      }
+    ]
+  }
+}

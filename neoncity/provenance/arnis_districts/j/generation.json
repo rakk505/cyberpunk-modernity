@@ -1,0 +1,71 @@
+{
+  "bbox": [
+    22.145,
+    113.555,
+    22.149,
+    113.561
+  ],
+  "city": "Macau / Cotai",
+  "culture": "Macau-Las Vegas spectacle and casino megablocks",
+  "district": "J",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "schema_version": 1,
+  "slug": "macau_cotai",
+  "source": {
+    "osm_file": "provenance/arnis_districts/j/macau_cotai_osm.json",
+    "osm_sha256": "3889a3d745fa1cc357c1dc8516c053199248296a65e26e35c54fc7bbbe440969"
+  },
+  "world": {
+    "build_path": "build/arnis_districts/j/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "2b31af8cf4ac2d9d90ab5d871865e1d159db8e3c2d9fee24e1f9d67cb2add85a",
+    "metadata": {
+      "maxGeoLat": 22.149,
+      "maxGeoLon": 113.561,
+      "maxMcX": 617,
+      "maxMcZ": 444,
+      "minGeoLat": 22.145,
+      "minGeoLon": 113.555,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "5c77f61c1ea157c63f821da5b36e22c86100920bd30adb4fefd9afb278d476e0",
+    "preview_sha256": "23fe4409b238fb040ea4c13e3ea66b4c56fc5348536fda0220537b84304a0ee7",
+    "regions": [
+      {
+        "bytes": 4202496,
+        "file": "r.0.0.mca",
+        "sha256": "69dc7dde8d41168b1e36b2c40c09d72e077869324e0896a6752867526eb3e206"
+      },
+      {
+        "bytes": 4202496,
+        "file": "r.1.0.mca",
+        "sha256": "e06c88eabd093b5e6c2f5c70218d57d2e83033576ee4e22d96fd8d3eca4bf982"
+      }
+    ]
+  }
+}

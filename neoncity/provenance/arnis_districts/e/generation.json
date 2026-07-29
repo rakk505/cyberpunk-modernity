@@ -1,0 +1,71 @@
+{
+  "bbox": [
+    19.432,
+    -99.1375,
+    19.436,
+    -99.132
+  ],
+  "city": "Mexico City / Centro Historico",
+  "culture": "warm masonry, courtyards, and medium-height urban fabric",
+  "district": "E",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "schema_version": 1,
+  "slug": "mexico_city_centro",
+  "source": {
+    "osm_file": "provenance/arnis_districts/e/mexico_city_centro_osm.json",
+    "osm_sha256": "02d0a4fd0a5fe392037cb112e6f25c3c18bc1f286a0bb1ef06bc32ffddf73d62"
+  },
+  "world": {
+    "build_path": "build/arnis_districts/e/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "832ff408b9068f261337efd0539923b224cffb0ae4d311f4dd0728c3539126a5",
+    "metadata": {
+      "maxGeoLat": 19.436,
+      "maxGeoLon": -99.132,
+      "maxMcX": 576,
+      "maxMcZ": 444,
+      "minGeoLat": 19.432,
+      "minGeoLon": -99.1375,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "94a9e09808dc28225e1370f2f9425a2050d180201c07a43bfbe5ef403b1e6f41",
+    "preview_sha256": "2e266252cebd12492d523ef9d90798aa4f78a35e5b28535483015c2ba784f988",
+    "regions": [
+      {
+        "bytes": 4227072,
+        "file": "r.0.0.mca",
+        "sha256": "76dd7067f57551d5e6379cb514a187aa24fdee0b4a9640f6055e42027ecdd6fd"
+      },
+      {
+        "bytes": 4202496,
+        "file": "r.1.0.mca",
+        "sha256": "a1c08e1f13bfebeda8a2570494360a778877a29c4ec5b15fc4444c197df97dee"
+      }
+    ]
+  }
+}

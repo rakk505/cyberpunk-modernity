@@ -1,0 +1,66 @@
+{
+  "bbox": [
+    43.647,
+    -79.384,
+    43.651,
+    -79.378
+  ],
+  "city": "Toronto / Financial District",
+  "culture": "metropolitan slabs, towers, and mixed skyline",
+  "district": "M",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "schema_version": 1,
+  "slug": "toronto_financial",
+  "source": {
+    "osm_file": "provenance/arnis_districts/m/toronto_financial_osm.json",
+    "osm_sha256": "315ef792f47d7c58593cab8db630f68bb6f5187f9f35a7d20b689f5e1cd8cf9a"
+  },
+  "world": {
+    "build_path": "build/arnis_districts/m/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "4920a40eff8d8def910f32a13456140ef5ebc59b04dfac3028787d8c36db0127",
+    "metadata": {
+      "maxGeoLat": 43.651,
+      "maxGeoLon": -79.378,
+      "maxMcX": 482,
+      "maxMcZ": 444,
+      "minGeoLat": 43.647,
+      "minGeoLon": -79.384,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "9492445a80980112248514ca92edc513206dfa31c757a3a6f9ed9dc0409d5451",
+    "preview_sha256": "071d937ee4cf0ca8fd7e315992c7ca91b52cbe78e3644317babc76c202486090",
+    "regions": [
+      {
+        "bytes": 4866048,
+        "file": "r.0.0.mca",
+        "sha256": "ea70903457eb6d5e77cb750401023e4e61b47d73b4422ef4a22b50ae7d51a30e"
+      }
+    ]
+  }
+}

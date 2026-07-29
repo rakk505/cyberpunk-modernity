@@ -28,6 +28,7 @@ public final class MegacityLayout {
     public enum Zone {
         NEST,
         BACKSTREETS,
+        /** Travel-corridor land between blobs; ordinary district land never uses this zone. */
         OUTSKIRTS,
         BORDER_RIVER,
         BORDER_HILLS,
@@ -217,11 +218,13 @@ public final class MegacityLayout {
             zone = Zone.WILDERNESS;
         } else if (inBlob && primary.score() <= 0.45) {
             zone = Zone.NEST;
-        } else if (inBlob && primary.score() <= 0.67) {
+        } else if (inBlob) {
+            // A district has exactly two inhabited zones. The Backstreets continue to the
+            // irregular blob edge; land beyond it is wilderness except for graph corridors.
             zone = Zone.BACKSTREETS;
-        } else if (inBlob && primary.score() <= 1.08) {
-            zone = Zone.OUTSKIRTS;
         } else {
+            // Keep interdistrict roads and bridges generatable without inventing a third
+            // district biome. Runtime atlas selection explicitly excludes this corridor zone.
             zone = Zone.OUTSKIRTS;
         }
 

@@ -11,30 +11,38 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import net.minecraft.resources.Identifier;
+import net.minecraft.world.level.block.Mirror;
+import net.minecraft.world.level.block.Rotation;
 
 /**
- * Runtime index of curated, provenance-audited Arnis atlases.
+ * Runtime index and coherent mapper for district-scale Arnis atlases.
  *
- * <p>The bundled JSON catalog is the single source of truth. Three-by-three
- * neighborhoods are imported as nine independently placeable one-chunk tiles:
- * Minecraft never has to write through an unloaded chunk, while roads and
- * building footprints remain coherent across tile seams.</p>
+ * <p>Every A-Z district owns a separate source atlas for its Nest and
+ * Backstreets. Destination chunks map to source chunks as one
+ * continuous reflected atlas: source neighbours remain neighbours, roads do
+ * not get shuffled, and reflection makes repeated atlas edges meet their own
+ * geometry. Procedural generation is reserved for district borders, graph
+ * connections, and special infrastructure corridors.</p>
  */
 public final class ArnisPatchLibrary {
-    private static final long SELECTION_SALT = 0x41524E4953504154L;
-    private static final int ATLAS_CELL_CHUNKS = 23;
-    private static final int MAX_SELECTION_CACHE = 65_536;
-    private static final String CATALOG_RESOURCE = "/data/neoncity/arnis/catalog.json";
-    private static final Pattern ATLAS_TILE = Pattern.compile("^(.+)_([0-9]+)_([0-9]+)$");
+    private static final long SELECTION_SALT = 0x41524E49535A4F4EL;
+    private static final int MAX_SELECTION_CACHE = 131_072;
+    private static final int EXPECTED_ATLAS_AXIS = 8;
+    private static final String CATALOG_RESOURCE =
+            "/data/neoncity/arnis_districts/catalog.json";
+    private static final Pattern ATLAS_TILE =
+            Pattern.compile("^(.+)_([0-9]+)_([0-9]+)$");
 
     public record Connector(Edge edge, int offset, int width) {
         public enum Edge { WEST, EAST, NORTH, SOUTH }
@@ -44,6 +52,7 @@ public final class ArnisPatchLibrary {
             String catalogId,
             Identifier templateId,
             District district,
+            Set<MegacityLayout.Zone> placementZones,
             int sourceMinY,
             int sourceSurfaceY,
             int sizeX,
@@ -55,39 +64,44 @@ public final class ArnisPatchLibrary {
         public int surfaceOffset() { return sourceSurfaceY - sourceMinY; }
     }
 
-    public record Placement(Patch patch, int chunkX, int chunkZ, long selectionHash) {}
+    public record Placement(
+            Patch patch,
+            int chunkX,
+            int chunkZ,
+            int sourceTileX,
+            int sourceTileZ,
+            boolean flipX,
+            boolean flipZ,
+            Mirror mirror,
+            Rotation rotation,
+            long selectionHash
+    ) {}
 
     private record IndexedPatch(Patch patch, int tileX, int tileZ) {}
 
     private record Atlas(
             String id,
             District district,
+            Set<MegacityLayout.Zone> placementZones,
             int width,
             int depth,
             List<Patch> tiles
     ) {
         Patch tile(int x, int z) { return tiles.get(z * width + x); }
+        boolean supports(MegacityLayout.Zone zone) { return placementZones.contains(zone); }
     }
 
+    private record AxisMapping(int source, boolean flipped) {}
     private record SelectionKey(long seed, int chunkX, int chunkZ) {}
-    private record CellKey(long seed, District district, int cellX, int cellZ) {}
-    private record AtlasPlacement(Atlas atlas, int originX, int originZ, long hash) {}
 
     public static final List<Patch> PATCHES = loadCatalog();
-    public static final Patch SHINJUKU_CORE = PATCHES.stream()
-            .filter(patch -> patch.catalogId().equals("z/shinjuku_core"))
-            .findFirst()
-            .orElseThrow(() -> new IllegalStateException("audited Shinjuku patch is missing"));
-
     private static final Map<District, List<Atlas>> ATLASES = buildAtlases(PATCHES);
     private static final ConcurrentHashMap<SelectionKey, Optional<Placement>> SELECTION_CACHE =
-            new ConcurrentHashMap<>();
-    private static final ConcurrentHashMap<CellKey, Optional<AtlasPlacement>> CELL_CACHE =
             new ConcurrentHashMap<>();
 
     private ArnisPatchLibrary() {}
 
-    /** Deterministically selects a compatible tile from a coherent atlas. */
+    /** Select the exact coherent Arnis tile for a developed district chunk. */
     public static Optional<Placement> select(MegacityLayout layout, int chunkX, int chunkZ) {
         if (SELECTION_CACHE.size() > MAX_SELECTION_CACHE) clearSelectionCache();
         SelectionKey key = new SelectionKey(layout.seed(), chunkX, chunkZ);
@@ -100,119 +114,142 @@ public final class ArnisPatchLibrary {
         int centerX = (chunkX << 4) + 8;
         int centerZ = (chunkZ << 4) + 8;
         MegacityLayout.Location location = layout.locate(centerX, centerZ);
-        if (!allowsAtlas(location)) return Optional.empty();
-        List<Atlas> candidates = ATLASES.getOrDefault(location.district(), List.of());
+        if (!isAtlasZone(location.zone())) return Optional.empty();
+
+        List<Atlas> candidates = ATLASES.getOrDefault(location.district(), List.of())
+                .stream().filter(atlas -> atlas.supports(location.zone())).toList();
         if (candidates.isEmpty()) return Optional.empty();
+        long atlasHash = MegacityLayout.mix(
+                layout.seed() ^ SELECTION_SALT,
+                location.district().ordinal(), location.zone().ordinal());
+        Atlas atlas = candidates.get(Math.floorMod((int) atlasHash, candidates.size()));
 
-        int cellX = Math.floorDiv(chunkX, ATLAS_CELL_CHUNKS);
-        int cellZ = Math.floorDiv(chunkZ, ATLAS_CELL_CHUNKS);
-        CellKey key = new CellKey(layout.seed(), location.district(), cellX, cellZ);
-        Optional<AtlasPlacement> plan = CELL_CACHE.computeIfAbsent(
-                key, ignored -> planCell(layout, location.district(), cellX, cellZ, candidates));
-        if (plan.isEmpty()) return Optional.empty();
-
-        AtlasPlacement placement = plan.get();
-        int tileX = chunkX - placement.originX();
-        int tileZ = chunkZ - placement.originZ();
-        if (tileX < 0 || tileZ < 0
-                || tileX >= placement.atlas().width()
-                || tileZ >= placement.atlas().depth()) return Optional.empty();
-        Patch patch = placement.atlas().tile(tileX, tileZ);
+        MegacityLayout.Node node = layout.node(location.district());
+        int nodeChunkX = Math.floorDiv(node.x(), 16);
+        int nodeChunkZ = Math.floorDiv(node.z(), 16);
+        AxisMapping mappedX = mapAxis(chunkX - nodeChunkX, atlas.width());
+        AxisMapping mappedZ = mapAxis(chunkZ - nodeChunkZ, atlas.depth());
+        boolean flipX = mappedX.flipped();
+        boolean flipZ = mappedZ.flipped();
+        Mirror mirror;
+        Rotation rotation;
+        if (flipX && flipZ) {
+            mirror = Mirror.NONE;
+            rotation = Rotation.CLOCKWISE_180;
+        } else if (flipX) {
+            mirror = Mirror.FRONT_BACK;
+            rotation = Rotation.NONE;
+        } else if (flipZ) {
+            mirror = Mirror.LEFT_RIGHT;
+            rotation = Rotation.NONE;
+        } else {
+            mirror = Mirror.NONE;
+            rotation = Rotation.NONE;
+        }
+        Patch patch = atlas.tile(mappedX.source(), mappedZ.source());
+        long selectionHash = MegacityLayout.mix(
+                atlasHash ^ node.identity(), chunkX, chunkZ);
         return Optional.of(new Placement(
                 patch, chunkX, chunkZ,
-                placement.hash() ^ ((long) tileX << 32) ^ tileZ));
+                mappedX.source(), mappedZ.source(),
+                flipX, flipZ, mirror, rotation, selectionHash));
     }
 
-    private static Optional<AtlasPlacement> planCell(
-            MegacityLayout layout,
-            District district,
-            int cellX,
-            int cellZ,
-            List<Atlas> candidates) {
-        long hash = MegacityLayout.mix(
-                layout.seed() ^ SELECTION_SALT ^ ((long) district.ordinal() * 0x9E3779B97F4A7C15L),
-                cellX, cellZ);
-        Atlas atlas = candidates.get(Math.floorMod((int) hash, candidates.size()));
-        int roomX = ATLAS_CELL_CHUNKS - atlas.width() + 1;
-        int roomZ = ATLAS_CELL_CHUNKS - atlas.depth() + 1;
-        int originX = cellX * ATLAS_CELL_CHUNKS
-                + Math.floorMod((int) (hash >>> 17), roomX);
-        int originZ = cellZ * ATLAS_CELL_CHUNKS
-                + Math.floorMod((int) (hash >>> 37), roomZ);
-        if (!atlasFits(layout, atlas, originX, originZ)) return Optional.empty();
-        return Optional.of(new AtlasPlacement(atlas, originX, originZ, hash));
+    private static AxisMapping mapAxis(int destinationRelative, int atlasSize) {
+        int centered = destinationRelative + atlasSize / 2;
+        int copy = Math.floorDiv(centered, atlasSize);
+        int local = Math.floorMod(centered, atlasSize);
+        boolean flipped = Math.floorMod(copy, 2) == 1;
+        return new AxisMapping(flipped ? atlasSize - 1 - local : local, flipped);
     }
 
-    private static boolean atlasFits(
-            MegacityLayout layout, Atlas atlas, int originX, int originZ) {
-        for (int tileZ = 0; tileZ < atlas.depth(); tileZ++) {
-            for (int tileX = 0; tileX < atlas.width(); tileX++) {
-                int minX = (originX + tileX) << 4;
-                int minZ = (originZ + tileZ) << 4;
-                int[] offsets = {0, 8, 15};
-                for (int dz : offsets) {
-                    for (int dx : offsets) {
-                        MegacityLayout.Location location = layout.locate(minX + dx, minZ + dz);
-                        if (location.district() != atlas.district() || !allowsAtlas(location)) {
-                            return false;
-                        }
-                    }
-                }
-            }
-        }
-        return true;
-    }
-
-    private static boolean allowsAtlas(MegacityLayout.Location location) {
-        return (location.zone() == MegacityLayout.Zone.NEST
-                || location.zone() == MegacityLayout.Zone.BACKSTREETS)
-                && !location.onConnection();
+    private static boolean isAtlasZone(MegacityLayout.Zone zone) {
+        return zone == MegacityLayout.Zone.NEST
+                || zone == MegacityLayout.Zone.BACKSTREETS;
     }
 
     /**
-     * Extends catalogued edge connectors through one neighbouring chunk so an
-     * imported neighborhood joins the procedural street fabric.
+     * Extend a transformed source-road connector one block into an adjacent
+     * procedural infrastructure chunk. Internal atlas seams need no stitching.
      */
     public static boolean connectorApproachAt(MegacityLayout layout, int worldX, int worldZ) {
         int chunkX = Math.floorDiv(worldX, 16);
         int chunkZ = Math.floorDiv(worldZ, 16);
-        for (Connector.Edge edge : Connector.Edge.values()) {
-            int candidateX = switch (edge) {
+        for (Connector.Edge destinationEdge : Connector.Edge.values()) {
+            int candidateX = switch (destinationEdge) {
                 case WEST -> chunkX + 1;
                 case EAST -> chunkX - 1;
                 default -> chunkX;
             };
-            int candidateZ = switch (edge) {
+            int candidateZ = switch (destinationEdge) {
                 case NORTH -> chunkZ + 1;
                 case SOUTH -> chunkZ - 1;
                 default -> chunkZ;
             };
-            Optional<Placement> placement = select(layout, candidateX, candidateZ);
-            if (placement.isEmpty()) continue;
-            for (Connector connector : placement.get().patch().connectors()) {
-                if (connector.edge() != edge) continue;
-                if (edge == Connector.Edge.WEST || edge == Connector.Edge.EAST) {
-                    int roadStartZ = (candidateZ << 4) + connector.offset();
-                    if (worldZ >= roadStartZ && worldZ < roadStartZ + connector.width()) return true;
+            Optional<Placement> selected = select(layout, candidateX, candidateZ);
+            if (selected.isEmpty()) continue;
+            Placement placement = selected.get();
+            for (Connector connector : placement.patch().connectors()) {
+                Connector transformed = transformConnector(
+                        connector, placement.flipX(), placement.flipZ());
+                if (transformed.edge() != destinationEdge) continue;
+                if (destinationEdge == Connector.Edge.WEST
+                        || destinationEdge == Connector.Edge.EAST) {
+                    int start = (candidateZ << 4) + transformed.offset();
+                    if (worldZ >= start && worldZ < start + transformed.width()) return true;
                 } else {
-                    int roadStartX = (candidateX << 4) + connector.offset();
-                    if (worldX >= roadStartX && worldX < roadStartX + connector.width()) return true;
+                    int start = (candidateX << 4) + transformed.offset();
+                    if (worldX >= start && worldX < start + transformed.width()) return true;
                 }
             }
         }
         return false;
     }
 
+    static Connector transformConnector(Connector connector, boolean flipX, boolean flipZ) {
+        Connector.Edge edge = connector.edge();
+        if (flipX) {
+            edge = switch (edge) {
+                case WEST -> Connector.Edge.EAST;
+                case EAST -> Connector.Edge.WEST;
+                default -> edge;
+            };
+        }
+        if (flipZ) {
+            edge = switch (edge) {
+                case NORTH -> Connector.Edge.SOUTH;
+                case SOUTH -> Connector.Edge.NORTH;
+                default -> edge;
+            };
+        }
+        boolean reverseOffset = switch (connector.edge()) {
+            case NORTH, SOUTH -> flipX;
+            case WEST, EAST -> flipZ;
+        };
+        int offset = reverseOffset
+                ? 16 - connector.offset() - connector.width()
+                : connector.offset();
+        return new Connector(edge, offset, connector.width());
+    }
+
     public static void clearSelectionCache() {
         SELECTION_CACHE.clear();
-        CELL_CACHE.clear();
     }
 
     public static int atlasCount() {
         return ATLASES.values().stream().mapToInt(List::size).sum();
     }
 
-    /** Finds the closest selected atlas tile for operator diagnostics. */
+    public static int districtAtlasCount(District district) {
+        return ATLASES.getOrDefault(district, List.of()).size();
+    }
+
+    public static int zoneAtlasCount(District district, MegacityLayout.Zone zone) {
+        return (int) ATLASES.getOrDefault(district, List.of()).stream()
+                .filter(atlas -> atlas.supports(zone)).count();
+    }
+
+    /** Find a nearby selected tile for operator diagnostics. */
     public static Optional<Placement> findNearest(
             MegacityLayout layout, District district, int maxRadiusChunks) {
         if (!ATLASES.containsKey(district)) return Optional.empty();
@@ -225,7 +262,8 @@ public final class ArnisPatchLibrary {
                     if (Math.max(Math.abs(dx), Math.abs(dz)) != ring) continue;
                     Optional<Placement> placement = select(
                             layout, centerChunkX + dx, centerChunkZ + dz);
-                    if (placement.isPresent() && placement.get().patch().district() == district) {
+                    if (placement.isPresent()
+                            && placement.get().patch().district() == district) {
                         return placement;
                     }
                 }
@@ -247,7 +285,7 @@ public final class ArnisPatchLibrary {
                 if (!file.startsWith("structures/") || !file.endsWith(".nbt")) {
                     throw new IllegalStateException("unsafe Arnis catalog path " + file);
                 }
-                String templatePath = "arnis/"
+                String templatePath = "arnis_districts/"
                         + file.substring("structures/".length(), file.length() - ".nbt".length());
                 JsonObject footprint = value.getAsJsonObject("footprint");
                 JsonObject anchor = footprint.getAsJsonObject("anchor");
@@ -255,6 +293,21 @@ public final class ArnisPatchLibrary {
                 int sourceMinY = anchor.get("source_y").getAsInt();
                 int sourceSurfaceY = anchor.has("surface_y")
                         ? anchor.get("surface_y").getAsInt() : sourceMinY + 2;
+                EnumSet<MegacityLayout.Zone> zones = EnumSet.noneOf(MegacityLayout.Zone.class);
+                if (value.has("placement_zones")) {
+                    for (JsonElement zone : value.getAsJsonArray("placement_zones")) {
+                        MegacityLayout.Zone placementZone =
+                                MegacityLayout.Zone.valueOf(zone.getAsString());
+                        if (!isAtlasZone(placementZone)) {
+                            throw new IllegalStateException(
+                                    "Arnis atlas may target only NEST/BACKSTREETS: " + catalogId);
+                        }
+                        zones.add(placementZone);
+                    }
+                } else {
+                    zones.add(MegacityLayout.Zone.NEST);
+                    zones.add(MegacityLayout.Zone.BACKSTREETS);
+                }
                 ArrayList<Connector> connectors = new ArrayList<>();
                 for (JsonElement connectorElement : value.getAsJsonArray("road_connectors")) {
                     JsonObject connector = connectorElement.getAsJsonObject();
@@ -268,6 +321,7 @@ public final class ArnisPatchLibrary {
                         catalogId,
                         Identifier.fromNamespaceAndPath("neoncity", templatePath),
                         District.valueOf(value.get("district").getAsString() + "_CORP"),
+                        Collections.unmodifiableSet(EnumSet.copyOf(zones)),
                         sourceMinY,
                         sourceSurfaceY,
                         blocks.get("x").getAsInt(),
@@ -275,14 +329,15 @@ public final class ArnisPatchLibrary {
                         blocks.get("z").getAsInt(),
                         value.get("sha256").getAsString(),
                         List.copyOf(connectors));
-                if (patch.sizeX() != 16 || patch.sizeZ() != 16 || patch.surfaceOffset() < 0) {
+                if (patch.sizeX() != 16 || patch.sizeZ() != 16
+                        || patch.surfaceOffset() < 0 || patch.placementZones().isEmpty()) {
                     throw new IllegalStateException(
                             "runtime Arnis tile must be one complete anchored chunk: " + catalogId);
                 }
                 patches.add(patch);
             }
         } catch (IOException | RuntimeException error) {
-            throw new IllegalStateException("cannot load audited Arnis catalog", error);
+            throw new IllegalStateException("cannot load audited Arnis district catalog", error);
         }
         patches.sort(Comparator.comparing(Patch::catalogId));
         return List.copyOf(patches);
@@ -307,13 +362,21 @@ public final class ArnisPatchLibrary {
         EnumMap<District, List<Atlas>> byDistrict = new EnumMap<>(District.class);
         for (Map.Entry<String, List<IndexedPatch>> entry : groups.entrySet()) {
             List<IndexedPatch> indexed = entry.getValue();
-            District district = indexed.getFirst().patch().district();
+            Patch first = indexed.getFirst().patch();
+            District district = first.district();
+            Set<MegacityLayout.Zone> zones = first.placementZones();
             int width = indexed.stream().mapToInt(value -> value.tileX() + 1).max().orElseThrow();
             int depth = indexed.stream().mapToInt(value -> value.tileZ() + 1).max().orElseThrow();
+            if (width != EXPECTED_ATLAS_AXIS || depth != EXPECTED_ATLAS_AXIS) {
+                throw new IllegalStateException(
+                        "Arnis district atlas must be exactly 8x8: " + entry.getKey());
+            }
             ArrayList<Patch> tiles = new ArrayList<>(Collections.nCopies(width * depth, null));
             for (IndexedPatch value : indexed) {
-                if (value.patch().district() != district) {
-                    throw new IllegalStateException("Arnis atlas crosses district cultures: " + entry.getKey());
+                if (value.patch().district() != district
+                        || !value.patch().placementZones().equals(zones)) {
+                    throw new IllegalStateException(
+                            "Arnis atlas crosses district/zone contracts: " + entry.getKey());
                 }
                 int index = value.tileZ() * width + value.tileX();
                 if (tiles.set(index, value.patch()) != null) {
@@ -323,12 +386,24 @@ public final class ArnisPatchLibrary {
             if (tiles.stream().anyMatch(value -> value == null)) {
                 throw new IllegalStateException("incomplete Arnis atlas: " + entry.getKey());
             }
-            Atlas atlas = new Atlas(entry.getKey(), district, width, depth, List.copyOf(tiles));
+            Atlas atlas = new Atlas(
+                    entry.getKey(), district, zones, width, depth, List.copyOf(tiles));
             byDistrict.computeIfAbsent(district, ignored -> new ArrayList<>()).add(atlas);
         }
         for (Map.Entry<District, List<Atlas>> entry : byDistrict.entrySet()) {
             entry.getValue().sort(Comparator.comparing(Atlas::id));
             entry.setValue(List.copyOf(entry.getValue()));
+        }
+        for (District district : District.values()) {
+            List<Atlas> districtAtlases = byDistrict.getOrDefault(district, List.of());
+            long nest = districtAtlases.stream()
+                    .filter(atlas -> atlas.supports(MegacityLayout.Zone.NEST)).count();
+            long backstreets = districtAtlases.stream()
+                    .filter(atlas -> atlas.supports(MegacityLayout.Zone.BACKSTREETS)).count();
+            if (districtAtlases.size() != 2 || nest != 1 || backstreets != 1) {
+                throw new IllegalStateException(
+                        district + " must own exactly one Nest and one Backstreets Arnis atlas");
+            }
         }
         return Collections.unmodifiableMap(byDistrict);
     }

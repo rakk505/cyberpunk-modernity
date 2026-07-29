@@ -1,0 +1,66 @@
+{
+  "bbox": [
+    37.4992,
+    127.0345,
+    37.5032,
+    127.04
+  ],
+  "city": "Seoul / Gangnam",
+  "culture": "Seoul metropolitan towers, podiums, and superblocks",
+  "district": "L",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "schema_version": 1,
+  "slug": "seoul_gangnam",
+  "source": {
+    "osm_file": "provenance/seoul/seoul_gangnam_osm.json",
+    "osm_sha256": "8df4bbf2726c52992673ad58c27a5e3eb915a44fd0160c7fbbabe0becb39e590"
+  },
+  "world": {
+    "build_path": "build/arnis_districts/l/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "15727cf1039018410db61a4594db721ec1a9abe8c60fb50c8508a2cf3ab4d78f",
+    "metadata": {
+      "maxGeoLat": 37.5032,
+      "maxGeoLon": 127.04,
+      "maxMcX": 485,
+      "maxMcZ": 444,
+      "minGeoLat": 37.4992,
+      "minGeoLon": 127.0345,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "4cbe2098542e7a072bbcc157be1cf276d3930d8aa04e639c5925f615dfd65c86",
+    "preview_sha256": "cb461b85cab578b82e715af855de8c702ef845ae2233791d0b761123f28082f9",
+    "regions": [
+      {
+        "bytes": 4333568,
+        "file": "r.0.0.mca",
+        "sha256": "bd0c31ffd6ddca0dbb513bf3760f639f7730ef52bda8ef13dff44eaeaa2fa26a"
+      }
+    ]
+  }
+}

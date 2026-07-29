@@ -1,0 +1,32 @@
+{
+  "atlas_chunks": 8,
+  "chunk_bounds_scanned": {
+    "max_x": 29,
+    "max_z": 26,
+    "min_x": 0,
+    "min_z": 0
+  },
+  "district": "M",
+  "schema_version": 1,
+  "source_world": "build/arnis_districts/m/Arnis World 1",
+  "zones": {
+    "BACKSTREETS": {
+      "above_surface_blocks": 284896,
+      "max_height_above_surface": 226,
+      "occupied_chunks": 49,
+      "road_surface_cells": 4425,
+      "selection": "backstreets=8,19:15,26",
+      "vegetation_blocks": 12239,
+      "water_blocks": 774
+    },
+    "NEST": {
+      "above_surface_blocks": 540504,
+      "max_height_above_surface": 246,
+      "occupied_chunks": 61,
+      "road_surface_cells": 1575,
+      "selection": "nest=16,3:23,10",
+      "vegetation_blocks": 6926,
+      "water_blocks": 0
+    }
+  }
+}

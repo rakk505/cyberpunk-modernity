@@ -1,0 +1,66 @@
+{
+  "bbox": [
+    47.37,
+    8.539,
+    47.374,
+    8.5455
+  ],
+  "city": "Zurich / Limmat and old town",
+  "culture": "Swiss masonry, riverside blocks, bridges, and canal-like water",
+  "district": "V",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "schema_version": 1,
+  "slug": "zurich_limmat",
+  "source": {
+    "osm_file": "provenance/arnis_districts/v/zurich_limmat_osm.json",
+    "osm_sha256": "127959c2834dc30ea5d4535c6cb052caa0d2e5b4a62fba504f62de14a6bba416"
+  },
+  "world": {
+    "build_path": "build/arnis_districts/v/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "c5fc7952c415e751edd74a00c6d176d3b7d71648b0bb4f603978ea9b72a34408",
+    "metadata": {
+      "maxGeoLat": 47.374,
+      "maxGeoLon": 8.5455,
+      "maxMcX": 489,
+      "maxMcZ": 444,
+      "minGeoLat": 47.37,
+      "minGeoLon": 8.539,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "a5e4ae1fcb3c7f9d227d27ced3bba31533df9e007f6331ecbd49ada3f63c9c15",
+    "preview_sha256": "223a624d7a089d68c79a64720c516256ed2f89e758e1c88e99eb6f407106fe70",
+    "regions": [
+      {
+        "bytes": 4423680,
+        "file": "r.0.0.mca",
+        "sha256": "97fcd3cdb9e469de99c43503ba59a7dcf1b6deb35bda3f4fb88f1cdfa0f2b9fc"
+      }
+    ]
+  }
+}

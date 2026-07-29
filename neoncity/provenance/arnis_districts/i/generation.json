@@ -1,0 +1,66 @@
+{
+  "bbox": [
+    41.897,
+    12.475,
+    41.901,
+    12.481
+  ],
+  "city": "Rome / historic center",
+  "culture": "classical stone, terraces, courts, and radial lanes",
+  "district": "I",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "schema_version": 1,
+  "slug": "rome_centro",
+  "source": {
+    "osm_file": "provenance/arnis_districts/i/rome_centro_osm.json",
+    "osm_sha256": "fd8e995673b909a2ae614b4689511170d7205c9c52c9eb4aa8d1ab6c26966f1c"
+  },
+  "world": {
+    "build_path": "build/arnis_districts/i/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "010595408a9e7b1d91b818ce5f2eee0dda204a999eaa0be0629394e4612f3d62",
+    "metadata": {
+      "maxGeoLat": 41.901,
+      "maxGeoLon": 12.481,
+      "maxMcX": 496,
+      "maxMcZ": 444,
+      "minGeoLat": 41.897,
+      "minGeoLon": 12.475,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "77c2a4f7228980130d45eb0ddcae2e66c3590f048a53eaf5beaba2d627e60740",
+    "preview_sha256": "de2675c69908c2408f227d33fe98af133adfad24ab0ce42ddd73c0ad5252cd30",
+    "regions": [
+      {
+        "bytes": 4333568,
+        "file": "r.0.0.mca",
+        "sha256": "7ae17171e3da964239bab66e499157b9910878429ec4666e39c22b584ddc1415"
+      }
+    ]
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "bbox": [
+    48.206,
+    16.369,
+    48.21,
+    16.3755
+  ],
+  "city": "Vienna / Innere Stadt",
+  "culture": "grand stone blocks, courts, domes, and ring streets",
+  "district": "O",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "schema_version": 1,
+  "slug": "vienna_innere_stadt",
+  "source": {
+    "osm_file": "provenance/arnis_districts/o/vienna_innere_stadt_osm.json",
+    "osm_sha256": "729e3615688d5a590e88d44aa05a5c3c024ddd7e99ea52eab558b675a1b778a2"
+  },
+  "world": {
+    "build_path": "build/arnis_districts/o/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "023474537aae790a0f63bc155cd6003d33d7ac3069d52dbcb41bbe31df46fd79",
+    "metadata": {
+      "maxGeoLat": 48.21,
+      "maxGeoLon": 16.3755,
+      "maxMcX": 481,
+      "maxMcZ": 444,
+      "minGeoLat": 48.206,
+      "minGeoLon": 16.369,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "8f1e431a1827ef715961cc6d97c919c96556b2504bb8534f0260edad7bff6757",
+    "preview_sha256": "f2438060884bae1d110951e20f63e5fa8a9b0c0f27d5bdce9c4ad75ce016f4d7",
+    "regions": [
+      {
+        "bytes": 4620288,
+        "file": "r.0.0.mca",
+        "sha256": "70c474ef77bbd8bfae191bcb73e12c9e2323558856b9abad7fecf222f67ea122"
+      }
+    ]
+  }
+}

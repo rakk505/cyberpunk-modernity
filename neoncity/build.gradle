@@ -27,14 +27,21 @@ sourceSets.main.resources {
     // Arnis source NBTs are remapped into vanilla's structure/ path below.
     // Exclude their audit-side location so each template is packaged once.
     exclude("data/neoncity/arnis/structures/**/*.nbt")
+    exclude("data/neoncity/arnis_districts/structures/**/*.nbt")
 }
 
-// Keep Arnis patches beside their auditable catalog in source control, while
+// Keep Arnis patches beside their auditable catalogs in source control, while
 // exposing the NBTs under vanilla's StructureTemplate resource path in the JAR.
+// The legacy path remains packaged until its older assets are retired; the
+// A-Z rebuild has a separate runtime prefix so catalog IDs cannot collide.
 tasks.named('processResources', ProcessResources).configure {
     from('src/main/resources/data/neoncity/arnis/structures') {
         include '**/*.nbt'
         into 'data/neoncity/structure/arnis'
+    }
+    from('src/main/resources/data/neoncity/arnis_districts/structures') {
+        include '**/*.nbt'
+        into 'data/neoncity/structure/arnis_districts'
     }
 }
 

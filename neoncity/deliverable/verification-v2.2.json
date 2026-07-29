@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "release": "2.2.0",
+  "branch": "project-moon-megacity-arnis-rebuild",
+  "generator_fingerprint": "project-moon-megacity-v6-arnis-district-atlases-20260729",
+  "arnis": {
+    "version": "3.0.0",
+    "districts": 26,
+    "zones_per_district": [
+      "NEST",
+      "BACKSTREETS"
+    ],
+    "atlas_axis_chunks": 8,
+    "atlases": 52,
+    "structure_templates": 3328,
+    "imported_blocks": 9474248,
+    "catalog_validation": "ok",
+    "distinct_preview_crop_hashes": 52,
+    "montage_sha256": "4324ee998f9f44adc751fcd055daa891edf8ab4cb167d0f9de5bd148aff963a9"
+  },
+  "modernity": {
+    "sandbox_id": "project-moon-megacity-v6-arnis",
+    "compile": "passed",
+    "full_build": "passed",
+    "gametest": "passed",
+    "required_tests_passed": 14,
+    "boot": "passed",
+    "client_load": "passed",
+    "client_connectivity": "passed",
+    "visual_capture": "passed"
+  },
+  "runtime": {
+    "seed": -7263272029262212194,
+    "districts": 26,
+    "graph_edges": 38,
+    "generated_chunks_after_visual_tour": 945,
+    "queued_chunks_after_visual_tour": 0,
+    "wilderness_probe": {
+      "x": 14700,
+      "z": 0,
+      "zone": "WILDERNESS",
+      "infrastructure": "WILDERNESS"
+    },
+    "generation_error_log_matches": {
+      "failed_generating": 0,
+      "missing_arnis_template": 0,
+      "escaped_chunk": 0,
+      "refused_placement": 0
+    }
+  },
+  "artifact": {
+    "file": "neoncity-2.2.0.jar",
+    "sha256": "8e834196e91d47b6ada98ce98a63956ae7b03203421e638e8975683d6770537d",
+    "source_snapshot_sha256": "49975a72a2b1ba427824a65249d2a2a30b1627b11a493fa2a94c1fc95009d422"
+  },
+  "captures": [
+    {
+      "district": "A",
+      "file": "v2.2/a_corp_arnis_runtime.png",
+      "position": [8, 125, -32],
+      "sha256": "12c6d04f0c8848629828b9c7d937090f0d63658c979ddacb0c32130aa344dcd8"
+    },
+    {
+      "district": "H",
+      "file": "v2.2/h_corp_arnis_runtime.png",
+      "position": [1368, 210, -1200],
+      "sha256": "859e81404b59ee4d45cebdc20edffbbd1b6cc03244ce8251d3c89eb60f45d6c2"
+    },
+    {
+      "district": "N",
+      "file": "v2.2/n_corp_arnis_runtime.png",
+      "position": [-3064, 155, 420],
+      "sha256": "c1b1d971ec0325fd3dbd72dcffedf123b36a1e1ee8e67826d7d19443dbbd9614"
+    },
+    {
+      "district": "Z",
+      "file": "v2.2/z_corp_arnis_runtime.png",
+      "position": [-1304, 190, 2460],
+      "sha256": "0d046aa2b3e5ccc84f3892a62e96e44caca614496645b2e124afb40f0f899815"
+    },
+    {
+      "district": null,
+      "file": "v2.2/exterior_wilderness_runtime.png",
+      "position": [14700, 180, -40],
+      "sha256": "c60637c02a611910f7f65d0872728170d1b3d42d513cf757527090e1770bfb96"
+    }
+  ]
+}

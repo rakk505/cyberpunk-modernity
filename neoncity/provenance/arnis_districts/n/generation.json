@@ -1,0 +1,66 @@
+{
+  "bbox": [
+    48.868,
+    2.329,
+    48.872,
+    2.3355
+  ],
+  "city": "Paris / Opera",
+  "culture": "Haussmann perimeter blocks and grand boulevards",
+  "district": "N",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "schema_version": 1,
+  "slug": "paris_opera",
+  "source": {
+    "osm_file": "provenance/arnis_districts/n/paris_opera_osm.json",
+    "osm_sha256": "babe8e1ad0d8c3234ddd7a8b4076351c5bd51861ddffd3d29882ea4902cba0f5"
+  },
+  "world": {
+    "build_path": "build/arnis_districts/n/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "43920950020ca238ae682d99a14327a0a30ddbd5ef99e69f4d9bda6600b48857",
+    "metadata": {
+      "maxGeoLat": 48.872,
+      "maxGeoLon": 2.3355,
+      "maxMcX": 475,
+      "maxMcZ": 444,
+      "minGeoLat": 48.868,
+      "minGeoLon": 2.329,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "1244705fc8579ba3f8c465b0f0938d1b05eec7ff1ca41826b554f5383d71fe47",
+    "preview_sha256": "264b029a24869b043ea763a6fcf0bc61141ce7d58b6a3222d42f71c0c0dce192",
+    "regions": [
+      {
+        "bytes": 4677632,
+        "file": "r.0.0.mca",
+        "sha256": "3c425850315022f4cb3648b0129e94013fbf418b56c3aea10861376fac9beb39"
+      }
+    ]
+  }
+}

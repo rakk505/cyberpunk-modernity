@@ -1,0 +1,71 @@
+{
+  "bbox": [
+    25.779,
+    -80.135,
+    25.783,
+    -80.1295
+  ],
+  "city": "Miami Beach / Art Deco Historic District",
+  "culture": "tropical pastel art deco and coastal streets",
+  "district": "F",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "schema_version": 1,
+  "slug": "miami_beach",
+  "source": {
+    "osm_file": "provenance/arnis_districts/f/miami_beach_osm.json",
+    "osm_sha256": "268f062c15f21071f9964aa6516941cdfd92739fc073f721e0a7aaf9a6fc7950"
+  },
+  "world": {
+    "build_path": "build/arnis_districts/f/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "fb6408b38b0e65d78b2f666b693e6be9fa6dff9ff4bd84de9ca4a0d7fccb3305",
+    "metadata": {
+      "maxGeoLat": 25.783,
+      "maxGeoLon": -80.1295,
+      "maxMcX": 550,
+      "maxMcZ": 444,
+      "minGeoLat": 25.779,
+      "minGeoLon": -80.135,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "1786f1e114203c3a1b4265f521d94b1cb833ec2deed2687afe633acf3009da29",
+    "preview_sha256": "b44afa4b37f2ff9157b91498598e2e8b59c4d941e475cae9a823a8580fc0cefa",
+    "regions": [
+      {
+        "bytes": 4210688,
+        "file": "r.0.0.mca",
+        "sha256": "81c1bc3460bf56e2bcba4c46dc54e1774ee4b24dc030f5bc7951ec0eccbfac33"
+      },
+      {
+        "bytes": 4202496,
+        "file": "r.1.0.mca",
+        "sha256": "ed04a6cc93d1c98416938384c7da8dd1ef346e28166524443430f43f0f726d9c"
+      }
+    ]
+  }
+}

@@ -45,10 +45,12 @@ SCHEMA_VERSION = 1
 FORMAT = "neoncity:arnis_patch_catalog"
 DEFAULT_NAMESPACE = "neoncity"
 DEFAULT_DATA_VERSION = 0  # 0 means retain the highest source DataVersion.
-MAX_PATCH_AXIS = 48
+MAX_TEMPLATE_AXIS = 16
+MAX_ATLAS_CHUNKS = 16
 MIN_WORLD_Y = -64
 CITY_SURFACE_Y = 72
 MAX_PLACED_Y = 318
+PLACEMENT_ZONES = frozenset(("NEST", "BACKSTREETS"))
 
 TAG_END = 0
 TAG_BYTE = 1
@@ -674,10 +676,11 @@ def parse_selection(value: str) -> Selection:
     if min_x > max_x or min_z > max_z:
         raise argparse.ArgumentTypeError("selection minimum must not exceed maximum")
     selection = Selection(name, min_x, min_z, max_x, max_z)
-    if selection.size_x > MAX_PATCH_AXIS or selection.size_z > MAX_PATCH_AXIS:
+    if (selection.chunks_x > MAX_ATLAS_CHUNKS
+            or selection.chunks_z > MAX_ATLAS_CHUNKS):
         raise argparse.ArgumentTypeError(
-            f"selection exceeds vanilla's {MAX_PATCH_AXIS}-block structure axis; "
-            "split it into rectangles of at most 3x3 chunks"
+            f"selection exceeds the supported {MAX_ATLAS_CHUNKS}x"
+            f"{MAX_ATLAS_CHUNKS}-chunk coherent atlas; split it into smaller atlases"
         )
     return selection
 
@@ -761,6 +764,9 @@ def import_world(args: argparse.Namespace) -> dict[str, Any]:
         raise ImportFailure("at least one --selection is required")
     if not re.fullmatch(r"[0-9a-fA-F]{64}", args.source_sha256):
         raise ImportFailure("source SHA-256 must contain exactly 64 hexadecimal digits")
+    placement_zones = sorted(set(args.placement_zone or ("NEST", "BACKSTREETS")))
+    if not placement_zones or any(zone not in PLACEMENT_ZONES for zone in placement_zones):
+        raise ImportFailure("placement zones must be Nest or Backstreets")
     selections = [
         tile for selection in args.selection for tile in split_selection(selection)
     ]
@@ -847,6 +853,7 @@ def import_world(args: argparse.Namespace) -> dict[str, Any]:
         entry = {
             "id": patch_id,
             "district": args.district,
+            "placement_zones": placement_zones,
             "file": relative_file(output_path, catalog_path),
             "sha256": sha256_bytes(data),
             "compressed_bytes": len(data),
@@ -903,7 +910,8 @@ def import_world(args: argparse.Namespace) -> dict[str, Any]:
 
     atomic_write(catalog_path, json_bytes(catalog))
     # Validate the complete on-disk catalog, including pre-existing entries.
-    validate_catalog(catalog_path)
+    if not args.defer_catalog_validation:
+        validate_catalog(catalog_path)
     return {
         "status": "ok",
         "catalog": str(catalog_path),
@@ -937,8 +945,8 @@ def validate_structure(data: bytes, entry: dict[str, Any] | None = None) -> dict
         and all(isinstance(value, int) and value > 0 for value in size)
     ):
         raise ImportFailure("structure has invalid size")
-    if size[0] > MAX_PATCH_AXIS or size[2] > MAX_PATCH_AXIS:
-        raise ImportFailure("structure exceeds vanilla horizontal axis limit")
+    if size[0] > MAX_TEMPLATE_AXIS or size[2] > MAX_TEMPLATE_AXIS:
+        raise ImportFailure("runtime structure exceeds one complete chunk")
     if not isinstance(data_version, int) or data_version <= 0:
         raise ImportFailure("structure has invalid DataVersion")
     if not isinstance(palette, list) or not palette:
@@ -1010,6 +1018,7 @@ def validate_catalog(path: Path) -> dict[str, Any]:
     ids: set[str] = set()
     summaries = []
     atlas_groups: dict[str, set[tuple[int, int]]] = {}
+    atlas_zones: dict[str, tuple[str, ...]] = {}
     for entry in catalog["patches"]:
         if not isinstance(entry, dict) or not isinstance(entry.get("id"), str):
             raise ImportFailure("catalog contains a patch without an id")
@@ -1022,6 +1031,14 @@ def validate_catalog(path: Path) -> dict[str, Any]:
             raise ImportFailure(f"patch {patch_id} has an invalid A-Z district code")
         if not patch_id.startswith(f"{district.lower()}/"):
             raise ImportFailure(f"patch {patch_id} does not match district {district}")
+        placement_zones = entry.get("placement_zones", ["NEST", "BACKSTREETS"])
+        if (
+            not isinstance(placement_zones, list)
+            or not placement_zones
+            or len(placement_zones) != len(set(placement_zones))
+            or any(zone not in PLACEMENT_ZONES for zone in placement_zones)
+        ):
+            raise ImportFailure(f"patch {patch_id} has invalid placement zones")
         file_value = entry.get("file")
         if not isinstance(file_value, str):
             raise ImportFailure(f"patch {patch_id} has no file")
@@ -1088,9 +1105,14 @@ def validate_catalog(path: Path) -> dict[str, Any]:
             )
         match = _ATLAS_TILE.fullmatch(patch_id)
         if match:
-            atlas_groups.setdefault(match.group(1), set()).add(
+            atlas_id = match.group(1)
+            atlas_groups.setdefault(atlas_id, set()).add(
                 (int(match.group(2)), int(match.group(3)))
             )
+            zones = tuple(sorted(placement_zones))
+            previous_zones = atlas_zones.setdefault(atlas_id, zones)
+            if previous_zones != zones:
+                raise ImportFailure(f"atlas {atlas_id} mixes placement-zone contracts")
         summaries.append(summary)
     for atlas_id, coordinates in atlas_groups.items():
         max_x = max(value[0] for value in coordinates)
@@ -1098,9 +1120,12 @@ def validate_catalog(path: Path) -> dict[str, Any]:
         expected = {
             (x, z) for z in range(max_z + 1) for x in range(max_x + 1)
         }
-        if max_x > 2 or max_z > 2 or coordinates != expected:
+        if (max_x >= MAX_ATLAS_CHUNKS
+                or max_z >= MAX_ATLAS_CHUNKS
+                or coordinates != expected):
             raise ImportFailure(
-                f"atlas {atlas_id} is sparse or exceeds the supported 3x3 mosaic"
+                f"atlas {atlas_id} is sparse or exceeds the supported "
+                f"{MAX_ATLAS_CHUNKS}x{MAX_ATLAS_CHUNKS} mosaic"
             )
     return {
         "status": "ok",
@@ -1172,12 +1197,23 @@ def parser() -> argparse.ArgumentParser:
         help="source street/ground Y aligned to the generated city deck",
     )
     importer.add_argument(
+        "--placement-zone",
+        action="append",
+        choices=sorted(PLACEMENT_ZONES),
+        help="runtime zone allowed to use this atlas (repeatable)",
+    )
+    importer.add_argument(
         "--data-version",
         type=int,
         default=DEFAULT_DATA_VERSION,
         help="output DataVersion (default: highest selected source version)",
     )
     importer.add_argument("--allow-missing", action="store_true")
+    importer.add_argument(
+        "--defer-catalog-validation",
+        action="store_true",
+        help="validate newly written NBT now and defer the full catalog scan",
+    )
     importer.add_argument("--catalog", type=Path, default=default_catalog())
     importer.add_argument(
         "--output-dir",

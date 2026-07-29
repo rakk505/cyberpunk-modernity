@@ -1,0 +1,66 @@
+{
+  "bbox": [
+    35.691,
+    139.6965,
+    35.695,
+    139.702
+  ],
+  "city": "Tokyo / Shinjuku",
+  "culture": "Akihabara-Shibuya electric crossings and rail density",
+  "district": "Z",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "schema_version": 1,
+  "slug": "tokyo_shinjuku",
+  "source": {
+    "osm_file": "provenance/tokyo/shinjuku_core_osm.json",
+    "osm_sha256": "85d3e3801c76a7f1365dc1e4b7c05fb90ad45ed142d8d4ca8084df2a99ad0644"
+  },
+  "world": {
+    "build_path": "build/arnis_districts/z/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "34397869dc051a2e88e1dd7967a1c86a59d52b64e71f7aff9e8f56441f7019b3",
+    "metadata": {
+      "maxGeoLat": 35.695,
+      "maxGeoLon": 139.702,
+      "maxMcX": 496,
+      "maxMcZ": 444,
+      "minGeoLat": 35.691,
+      "minGeoLon": 139.6965,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "091b0ec140ac7da52bcbcdec0bb96c1e855a1f656f63c0c512f797ef2ff7393b",
+    "preview_sha256": "b1a73c7d65c426db981e99914671cd4a4a78d9b00d2aa80533eeb547ca85b1c0",
+    "regions": [
+      {
+        "bytes": 4440064,
+        "file": "r.0.0.mca",
+        "sha256": "1a388c2907e783f5ca3e262fa903e6d74a8ec402fef9b2071828b43960abf01b"
+      }
+    ]
+  }
+}

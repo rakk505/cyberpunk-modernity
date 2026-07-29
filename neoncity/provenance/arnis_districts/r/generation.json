@@ -1,0 +1,71 @@
+{
+  "bbox": [
+    34.666,
+    135.498,
+    34.67,
+    135.504
+  ],
+  "city": "Osaka / Namba",
+  "culture": "neon mercantile blocks and tight entertainment lanes",
+  "district": "R",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "schema_version": 1,
+  "slug": "osaka_namba",
+  "source": {
+    "osm_file": "provenance/arnis_districts/r/osaka_namba_osm.json",
+    "osm_sha256": "0a940c246290ed3500e0025a3dc27e6be4e0f69329fe3c8984c1224fcd352e59"
+  },
+  "world": {
+    "build_path": "build/arnis_districts/r/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "c79d67939bb6dfd3a9d1457048e741d1f519c6311b9693ec2e64847fdeac9d37",
+    "metadata": {
+      "maxGeoLat": 34.67,
+      "maxGeoLon": 135.504,
+      "maxMcX": 548,
+      "maxMcZ": 444,
+      "minGeoLat": 34.666,
+      "minGeoLon": 135.498,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "41762e0fad912cbcde13ccd35346d15bfb0393b96b1a1a824ce2520f8fa9737b",
+    "preview_sha256": "86d277304dc4a6dcca4302f6c3cfbae0f4ecbfae9cb073fc34ebaf326c7caba8",
+    "regions": [
+      {
+        "bytes": 4677632,
+        "file": "r.0.0.mca",
+        "sha256": "9e8173b981220cdcd7b68398a5763b80f1d8cb2c3e4ed83be9a3fb2764d4fe4d"
+      },
+      {
+        "bytes": 4210688,
+        "file": "r.1.0.mca",
+        "sha256": "728a1062e11827151a38a11c761540156d38c6227081937e7c21edf65daf239b"
+      }
+    ]
+  }
+}

@@ -9,6 +9,7 @@ import java.util.Optional;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
+import net.minecraft.core.Vec3i;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
@@ -26,6 +27,8 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.RailShape;
 import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.level.levelgen.structure.BoundingBox;
+import net.minecraft.world.level.levelgen.structure.templatesystem.LiquidSettings;
 import net.minecraft.world.level.storage.LevelData;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
@@ -45,7 +48,7 @@ public final class NeonCityGenerator {
 
     public static final String NAMESPACE = "neoncity";
     public static final String GENERATOR_FINGERPRINT =
-            "project-moon-megacity-v5-cultural-atlases-20260729";
+            "project-moon-megacity-v6-arnis-district-atlases-20260729";
     public static final int CITY_GROUND_Y = 72;
     public static final int WATER_Y = 67;
     public static final int ENQUEUE_RADIUS_CHUNKS = 7;
@@ -272,14 +275,6 @@ public final class NeonCityGenerator {
         try {
             Optional<ArnisPatchLibrary.Placement> patchPlacement =
                     ArnisPatchLibrary.select(layout, chunk.x(), chunk.z());
-            StructureTemplate patchTemplate = patchPlacement
-                    .flatMap(placement -> level.getStructureManager().get(placement.patch().templateId()))
-                    .orElse(null);
-            if (patchPlacement.isPresent() && patchTemplate == null) {
-                LOGGER.error("[NeonCity] audited Arnis template {} is missing; chunk {} will retry",
-                        patchPlacement.get().patch().templateId(), chunk);
-                return false;
-            }
             Map<Long, AlleyMaze.Plan> alleyPlans = new HashMap<>();
             BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
             int minX = chunk.getMinBlockX();
@@ -290,6 +285,31 @@ public final class NeonCityGenerator {
                     samples[sampleZ][sampleX] = sample(
                             minX + sampleX - 1, minZ + sampleZ - 1, alleyPlans);
                 }
+            }
+
+            // Arnis is the default for ordinary developed land. Graph crossings, district
+            // borders, and culture-specific infrastructure keep the procedural implementation
+            // that can cross chunk and district boundaries safely.
+            if (patchPlacement.isPresent()
+                    && !isOrdinaryArnisChunk(samples, patchPlacement.get().patch().district())) {
+                patchPlacement = Optional.empty();
+            }
+            StructureTemplate patchTemplate = patchPlacement
+                    .flatMap(placement -> level.getStructureManager().get(placement.patch().templateId()))
+                    .orElse(null);
+            if (patchPlacement.isPresent() && patchTemplate == null) {
+                LOGGER.error("[NeonCity] audited Arnis template {} is missing; chunk {} will retry",
+                        patchPlacement.get().patch().templateId(), chunk);
+                return false;
+            }
+            if (patchPlacement.isPresent()
+                    && !templateMatchesCatalog(patchTemplate, patchPlacement.get().patch())) {
+                LOGGER.error("[NeonCity] Arnis template {} size {} disagrees with audited {}x{}x{}; chunk {} will retry",
+                        patchPlacement.get().patch().templateId(), patchTemplate.getSize(),
+                        patchPlacement.get().patch().sizeX(),
+                        patchPlacement.get().patch().sizeY(),
+                        patchPlacement.get().patch().sizeZ(), chunk);
+                return false;
             }
             for (int localZ = 0; localZ < 16; localZ++) {
                 for (int localX = 0; localX < 16; localX++) {
@@ -309,13 +329,61 @@ public final class NeonCityGenerator {
                 }
             }
             if (patchTemplate != null && patchPlacement.isPresent()) {
-                placeArnisPatch(level, chunk, patchPlacement.get(), patchTemplate);
+                if (!placeArnisPatch(level, chunk, patchPlacement.get(), patchTemplate)) {
+                    return false;
+                }
             }
             return true;
         } catch (RuntimeException exception) {
             LOGGER.error("[NeonCity] failed generating chunk {}", chunk, exception);
             return false;
         }
+    }
+
+    private static boolean isOrdinaryArnisChunk(
+            UrbanSample[][] samples, District selectedDistrict) {
+        for (UrbanSample[] row : samples) {
+            for (UrbanSample sample : row) {
+                if (requiresProceduralInfrastructure(sample.roadClass())) return false;
+            }
+        }
+        // A center-selected atlas cell may touch an irregular district edge. Do not stamp its
+        // square footprint over wilderness or into another Corp; use the procedural edge pass.
+        for (int z = 1; z <= 16; z++) {
+            for (int x = 1; x <= 16; x++) {
+                UrbanSample sample = samples[z][x];
+                if (sample.district() != selectedDistrict
+                        || (sample.zone() != MegacityLayout.Zone.NEST
+                        && sample.zone() != MegacityLayout.Zone.BACKSTREETS)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private static boolean requiresProceduralInfrastructure(RoadClass roadClass) {
+        return switch (roadClass) {
+            case INTERDISTRICT_ROAD,
+                    BRIDGE,
+                    ELEVATED_RAIL,
+                    BORDER_RIVER,
+                    BORDER_HILLS,
+                    CANAL,
+                    PARK,
+                    HARBOR,
+                    FARM,
+                    EXTRACTION_SITE -> true;
+            default -> false;
+        };
+    }
+
+    private static boolean templateMatchesCatalog(
+            StructureTemplate template, ArnisPatchLibrary.Patch patch) {
+        Vec3i size = template.getSize();
+        return size.getX() == patch.sizeX()
+                && size.getY() == patch.sizeY()
+                && size.getZ() == patch.sizeZ();
     }
 
     private static void prepareArnisColumn(ServerLevel level, BlockPos.MutableBlockPos pos,
@@ -330,18 +398,51 @@ public final class NeonCityGenerator {
         set(level, pos, x, CITY_GROUND_Y, z, Blocks.SMOOTH_STONE.defaultBlockState());
     }
 
-    private static void placeArnisPatch(ServerLevel level, ChunkPos chunk,
-                                        ArnisPatchLibrary.Placement placement,
-                                        StructureTemplate template) {
+    private static boolean placeArnisPatch(ServerLevel level, ChunkPos chunk,
+                                           ArnisPatchLibrary.Placement placement,
+                                           StructureTemplate template) {
         ArnisPatchLibrary.Patch patch = placement.patch();
-        BlockPos origin = new BlockPos(
-                chunk.getMinBlockX(), CITY_GROUND_Y - patch.surfaceOffset(), chunk.getMinBlockZ());
+        int minX = chunk.getMinBlockX();
+        int minY = CITY_GROUND_Y - patch.surfaceOffset();
+        int minZ = chunk.getMinBlockZ();
+        BlockPos desiredMin = new BlockPos(minX, minY, minZ);
+        BlockPos anchor = template.getZeroPositionWithTransform(
+                desiredMin, placement.mirror(), placement.rotation());
+        BoundingBox destinationBounds = new BoundingBox(
+                minX, minY, minZ,
+                chunk.getMaxBlockX(), minY + patch.sizeY() - 1, chunk.getMaxBlockZ());
         StructurePlaceSettings settings = new StructurePlaceSettings()
                 .setIgnoreEntities(true)
-                .setKnownShape(true);
-        template.placeInWorld(
-                level, origin, origin, settings,
+                .setKnownShape(true)
+                .setMirror(placement.mirror())
+                .setRotation(placement.rotation())
+                .setLiquidSettings(LiquidSettings.IGNORE_WATERLOGGING)
+                .setBoundingBox(destinationBounds)
+                .addProcessor(new DistrictPaletteProcessor(
+                        patch.district(), patch.surfaceOffset()));
+        BoundingBox transformedBounds = template.getBoundingBox(settings, anchor);
+        if (!sameBounds(destinationBounds, transformedBounds)) {
+            LOGGER.error("[NeonCity] transformed Arnis template {} escaped chunk {}: expected {}, got {}",
+                    patch.templateId(), chunk, destinationBounds, transformedBounds);
+            return false;
+        }
+        boolean placed = template.placeInWorld(
+                level, anchor, anchor, settings,
                 RandomSource.create(placement.selectionHash()), PLACE_FLAGS);
+        if (!placed) {
+            LOGGER.error("[NeonCity] Arnis template {} refused placement into {}",
+                    patch.templateId(), chunk);
+        }
+        return placed;
+    }
+
+    private static boolean sameBounds(BoundingBox left, BoundingBox right) {
+        return left.minX() == right.minX()
+                && left.minY() == right.minY()
+                && left.minZ() == right.minZ()
+                && left.maxX() == right.maxX()
+                && left.maxY() == right.maxY()
+                && left.maxZ() == right.maxZ();
     }
 
     private static void buildColumn(ServerLevel level, BlockPos.MutableBlockPos pos,

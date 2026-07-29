@@ -1,0 +1,66 @@
+{
+  "bbox": [
+    51.533,
+    -0.128,
+    51.537,
+    -0.1215
+  ],
+  "city": "London / King's Cross",
+  "culture": "Victorian industrial brick and steamworks yards",
+  "district": "T",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "schema_version": 1,
+  "slug": "london_kings_cross",
+  "source": {
+    "osm_file": "provenance/arnis_districts/t/london_kings_cross_osm.json",
+    "osm_sha256": "4db54d49da049f5287be74714e42570f94f6795c0b366f4618eb3b05e0e58842"
+  },
+  "world": {
+    "build_path": "build/arnis_districts/t/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "7da999b935bd3a232d3138a44d6719469fc7f6ca587baba851e283a5cea84824",
+    "metadata": {
+      "maxGeoLat": 51.537,
+      "maxGeoLon": -0.1215,
+      "maxMcX": 449,
+      "maxMcZ": 444,
+      "minGeoLat": 51.533,
+      "minGeoLon": -0.128,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "71e4521ec9e2da902985ca623a4142e7d538bedd89e569a537acd2d6a017c01b",
+    "preview_sha256": "35b28184c8d6fea80876d596129643dc6c68008e8778d0977fbc4f6a952c4288",
+    "regions": [
+      {
+        "bytes": 4210688,
+        "file": "r.0.0.mca",
+        "sha256": "bc583469d31cc744d7c5676b1c6797a19d93a15e6e43c24f3bc2370d1a14b67d"
+      }
+    ]
+  }
+}

@@ -91,10 +91,14 @@ public final class NeonCityCommand {
             return 0;
         }
         ArnisPatchLibrary.Placement found = placement.get();
+        String zone = found.patch().placementZones().iterator().next().name();
         source.sendSuccess(() -> Component.literal(String.format(
-                "%s atlas=%s chunk=(%d,%d) block=(%d,%d) sourceSurfaceY=%d",
-                district.label(), found.patch().catalogId(), found.chunkX(), found.chunkZ(),
-                found.chunkX() << 4, found.chunkZ() << 4, found.patch().sourceSurfaceY())), false);
+                "%s zone=%s atlas=%s chunk=(%d,%d) block=(%d,%d) sourceTile=(%d,%d) "
+                        + "transform=%s/%s sourceSurfaceY=%d",
+                district.label(), zone, found.patch().catalogId(), found.chunkX(), found.chunkZ(),
+                found.chunkX() << 4, found.chunkZ() << 4,
+                found.sourceTileX(), found.sourceTileZ(), found.mirror(), found.rotation(),
+                found.patch().sourceSurfaceY())), false);
         return 1;
     }
 }

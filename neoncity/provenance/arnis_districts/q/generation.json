@@ -1,0 +1,71 @@
+{
+  "bbox": [
+    35.168,
+    136.88,
+    35.172,
+    136.886
+  ],
+  "city": "Nagoya / Meieki",
+  "culture": "manufacturing metro, rail blocks, and commercial towers",
+  "district": "Q",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "schema_version": 1,
+  "slug": "nagoya_meieki",
+  "source": {
+    "osm_file": "provenance/arnis_districts/q/nagoya_meieki_osm.json",
+    "osm_sha256": "e9f84cc91342b12b9344e3df75dc6bf606f27057bc58d25a60fb79170d59454d"
+  },
+  "world": {
+    "build_path": "build/arnis_districts/q/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "8e2ef7a77391b9776fda55bfa921011bf45d70f6c4aab18042061e2ff5b66bf3",
+    "metadata": {
+      "maxGeoLat": 35.172,
+      "maxGeoLon": 136.886,
+      "maxMcX": 545,
+      "maxMcZ": 444,
+      "minGeoLat": 35.168,
+      "minGeoLon": 136.88,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "3a64a80f0a85aba5c2c67ad7f54a2f66a7bbb036cad4dce123b7285ee9a3117a",
+    "preview_sha256": "b6a1430b44cb74b5e109c4bbd1b43cbda9f06d8961d6c46b0b186d6834a62cd7",
+    "regions": [
+      {
+        "bytes": 4308992,
+        "file": "r.0.0.mca",
+        "sha256": "e69468bbce21cefcee6d2694dc8a8d88304e9d982830a5ec8a22c02e79b68699"
+      },
+      {
+        "bytes": 4210688,
+        "file": "r.1.0.mca",
+        "sha256": "323444aff738620b44168e6c633100e2f5069b5f186d880b4c18551da2acbbfc"
+      }
+    ]
+  }
+}

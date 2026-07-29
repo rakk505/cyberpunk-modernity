@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "arnis_version": "3.0.0",
+  "arnis_binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+  "generation": {
+    "projection": "local",
+    "scale": 1.0,
+    "ground_level": -62,
+    "terrain": false,
+    "fillground": true,
+    "overture": false,
+    "external_3d_and_schematic_props": false,
+    "map_preview": true,
+    "map_item": false,
+    "gamemode": "creative",
+    "world_time": 18000
+  },
+  "atlas": {
+    "chunks_per_axis": 8,
+    "zones": ["NEST", "BACKSTREETS"],
+    "source_min_y": -62,
+    "source_max_y": 184,
+    "surface_y": -62
+  },
+  "districts": [
+    {"district":"A","slug":"canary_wharf","city":"London / Canary Wharf","culture":"monumental dark corporate towers and plazas","bbox":[51.5020,-0.0250,51.5060,-0.0185]},
+    {"district":"B","slug":"palo_alto","city":"Palo Alto / University Avenue","culture":"Bay Area garden campus and park urbanism","bbox":[37.4410,-122.1665,37.4450,-122.1605]},
+    {"district":"C","slug":"portland_pearl","city":"Portland / Pearl District","culture":"brick, timber, greenways, and compact mixed-use blocks","bbox":[45.5220,-122.6845,45.5260,-122.6785]},
+    {"district":"D","slug":"bellevue","city":"Bellevue downtown","culture":"Seattle-Bellevue glass skyline threaded through evergreens","bbox":[47.6080,-122.2040,47.6120,-122.1975]},
+    {"district":"E","slug":"mexico_city_centro","city":"Mexico City / Centro Historico","culture":"warm masonry, courtyards, and medium-height urban fabric","bbox":[19.4320,-99.1375,19.4360,-99.1320]},
+    {"district":"F","slug":"miami_beach","city":"Miami Beach / Art Deco Historic District","culture":"tropical pastel art deco and coastal streets","bbox":[25.7790,-80.1350,25.7830,-80.1295]},
+    {"district":"G","slug":"jakarta_scbd","city":"Jakarta / SCBD","culture":"tropical vertical density and superblock towers","bbox":[-6.2290,106.8060,-6.2250,106.8120]},
+    {"district":"H","slug":"hong_kong_mong_kok","city":"Hong Kong / Mong Kok","culture":"hyper-dense podium towers, alleys, and vertical streets","bbox":[22.3170,114.1670,22.3210,114.1725]},
+    {"district":"I","slug":"rome_centro","city":"Rome / historic center","culture":"classical stone, terraces, courts, and radial lanes","bbox":[41.8970,12.4750,41.9010,12.4810]},
+    {"district":"J","slug":"macau_cotai","city":"Macau / Cotai","culture":"Macau-Las Vegas spectacle and casino megablocks","bbox":[22.1450,113.5550,22.1490,113.5610]},
+    {"district":"K","slug":"kendall_square","city":"Cambridge / Kendall Square","culture":"clean scientific campuses and research complexes","bbox":[42.3610,-71.0910,42.3650,-71.0850]},
+    {"district":"L","slug":"seoul_gangnam","city":"Seoul / Gangnam","culture":"Seoul metropolitan towers, podiums, and superblocks","bbox":[37.4992,127.0345,37.5032,127.0400],"existing_osm":"provenance/seoul/seoul_gangnam_osm.json"},
+    {"district":"M","slug":"toronto_financial","city":"Toronto / Financial District","culture":"metropolitan slabs, towers, and mixed skyline","bbox":[43.6470,-79.3840,43.6510,-79.3780]},
+    {"district":"N","slug":"paris_opera","city":"Paris / Opera","culture":"Haussmann perimeter blocks and grand boulevards","bbox":[48.8680,2.3290,48.8720,2.3355]},
+    {"district":"O","slug":"vienna_innere_stadt","city":"Vienna / Innere Stadt","culture":"grand stone blocks, courts, domes, and ring streets","bbox":[48.2060,16.3690,48.2100,16.3755]},
+    {"district":"P","slug":"manhattan_midtown","city":"New York / Midtown East","culture":"dense Manhattan art deco towers and stepped crowns","bbox":[40.7500,-73.9800,40.7540,-73.9740]},
+    {"district":"Q","slug":"nagoya_meieki","city":"Nagoya / Meieki","culture":"manufacturing metro, rail blocks, and commercial towers","bbox":[35.1680,136.8800,35.1720,136.8860]},
+    {"district":"R","slug":"osaka_namba","city":"Osaka / Namba","culture":"neon mercantile blocks and tight entertainment lanes","bbox":[34.6660,135.4980,34.6700,135.5040]},
+    {"district":"S","slug":"busan_nampo","city":"Busan / Nampo","culture":"Busan core transitioning to Korean low-rise and agricultural edges","bbox":[35.0960,129.0280,35.1000,129.0340]},
+    {"district":"T","slug":"london_kings_cross","city":"London / King's Cross","culture":"Victorian industrial brick and steamworks yards","bbox":[51.5330,-0.1280,51.5370,-0.1215]},
+    {"district":"U","slug":"rotterdam_port","city":"Rotterdam / Waalhaven","culture":"major shipping port, quays, warehouses, and cargo corridors","bbox":[51.8930,4.4380,51.8970,4.4450]},
+    {"district":"V","slug":"zurich_limmat","city":"Zurich / Limmat and old town","culture":"Swiss masonry, riverside blocks, bridges, and canal-like water","bbox":[47.3700,8.5390,47.3740,8.5455]},
+    {"district":"W","slug":"shenzhen_futian","city":"Shenzhen / Futian CBD","culture":"Shenzhen future skyline and monumental axes","bbox":[22.5370,114.0520,22.5410,114.0580]},
+    {"district":"X","slug":"hanoi_old_quarter","city":"Hanoi / Old Quarter","culture":"Hanoi shop-house fabric with industrial extraction outskirts","bbox":[21.0310,105.8480,21.0350,105.8540]},
+    {"district":"Y","slug":"stockholm_norrmalm","city":"Stockholm / Norrmalm","culture":"Nordic-Muscovite winter blocks and broad prospects","bbox":[59.3300,18.0620,59.3340,18.0685]},
+    {"district":"Z","slug":"tokyo_shinjuku","city":"Tokyo / Shinjuku","culture":"Akihabara-Shibuya electric crossings and rail density","bbox":[35.6910,139.6965,35.6950,139.7020],"existing_osm":"provenance/tokyo/shinjuku_core_osm.json"}
+  ]
+}

@@ -1,0 +1,1534 @@
+{
+  "arnis_binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+  "arnis_version": "3.0.0",
+  "atlas_count": 52,
+  "chunk_template_count": 3328,
+  "chunks_per_atlas": 64,
+  "description": "Labeled crops from provenance-audited Arnis source previews; this is selection evidence, not a Minecraft client screenshot.",
+  "distinct_source_preview_crop_count": 52,
+  "district_count": 26,
+  "districts": [
+    {
+      "city": "London / Canary Wharf",
+      "culture": "monumental dark corporate towers and plazas",
+      "district": "A",
+      "preview": "build/arnis_districts/a/Arnis World 1/arnis_world_map.png",
+      "preview_sha256": "552a38b16def228dcd0bf2e2dc47005215d01025d4d31c1835427c8efbafd1e7",
+      "selection_record": "provenance/arnis_districts/a/selection.json",
+      "zones": {
+        "BACKSTREETS": {
+          "chunk_bounds_inclusive": [
+            9,
+            3,
+            16,
+            10
+          ],
+          "selection": "backstreets=9,3:16,10",
+          "source_metrics": {
+            "above_surface_blocks": 121826,
+            "max_height_above_surface": 66,
+            "occupied_chunks": 63,
+            "road_surface_cells": 3319,
+            "vegetation_blocks": 2648,
+            "water_blocks": 49
+          },
+          "source_preview_crop_rgb_sha256": "46aa46989da44be396a6567521b79f1ed6374774425e3c9080e465fb9eb88fcf",
+          "source_preview_pixel_box_exclusive": [
+            144,
+            48,
+            272,
+            176
+          ]
+        },
+        "NEST": {
+          "chunk_bounds_inclusive": [
+            18,
+            5,
+            25,
+            12
+          ],
+          "selection": "nest=18,5:25,12",
+          "source_metrics": {
+            "above_surface_blocks": 413116,
+            "max_height_above_surface": 246,
+            "occupied_chunks": 61,
+            "road_surface_cells": 1729,
+            "vegetation_blocks": 2807,
+            "water_blocks": 285
+          },
+          "source_preview_crop_rgb_sha256": "1fedb00967e83510a116b3183d5877b0c686b00ecf424d43d52e0f497f81666e",
+          "source_preview_pixel_box_exclusive": [
+            288,
+            80,
+            416,
+            208
+          ]
+        }
+      }
+    },
+    {
+      "city": "Palo Alto / University Avenue",
+      "culture": "Bay Area garden campus and park urbanism",
+      "district": "B",
+      "preview": "build/arnis_districts/b/Arnis World 1/arnis_world_map.png",
+      "preview_sha256": "3f5793d1c29b775316aba18aa0017e9bf457216cae0fa3b805a0de42d346a776",
+      "selection_record": "provenance/arnis_districts/b/selection.json",
+      "zones": {
+        "BACKSTREETS": {
+          "chunk_bounds_inclusive": [
+            5,
+            5,
+            12,
+            12
+          ],
+          "selection": "backstreets=5,5:12,12",
+          "source_metrics": {
+            "above_surface_blocks": 28288,
+            "max_height_above_surface": 27,
+            "occupied_chunks": 53,
+            "road_surface_cells": 3986,
+            "vegetation_blocks": 8501,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "35577ddcfef2dd5e051b6b16a4243dcfae7f94a1157ade75f031bee757b89ec2",
+          "source_preview_pixel_box_exclusive": [
+            80,
+            80,
+            208,
+            208
+          ]
+        },
+        "NEST": {
+          "chunk_bounds_inclusive": [
+            25,
+            6,
+            32,
+            13
+          ],
+          "selection": "nest=25,6:32,13",
+          "source_metrics": {
+            "above_surface_blocks": 60602,
+            "max_height_above_surface": 38,
+            "occupied_chunks": 63,
+            "road_surface_cells": 3059,
+            "vegetation_blocks": 2,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "ea0e32a94c55484d2213aa9d96026a911ff2ce3d9fd790e90cf26668fa2abc38",
+          "source_preview_pixel_box_exclusive": [
+            400,
+            96,
+            528,
+            224
+          ]
+        }
+      }
+    },
+    {
+      "city": "Portland / Pearl District",
+      "culture": "brick, timber, greenways, and compact mixed-use blocks",
+      "district": "C",
+      "preview": "build/arnis_districts/c/Arnis World 1/arnis_world_map.png",
+      "preview_sha256": "79b72c172bbc8b81febf6325d73b6b5db7a3dbf73d690ec519dfce59b3940b48",
+      "selection_record": "provenance/arnis_districts/c/selection.json",
+      "zones": {
+        "BACKSTREETS": {
+          "chunk_bounds_inclusive": [
+            13,
+            0,
+            20,
+            7
+          ],
+          "selection": "backstreets=13,0:20,7",
+          "source_metrics": {
+            "above_surface_blocks": 70884,
+            "max_height_above_surface": 55,
+            "occupied_chunks": 59,
+            "road_surface_cells": 3482,
+            "vegetation_blocks": 143,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "e59a3f5e5873b8d9ca51df9db9e2ce9cf95679cff3ccdbcf1c6028deb9223c7d",
+          "source_preview_pixel_box_exclusive": [
+            208,
+            0,
+            336,
+            128
+          ]
+        },
+        "NEST": {
+          "chunk_bounds_inclusive": [
+            2,
+            19,
+            9,
+            26
+          ],
+          "selection": "nest=2,19:9,26",
+          "source_metrics": {
+            "above_surface_blocks": 105384,
+            "max_height_above_surface": 82,
+            "occupied_chunks": 59,
+            "road_surface_cells": 1547,
+            "vegetation_blocks": 963,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "a69e7ab3b59baadfa37e90135c02744253d3ecf839e6ce0aead1ce182f49b4c6",
+          "source_preview_pixel_box_exclusive": [
+            32,
+            304,
+            160,
+            432
+          ]
+        }
+      }
+    },
+    {
+      "city": "Bellevue downtown",
+      "culture": "Seattle-Bellevue glass skyline threaded through evergreens",
+      "district": "D",
+      "preview": "build/arnis_districts/d/Arnis World 1/arnis_world_map.png",
+      "preview_sha256": "32eb9580b0b579b2119d5d57eadafd8ffb67732917c9a734902fbd08d6c5ee1f",
+      "selection_record": "provenance/arnis_districts/d/selection.json",
+      "zones": {
+        "BACKSTREETS": {
+          "chunk_bounds_inclusive": [
+            14,
+            8,
+            21,
+            15
+          ],
+          "selection": "backstreets=14,8:21,15",
+          "source_metrics": {
+            "above_surface_blocks": 60478,
+            "max_height_above_surface": 78,
+            "occupied_chunks": 50,
+            "road_surface_cells": 4030,
+            "vegetation_blocks": 3058,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "62a84b02139d5123504f936aa94ffcd40428c639111ad8cb2ef2c0a2b8143240",
+          "source_preview_pixel_box_exclusive": [
+            224,
+            128,
+            352,
+            256
+          ]
+        },
+        "NEST": {
+          "chunk_bounds_inclusive": [
+            20,
+            0,
+            27,
+            7
+          ],
+          "selection": "nest=20,0:27,7",
+          "source_metrics": {
+            "above_surface_blocks": 168725,
+            "max_height_above_surface": 87,
+            "occupied_chunks": 54,
+            "road_surface_cells": 3858,
+            "vegetation_blocks": 3770,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "6a919db2bf2f26e07addcf308f77f47dc6588381967f0a0b404ecbec1d5a8f63",
+          "source_preview_pixel_box_exclusive": [
+            320,
+            0,
+            448,
+            128
+          ]
+        }
+      }
+    },
+    {
+      "city": "Mexico City / Centro Historico",
+      "culture": "warm masonry, courtyards, and medium-height urban fabric",
+      "district": "E",
+      "preview": "build/arnis_districts/e/Arnis World 1/arnis_world_map.png",
+      "preview_sha256": "2e266252cebd12492d523ef9d90798aa4f78a35e5b28535483015c2ba784f988",
+      "selection_record": "provenance/arnis_districts/e/selection.json",
+      "zones": {
+        "BACKSTREETS": {
+          "chunk_bounds_inclusive": [
+            19,
+            3,
+            26,
+            10
+          ],
+          "selection": "backstreets=19,3:26,10",
+          "source_metrics": {
+            "above_surface_blocks": 77450,
+            "max_height_above_surface": 76,
+            "occupied_chunks": 58,
+            "road_surface_cells": 2723,
+            "vegetation_blocks": 6120,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "6db246c6495527576b540490a5008928d64302b3480b057d266694d9ae0da286",
+          "source_preview_pixel_box_exclusive": [
+            304,
+            48,
+            432,
+            176
+          ]
+        },
+        "NEST": {
+          "chunk_bounds_inclusive": [
+            25,
+            8,
+            32,
+            15
+          ],
+          "selection": "nest=25,8:32,15",
+          "source_metrics": {
+            "above_surface_blocks": 230335,
+            "max_height_above_surface": 80,
+            "occupied_chunks": 57,
+            "road_surface_cells": 5827,
+            "vegetation_blocks": 3953,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "996b4fd1446097bbd74b04ad2c3deea64d494a5893b3fa675f43661318561017",
+          "source_preview_pixel_box_exclusive": [
+            400,
+            128,
+            528,
+            256
+          ]
+        }
+      }
+    },
+    {
+      "city": "Miami Beach / Art Deco Historic District",
+      "culture": "tropical pastel art deco and coastal streets",
+      "district": "F",
+      "preview": "build/arnis_districts/f/Arnis World 1/arnis_world_map.png",
+      "preview_sha256": "b44afa4b37f2ff9157b91498598e2e8b59c4d941e475cae9a823a8580fc0cefa",
+      "selection_record": "provenance/arnis_districts/f/selection.json",
+      "zones": {
+        "BACKSTREETS": {
+          "chunk_bounds_inclusive": [
+            3,
+            18,
+            10,
+            25
+          ],
+          "selection": "backstreets=3,18:10,25",
+          "source_metrics": {
+            "above_surface_blocks": 54707,
+            "max_height_above_surface": 29,
+            "occupied_chunks": 52,
+            "road_surface_cells": 5136,
+            "vegetation_blocks": 2846,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "d9cd63c94ab6d71dc99507f9ce1c5f820e45505af71b8750046a085b3100ec08",
+          "source_preview_pixel_box_exclusive": [
+            48,
+            288,
+            176,
+            416
+          ]
+        },
+        "NEST": {
+          "chunk_bounds_inclusive": [
+            18,
+            4,
+            25,
+            11
+          ],
+          "selection": "nest=18,4:25,11",
+          "source_metrics": {
+            "above_surface_blocks": 79856,
+            "max_height_above_surface": 47,
+            "occupied_chunks": 62,
+            "road_surface_cells": 2780,
+            "vegetation_blocks": 1,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "7ea4529a6df43697446379b5e4a4260167f385accfdd848764958478a9e0e662",
+          "source_preview_pixel_box_exclusive": [
+            288,
+            64,
+            416,
+            192
+          ]
+        }
+      }
+    },
+    {
+      "city": "Jakarta / SCBD",
+      "culture": "tropical vertical density and superblock towers",
+      "district": "G",
+      "preview": "build/arnis_districts/g/Arnis World 1/arnis_world_map.png",
+      "preview_sha256": "3f90d68da2d420fccc10d44d754c8edccfd19035b3b93cdededd779a1b700b25",
+      "selection_record": "provenance/arnis_districts/g/selection.json",
+      "zones": {
+        "BACKSTREETS": {
+          "chunk_bounds_inclusive": [
+            11,
+            0,
+            18,
+            7
+          ],
+          "selection": "backstreets=11,0:18,7",
+          "source_metrics": {
+            "above_surface_blocks": 103006,
+            "max_height_above_surface": 229,
+            "occupied_chunks": 42,
+            "road_surface_cells": 5246,
+            "vegetation_blocks": 3308,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "a474e5994e9d03a691468c73396a6f7eac514536305eb7d5670bb11baba9fe39",
+          "source_preview_pixel_box_exclusive": [
+            176,
+            0,
+            304,
+            128
+          ]
+        },
+        "NEST": {
+          "chunk_bounds_inclusive": [
+            1,
+            16,
+            8,
+            23
+          ],
+          "selection": "nest=1,16:8,23",
+          "source_metrics": {
+            "above_surface_blocks": 496298,
+            "max_height_above_surface": 246,
+            "occupied_chunks": 53,
+            "road_surface_cells": 4973,
+            "vegetation_blocks": 388,
+            "water_blocks": 682
+          },
+          "source_preview_crop_rgb_sha256": "c61bf313dba4ca7975d51d5bc7afe1a7f4d0334aba8f2af9bbcb8dcb991aa293",
+          "source_preview_pixel_box_exclusive": [
+            16,
+            256,
+            144,
+            384
+          ]
+        }
+      }
+    },
+    {
+      "city": "Hong Kong / Mong Kok",
+      "culture": "hyper-dense podium towers, alleys, and vertical streets",
+      "district": "H",
+      "preview": "build/arnis_districts/h/Arnis World 1/arnis_world_map.png",
+      "preview_sha256": "f86e517dec207fc051142156617b224b97915afa2c3219e413122df108946c3f",
+      "selection_record": "provenance/arnis_districts/h/selection.json",
+      "zones": {
+        "BACKSTREETS": {
+          "chunk_bounds_inclusive": [
+            20,
+            14,
+            27,
+            21
+          ],
+          "selection": "backstreets=20,14:27,21",
+          "source_metrics": {
+            "above_surface_blocks": 199373,
+            "max_height_above_surface": 107,
+            "occupied_chunks": 64,
+            "road_surface_cells": 3845,
+            "vegetation_blocks": 2,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "0300dba7d5d5064066d58d0e1cdfbab6e30f95899ea30925c3997c690f017b94",
+          "source_preview_pixel_box_exclusive": [
+            320,
+            224,
+            448,
+            352
+          ]
+        },
+        "NEST": {
+          "chunk_bounds_inclusive": [
+            6,
+            14,
+            13,
+            21
+          ],
+          "selection": "nest=6,14:13,21",
+          "source_metrics": {
+            "above_surface_blocks": 393170,
+            "max_height_above_surface": 246,
+            "occupied_chunks": 62,
+            "road_surface_cells": 2164,
+            "vegetation_blocks": 128,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "746fd662328b8612ea3264ba55f537e130ad694d85f1d1c9f746909c6befe37c",
+          "source_preview_pixel_box_exclusive": [
+            96,
+            224,
+            224,
+            352
+          ]
+        }
+      }
+    },
+    {
+      "city": "Rome / historic center",
+      "culture": "classical stone, terraces, courts, and radial lanes",
+      "district": "I",
+      "preview": "build/arnis_districts/i/Arnis World 1/arnis_world_map.png",
+      "preview_sha256": "de2675c69908c2408f227d33fe98af133adfad24ab0ce42ddd73c0ad5252cd30",
+      "selection_record": "provenance/arnis_districts/i/selection.json",
+      "zones": {
+        "BACKSTREETS": {
+          "chunk_bounds_inclusive": [
+            11,
+            0,
+            18,
+            7
+          ],
+          "selection": "backstreets=11,0:18,7",
+          "source_metrics": {
+            "above_surface_blocks": 76129,
+            "max_height_above_surface": 35,
+            "occupied_chunks": 62,
+            "road_surface_cells": 3035,
+            "vegetation_blocks": 513,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "e2394e6ffb506ff9ce81e6f2edc9bc3c963005b7d2ca2105d50f8e9990b1fc57",
+          "source_preview_pixel_box_exclusive": [
+            176,
+            0,
+            304,
+            128
+          ]
+        },
+        "NEST": {
+          "chunk_bounds_inclusive": [
+            7,
+            12,
+            14,
+            19
+          ],
+          "selection": "nest=7,12:14,19",
+          "source_metrics": {
+            "above_surface_blocks": 150456,
+            "max_height_above_surface": 51,
+            "occupied_chunks": 61,
+            "road_surface_cells": 2864,
+            "vegetation_blocks": 299,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "4c37315b74ea598f11e828518fc84e061b57b93919d97e8f95dbab6cb7d1041a",
+          "source_preview_pixel_box_exclusive": [
+            112,
+            192,
+            240,
+            320
+          ]
+        }
+      }
+    },
+    {
+      "city": "Macau / Cotai",
+      "culture": "Macau-Las Vegas spectacle and casino megablocks",
+      "district": "J",
+      "preview": "build/arnis_districts/j/Arnis World 1/arnis_world_map.png",
+      "preview_sha256": "23fe4409b238fb040ea4c13e3ea66b4c56fc5348536fda0220537b84304a0ee7",
+      "selection_record": "provenance/arnis_districts/j/selection.json",
+      "zones": {
+        "BACKSTREETS": {
+          "chunk_bounds_inclusive": [
+            4,
+            1,
+            11,
+            8
+          ],
+          "selection": "backstreets=4,1:11,8",
+          "source_metrics": {
+            "above_surface_blocks": 39015,
+            "max_height_above_surface": 24,
+            "occupied_chunks": 35,
+            "road_surface_cells": 5883,
+            "vegetation_blocks": 198,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "5573253b848cdfcba89bb54f955f90d6de949f7bed89590a8946e840922d2176",
+          "source_preview_pixel_box_exclusive": [
+            64,
+            16,
+            192,
+            144
+          ]
+        },
+        "NEST": {
+          "chunk_bounds_inclusive": [
+            0,
+            11,
+            7,
+            18
+          ],
+          "selection": "nest=0,11:7,18",
+          "source_metrics": {
+            "above_surface_blocks": 276748,
+            "max_height_above_surface": 218,
+            "occupied_chunks": 56,
+            "road_surface_cells": 2260,
+            "vegetation_blocks": 513,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "6fbe9bc2df35f915f53d909f902f70c18f713dddd6b9f3e587a91e81868a75cd",
+          "source_preview_pixel_box_exclusive": [
+            0,
+            176,
+            128,
+            304
+          ]
+        }
+      }
+    },
+    {
+      "city": "Cambridge / Kendall Square",
+      "culture": "clean scientific campuses and research complexes",
+      "district": "K",
+      "preview": "build/arnis_districts/k/Arnis World 1/arnis_world_map.png",
+      "preview_sha256": "c180df3f5b29a271648c70bda069ff93698c7feccf74fdbc6f1b95a747d0317e",
+      "selection_record": "provenance/arnis_districts/k/selection.json",
+      "zones": {
+        "BACKSTREETS": {
+          "chunk_bounds_inclusive": [
+            3,
+            19,
+            10,
+            26
+          ],
+          "selection": "backstreets=3,19:10,26",
+          "source_metrics": {
+            "above_surface_blocks": 92581,
+            "max_height_above_surface": 44,
+            "occupied_chunks": 58,
+            "road_surface_cells": 3773,
+            "vegetation_blocks": 17432,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "4ca067e3d606ab82fec29b1f28ddcf125b2511aec6c63dd71ec1d8a32f6cc93e",
+          "source_preview_pixel_box_exclusive": [
+            48,
+            304,
+            176,
+            432
+          ]
+        },
+        "NEST": {
+          "chunk_bounds_inclusive": [
+            19,
+            13,
+            26,
+            20
+          ],
+          "selection": "nest=19,13:26,20",
+          "source_metrics": {
+            "above_surface_blocks": 196518,
+            "max_height_above_surface": 107,
+            "occupied_chunks": 59,
+            "road_surface_cells": 2756,
+            "vegetation_blocks": 8928,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "e89e05a43a789a4cee09a1f7bef316730d3096d213b092061b287939391e0016",
+          "source_preview_pixel_box_exclusive": [
+            304,
+            208,
+            432,
+            336
+          ]
+        }
+      }
+    },
+    {
+      "city": "Seoul / Gangnam",
+      "culture": "Seoul metropolitan towers, podiums, and superblocks",
+      "district": "L",
+      "preview": "build/arnis_districts/l/Arnis World 1/arnis_world_map.png",
+      "preview_sha256": "cb461b85cab578b82e715af855de8c702ef845ae2233791d0b761123f28082f9",
+      "selection_record": "provenance/arnis_districts/l/selection.json",
+      "zones": {
+        "BACKSTREETS": {
+          "chunk_bounds_inclusive": [
+            19,
+            3,
+            26,
+            10
+          ],
+          "selection": "backstreets=19,3:26,10",
+          "source_metrics": {
+            "above_surface_blocks": 120714,
+            "max_height_above_surface": 168,
+            "occupied_chunks": 60,
+            "road_surface_cells": 4774,
+            "vegetation_blocks": 28,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "a5bbbd9021cef11df82d33740061e877249b2142b5afadaa7994ec032fa0b287",
+          "source_preview_pixel_box_exclusive": [
+            304,
+            48,
+            432,
+            176
+          ]
+        },
+        "NEST": {
+          "chunk_bounds_inclusive": [
+            6,
+            19,
+            13,
+            26
+          ],
+          "selection": "nest=6,19:13,26",
+          "source_metrics": {
+            "above_surface_blocks": 313934,
+            "max_height_above_surface": 208,
+            "occupied_chunks": 52,
+            "road_surface_cells": 4547,
+            "vegetation_blocks": 4209,
+            "water_blocks": 514
+          },
+          "source_preview_crop_rgb_sha256": "8cd94b415362f4528dc53988bc8f88fc89f75dd131205b7ee8aa1bd70d5797a4",
+          "source_preview_pixel_box_exclusive": [
+            96,
+            304,
+            224,
+            432
+          ]
+        }
+      }
+    },
+    {
+      "city": "Toronto / Financial District",
+      "culture": "metropolitan slabs, towers, and mixed skyline",
+      "district": "M",
+      "preview": "build/arnis_districts/m/Arnis World 1/arnis_world_map.png",
+      "preview_sha256": "071d937ee4cf0ca8fd7e315992c7ca91b52cbe78e3644317babc76c202486090",
+      "selection_record": "provenance/arnis_districts/m/selection.json",
+      "zones": {
+        "BACKSTREETS": {
+          "chunk_bounds_inclusive": [
+            8,
+            19,
+            15,
+            26
+          ],
+          "selection": "backstreets=8,19:15,26",
+          "source_metrics": {
+            "above_surface_blocks": 284896,
+            "max_height_above_surface": 226,
+            "occupied_chunks": 49,
+            "road_surface_cells": 4425,
+            "vegetation_blocks": 12239,
+            "water_blocks": 774
+          },
+          "source_preview_crop_rgb_sha256": "22273f50b76ee355c603f678478ca2997775bf79878e7565580ae201275f9fdd",
+          "source_preview_pixel_box_exclusive": [
+            128,
+            304,
+            256,
+            432
+          ]
+        },
+        "NEST": {
+          "chunk_bounds_inclusive": [
+            16,
+            3,
+            23,
+            10
+          ],
+          "selection": "nest=16,3:23,10",
+          "source_metrics": {
+            "above_surface_blocks": 540504,
+            "max_height_above_surface": 246,
+            "occupied_chunks": 61,
+            "road_surface_cells": 1575,
+            "vegetation_blocks": 6926,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "986be149144c126bffc973fcb41f35ced15ccf46729dcec9e020899edab0b5df",
+          "source_preview_pixel_box_exclusive": [
+            256,
+            48,
+            384,
+            176
+          ]
+        }
+      }
+    },
+    {
+      "city": "Paris / Opera",
+      "culture": "Haussmann perimeter blocks and grand boulevards",
+      "district": "N",
+      "preview": "build/arnis_districts/n/Arnis World 1/arnis_world_map.png",
+      "preview_sha256": "264b029a24869b043ea763a6fcf0bc61141ce7d58b6a3222d42f71c0c0dce192",
+      "selection_record": "provenance/arnis_districts/n/selection.json",
+      "zones": {
+        "BACKSTREETS": {
+          "chunk_bounds_inclusive": [
+            4,
+            1,
+            11,
+            8
+          ],
+          "selection": "backstreets=4,1:11,8",
+          "source_metrics": {
+            "above_surface_blocks": 96113,
+            "max_height_above_surface": 62,
+            "occupied_chunks": 62,
+            "road_surface_cells": 2723,
+            "vegetation_blocks": 39,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "6330bf443471dd0762852563f651944fbfd0ee6896bbef50bf92d13ef18bda81",
+          "source_preview_pixel_box_exclusive": [
+            64,
+            16,
+            192,
+            144
+          ]
+        },
+        "NEST": {
+          "chunk_bounds_inclusive": [
+            21,
+            16,
+            28,
+            23
+          ],
+          "selection": "nest=21,16:28,23",
+          "source_metrics": {
+            "above_surface_blocks": 148936,
+            "max_height_above_surface": 40,
+            "occupied_chunks": 63,
+            "road_surface_cells": 744,
+            "vegetation_blocks": 2061,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "e6d9977a4654b24ada354f514209e089dfe38471c57b4cd82957643ff162008f",
+          "source_preview_pixel_box_exclusive": [
+            336,
+            256,
+            464,
+            384
+          ]
+        }
+      }
+    },
+    {
+      "city": "Vienna / Innere Stadt",
+      "culture": "grand stone blocks, courts, domes, and ring streets",
+      "district": "O",
+      "preview": "build/arnis_districts/o/Arnis World 1/arnis_world_map.png",
+      "preview_sha256": "f2438060884bae1d110951e20f63e5fa8a9b0c0f27d5bdce9c4ad75ce016f4d7",
+      "selection_record": "provenance/arnis_districts/o/selection.json",
+      "zones": {
+        "BACKSTREETS": {
+          "chunk_bounds_inclusive": [
+            9,
+            4,
+            16,
+            11
+          ],
+          "selection": "backstreets=9,4:16,11",
+          "source_metrics": {
+            "above_surface_blocks": 126720,
+            "max_height_above_surface": 69,
+            "occupied_chunks": 58,
+            "road_surface_cells": 3849,
+            "vegetation_blocks": 103,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "c57233c924491bb62f5d981fbe5216fcce771f7a984f44e8e92bded6d8136a5d",
+          "source_preview_pixel_box_exclusive": [
+            144,
+            64,
+            272,
+            192
+          ]
+        },
+        "NEST": {
+          "chunk_bounds_inclusive": [
+            14,
+            8,
+            21,
+            15
+          ],
+          "selection": "nest=14,8:21,15",
+          "source_metrics": {
+            "above_surface_blocks": 191310,
+            "max_height_above_surface": 142,
+            "occupied_chunks": 58,
+            "road_surface_cells": 4186,
+            "vegetation_blocks": 80,
+            "water_blocks": 1
+          },
+          "source_preview_crop_rgb_sha256": "854c2f212ce0a64eeccbea52a14e25f9aab0f81e51460cb23f5ba5a09d4437af",
+          "source_preview_pixel_box_exclusive": [
+            224,
+            128,
+            352,
+            256
+          ]
+        }
+      }
+    },
+    {
+      "city": "New York / Midtown East",
+      "culture": "dense Manhattan art deco towers and stepped crowns",
+      "district": "P",
+      "preview": "build/arnis_districts/p/Arnis World 1/arnis_world_map.png",
+      "preview_sha256": "7c2f6c832b43b9554af47350142f987a58375784e175a9ab06165197c636a75b",
+      "selection_record": "provenance/arnis_districts/p/selection.json",
+      "zones": {
+        "BACKSTREETS": {
+          "chunk_bounds_inclusive": [
+            22,
+            15,
+            29,
+            22
+          ],
+          "selection": "backstreets=22,15:29,22",
+          "source_metrics": {
+            "above_surface_blocks": 330080,
+            "max_height_above_surface": 246,
+            "occupied_chunks": 54,
+            "road_surface_cells": 2231,
+            "vegetation_blocks": 247,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "959adc159d058f4a5265265fb99d10d82548c943b2c221b22eab7575854b9b97",
+          "source_preview_pixel_box_exclusive": [
+            352,
+            240,
+            480,
+            368
+          ]
+        },
+        "NEST": {
+          "chunk_bounds_inclusive": [
+            17,
+            3,
+            24,
+            10
+          ],
+          "selection": "nest=17,3:24,10",
+          "source_metrics": {
+            "above_surface_blocks": 600384,
+            "max_height_above_surface": 246,
+            "occupied_chunks": 64,
+            "road_surface_cells": 303,
+            "vegetation_blocks": 465,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "023bd16f5aad85494eade24aafd2cb44e9891884db03a47266d1ebe098a23d52",
+          "source_preview_pixel_box_exclusive": [
+            272,
+            48,
+            400,
+            176
+          ]
+        }
+      }
+    },
+    {
+      "city": "Nagoya / Meieki",
+      "culture": "manufacturing metro, rail blocks, and commercial towers",
+      "district": "Q",
+      "preview": "build/arnis_districts/q/Arnis World 1/arnis_world_map.png",
+      "preview_sha256": "b6a1430b44cb74b5e109c4bbd1b43cbda9f06d8961d6c46b0b186d6834a62cd7",
+      "selection_record": "provenance/arnis_districts/q/selection.json",
+      "zones": {
+        "BACKSTREETS": {
+          "chunk_bounds_inclusive": [
+            9,
+            6,
+            16,
+            13
+          ],
+          "selection": "backstreets=9,6:16,13",
+          "source_metrics": {
+            "above_surface_blocks": 73050,
+            "max_height_above_surface": 215,
+            "occupied_chunks": 60,
+            "road_surface_cells": 6037,
+            "vegetation_blocks": 0,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "30645070430048d9e41a210a24dcc55286c9ca6d6613c510b6fec061e6b8b2bf",
+          "source_preview_pixel_box_exclusive": [
+            144,
+            96,
+            272,
+            224
+          ]
+        },
+        "NEST": {
+          "chunk_bounds_inclusive": [
+            26,
+            6,
+            33,
+            13
+          ],
+          "selection": "nest=26,6:33,13",
+          "source_metrics": {
+            "above_surface_blocks": 226046,
+            "max_height_above_surface": 190,
+            "occupied_chunks": 56,
+            "road_surface_cells": 2988,
+            "vegetation_blocks": 90,
+            "water_blocks": 1136
+          },
+          "source_preview_crop_rgb_sha256": "771d32a6ce386fc4f20b1d4377647b84d97655393499c9b8d82aac915cf962dd",
+          "source_preview_pixel_box_exclusive": [
+            416,
+            96,
+            544,
+            224
+          ]
+        }
+      }
+    },
+    {
+      "city": "Osaka / Namba",
+      "culture": "neon mercantile blocks and tight entertainment lanes",
+      "district": "R",
+      "preview": "build/arnis_districts/r/Arnis World 1/arnis_world_map.png",
+      "preview_sha256": "86d277304dc4a6dcca4302f6c3cfbae0f4ecbfae9cb073fc34ebaf326c7caba8",
+      "selection_record": "provenance/arnis_districts/r/selection.json",
+      "zones": {
+        "BACKSTREETS": {
+          "chunk_bounds_inclusive": [
+            14,
+            5,
+            21,
+            12
+          ],
+          "selection": "backstreets=14,5:21,12",
+          "source_metrics": {
+            "above_surface_blocks": 106314,
+            "max_height_above_surface": 44,
+            "occupied_chunks": 60,
+            "road_surface_cells": 3380,
+            "vegetation_blocks": 808,
+            "water_blocks": 1349
+          },
+          "source_preview_crop_rgb_sha256": "730e7b9375297ae18da25efdfe325343073674b15f5137ac64306c118aeab688",
+          "source_preview_pixel_box_exclusive": [
+            224,
+            80,
+            352,
+            208
+          ]
+        },
+        "NEST": {
+          "chunk_bounds_inclusive": [
+            4,
+            15,
+            11,
+            22
+          ],
+          "selection": "nest=4,15:11,22",
+          "source_metrics": {
+            "above_surface_blocks": 149472,
+            "max_height_above_surface": 75,
+            "occupied_chunks": 63,
+            "road_surface_cells": 1831,
+            "vegetation_blocks": 3,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "902541c127205c9991518028b3cb4270bf64373dc5bca534a1f54d3623a3cd4d",
+          "source_preview_pixel_box_exclusive": [
+            64,
+            240,
+            192,
+            368
+          ]
+        }
+      }
+    },
+    {
+      "city": "Busan / Nampo",
+      "culture": "Busan core transitioning to Korean low-rise and agricultural edges",
+      "district": "S",
+      "preview": "build/arnis_districts/s/Arnis World 1/arnis_world_map.png",
+      "preview_sha256": "1fe50e5789d0b2a35b5852b7c7d535618b9cf03922f1af95f94ec6e51c2e2321",
+      "selection_record": "provenance/arnis_districts/s/selection.json",
+      "zones": {
+        "BACKSTREETS": {
+          "chunk_bounds_inclusive": [
+            10,
+            17,
+            17,
+            24
+          ],
+          "selection": "backstreets=10,17:17,24",
+          "source_metrics": {
+            "above_surface_blocks": 28153,
+            "max_height_above_surface": 27,
+            "occupied_chunks": 21,
+            "road_surface_cells": 7004,
+            "vegetation_blocks": 12,
+            "water_blocks": 373
+          },
+          "source_preview_crop_rgb_sha256": "ef19e92eaa092b7d2f1b92678ffd2b1268a3c67f3c989466e0f0071e83036e62",
+          "source_preview_pixel_box_exclusive": [
+            160,
+            272,
+            288,
+            400
+          ]
+        },
+        "NEST": {
+          "chunk_bounds_inclusive": [
+            4,
+            8,
+            11,
+            15
+          ],
+          "selection": "nest=4,8:11,15",
+          "source_metrics": {
+            "above_surface_blocks": 55278,
+            "max_height_above_surface": 63,
+            "occupied_chunks": 30,
+            "road_surface_cells": 5241,
+            "vegetation_blocks": 1,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "085f5ee86b8c8b37d94f4d8af3866a49e885016f7f6d8c11d3c1a741c10e854c",
+          "source_preview_pixel_box_exclusive": [
+            64,
+            128,
+            192,
+            256
+          ]
+        }
+      }
+    },
+    {
+      "city": "London / King's Cross",
+      "culture": "Victorian industrial brick and steamworks yards",
+      "district": "T",
+      "preview": "build/arnis_districts/t/Arnis World 1/arnis_world_map.png",
+      "preview_sha256": "35b28184c8d6fea80876d596129643dc6c68008e8778d0977fbc4f6a952c4288",
+      "selection_record": "provenance/arnis_districts/t/selection.json",
+      "zones": {
+        "BACKSTREETS": {
+          "chunk_bounds_inclusive": [
+            19,
+            14,
+            26,
+            21
+          ],
+          "selection": "backstreets=19,14:26,21",
+          "source_metrics": {
+            "above_surface_blocks": 36995,
+            "max_height_above_surface": 36,
+            "occupied_chunks": 53,
+            "road_surface_cells": 6781,
+            "vegetation_blocks": 69,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "788feed3ab5cdbbb0dc61c7619ca029b7bb4de1f03759207556792f567d94071",
+          "source_preview_pixel_box_exclusive": [
+            304,
+            224,
+            432,
+            352
+          ]
+        },
+        "NEST": {
+          "chunk_bounds_inclusive": [
+            6,
+            19,
+            13,
+            26
+          ],
+          "selection": "nest=6,19:13,26",
+          "source_metrics": {
+            "above_surface_blocks": 131799,
+            "max_height_above_surface": 63,
+            "occupied_chunks": 64,
+            "road_surface_cells": 2941,
+            "vegetation_blocks": 6033,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "2d32b424153c60f0333074256f2c26ae1406db63379e4e88b723791fafee3927",
+          "source_preview_pixel_box_exclusive": [
+            96,
+            304,
+            224,
+            432
+          ]
+        }
+      }
+    },
+    {
+      "city": "Rotterdam / Waalhaven",
+      "culture": "major shipping port, quays, warehouses, and cargo corridors",
+      "district": "U",
+      "preview": "build/arnis_districts/u/Arnis World 1/arnis_world_map.png",
+      "preview_sha256": "725e828eb9f914ada23d2cffd4d891f5fe55e7f59fbe0445a5f82aad04fda289",
+      "selection_record": "provenance/arnis_districts/u/selection.json",
+      "zones": {
+        "BACKSTREETS": {
+          "chunk_bounds_inclusive": [
+            11,
+            0,
+            18,
+            7
+          ],
+          "selection": "backstreets=11,0:18,7",
+          "source_metrics": {
+            "above_surface_blocks": 13099,
+            "max_height_above_surface": 29,
+            "occupied_chunks": 32,
+            "road_surface_cells": 1810,
+            "vegetation_blocks": 2884,
+            "water_blocks": 6789
+          },
+          "source_preview_crop_rgb_sha256": "63c99ceeeabfc711b9ed7a04fd311a88ea279fbcb4767fbdb0e8f6db12508c03",
+          "source_preview_pixel_box_exclusive": [
+            176,
+            0,
+            304,
+            128
+          ]
+        },
+        "NEST": {
+          "chunk_bounds_inclusive": [
+            19,
+            0,
+            26,
+            7
+          ],
+          "selection": "nest=19,0:26,7",
+          "source_metrics": {
+            "above_surface_blocks": 22800,
+            "max_height_above_surface": 29,
+            "occupied_chunks": 47,
+            "road_surface_cells": 1889,
+            "vegetation_blocks": 2247,
+            "water_blocks": 2289
+          },
+          "source_preview_crop_rgb_sha256": "c3d725b17dce134e6a1494faa6915d5c886a7a23fd6709eca1ee5aa389600230",
+          "source_preview_pixel_box_exclusive": [
+            304,
+            0,
+            432,
+            128
+          ]
+        }
+      }
+    },
+    {
+      "city": "Zurich / Limmat and old town",
+      "culture": "Swiss masonry, riverside blocks, bridges, and canal-like water",
+      "district": "V",
+      "preview": "build/arnis_districts/v/Arnis World 1/arnis_world_map.png",
+      "preview_sha256": "223a624d7a089d68c79a64720c516256ed2f89e758e1c88e99eb6f407106fe70",
+      "selection_record": "provenance/arnis_districts/v/selection.json",
+      "zones": {
+        "BACKSTREETS": {
+          "chunk_bounds_inclusive": [
+            21,
+            18,
+            28,
+            25
+          ],
+          "selection": "backstreets=21,18:28,25",
+          "source_metrics": {
+            "above_surface_blocks": 76150,
+            "max_height_above_surface": 65,
+            "occupied_chunks": 64,
+            "road_surface_cells": 2787,
+            "vegetation_blocks": 4532,
+            "water_blocks": 4
+          },
+          "source_preview_crop_rgb_sha256": "7b41210516c0b04409352f901851e32479f91400e00547c47b58e8455c16f015",
+          "source_preview_pixel_box_exclusive": [
+            336,
+            288,
+            464,
+            416
+          ]
+        },
+        "NEST": {
+          "chunk_bounds_inclusive": [
+            5,
+            19,
+            12,
+            26
+          ],
+          "selection": "nest=5,19:12,26",
+          "source_metrics": {
+            "above_surface_blocks": 107765,
+            "max_height_above_surface": 69,
+            "occupied_chunks": 63,
+            "road_surface_cells": 2093,
+            "vegetation_blocks": 3125,
+            "water_blocks": 1
+          },
+          "source_preview_crop_rgb_sha256": "8ad9f5a54f5bae23b460a9478d10e467781ad69e248a30fae87801a90fe9fe16",
+          "source_preview_pixel_box_exclusive": [
+            80,
+            304,
+            208,
+            432
+          ]
+        }
+      }
+    },
+    {
+      "city": "Shenzhen / Futian CBD",
+      "culture": "Shenzhen future skyline and monumental axes",
+      "district": "W",
+      "preview": "build/arnis_districts/w/Arnis World 1/arnis_world_map.png",
+      "preview_sha256": "f08d9643756a5d53a193dec23ef73b7cca84763d671fe333226f438f28197090",
+      "selection_record": "provenance/arnis_districts/w/selection.json",
+      "zones": {
+        "BACKSTREETS": {
+          "chunk_bounds_inclusive": [
+            24,
+            19,
+            31,
+            26
+          ],
+          "selection": "backstreets=24,19:31,26",
+          "source_metrics": {
+            "above_surface_blocks": 60602,
+            "max_height_above_surface": 123,
+            "occupied_chunks": 32,
+            "road_surface_cells": 6030,
+            "vegetation_blocks": 3438,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "6f02b2dbfb31da3cf183e127a10b033b138a51956d3ec0837c3d25343e5fc473",
+          "source_preview_pixel_box_exclusive": [
+            384,
+            304,
+            512,
+            432
+          ]
+        },
+        "NEST": {
+          "chunk_bounds_inclusive": [
+            28,
+            12,
+            35,
+            19
+          ],
+          "selection": "nest=28,12:35,19",
+          "source_metrics": {
+            "above_surface_blocks": 498620,
+            "max_height_above_surface": 196,
+            "occupied_chunks": 64,
+            "road_surface_cells": 622,
+            "vegetation_blocks": 0,
+            "water_blocks": 143
+          },
+          "source_preview_crop_rgb_sha256": "a9d239dcff88eb2cae0dc068c5da943ee97b013aad97f8b1280e8de7221e904b",
+          "source_preview_pixel_box_exclusive": [
+            448,
+            192,
+            576,
+            320
+          ]
+        }
+      }
+    },
+    {
+      "city": "Hanoi / Old Quarter",
+      "culture": "Hanoi shop-house fabric with industrial extraction outskirts",
+      "district": "X",
+      "preview": "build/arnis_districts/x/Arnis World 1/arnis_world_map.png",
+      "preview_sha256": "8a2511ac28a922d6435aa5a6b8358e9af924f7ab199d95b632c16ab0e4860949",
+      "selection_record": "provenance/arnis_districts/x/selection.json",
+      "zones": {
+        "BACKSTREETS": {
+          "chunk_bounds_inclusive": [
+            5,
+            13,
+            12,
+            20
+          ],
+          "selection": "backstreets=5,13:12,20",
+          "source_metrics": {
+            "above_surface_blocks": 87628,
+            "max_height_above_surface": 18,
+            "occupied_chunks": 63,
+            "road_surface_cells": 1765,
+            "vegetation_blocks": 2,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "20cbb46a71b86cc4da8d1b0fbd4acef37fb7368c5efd917979881f03008f5ccd",
+          "source_preview_pixel_box_exclusive": [
+            80,
+            208,
+            208,
+            336
+          ]
+        },
+        "NEST": {
+          "chunk_bounds_inclusive": [
+            2,
+            0,
+            9,
+            7
+          ],
+          "selection": "nest=2,0:9,7",
+          "source_metrics": {
+            "above_surface_blocks": 97237,
+            "max_height_above_surface": 35,
+            "occupied_chunks": 64,
+            "road_surface_cells": 491,
+            "vegetation_blocks": 4241,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "bc28e6019d96ce2636cc707f1ff8cf85dc66abb88e4da892c31c22e0f5fc4f5f",
+          "source_preview_pixel_box_exclusive": [
+            32,
+            0,
+            160,
+            128
+          ]
+        }
+      }
+    },
+    {
+      "city": "Stockholm / Norrmalm",
+      "culture": "Nordic-Muscovite winter blocks and broad prospects",
+      "district": "Y",
+      "preview": "build/arnis_districts/y/Arnis World 1/arnis_world_map.png",
+      "preview_sha256": "c9412fc5fbcd715096be9e52acd18948b1f5784c6b4882260901c70e1b7508c9",
+      "selection_record": "provenance/arnis_districts/y/selection.json",
+      "zones": {
+        "BACKSTREETS": {
+          "chunk_bounds_inclusive": [
+            9,
+            17,
+            16,
+            24
+          ],
+          "selection": "backstreets=9,17:16,24",
+          "source_metrics": {
+            "above_surface_blocks": 97434,
+            "max_height_above_surface": 44,
+            "occupied_chunks": 57,
+            "road_surface_cells": 3612,
+            "vegetation_blocks": 168,
+            "water_blocks": 55
+          },
+          "source_preview_crop_rgb_sha256": "5779ff5da17023162e450384412ce6ec38008d007a652be356ffe0063151271f",
+          "source_preview_pixel_box_exclusive": [
+            144,
+            272,
+            272,
+            400
+          ]
+        },
+        "NEST": {
+          "chunk_bounds_inclusive": [
+            14,
+            11,
+            21,
+            18
+          ],
+          "selection": "nest=14,11:21,18",
+          "source_metrics": {
+            "above_surface_blocks": 140742,
+            "max_height_above_surface": 54,
+            "occupied_chunks": 61,
+            "road_surface_cells": 2375,
+            "vegetation_blocks": 838,
+            "water_blocks": 29
+          },
+          "source_preview_crop_rgb_sha256": "3e9a17797cbd1b8b3a36e9e4c210dbbf64706b0a06646e1b8f2e576dab6f6f85",
+          "source_preview_pixel_box_exclusive": [
+            224,
+            176,
+            352,
+            304
+          ]
+        }
+      }
+    },
+    {
+      "city": "Tokyo / Shinjuku",
+      "culture": "Akihabara-Shibuya electric crossings and rail density",
+      "district": "Z",
+      "preview": "build/arnis_districts/z/Arnis World 1/arnis_world_map.png",
+      "preview_sha256": "b1a73c7d65c426db981e99914671cd4a4a78d9b00d2aa80533eeb547ca85b1c0",
+      "selection_record": "provenance/arnis_districts/z/selection.json",
+      "zones": {
+        "BACKSTREETS": {
+          "chunk_bounds_inclusive": [
+            14,
+            0,
+            21,
+            7
+          ],
+          "selection": "backstreets=14,0:21,7",
+          "source_metrics": {
+            "above_surface_blocks": 72449,
+            "max_height_above_surface": 95,
+            "occupied_chunks": 60,
+            "road_surface_cells": 6598,
+            "vegetation_blocks": 81,
+            "water_blocks": 0
+          },
+          "source_preview_crop_rgb_sha256": "68843ace260e429a97a803fde3ebcd8436c7678b4507bcce2d0ffd643878d61f",
+          "source_preview_pixel_box_exclusive": [
+            224,
+            0,
+            352,
+            128
+          ]
+        },
+        "NEST": {
+          "chunk_bounds_inclusive": [
+            1,
+            18,
+            8,
+            25
+          ],
+          "selection": "nest=1,18:8,25",
+          "source_metrics": {
+            "above_surface_blocks": 292111,
+            "max_height_above_surface": 216,
+            "occupied_chunks": 54,
+            "road_surface_cells": 4150,
+            "vegetation_blocks": 6164,
+            "water_blocks": 84
+          },
+          "source_preview_crop_rgb_sha256": "78e9ae7b32261fb9dd4308dc735e65d545647763a1a6e3fbf68c5cc2b8087d0b",
+          "source_preview_pixel_box_exclusive": [
+            16,
+            288,
+            144,
+            416
+          ]
+        }
+      }
+    }
+  ],
+  "generated_by": "tools/arnis/render_district_atlas_montage.py",
+  "kind": "neoncity:arnis_district_atlas_selection_montage",
+  "output": {
+    "height": 1357,
+    "path": "provenance/arnis_districts/atlas_montage.png",
+    "sha256": "4324ee998f9f44adc751fcd055daa891edf8ab4cb167d0f9de5bd148aff963a9",
+    "width": 1174
+  },
+  "outside_city": "vanilla wilderness",
+  "schema_version": 1,
+  "zones": [
+    "NEST",
+    "BACKSTREETS"
+  ]
+}

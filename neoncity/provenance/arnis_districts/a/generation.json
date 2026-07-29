@@ -1,0 +1,66 @@
+{
+  "bbox": [
+    51.502,
+    -0.025,
+    51.506,
+    -0.0185
+  ],
+  "city": "London / Canary Wharf",
+  "culture": "monumental dark corporate towers and plazas",
+  "district": "A",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "schema_version": 1,
+  "slug": "canary_wharf",
+  "source": {
+    "osm_file": "provenance/arnis_districts/a/canary_wharf_osm.json",
+    "osm_sha256": "764488fd43c79866e000f423ff9df75f25a516bdb2c062e57fa31d4519b45e83"
+  },
+  "world": {
+    "build_path": "build/arnis_districts/a/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "7a19c2e62f60a3fd273cf40d87be872603681816d7c32f33c3fcefa4ba1579dc",
+    "metadata": {
+      "maxGeoLat": 51.506,
+      "maxGeoLon": -0.0185,
+      "maxMcX": 449,
+      "maxMcZ": 444,
+      "minGeoLat": 51.502,
+      "minGeoLon": -0.025,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "7ac4df99d5ae056c77f51d1d8bee815ba46dcf8d78d735a545d69ad155db0df3",
+    "preview_sha256": "552a38b16def228dcd0bf2e2dc47005215d01025d4d31c1835427c8efbafd1e7",
+    "regions": [
+      {
+        "bytes": 4284416,
+        "file": "r.0.0.mca",
+        "sha256": "b444d9a2e9feb223ec2aee45077d96b8ae19dd17c41c2ea644c56da46b4d3aa7"
+      }
+    ]
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "bbox": [
+    59.33,
+    18.062,
+    59.334,
+    18.0685
+  ],
+  "city": "Stockholm / Norrmalm",
+  "culture": "Nordic-Muscovite winter blocks and broad prospects",
+  "district": "Y",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "schema_version": 1,
+  "slug": "stockholm_norrmalm",
+  "source": {
+    "osm_file": "provenance/arnis_districts/y/stockholm_norrmalm_osm.json",
+    "osm_sha256": "850d7b155de7e48672c4b2441440e072ffb1224a853bd0cec6f38f58096c66df"
+  },
+  "world": {
+    "build_path": "build/arnis_districts/y/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "4620f2b711357d1779b9c73c8143163c2b20165bd182edad295b6b70057afc19",
+    "metadata": {
+      "maxGeoLat": 59.334,
+      "maxGeoLon": 18.0685,
+      "maxMcX": 368,
+      "maxMcZ": 444,
+      "minGeoLat": 59.33,
+      "minGeoLon": 18.062,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "d2aaae668b5be1d5894f807fda5e31ca4e5c74b67ea5dd7df37bfdde476140cb",
+    "preview_sha256": "c9412fc5fbcd715096be9e52acd18948b1f5784c6b4882260901c70e1b7508c9",
+    "regions": [
+      {
+        "bytes": 4218880,
+        "file": "r.0.0.mca",
+        "sha256": "7e533e041d9504812de40ce0c2f17e25bbbd12b267faf0831ce123039a02001c"
+      }
+    ]
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "bbox": [
+    45.522,
+    -122.6845,
+    45.526,
+    -122.6785
+  ],
+  "city": "Portland / Pearl District",
+  "culture": "brick, timber, greenways, and compact mixed-use blocks",
+  "district": "C",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "schema_version": 1,
+  "slug": "portland_pearl",
+  "source": {
+    "osm_file": "provenance/arnis_districts/c/portland_pearl_osm.json",
+    "osm_sha256": "bcbd066fc21f7484628540ca91c846f40d62306fef19b687ad60107b69991555"
+  },
+  "world": {
+    "build_path": "build/arnis_districts/c/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "2e2cc4085f2659d9155b9d1232afc77f1c5f6cb80f0ad675f4ff6665ff552189",
+    "metadata": {
+      "maxGeoLat": 45.526,
+      "maxGeoLon": -122.6785,
+      "maxMcX": 467,
+      "maxMcZ": 444,
+      "minGeoLat": 45.522,
+      "minGeoLon": -122.6845,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "b440212311dd762b5f26b591216f901054786c518aec7d9de5aec6fcf66e03cc",
+    "preview_sha256": "79b72c172bbc8b81febf6325d73b6b5db7a3dbf73d690ec519dfce59b3940b48",
+    "regions": [
+      {
+        "bytes": 4210688,
+        "file": "r.0.0.mca",
+        "sha256": "fd945e984516f983faa3fa1943bf3a927807dad694eca75fd6e5c4807c2b30be"
+      }
+    ]
+  }
+}

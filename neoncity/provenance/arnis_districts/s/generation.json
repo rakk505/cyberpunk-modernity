@@ -1,0 +1,71 @@
+{
+  "bbox": [
+    35.096,
+    129.028,
+    35.1,
+    129.034
+  ],
+  "city": "Busan / Nampo",
+  "culture": "Busan core transitioning to Korean low-rise and agricultural edges",
+  "district": "S",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "schema_version": 1,
+  "slug": "busan_nampo",
+  "source": {
+    "osm_file": "provenance/arnis_districts/s/busan_nampo_osm.json",
+    "osm_sha256": "3c7fb1cbb58f3c14ccd420bd6a24d7b64a6d1d0b464e6e78a0189744c3fee41a"
+  },
+  "world": {
+    "build_path": "build/arnis_districts/s/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "9786ca254f823f4cdd5a599d10b3e631348f798851ea021f97a5b5659cd1f7f5",
+    "metadata": {
+      "maxGeoLat": 35.1,
+      "maxGeoLon": 129.034,
+      "maxMcX": 545,
+      "maxMcZ": 444,
+      "minGeoLat": 35.096,
+      "minGeoLon": 129.028,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "ddb6f5eb968f1ae4f52deafed3eed8cac9879f09cb5d1535204fa6a36f89f78e",
+    "preview_sha256": "1fe50e5789d0b2a35b5852b7c7d535618b9cf03922f1af95f94ec6e51c2e2321",
+    "regions": [
+      {
+        "bytes": 4202496,
+        "file": "r.0.0.mca",
+        "sha256": "6c7e7e4e51dccc8561e3b331f081ddaf792718d4606a2a68fc35052d5e97beab"
+      },
+      {
+        "bytes": 4202496,
+        "file": "r.1.0.mca",
+        "sha256": "7f866d4e48a8f93d1c985fa64fc1fd12f1302849a605106a5303fbb246e6e770"
+      }
+    ]
+  }
+}

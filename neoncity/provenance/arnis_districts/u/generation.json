@@ -1,0 +1,66 @@
+{
+  "bbox": [
+    51.893,
+    4.438,
+    51.897,
+    4.445
+  ],
+  "city": "Rotterdam / Waalhaven",
+  "culture": "major shipping port, quays, warehouses, and cargo corridors",
+  "district": "U",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "schema_version": 1,
+  "slug": "rotterdam_port",
+  "source": {
+    "osm_file": "provenance/arnis_districts/u/rotterdam_port_osm.json",
+    "osm_sha256": "b940d8644108d3ac9a6a9d5a11f12dfc6787ffb8afcb55c2214ef1198b825b1e"
+  },
+  "world": {
+    "build_path": "build/arnis_districts/u/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "da655b4300ee3bf48ebb3f144ac1bbc7d8b8f24a8fc24328e4d475e3363381c9",
+    "metadata": {
+      "maxGeoLat": 51.897,
+      "maxGeoLon": 4.445,
+      "maxMcX": 480,
+      "maxMcZ": 444,
+      "minGeoLat": 51.893,
+      "minGeoLon": 4.438,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "b8094388e0a688eadf0960cbd09ea5fbe55f205c595530ce579a3fdae4c9e7e1",
+    "preview_sha256": "725e828eb9f914ada23d2cffd4d891f5fe55e7f59fbe0445a5f82aad04fda289",
+    "regions": [
+      {
+        "bytes": 4202496,
+        "file": "r.0.0.mca",
+        "sha256": "d8070f2002be6387cebe7bb21f699eec0326ce88909cf3495ad824a4eac459b9"
+      }
+    ]
+  }
+}

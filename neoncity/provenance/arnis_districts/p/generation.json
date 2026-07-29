@@ -1,0 +1,66 @@
+{
+  "bbox": [
+    40.75,
+    -73.98,
+    40.754,
+    -73.974
+  ],
+  "city": "New York / Midtown East",
+  "culture": "dense Manhattan art deco towers and stepped crowns",
+  "district": "P",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "schema_version": 1,
+  "slug": "manhattan_midtown",
+  "source": {
+    "osm_file": "provenance/arnis_districts/p/manhattan_midtown_osm.json",
+    "osm_sha256": "4f6d5e7e840069c4a23929e01cfda91701d84460a1a57d6f83b557f816fa7b0e"
+  },
+  "world": {
+    "build_path": "build/arnis_districts/p/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "15acccb8e315686fb824cd4987fd2d2e7b608965335c581c8f0e79016d6532df",
+    "metadata": {
+      "maxGeoLat": 40.754,
+      "maxGeoLon": -73.974,
+      "maxMcX": 505,
+      "maxMcZ": 444,
+      "minGeoLat": 40.75,
+      "minGeoLon": -73.98,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "9119ec5d1f585f7cd76f4886dca163923cc16f531cb95dd48acebcbc4636a9a3",
+    "preview_sha256": "7c2f6c832b43b9554af47350142f987a58375784e175a9ab06165197c636a75b",
+    "regions": [
+      {
+        "bytes": 5611520,
+        "file": "r.0.0.mca",
+        "sha256": "ff66733d1b2e2e41ff68e3e09775894e1840da6f35958667b6d25ea959c58b5c"
+      }
+    ]
+  }
+}
