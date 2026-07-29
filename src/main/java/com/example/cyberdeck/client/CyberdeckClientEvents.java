@@ -1,7 +1,8 @@
 package com.example.cyberdeck.client;
 
 import com.example.cyberdeck.Cyberdeck;
-import com.example.cyberdeck.CyberdeckItems;
+import com.example.cyberdeck.cyberware.CyberwareAttachments;
+import com.example.cyberdeck.effect.CyberwareEffects;
 import com.example.cyberdeck.network.ActivateSkillPacket;
 import com.example.cyberdeck.network.CyberwareActionPacket;
 import com.example.cyberdeck.network.ToggleInterfacePacket;
@@ -9,7 +10,6 @@ import com.example.cyberdeck.movement.TacticalAction;
 import com.example.cyberdeck.movement.TacticalMovement;
 import com.example.cyberdeck.movement.TacticalMovementPacket;
 import net.minecraft.client.Minecraft;
-import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.neoforged.api.distmarker.Dist;
@@ -62,7 +62,7 @@ public final class CyberdeckClientEvents {
             return;
         }
 
-        // Open the cyberware screen (works regardless of the helmet - it's body augmentation).
+        // Open the cyberware screen regardless of the currently installed operating system.
         while (CyberdeckClient.OPEN_CYBERWARE_KEY.consumeClick()) {
             if (mc.gui.screen() == null) {
                 mc.setScreenAndShow(new com.example.cyberdeck.client.screen.CyberwareScreen());
@@ -77,9 +77,9 @@ public final class CyberdeckClientEvents {
             return;
         }
 
-        // Fire the toggle only when the player is wearing the helmet, to avoid hijacking TAB otherwise.
+        // The owner-synced cyberware attachment keeps TAB available when no cyberdeck OS is installed.
         while (CyberdeckClient.TOGGLE_KEY.consumeClick()) {
-            if (isWearingCyberdeck(mc.player)) {
+            if (CyberwareEffects.canQuickhack(CyberwareAttachments.get(mc.player))) {
                 ClientPacketDistributor.sendToServer(new ToggleInterfacePacket());
             }
         }
@@ -216,10 +216,6 @@ public final class CyberdeckClientEvents {
         quickhackUseLatched = false;
         QuickhackScannerClient.reset();
         QuickhackUploadClient.set(com.example.cyberdeck.network.QuickhackUploadPacket.NONE);
-    }
-
-    private static boolean isWearingCyberdeck(Player player) {
-        return player.getItemBySlot(EquipmentSlot.HEAD).is(CyberdeckItems.CYBERDECK.get());
     }
 
     private static boolean queueSelectedQuickhack(Minecraft minecraft) {

@@ -17,7 +17,7 @@ public final class CyberdeckItems {
     public static final DeferredRegister<CreativeModeTab> CREATIVE_MODE_TABS =
             DeferredRegister.create(Registries.CREATIVE_MODE_TAB, Cyberdeck.MODID);
 
-    // The cyberdeck helmet: an iron-helmet-format armor piece worn on the head.
+    // Legacy cosmetic helmet retained for existing worlds; scanner access comes from installed OS assets.
     public static final DeferredItem<Item> CYBERDECK = ITEMS.registerItem("cyberdeck",
             props -> new Item(props
                     .humanoidArmor(ArmorMaterials.IRON, ArmorType.HELMET)

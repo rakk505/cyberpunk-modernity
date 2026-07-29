@@ -9,6 +9,7 @@ import com.example.cyberdeck.cyberware.SandevistanProfile;
 import com.example.cyberdeck.cyberware.SlotUnlock;
 import com.example.cyberdeck.effect.SandevistanMechanics;
 import com.example.cyberdeck.effect.SandevistanState;
+import com.example.cyberdeck.effect.CyberwareEffects;
 import com.example.cyberdeck.faction.FactionEnemy;
 import com.example.cyberdeck.faction.FactionEntities;
 import com.example.cyberdeck.faction.FactionSpawns;
@@ -284,6 +285,18 @@ public final class CyberdeckGameTests {
         Cyberware high = Cyberware.byId("adrenaline_converter_t5");
         helper.assertTrue(low != null && high != null && !low.effect().equals(high.effect()),
                 "tier-specific effects must not be flattened");
+        Cyberware generatedDeck = Cyberware.byId("arasaka_mk_1_5_t1");
+        CyberwareData operatingSystem = new CyberwareData();
+        helper.assertTrue(generatedDeck != null
+                        && generatedDeck.slot() == BodySlot.OPERATING_SYSTEM
+                        && generatedDeck.hasFlag("cyberdeck"),
+                "generated cyberdeck assets must carry the quickhack capability");
+        operatingSystem.install(generatedDeck, 0);
+        helper.assertTrue(CyberwareEffects.canQuickhack(operatingSystem),
+                "installing a generated cyberdeck must authorize quickhacking");
+        operatingSystem.install(Cyberware.MILITECH_APOGEE, 0);
+        helper.assertFalse(CyberwareEffects.canQuickhack(operatingSystem),
+                "replacing the deck with a Sandevistan must revoke quickhacking");
         helper.assertTrue(SandevistanMechanics.slownessAmplifier(0.85) == 5,
                 "85% player slow should map to Slowness VI");
         helper.assertTrue(SandevistanMechanics.slownessAmplifier(0.20) == 0,

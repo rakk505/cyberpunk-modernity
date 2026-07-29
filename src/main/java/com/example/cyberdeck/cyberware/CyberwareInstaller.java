@@ -1,5 +1,7 @@
 package com.example.cyberdeck.cyberware;
 
+import com.example.cyberdeck.CyberdeckState;
+import com.example.cyberdeck.effect.CyberwareEffects;
 import com.example.cyberdeck.effect.CyberwarePassives;
 import com.example.cyberdeck.effect.SandevistanMechanics;
 
@@ -60,6 +62,7 @@ public final class CyberwareInstaller {
         if (cyberware.slot() == BodySlot.OPERATING_SYSTEM) {
             SandevistanMechanics.onOperatingSystemChanged(player, cyberware);
         }
+        reconcileQuickhackAccess(player, updated);
         CyberwarePassives.reapply(player);
         if (previous != null) {
             returnItem(player, previous);
@@ -103,6 +106,7 @@ public final class CyberwareInstaller {
         if (slot == BodySlot.OPERATING_SYSTEM) {
             SandevistanMechanics.onOperatingSystemChanged(player, null);
         }
+        reconcileQuickhackAccess(player, updated);
         CyberwarePassives.reapply(player);
         returnItem(player, removed);
         player.sendSystemMessage(Component.translatable("message.cyberdeck.removed",
@@ -130,6 +134,13 @@ public final class CyberwareInstaller {
         ItemStack stack = CyberwareItems.item(cyberware).get().getDefaultInstance();
         if (!player.getInventory().add(stack)) {
             player.drop(stack, false);
+        }
+    }
+
+    /** Replacing/removing the active deck must restore the hotbar and cancel queued uploads now. */
+    private static void reconcileQuickhackAccess(ServerPlayer player, CyberwareData data) {
+        if (!CyberwareEffects.canQuickhack(data)) {
+            CyberdeckState.deactivate(player);
         }
     }
 }

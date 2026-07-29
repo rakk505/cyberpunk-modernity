@@ -31,8 +31,8 @@ public final class CyberdeckCommands {
 
     private static int set(CommandSourceStack source, boolean active) throws CommandSyntaxException {
         ServerPlayer player = source.getPlayerOrException();
-        if (active && !CyberdeckState.isWearingCyberdeck(player)) {
-            source.sendFailure(Component.literal("Equip a Cyberdeck helmet first"));
+        if (active && !CyberdeckState.hasInstalledCyberdeck(player)) {
+            source.sendFailure(Component.translatable("message.cyberdeck.cyberdeck_required"));
             return 0;
         }
 

@@ -43,12 +43,12 @@ public final class ServerEvents {
         // Complete a gun reload once its timer elapses (and cancel it if the gun is put away).
         tickReload(player, level);
 
-        // Smart Link target acquisition is independent of the cyberdeck helmet/interface.
+        // Smart Link target acquisition is independent of the cyberdeck operating system/interface.
         com.example.cyberdeck.weapon.SmartTargeting.tick(player, level);
 
-        // Deactivate if the helmet was removed while active.
+        // Deactivate immediately if the installed operating system no longer supports quickhacks.
         if (player.getPersistentData().getBoolean("cyberdeck_active").orElse(false)
-                && !CyberdeckState.isWearingCyberdeck(player)) {
+                && !CyberdeckState.hasInstalledCyberdeck(player)) {
             CyberdeckState.deactivate(player);
             return;
         }
@@ -58,8 +58,8 @@ public final class ServerEvents {
             return;
         }
 
-        // Uploads are advanced only after mode and helmet validation, preventing a completion on
-        // the same tick that quickhacking is deactivated.
+        // Uploads are advanced only after mode and OS validation, preventing a completion on the
+        // same tick that quickhacking is deactivated.
         com.example.cyberdeck.skill.QuickhackUploads.tick(player, level);
 
         // Outline valid entities within the player's field of view while the cyberdeck is active.

@@ -1,8 +1,8 @@
 package com.example.cyberdeck;
 
+import com.example.cyberdeck.effect.CyberwareEffects;
 import com.example.cyberdeck.skill.Skill;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.HashMap;
@@ -27,20 +27,20 @@ public final class CyberdeckState {
     private CyberdeckState() {
     }
 
-    public static boolean isWearingCyberdeck(ServerPlayer player) {
-        ItemStack head = player.getItemBySlot(EquipmentSlot.HEAD);
-        return head.is(CyberdeckItems.CYBERDECK.get());
+    /** True when an installed Operating System asset grants quickhack access. */
+    public static boolean hasInstalledCyberdeck(ServerPlayer player) {
+        return CyberwareEffects.canQuickhack(player);
     }
 
     public static boolean isActive(ServerPlayer player) {
         return player.getPersistentData().getBoolean(ACTIVE_KEY).orElse(false)
-                && isWearingCyberdeck(player);
+                && hasInstalledCyberdeck(player);
     }
 
     public static void toggle(ServerPlayer player) {
         if (isActive(player)) {
             deactivate(player);
-        } else if (isWearingCyberdeck(player)) {
+        } else if (hasInstalledCyberdeck(player)) {
             activate(player);
         }
     }
@@ -48,7 +48,7 @@ public final class CyberdeckState {
     /** Sets scanner mode explicitly, used by the key toggle and the accessible command fallback. */
     public static void setActive(ServerPlayer player, boolean active) {
         if (active) {
-            if (!isActive(player) && isWearingCyberdeck(player)) {
+            if (!isActive(player) && hasInstalledCyberdeck(player)) {
                 activate(player);
             }
         } else {
