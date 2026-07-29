@@ -11,7 +11,9 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.gametest.framework.TestData;
 import net.minecraft.gametest.framework.TestEnvironmentDefinition;
 import net.minecraft.resources.Identifier;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.block.Rotation;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -20,13 +22,15 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.RegisterGameTestsEvent;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
+import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
+import net.neoforged.neoforge.event.entity.living.MobSpawnEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import org.slf4j.Logger;
 
-/** NeoForge entry point for the infinite Neon Megacity generator. */
+/** NeoForge entry point for the finite Project Moon Megacity generator. */
 @Mod(testmod.MODID)
 public final class testmod {
     public static final String MODID = "neoncity";
@@ -48,6 +52,27 @@ public final class testmod {
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             NEGATIVE_DETERMINISM = register(
                     "negative_determinism", ExampleGameTests::negativeDeterminism);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            DETERMINISTIC_SEED_LAYOUTS = register(
+                    "deterministic_seed_layouts", ExampleGameTests::deterministicSeedLayouts);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            CONNECTED_TRAVEL_GRAPH = register(
+                    "connected_travel_graph", ExampleGameTests::connectedTravelGraph);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            FINITE_CITY_WILDERNESS = register(
+                    "finite_city_wilderness", ExampleGameTests::finiteCityWilderness);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            DISTRICT_ZONES_AND_CULTURE = register(
+                    "district_zones_and_culture", ExampleGameTests::districtZonesAndCulture);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            CONNECTION_CONTINUITY = register(
+                    "connection_continuity", ExampleGameTests::connectionContinuity);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            SPECIAL_DISTRICT_INFRASTRUCTURE = register(
+                    "special_district_infrastructure", ExampleGameTests::specialDistrictInfrastructure);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            ARNIS_PATCH_SELECTION = register(
+                    "arnis_patch_selection", ExampleGameTests::arnisPatchSelection);
 
     private volatile boolean generationEnabled;
 
@@ -76,7 +101,7 @@ public final class testmod {
         int queued = NeonCityGenerator.enqueueAround(spawn.getX(), spawn.getZ());
         generationEnabled = true;
         LOGGER.info(
-                "[NeonCity] infinite generator enabled; prewarmed {} and queued {} chunks at {}",
+                "[NeonCity] finite 26-district generator enabled; prewarmed {} and queued {} chunks at {}",
                 prewarmed, queued, spawn);
     }
 
@@ -88,9 +113,42 @@ public final class testmod {
         if (event.getServer().getTickCount() % 10 == 0) {
             for (net.minecraft.server.level.ServerPlayer player : overworld.players()) {
                 NeonCityGenerator.enqueueAround(player.getBlockX(), player.getBlockZ());
+                if (NeonCityGenerator.districtAt(player.getBlockX(), player.getBlockZ())
+                        == District.Y_CORP
+                        && NeonCityGenerator.isInsideCity(player.getBlockX(), player.getBlockZ())) {
+                    overworld.sendParticles(
+                            ParticleTypes.SNOWFLAKE,
+                            player.getX(), player.getY() + 8.0, player.getZ(),
+                            18, 9.0, 5.0, 9.0, 0.01);
+                }
             }
         }
         NeonCityGenerator.tick(overworld);
+    }
+
+    /** Reject natural spawn placement before a mob is constructed. */
+    @SubscribeEvent
+    public void onSpawnPlacement(MobSpawnEvent.SpawnPlacementCheck event) {
+        if (generationEnabled && NeonCityGenerator.isMegacityWorld(event.getLevel().getLevel())
+                && NeonCityGenerator.isInsideCity(
+                event.getPos().getX(), event.getPos().getZ())) {
+            event.setResult(MobSpawnEvent.SpawnPlacementCheck.Result.FAIL);
+        }
+    }
+
+    /**
+     * Strict fallback for spawners, commands, other mods, and entities loaded
+     * from disk: no Mob is allowed to join the city at all.
+     */
+    @SubscribeEvent
+    public void onEntityJoin(EntityJoinLevelEvent event) {
+        if (!generationEnabled || !(event.getEntity() instanceof Mob)
+                || !(event.getLevel() instanceof ServerLevel level)
+                || !NeonCityGenerator.isMegacityWorld(level)) return;
+        if (NeonCityGenerator.isInsideCity(
+                event.getEntity().getBlockX(), event.getEntity().getBlockZ())) {
+            event.setCanceled(true);
+        }
     }
 
     @SubscribeEvent
@@ -126,6 +184,13 @@ public final class testmod {
         registerInstance(event, "organic_roads", ORGANIC_ROADS, data);
         registerInstance(event, "skyline_hierarchy", SKYLINE_HIERARCHY, data);
         registerInstance(event, "negative_determinism", NEGATIVE_DETERMINISM, data);
+        registerInstance(event, "deterministic_seed_layouts", DETERMINISTIC_SEED_LAYOUTS, data);
+        registerInstance(event, "connected_travel_graph", CONNECTED_TRAVEL_GRAPH, data);
+        registerInstance(event, "finite_city_wilderness", FINITE_CITY_WILDERNESS, data);
+        registerInstance(event, "district_zones_and_culture", DISTRICT_ZONES_AND_CULTURE, data);
+        registerInstance(event, "connection_continuity", CONNECTION_CONTINUITY, data);
+        registerInstance(event, "special_district_infrastructure", SPECIAL_DISTRICT_INFRASTRUCTURE, data);
+        registerInstance(event, "arnis_patch_selection", ARNIS_PATCH_SELECTION, data);
     }
 
     private static void registerInstance(

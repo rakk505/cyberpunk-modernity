@@ -26,6 +26,15 @@ sourceSets.main.resources {
     exclude("src/generated/**/.cache") // datagen cache files
 }
 
+// Keep Arnis patches beside their auditable catalog in source control, while
+// exposing the NBTs under vanilla's StructureTemplate resource path in the JAR.
+tasks.named('processResources', ProcessResources).configure {
+    from('src/main/resources/data/neoncity/arnis/structures') {
+        include '**/*.nbt'
+        into 'data/neoncity/structure/arnis'
+    }
+}
+
 repositories {
     // Add here additional repositories if required by some of the dependencies below.
 }
@@ -185,6 +194,12 @@ if (providers.gradleProperty('useCachedMinecraftArtifacts').orNull == 'true') {
     def cachedMinecraftJar = files(layout.buildDirectory.file(
             "moddev/artifacts/minecraft-patched-${neo_version}-merged.jar"))
     tasks.matching { it.name == 'createMinecraftArtifacts' }.configureEach {
+        enabled = false
+    }
+    // The managed verification sandbox also pre-populates the matching asset
+    // index and minecraft_assets.properties. Avoid an entitlement-blocked
+    // downloader subprocess there; ordinary builds still run downloadAssets.
+    tasks.matching { it.name == 'downloadAssets' }.configureEach {
         enabled = false
     }
     dependencies {

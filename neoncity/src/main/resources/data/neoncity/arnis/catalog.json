@@ -1,0 +1,125 @@
+{
+  "arnis_version": "3.0.0",
+  "format": "neoncity:arnis_patch_catalog",
+  "patches": [
+    {
+      "block_count": 2446,
+      "compressed_bytes": 6870,
+      "district": "Z",
+      "file": "structures/z/shinjuku_core.nbt",
+      "footprint": {
+        "anchor": {
+          "source_y": -64
+        },
+        "blocks": {
+          "x": 16,
+          "y": 162,
+          "z": 16
+        },
+        "chunks": {
+          "x": 1,
+          "z": 1
+        }
+      },
+      "id": "z/shinjuku_core",
+      "normalization": {
+        "air": "omitted",
+        "block_entity_payloads": "stripped",
+        "canonical_order": "y,z,x",
+        "dangerous_blocks": {},
+        "entities": "stripped",
+        "gzip_mtime": 0,
+        "missing_chunks_as_air": [],
+        "source_block_entities": {},
+        "template_data_version": 3955
+      },
+      "palette_size": 14,
+      "road_connectors": [
+        {
+          "confidence": 0.67,
+          "edge": "west",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:gray_concrete",
+          "offset": 3,
+          "source_y": 68,
+          "width": 3
+        },
+        {
+          "confidence": 0.67,
+          "edge": "east",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:gray_concrete",
+          "offset": 6,
+          "source_y": 68,
+          "width": 3
+        }
+      ],
+      "sha256": "90b320fa82731f6715f63b128cc7d7e18dfeb30e2854fa49ee7dd9fc7f4e47ea",
+      "source": {
+        "arnis_version": "3.0.0",
+        "bbox": {
+          "blocks": {
+            "max_x": 79,
+            "max_y": 97,
+            "max_z": 95,
+            "min_x": 64,
+            "min_y": -64,
+            "min_z": 80
+          },
+          "chunks": {
+            "max_x": 4,
+            "max_z": 5,
+            "min_x": 4,
+            "min_z": 5
+          }
+        },
+        "data_versions": [
+          3955
+        ],
+        "dimension": "overworld",
+        "files": [
+          {
+            "bytes": 4235264,
+            "file": "r.0.0.mca",
+            "sha256": "fb9b2f09bdd497cd517e08291b20aaf963ee66370286202765adb4001fe5b96c"
+          }
+        ],
+        "geographic_bbox": {
+          "max_lat": 35.6935,
+          "max_lon": 139.6995,
+          "min_lat": 35.692,
+          "min_lon": 139.698
+        },
+        "id": "osm-shinjuku-35.6920-139.6980",
+        "input_sha256": "85d3e3801c76a7f1365dc1e4b7c05fb90ad45ed142d8d4ca8084df2a99ad0644",
+        "license": {
+          "attribution": "OpenStreetMap contributors",
+          "id": "ODbL-1.0",
+          "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+        },
+        "name": "Tokyo / Shinjuku (Arnis 3.0.0 sample)",
+        "url": "https://www.openstreetmap.org/copyright",
+        "world": "Arnis World 1",
+        "world_metadata": {
+          "file": "metadata.json",
+          "sha256": "7b012c0396ed9bf8aa93ed4bed4c8782af0acf038d105ea958616efb4e73a245",
+          "values": {
+            "maxGeoLat": 35.6935,
+            "maxGeoLon": 139.6995,
+            "maxMcX": 135,
+            "maxMcZ": 166,
+            "minGeoLat": 35.692,
+            "minGeoLon": 139.698,
+            "minMcX": 0,
+            "minMcZ": 0,
+            "projection": "local",
+            "scale": 1.0
+          }
+        }
+      }
+    }
+  ],
+  "schema_version": 1
+}

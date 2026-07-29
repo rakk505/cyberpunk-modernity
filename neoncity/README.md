@@ -1,138 +1,173 @@
-# Neon Megacity Generator
+# Project Moon Megacity Generator
 
-An infinite, deterministic cyberpunk city generator for Minecraft 26.2 and NeoForge. Neon City builds original metropolitan centers, six connected districts, warped streets, stacked transit, canals, parks, and dense service alleys as players explore.
+A finite, world-seeded cyberpunk megacity generator for Minecraft 26.2 and NeoForge. Each save lays out one enormous city of 26 irregular A–Z Corp districts, surrounded by normal Minecraft wilderness. Districts have distinct architectural palettes and street scales, dense premium Nests, compressed Backstreets, sparse outskirts, and a connected network of roads, bridges, and elevated rail.
 
-![Generated Neon City center](deliverable/generated_isometric.png)
+The mod is inspired by the district structure of Project Moon's City and by the scale and visual variety of Night City. It does **not** bundle maps, buildings, textures, characters, logos, or other assets from either franchise. Runtime construction combines original procedural code, Minecraft's built-in blocks, and explicitly licensed, provenance-audited Arnis patches.
 
-The runtime mod uses original procedural code and Minecraft's built-in block palette. It does **not** bundle textures, models, maps, characters, logos, or other assets from an existing cyberpunk franchise. The real-city studies in `provenance/` inform aggregate urban statistics only; their source geometry and generated worlds are not copied into the runtime city.
+## World layout
 
-## City grammar
+The city is a finite graph rather than an infinite urban tiling:
 
-The world is not an endlessly repeated chunk template. Global coordinates are resolved against the nearest metropolitan center in a 1,536-block lattice. Every center except the origin is deterministically jittered by up to 200 blocks on each axis, then assigned its own identity. That identity varies district phase, roads, parcels, height, and detail while keeping the result stable across restarts and across negative coordinates.
+- Exactly one blob-shaped node is created for every district from A Corp through Z Corp. A Corp remains at the origin; the world seed changes the placement and identity of the other districts, their connection graph, parcels, and architecture.
+- District ellipses are rotated and rippled into irregular borders. The overall footprint has a nominal radius of about 4,900 blocks (roughly a 9,800-block diameter), although individual lobes and connections vary by seed.
+- A connected spanning tree guarantees that every district is reachable. Nearest-neighbor chords add loops and alternate routes; curved graph edges become grand roads, bridges, scenic routes, or elevated rail.
+- Closely competing district borders become rivers or raised green hills unless a graph connection crosses them. These barriers make travel between districts feel regional instead of like crossing a city block.
+- Land outside every district and connection is left as the preset's vanilla-noise Overworld. City chunks are the only chunks queued for the stamping pass.
 
-Within each metropolis:
+Each district tapers through three gameplay zones:
 
-- A warped monumental core gives way to five angular district wedges and an irregular outer belt shared by the Foundry Belt and Understacks.
-- A central plaza, a rippling inner arterial ring, and seven curved radial avenues establish the primary network.
-- District-specific local grids are rotated and continuously warped, so streets and parcels share boundaries without becoming a rigid checkerboard.
-- A raised expressway follows a broad, uneven outer ring at Y 23; a sinuous elevated rail spine runs at Y 33. Both include supports, and the harbor adds a curving canal.
-- Every 96×96-block sector contains an 8×8 perfect depth-first-search maze of 2–4-block-wide service alleys. Shared edge portals keep the maze connected across sector and chunk seams.
-- Buildings are sampled in world space, so shells, floors, roads, bridges, and alleys continue cleanly across chunk boundaries.
+| Zone | Urban character |
+| --- | --- |
+| **Nest** | Dense, expensive core with the tallest skyline, central plaza, and monumental boulevards |
+| **Backstreets** | Lower and slightly less dense fabric with narrow local streets and connected 2–4-block service alleys |
+| **Outskirts** | Sparse, short buildings, parks and trees transitioning toward wilderness |
 
-Generation is theoretically unbounded, but only queued, loaded chunks are built.
+Roads are generated in district-local coordinates. Curved spokes, two uneven orbital boulevards, independently rotated parcel grids, coordinate warping, parks, and graph-scale connections keep the whole map from resolving into one global checkerboard. Every 96×96-block sector also contains a deterministic depth-first-search alley network with matching portals across sector and chunk boundaries.
 
-## Six districts
+## District cultures
 
-| District | Parcel / height grammar | Character |
-| --- | --- | --- |
-| **Crown Core** | 48-block parcels; 132–292-block towers, with central crowns up to Y 304 | Monumental blackstone skyline, stepped towers, cyan light crowns, and the origin plaza |
-| **Kairocho** | 28-block parcels; 34–108-block mixed-use buildings | Dense, narrow fabric with dark tile, timber, red glass, amber light, and the tightest local streets |
-| **Longwei Harbor** | 50-block parcels; 82–238-block towers plus occasional landmarks | Large red, copper, teal, and gold podiums along a curving canal |
-| **Haneul Tech Quarter** | 42-block parcels; 72–208-block corporate towers | White and quartz massing, blue glass, purple accents, diagonal streets, and crisp rooflines |
-| **Foundry Belt** | 58-block parcels; 18–58-block buildings | Broad, low industrial fabric in tuff, weathered copper, iron, and orange light |
-| **Understacks** | 24-block parcels; 22–82-block buildings | Compressed low-rise blocks in mud brick, copper, deepslate, and magenta light |
+Every Corp has a distinct parcel grain, density, height range, façade rhythm, Minecraft palette, vegetation rate, and architectural massing rule.
 
-## Urban-profile provenance
+| District | Procedural direction |
+| --- | --- |
+| **A Corp** | Monumental plazas and tall, sleek black corporate towers |
+| **B Corp** | Bay Area garden campuses influenced by Palo Alto and San Francisco parks |
+| **C Corp** | Portland-inspired brick and timber blocks |
+| **D Corp** | Seattle–Bellevue glass, light concrete, and abundant evergreens |
+| **E Corp** | Mexico City-inspired mid-rise courtyards and warm masonry |
+| **F Corp** | Miami tropical art deco in bright pastel palettes |
+| **G Corp** | Dense Jakarta-inspired tropical vertical center |
+| **H Corp** | Hong Kong-inspired hyper-density, tight parcels, and tall towers |
+| **I Corp** | Roman and Italian stone terraces with classical details |
+| **J Corp** | Macau–Las Vegas spectacle, casino palettes, and gold accents |
+| **K Corp** | Clean white and gray research arcologies |
+| **L Corp** | Seoul metropolitan glass towers and neon accents |
+| **M Corp** | Toronto-inspired metropolitan slabs and mixed skyline |
+| **N Corp** | Parisian boulevards and pale Haussmann-style blocks |
+| **O Corp** | Viennese grand blocks, stone, and aged copper roofs |
+| **P Corp** | Dense New York art deco towers with stepped crowns |
+| **Q Corp** | Nagoya manufacturing metro |
+| **R Corp** | Osaka neon mercantile blocks |
+| **S Corp** | Busan-like urban core, low Joseon-inspired outskirts, and broad wheat fields |
+| **T Corp** | Victorian London steamworks in brick, tuff, iron, and weathered copper |
+| **U Corp** | Container-port district with sinuous quays, water, docks, and cargo stacks |
+| **V Corp** | Swiss-inspired blocks cut by two families of curving canals |
+| **W Corp** | Shenzhen future skyline with tall, stepped glass towers |
+| **X Corp** | Hanoi-inspired industrial fabric and extraction rigs in the outskirts |
+| **Y Corp** | Nordic–Muscovite winter monumentality with snow cover, spruce, ice, and local snowflake particles |
+| **Z Corp** | Tokyo electric crossroads blending Akihabara and Shibuya density |
 
-Kairocho, Haneul Tech Quarter, and Longwei Harbor were calibrated from saved Arnis 3.0.0 studies of Tokyo/Shinjuku, Seoul/Gangnam, and Shanghai/Lujiazui. `tools/compile_cultural_profiles.py` reduces the saved OSM observations to auditable distributions rather than stitching incompatible Arnis projections or importing individual buildings.
+S, U, V, and X have dedicated farm, harbor, canal, and extraction-site generators. Y receives snowy surfaces and a client-visible snowflake effect around players in the district; this is a localized treatment, not a custom biome-wide weather simulation.
 
-| Profile | Footprint coverage | Median footprint | Median tagged height | Road orientation entropy | Procedural intent |
-| --- | ---: | ---: | ---: | ---: | --- |
-| Tokyo / Shinjuku | 33.86% | 87.9 m² | 22.4 m | 0.926 | Tight mixed parcels, rail megablocks, layered alleys |
-| Seoul / Gangnam | 26.65% | 179.4 m² | 44.0 m | 0.779 | Corporate podiums, diagonal side streets, glass towers |
-| Shanghai / Lujiazui | 11.78% | 631.2 m² | 64.0 m | 0.990 | Monumental towers, river curves, large red-gold-teal podiums |
+## Arnis and offline city studies
 
-The complete distributions, road classes, source hashes, and bounding boxes are in [`cultural_profiles.json`](src/main/resources/data/neoncity/cultural_profiles.json) and `provenance/cultural_profiles_build.json`. These profiles are evidence for the baked generator parameters; the Java runtime does not currently load them as live configuration.
+Arnis is an **offline preparation and analysis tool**, not a runtime dependency. [`arnis_import.py`](tools/arnis/arnis_import.py) can convert explicitly selected chunks from an unpacked Arnis Java world into deterministic, entity-free vanilla structure NBT. A patch may cover at most 3×3 chunks. The standard-library-only importer strips entities, block-entity payloads, air, and dangerous utility blocks; then records a SHA-256, footprint, bounding box, source-region hash, explicit license/attribution, and heuristic edge-road hints in [`catalog.json`](src/main/resources/data/neoncity/arnis/catalog.json).
 
-The bundled Tokyo, Seoul, and Shanghai extracts contain OpenStreetMap data, © OpenStreetMap contributors, made available under the [Open Database License](https://www.openstreetmap.org/copyright). Arnis-derived Minecraft world exports are reproducible local evidence and are intentionally excluded from Git; their source extracts, hashes, and audits remain versioned.
+From the `neoncity/` directory, an import has this form:
+
+```bash
+python3 tools/arnis/arnis_import.py import /path/to/ArnisWorld \
+  --district Z \
+  --source-id tokyo-core \
+  --source-name "Tokyo urban core" \
+  --license ODbL-1.0 \
+  --attribution "OpenStreetMap contributors" \
+  --selection shibuya=12,8:14,10
+
+python3 tools/arnis/arnis_import.py list
+python3 tools/arnis/arnis_import.py validate
+python3 -m unittest tools/arnis/test_arnis_import.py
+```
+
+Selection coordinates are inclusive chunk coordinates; see [`tools/arnis/USAGE.md`](tools/arnis/USAGE.md) for the complete interface and redistribution checklist. Source identity, license, and attribution are mandatory because the tool deliberately does not infer them.
+
+The catalog currently contains one real Arnis 3.0.0 patch: a 16×162×16 Shinjuku study assigned to Z Corp, with 2,446 blocks, 14 palette states, two road connectors, and complete ODbL attribution and hashes. The runtime selects it deterministically in compatible Z Corp chunks, aligns its source street level with the city deck, clears conflicting procedural massing, and extends its west/east connectors into neighbouring streets. The importer does not support LZ4-compressed Anvil chunks, block-entity payloads such as signs or inventories, rotation, automatic terrain blending, or biome translation, and its road-connection hints require human review.
+
+Separately, the repository contains reproducible Tokyo/Shinjuku, Seoul/Gangnam, and Shanghai/Lujiazui OSM studies plus `tools/compile_cultural_profiles.py`. Their distributions are recorded in [`cultural_profiles.json`](src/main/resources/data/neoncity/cultural_profiles.json) and `provenance/`. They inform baked procedural parameters; changing the JSON alone does not retune Java generation. Source Arnis worlds remain external and must be obtained or generated under appropriate terms.
+
+The saved OSM extracts contain OpenStreetMap data, © OpenStreetMap contributors, made available under the [Open Database License](https://www.openstreetmap.org/copyright).
+
+## Strict mob-spawn ban
+
+No Minecraft `Mob` may spawn or join the world from a position inside the finite city footprint. The mod rejects natural spawn placement and also cancels city-side joins attempted through spawners, commands, other mods, or saved entity data. Players and non-mob entities are unaffected. Normal spawning resumes in the vanilla wilderness outside the city.
+
+This is deliberately stricter than setting a peaceful difficulty or changing biome spawn lists. It also means the generated city currently has no NPC population; “living” refers to its varied urban form, infrastructure, parks, waterfronts, and traversal space rather than simulated citizens.
 
 ## Create a world
 
-Neon City is intentionally opt-in. Its generator activates only when the overworld uses the dedicated `neoncity:megacity` preset, whose final two non-air flat layers are black concrete followed by cyan concrete.
+Generation is opt-in and activates only when the Overworld uses the dedicated `neoncity:megacity` preset. The preset uses the normal `minecraft:overworld` noise generator and biomes with a custom `neoncity:megacity_overworld` dimension-type marker. The Nether and End retain their vanilla generators.
 
 1. Install the built JAR in a Minecraft 26.2 + NeoForge 26.2.0.7-beta instance.
-2. Choose **Create New World** and open the world settings.
-3. Select **Neon Megacity** (`neoncity:megacity`) as the world type **before** creating the save.
-4. Enter the new world and confirm activation with `/neoncity status`.
+2. Choose **Create New World**, open the world settings, and select **Project Moon Megacity** (`neoncity:megacity`) before creating the save.
+3. Enter the world and run `/neoncity status` to confirm `enabled=true`.
 
-Always use a fresh save. Adding the mod to an existing world does not convert it. The generator requires exactly two non-air flat layers—black concrete followed by cyan concrete—so unrelated flat worlds are not accepted accidentally.
-
-At server start the mod synchronously prepares a 3×3-chunk spawn window and moves spawn to `(0, 2, 0)`. It then grows the city around loaded players.
+Use a fresh save. Adding the mod to an existing world does not convert it, and selecting an unrelated world type does not activate city stamping. At first server start the mod synchronously prepares the 3×3-chunk spawn window and moves spawn to `(0, 74, 0)`, inside A Corp.
 
 ## Commands
 
-Both commands require game-master/operator permission (or cheats in single-player).
+All commands require game-master/operator permission, or cheats in single-player.
 
 ```text
 /neoncity status
 ```
 
-Reports whether generation is enabled, the persistent generated-chunk count, the transient queue size, and the generator fingerprint. `enabled=false` normally means the active overworld does not match the dedicated preset or its saved-data fingerprint is incompatible.
+Reports whether generation is enabled; the district and graph-edge counts; the mixed layout seed; the persistent generated-chunk count; the transient queue size; and the generator fingerprint. `enabled=false` normally means the Overworld does not use the dedicated preset marker or the save ledger was created by an incompatible generator fingerprint.
+
+```text
+/neoncity locate <x> <z>
+```
+
+Samples block coordinates without generating or loading terrain. It reports the owning district, zone, infrastructure class, district-node center, and normalized distance from that node. Wilderness points still report their nearest district for orientation while showing `zone=WILDERNESS` and `infrastructure=WILDERNESS`.
 
 ```text
 /neoncity generate <chunkX> <chunkZ> <radius>
 ```
 
-Queues an inclusive square around chunk coordinates, with `radius` from 0 through 12. For example, `/neoncity generate 0 0 3` requests a 7×7 area. The command skips chunks already generated or queued and does **not** force-load terrain: requested chunks are stamped only after Minecraft loads them.
+Queues the city chunks in an inclusive square around the supplied **chunk** coordinates, with `radius` from 0 through 12. For example, `/neoncity generate 0 0 3` examines a 7×7 area. Wilderness-only and already generated/queued chunks are skipped. The command does not force-load terrain; a queued city chunk is stamped only after Minecraft loads it.
 
-## Performance and persistence
+## Persistence and performance
 
-- A 15×15 chunk area (radius 7) is kept queued around each overworld player; player positions are sampled every 10 server ticks.
-- The transient queue is capped at 768 chunks. Recent exploration displaces stale unloaded requests, preventing fast travel from growing an unbounded FIFO.
-- Normal background work stamps at most one already-loaded chunk per server tick. Buildings are sparse shells with five-block floor spacing rather than solid volumes, and block updates skip unnecessary side effects.
-- The initial 3×3 spawn prewarm is synchronous and may make first startup slower. Very tall or dense chunks can still cause a visible tick spike because placement runs on the server thread.
-- Completed chunks are recorded in overworld `SavedData`. The ledger is restored on startup, prevents normal restamping, and is marked only after the entire chunk succeeds.
-- If the server stops midway through a chunk, that uncommitted chunk is deterministically replayed. The queue itself is transient and is rebuilt around players after restart.
-- The ledger stores a generator fingerprint. A layout-changing build with a different fingerprint disables generation in that save instead of silently overwriting player construction. There is not yet a migration command.
+- Player positions are sampled every 10 server ticks, and city chunks within a 15×15 window (radius 7) are queued.
+- The transient queue is capped at 768 chunks. Recent exploration can displace stale unloaded requests.
+- Normal background work stamps at most one already-loaded city chunk per server tick. Wilderness columns are never stamped.
+- The initial 3×3 spawn prewarm is synchronous. First startup can pause, and a very tall or dense city chunk can still cause a visible tick spike because block placement runs on the server thread.
+- Buildings are hollow architectural shells with five-block floor spacing, not solid volumes. This reduces placement cost but does not make generation free.
+- Completed chunks are recorded in Overworld `SavedData`; the queue is transient and rebuilt around players after restart. An interrupted, uncommitted chunk is deterministically replayed.
+- The ledger stores a generator fingerprint. A layout-changing update disables city generation in that save instead of silently overwriting player construction. There is currently no migration or regeneration command.
 
-Back up worlds before updating the mod or testing large manual queues.
+Back up saves before changing mod versions or testing large manual queues. Initial exploration across the full roughly 10,000-block city is a large server-thread workload and has not been presented as a pre-generated, production-soak-tested world download.
 
 ## Build and test
 
 Requirements: Java 25 and the included Gradle wrapper. The project pins Minecraft 26.2, NeoForge 26.2.0.7-beta, and Gradle 9.2.1.
 
-From this directory:
+From the `neoncity/` directory:
 
 ```bash
-# Fast compile/resource check
+# Fast compile and resource validation
 ./gradlew --no-daemon compileJava processResources
 
-# Build build/libs/neoncity-1.0.1.jar
+# Build build/libs/neoncity-2.0.0.jar
 ./gradlew --no-daemon build
 
-# Run all registered NeoForge GameTests
+# Run the registered pure NeoForge GameTests
 ./gradlew --no-daemon runGameTestServer
 
 # Launch a development client for fresh-world validation
 ./gradlew --no-daemon runClient
 ```
 
-The six GameTests cover DFS edge count and alley width, cross-sector alley portals, all-district coverage, warped road and transit classes, skyline hierarchy, and deterministic sampling at negative/global coordinates.
-
-Version 1.0.1 moves all Java classes into the unique `dev.modernity.neoncity` package. This prevents the Java module split-package crash that occurred when 1.0.0 was installed beside Infinite Taiwan Atlas (`city17`), whose template-era classes use `com.example.examplemod`.
-
-Optional evidence tools:
-
-```bash
-# Recompile the three statistical profiles from the saved OSM inputs
-python3 tools/compile_cultural_profiles.py
-
-# Audit and render a generated 15×15-chunk world window
-python3 tools/render_generated_world.py /path/to/world \
-  --min-chunk -7 --max-chunk 7 --output-dir deliverable
-```
-
-The checked-in v2 audit records 225/225 parsed core chunks, 57,600 surface columns, 2,502,184 non-air blocks, and a maximum surface height of Y 304. Three additional 81/81-chunk audits cover the cultural districts. `client_plaza_night.png` and `client_aerial_night.png` are real managed-client captures from the exact built JAR; the top-down/isometric images are deterministic renders of the corresponding Anvil chunk data. See `deliverable/verification.json` for hashes and provenance.
+The regression suite exercises the 26-culture seeded layout, connected graph and alternate routes, finite wilderness boundary, Nest/Backstreets/outskirts coverage, roads/bridges/rail, border rivers and hills, special S/U/V/X/Y behavior, skyline tapering, deterministic negative coordinates, and connected cross-sector service alleys.
 
 ## Current limitations
 
-- **Fresh overworld only:** city construction is overworld-only and gated by the exact flat-layer signature. The preset retains vanilla Nether and End dimensions but does not urbanize them.
-- **Fixed city seed:** every save uses the same deterministic city grammar. The Minecraft world seed does not yet alter centers, districts, alleys, or buildings.
-- **Post-load stamping:** this is server-tick block construction, not a custom terrain `ChunkGenerator`. A newly loaded chunk can briefly show its flat base before the city pass finishes.
-- **Architectural shells:** buildings have façades, floor plates, tiered roofs, and light crowns, but no authored interiors, doors, utilities, NPCs, or gameplay systems. Rail and expressway structures are infrastructure geometry, not a vehicle simulation.
-- **Static cultural calibration:** the bundled profile JSON documents the design inputs; changing it alone does not retune runtime generation.
-- **No save migration:** changing the generator fingerprint requires a new world or a future explicit migration tool. Already-recorded chunks are not regenerated by design.
-- **Preview scope:** the checked-in render proves a finite 15×15-chunk origin window, while the pure tests verify the wider coordinate grammar. Long-distance multiplayer scale still needs soak and performance testing.
+- **Post-load stamping:** this is deterministic server-tick construction over a vanilla noise Overworld, not a custom terrain `ChunkGenerator`. A newly loaded city chunk can briefly show natural terrain before the city pass finishes.
+- **Procedural shells:** buildings have district-specific massing, façades, floor plates, roof tiers, and lights, but no authored interiors, doors, utilities, NPCs, traffic, or functional trains.
+- **Local parcel grids remain:** the global plan is organic, but individual districts still use warped, rotated parcel grids beneath their curved boulevards and irregular borders.
+- **Mob ban is city-scoped:** spawning and world-join attempts inside the city are rejected; vanilla wilderness outside it retains normal ecology. A mob created outside the footprint is not currently culled merely for later walking across the border.
+- **Curated Arnis allowlist:** runtime never invokes Arnis and only places patches represented in the audited catalog and the compact Java allowlist. The first Z Corp patch is integrated; broader A–Y coverage, rotation, and richer terrain blending require additional reviewed imports.
+- **No save migration:** a fingerprint change requires a new world until an explicit migration tool exists.
+- **Legacy previews:** images and v1 audit artifacts under `deliverable/` describe the previous six-district generator and should not be treated as verification of this finite v2 layout.
 
 ## License
 

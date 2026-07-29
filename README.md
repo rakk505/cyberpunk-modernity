@@ -28,12 +28,15 @@ grenades, cyberware, faction soldiers, and a procedurally generated neon city.
 
 The built mod jar is written to `build/libs/`.
 
-## Neon City Worldgen v1
+## Project Moon Megacity Worldgen
 
 This branch also contains the standalone [Neon City world generator](neoncity/README.md).
 It installs alongside Cyberdeck and provides the `neoncity:megacity` world preset,
-infinite cultural districts, organic roads, elevated transit, and DFS service alleys.
-Its verified release JAR is available under `neoncity/deliverable/`.
+a finite world-seeded city of 26 A–Z cultural districts, organic graph connections,
+bridges, elevated transit, border rivers and hills, and vanilla wilderness beyond the
+urban footprint. Artifacts currently under `neoncity/deliverable/` are legacy v1
+previews except for `neoncity-2.0.0.jar` and `verification-v2.json`, which are
+the finite v2 build and its verification record.
 
 ## Running in a dev environment
 

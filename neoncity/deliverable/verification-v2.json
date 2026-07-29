@@ -1,0 +1,63 @@
+{
+  "artifact": {
+    "file": "neoncity-2.0.0.jar",
+    "sha256": "a3ef7df673402efb2c06fe58634f879454a9011c2805bd14269e24f034ebafe4",
+    "size_bytes": 102461
+  },
+  "branch": "project-moon-megacity-worldgen",
+  "base_commit": "f3d76a6",
+  "date": "2026-07-29",
+  "modernity": {
+    "sandbox_id": "sb-8a86f038",
+    "compile": {
+      "command": "build --offline",
+      "duration_seconds": 3.732,
+      "status": "passed",
+      "verified_by": "compile"
+    },
+    "gametest": {
+      "duration_seconds": 4.107,
+      "mod_tests": 13,
+      "required_tests_total": 14,
+      "status": "passed",
+      "verified_by": "gametest"
+    },
+    "boot": {
+      "ready_match": "Done (1.125s)! For help, type \"help\"",
+      "status": "passed",
+      "verified_by": "boot"
+    }
+  },
+  "runtime": {
+    "dedicated_preset": {
+      "districts": 26,
+      "enabled": true,
+      "generated_spawn_chunks": 9,
+      "graph_edges": 39,
+      "layout_seed": 1220292594701634710,
+      "queued_chunks": 216,
+      "world_seed": -5941189542407904217
+    },
+    "checks": [
+      "A Corp owns (0,0) as NEST/CENTRAL_PLAZA",
+      "minecraft:sea_lantern exists at the generated plaza surface (0,72,0)",
+      "(8000,8000) resolves to WILDERNESS/WILDERNESS",
+      "a zombie summon inside the city did not join the world",
+      "a zombie summon in far wilderness joined normally",
+      "no generation, registry, structure, or preset errors matched server logs"
+    ]
+  },
+  "arnis": {
+    "catalog_patch": "z/shinjuku_core",
+    "catalog_sha256": "90b320fa82731f6715f63b128cc7d7e18dfeb30e2854fa49ee7dd9fc7f4e47ea",
+    "runtime_chunk": [-4, 104],
+    "runtime_proof": "minecraft:oak_planks from relative patch block (15,161,15) exists at (-49,101,1679)",
+    "status": "placed"
+  },
+  "unverified": [
+    "managed client load",
+    "fresh visual captures of the finite v2 city",
+    "long-distance multiplayer soak",
+    "visual review of every world seed"
+  ]
+}
