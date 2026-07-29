@@ -9,3 +9,15 @@ They are provided under the mod's `All Rights Reserved` terms recorded in `gradl
 
 The source generator is deterministic and uses only Python's standard library. It remains in the
 repository so every pixel can be reproduced and audited.
+
+## Tactical Movement behavioral reference
+
+The local file `tacticalmovement-1.0.0.jar` was inspected only to establish its technical scope.
+It targets Minecraft 1.20.1 / Forge 47, is marked All Rights Reserved, and contains a two-key
+client lean implementation rather than dash, slide, sprint, gunfight, or enemy animations.
+
+No class, source, texture, model, animation, or other asset from that JAR is included here. The
+tactical movement implementation in this repository is an original clean-room design for
+Minecraft 26.2 / NeoForge, with server validation and synchronized procedural posing. The audited
+reference JAR's SHA-256 is
+`916442ff3bcfaa3a5fed6a639b34a139500f95095783ba2bdae69683877bcc38`.

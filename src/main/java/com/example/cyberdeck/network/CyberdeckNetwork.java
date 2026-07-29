@@ -1,6 +1,7 @@
 package com.example.cyberdeck.network;
 
 import com.example.cyberdeck.Cyberdeck;
+import com.example.cyberdeck.movement.TacticalMovementPacket;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
@@ -9,7 +10,7 @@ public final class CyberdeckNetwork {
     }
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        PayloadRegistrar registrar = event.registrar(Cyberdeck.MODID).versioned("2");
+        PayloadRegistrar registrar = event.registrar(Cyberdeck.MODID).versioned("3");
         registrar.playToServer(
                 ToggleInterfacePacket.TYPE,
                 ToggleInterfacePacket.STREAM_CODEC,
@@ -26,6 +27,10 @@ public final class CyberdeckNetwork {
                 ReloadPacket.TYPE,
                 ReloadPacket.STREAM_CODEC,
                 ReloadPacket::handle);
+        registrar.playToServer(
+                TacticalMovementPacket.TYPE,
+                TacticalMovementPacket.STREAM_CODEC,
+                TacticalMovementPacket::handle);
         registrar.playToServer(
                 EquipCyberwarePacket.TYPE,
                 EquipCyberwarePacket.STREAM_CODEC,

@@ -5,6 +5,9 @@ import com.example.cyberdeck.CyberdeckItems;
 import com.example.cyberdeck.network.ActivateSkillPacket;
 import com.example.cyberdeck.network.CyberwareActionPacket;
 import com.example.cyberdeck.network.ToggleInterfacePacket;
+import com.example.cyberdeck.movement.TacticalAction;
+import com.example.cyberdeck.movement.TacticalMovement;
+import com.example.cyberdeck.movement.TacticalMovementPacket;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
@@ -113,6 +116,19 @@ public final class CyberdeckClientEvents {
             }
         }
 
+        float forward = (mc.options.keyUp.isDown() ? 1.0F : 0.0F)
+                - (mc.options.keyDown.isDown() ? 1.0F : 0.0F);
+        float strafe = (mc.options.keyRight.isDown() ? 1.0F : 0.0F)
+                - (mc.options.keyLeft.isDown() ? 1.0F : 0.0F);
+        while (CyberdeckClient.DASH_KEY.consumeClick()) {
+            ClientPacketDistributor.sendToServer(
+                    new TacticalMovementPacket(TacticalAction.DASH, forward, strafe));
+        }
+        while (CyberdeckClient.SLIDE_KEY.consumeClick()) {
+            ClientPacketDistributor.sendToServer(
+                    new TacticalMovementPacket(TacticalAction.SLIDE, forward, strafe));
+        }
+
         handleDoubleJump(mc);
     }
 
@@ -126,6 +142,12 @@ public final class CyberdeckClientEvents {
     private static void handleDoubleJump(Minecraft mc) {
         Player player = mc.player;
         if (player == null) {
+            return;
+        }
+        if (TacticalMovement.get(player).action() != TacticalAction.NONE) {
+            jumpKeyWasDown = mc.options.keyJump.isDown();
+            usedDoubleJump = true;
+            wasOnGround = player.onGround();
             return;
         }
         boolean onGround = player.onGround();

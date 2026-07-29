@@ -1,6 +1,9 @@
 package com.example.cyberdeck.client.render;
 
+import com.example.cyberdeck.client.movement.TacticalPoseData;
 import com.example.cyberdeck.faction.FactionEnemy;
+import com.example.cyberdeck.faction.TacticalManeuver;
+import com.example.cyberdeck.movement.TacticalAction;
 import com.example.cyberdeck.weapon.GunItem;
 
 import net.minecraft.client.model.HumanoidModel;
@@ -9,39 +12,39 @@ import net.minecraft.client.renderer.entity.ArmorModelSet;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.entity.HumanoidMobRenderer;
 import net.minecraft.client.renderer.entity.layers.HumanoidArmorLayer;
-import net.minecraft.client.renderer.entity.state.HumanoidRenderState;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.HumanoidArm;
 
 /**
- * Renders faction soldiers as player-shaped humanoids — their own entity, not a zombie. It uses the
- * standard humanoid player model (so the held gun and dyed faction armor render on a normal biped)
- * and textures the body with the default Steve skin. Nothing here inherits any zombie behavior or
- * appearance; it is a plain {@link HumanoidMobRenderer} with a humanoid armor layer.
+ * Renders faction soldiers as player-shaped humanoids — their own entity, not a zombie. Tactical
+ * locomotion and weapon recoil are layered over the normal humanoid pose on both the body and armor
+ * models, while held items continue to use vanilla's stable hand transforms.
  */
 public final class FactionEnemyRenderer
-        extends HumanoidMobRenderer<FactionEnemy, HumanoidRenderState,
-                HumanoidModel<HumanoidRenderState>> {
+        extends HumanoidMobRenderer<FactionEnemy, FactionEnemyRenderState,
+                TacticalFactionModel> {
 
     /** Vanilla default (wide) Steve skin. */
     private static final Identifier STEVE_SKIN =
             Identifier.withDefaultNamespace("textures/entity/player/wide/steve.png");
+    private static final float RECOIL_TICKS = 4.0F;
 
     public FactionEnemyRenderer(EntityRendererProvider.Context context) {
-        super(context, new HumanoidModel<>(context.bakeLayer(ModelLayers.PLAYER)), 0.5f);
+        super(context, new TacticalFactionModel(context.bakeLayer(ModelLayers.PLAYER)), 0.5f);
         this.addLayer(new HumanoidArmorLayer<>(this,
-                ArmorModelSet.bake(ModelLayers.PLAYER_ARMOR, context.getModelSet(), HumanoidModel::new),
+                ArmorModelSet.bake(ModelLayers.PLAYER_ARMOR, context.getModelSet(),
+                        TacticalFactionModel::new),
                 context.getEquipmentRenderer()));
     }
 
     @Override
-    public HumanoidRenderState createRenderState() {
-        return new HumanoidRenderState();
+    public FactionEnemyRenderState createRenderState() {
+        return new FactionEnemyRenderState();
     }
 
     @Override
-    public Identifier getTextureLocation(HumanoidRenderState state) {
+    public Identifier getTextureLocation(FactionEnemyRenderState state) {
         return STEVE_SKIN;
     }
 
@@ -57,7 +60,7 @@ public final class FactionEnemyRenderer
     }
 
     @Override
-    public void extractRenderState(FactionEnemy enemy, HumanoidRenderState state,
+    public void extractRenderState(FactionEnemy enemy, FactionEnemyRenderState state,
                                    float partialTick) {
         super.extractRenderState(enemy, state, partialTick);
 
@@ -76,9 +79,9 @@ public final class FactionEnemyRenderer
             }
         }
 
+        double renderTick = enemy.level().getGameTime() + partialTick;
         if (enemy.getMainHandItem().getItem() instanceof GunItem
                 && enemy.isWeaponGlitching()) {
-            double renderTick = enemy.level().getGameTime() + partialTick;
             long phaseStart = enemy.getWeaponGlitchStartTick();
             long phaseEnd = enemy.getWeaponGlitchEndTick();
             float duration = Math.max(1.0F, phaseEnd - phaseStart);
@@ -103,7 +106,6 @@ public final class FactionEnemyRenderer
             }
         } else if (enemy.getMainHandItem().getItem() instanceof GunItem
                 && enemy.isGunReloading()) {
-            double renderTick = enemy.level().getGameTime() + partialTick;
             long reloadStart = enemy.getGunReloadStartTick();
             long reloadEnd = enemy.getGunReloadEndTick();
             float duration = reloadEnd - reloadStart;
@@ -116,5 +118,72 @@ public final class FactionEnemyRenderer
             state.maxCrossbowChargeDuration = duration;
             state.ticksUsingItem = Mth.clamp(elapsed, 0.0F, duration);
         }
+
+        state.tacticalPose = extractTacticalPose(enemy, renderTick);
+    }
+
+    private static TacticalPoseData extractTacticalPose(FactionEnemy enemy, double renderTick) {
+        TacticalManeuver maneuver = enemy.getTacticalManeuver();
+        TacticalAction action = switch (maneuver) {
+            case DASH_LEFT, DASH_RIGHT -> TacticalAction.DASH;
+            case SLIDE_FORWARD -> TacticalAction.SLIDE;
+            case NONE -> TacticalAction.NONE;
+        };
+        boolean interrupted = enemy.isWeaponGlitching() || enemy.isGunReloading();
+        if (interrupted) {
+            action = TacticalAction.NONE;
+        }
+
+        float actionProgress = 0.0F;
+        if (action != TacticalAction.NONE) {
+            long start = enemy.getTacticalManeuverStartTick();
+            long end = enemy.getTacticalManeuverEndTick();
+            float duration = Math.max(1.0F, end - start);
+            actionProgress = Mth.clamp((float) (renderTick - start) / duration, 0.0F, 1.0F);
+        }
+
+        float directionX = enemy.getTacticalDirectionX();
+        float directionZ = enemy.getTacticalDirectionZ();
+        float yaw = enemy.getYRot() * Mth.DEG_TO_RAD;
+        float forwardX = -Mth.sin(yaw);
+        float forwardZ = Mth.cos(yaw);
+        float rightX = -forwardZ;
+        float rightZ = forwardX;
+        float forwardAmount = directionX * forwardX + directionZ * forwardZ;
+        float lateralAmount = directionX * rightX + directionZ * rightZ;
+
+        float movementSpeed = (float) enemy.getDeltaMovement().horizontalDistance();
+        boolean sprinting = !interrupted
+                && (enemy.isSprinting() || (enemy.isTriggered() && movementSpeed > 0.17F));
+
+        float reloadProgress = 0.0F;
+        if (enemy.isGunReloading()) {
+            long start = enemy.getGunReloadStartTick();
+            long end = enemy.getGunReloadEndTick();
+            reloadProgress = Mth.clamp(
+                    (float) (renderTick - start) / Math.max(1.0F, end - start),
+                    0.0F,
+                    1.0F);
+        }
+
+        float recoil = 0.0F;
+        long lastShot = enemy.getLastGunShotTick();
+        if (lastShot >= 0L) {
+            recoil = 1.0F - Mth.clamp(
+                    (float) (renderTick - lastShot) / RECOIL_TICKS,
+                    0.0F,
+                    1.0F);
+        }
+
+        return new TacticalPoseData(
+                action,
+                actionProgress,
+                forwardAmount,
+                lateralAmount,
+                sprinting,
+                enemy.getMainHandItem().getItem() instanceof GunItem,
+                reloadProgress,
+                recoil,
+                interrupted ? 0.0F : movementSpeed);
     }
 }
