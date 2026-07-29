@@ -1,0 +1,7 @@
+{
+  "parent": "cyberdeck:item/3516_3d",
+  "textures": {
+    "layer0": "cyberdeck:item/tech_3516_uv",
+    "particle": "cyberdeck:item/tech_3516_uv"
+  }
+}

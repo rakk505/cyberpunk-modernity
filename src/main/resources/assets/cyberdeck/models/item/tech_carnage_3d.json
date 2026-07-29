@@ -1,0 +1,7 @@
+{
+  "parent": "cyberdeck:item/carnage_3d",
+  "textures": {
+    "layer0": "cyberdeck:item/tech_carnage_uv",
+    "particle": "cyberdeck:item/tech_carnage_uv"
+  }
+}

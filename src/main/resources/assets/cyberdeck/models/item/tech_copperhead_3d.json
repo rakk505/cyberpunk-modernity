@@ -1,0 +1,7 @@
+{
+  "parent": "cyberdeck:item/copperhead_3d",
+  "textures": {
+    "layer0": "cyberdeck:item/tech_copperhead_uv",
+    "particle": "cyberdeck:item/tech_copperhead_uv"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "parent": "cyberdeck:item/ajax_3d",
+  "textures": {
+    "layer0": "cyberdeck:item/tech_ajax_uv",
+    "particle": "cyberdeck:item/tech_ajax_uv"
+  }
+}

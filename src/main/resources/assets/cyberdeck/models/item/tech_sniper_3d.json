@@ -1,0 +1,7 @@
+{
+  "parent": "cyberdeck:item/sniper_3d",
+  "textures": {
+    "awp_asiimov": "cyberdeck:item/tech_sniper_gpp",
+    "particle": "cyberdeck:item/tech_sniper_gpp"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "parent": "cyberdeck:item/pistol_3d",
+  "textures": {
+    "mesh_atlas": "cyberdeck:item/tech_pistol_gpp",
+    "particle": "cyberdeck:item/tech_pistol_gpp"
+  }
+}
