@@ -129,11 +129,12 @@ public final class CyberwareScreen extends Screen {
         }
         renderPlayerScanOverlay(graphics);
         for (int index = 0; index < GROUPS.length; index++) {
-            renderGroup(graphics, GROUPS[index], index, designMouseX, designMouseY);
+            renderGroup(graphics, GROUPS[index], index,
+                    designMouseX, designMouseY, mouseX, mouseY);
         }
         if (detailsOpen) {
             graphics.nextStratum();
-            renderDetailOverlay(graphics, designMouseX, designMouseY);
+            renderDetailOverlay(graphics, designMouseX, designMouseY, mouseX, mouseY);
         }
         renderFooter(graphics, designMouseX, designMouseY);
 
@@ -318,7 +319,7 @@ public final class CyberwareScreen extends Screen {
     }
 
     private void renderGroup(GuiGraphicsExtractor graphics, GroupSpec group, int groupIndex,
-                             double mouseX, double mouseY) {
+                             double mouseX, double mouseY, int rawMouseX, int rawMouseY) {
         boolean interactive = group.slot() != null;
         boolean hovered = groupHitRect(group).contains(mouseX, mouseY);
         boolean selected = interactive && detailsOpen && group.slot() == selectedSlot;
@@ -338,6 +339,11 @@ public final class CyberwareScreen extends Screen {
         renderGroupLabel(graphics, group, selected ? CYAN : RED, interactive);
         if (hovered) {
             graphics.requestCursor(interactive ? CursorTypes.POINTING_HAND : CursorTypes.NOT_ALLOWED);
+            Rect installedIcon = new Rect(group.x(), group.y(), SOCKET_WIDTH, SOCKET_HEIGHT);
+            if (!detailsOpen && installed != null && installedIcon.contains(mouseX, mouseY)) {
+                graphics.setTooltipForNextFrame(
+                        this.font, cyberwareItemStack(installed), rawMouseX, rawMouseY);
+            }
         }
     }
 
@@ -396,10 +402,9 @@ public final class CyberwareScreen extends Screen {
         drawCornerBrackets(graphics, socket, edge, 6);
 
         if (cyberware != null) {
-            renderCyberwareGlyph(graphics, cyberware,
+            renderCyberwareItem(graphics, cyberware,
                     new Rect(socket.x() + 8, socket.y() + 9,
-                            socket.width() - 16, socket.height() - 14),
-                    CYAN);
+                            socket.width() - 16, socket.height() - 14));
             drawLine(graphics, socket.right() - 10, socket.bottom() - 1,
                     socket.right() - 1, socket.bottom() - 10, 2, CYAN);
         } else if (glyph != null) {
@@ -472,7 +477,8 @@ public final class CyberwareScreen extends Screen {
         graphics.pose().popMatrix();
     }
 
-    private void renderDetailOverlay(GuiGraphicsExtractor graphics, double mouseX, double mouseY) {
+    private void renderDetailOverlay(GuiGraphicsExtractor graphics, double mouseX, double mouseY,
+                                     int rawMouseX, int rawMouseY) {
         Rect panel = detailPanel();
         Rect close = detailCloseRect();
         graphics.fill(0, 0, DESIGN_WIDTH, DESIGN_HEIGHT, 0x72050609);
@@ -490,7 +496,7 @@ public final class CyberwareScreen extends Screen {
         List<Cyberware> options = Cyberware.forSlot(selectedSlot);
         for (int index = 0; index < options.size(); index++) {
             renderOptionCard(graphics, options.get(index), optionRect(index, options.size()),
-                    mouseX, mouseY);
+                    mouseX, mouseY, rawMouseX, rawMouseY);
         }
 
         renderDetailAction(graphics, mouseX, mouseY);
@@ -500,7 +506,8 @@ public final class CyberwareScreen extends Screen {
     }
 
     private void renderOptionCard(GuiGraphicsExtractor graphics, Cyberware cyberware, Rect card,
-                                  double mouseX, double mouseY) {
+                                  double mouseX, double mouseY,
+                                  int rawMouseX, int rawMouseY) {
         CyberwareData data = currentData();
         boolean installed = data != null && data.get(cyberware.slot()) == cyberware;
         boolean selected = cyberware == selectedCyberware;
@@ -518,10 +525,9 @@ public final class CyberwareScreen extends Screen {
         Rect iconBox = new Rect(card.x() + 8, card.y() + 10, 46, 46);
         graphics.fill(iconBox.x(), iconBox.y(), iconBox.right(), iconBox.bottom(), 0xE30A171C);
         drawCornerBrackets(graphics, iconBox, edge, 6);
-        renderCyberwareGlyph(graphics, cyberware,
+        renderCyberwareItem(graphics, cyberware,
                 new Rect(iconBox.x() + 7, iconBox.y() + 7,
-                        iconBox.width() - 14, iconBox.height() - 14),
-                installed ? GREEN : CYAN);
+                        iconBox.width() - 14, iconBox.height() - 14));
 
         String name = cyberware.displayName().toUpperCase(Locale.ROOT);
         int textX = card.x() + 62;
@@ -545,6 +551,10 @@ public final class CyberwareScreen extends Screen {
 
         if (hovered) {
             graphics.requestCursor(CursorTypes.POINTING_HAND);
+            if (iconBox.contains(mouseX, mouseY)) {
+                graphics.setTooltipForNextFrame(
+                        this.font, cyberwareItemStack(cyberware), rawMouseX, rawMouseY);
+            }
         }
     }
 
@@ -742,103 +752,23 @@ public final class CyberwareScreen extends Screen {
         return count;
     }
 
-    private void renderCyberwareGlyph(GuiGraphicsExtractor graphics, Cyberware cyberware,
-                                      Rect bounds, int color) {
+    private ItemStack cyberwareItemStack(Cyberware cyberware) {
+        return new ItemStack(CyberwareItems.item(cyberware).get());
+    }
+
+    /** Renders the same registered item model players see in their inventory. */
+    private void renderCyberwareItem(GuiGraphicsExtractor graphics, Cyberware cyberware,
+                                     Rect bounds) {
+        ItemStack stack = cyberwareItemStack(cyberware);
+        float itemSize = Math.min(32.0F, Math.min(bounds.width(), bounds.height()));
+        float scale = itemSize / 16.0F;
+        float x = bounds.x() + (bounds.width() - itemSize) * 0.5F;
+        float y = bounds.y() + (bounds.height() - itemSize) * 0.5F;
+
         graphics.pose().pushMatrix();
-        graphics.pose().translate(bounds.x(), bounds.y());
-        graphics.pose().scale(bounds.width() / 32.0F, bounds.height() / 32.0F);
-        switch (cyberware) {
-            case SANDEVISTAN -> {
-                drawCircle(graphics, 16, 16, 12, color);
-                drawCircle(graphics, 16, 16, 5, CYAN_DIM);
-                for (int angle = 0; angle < 360; angle += 45) {
-                    double radians = Math.toRadians(angle);
-                    drawLine(graphics,
-                            16 + (float) Math.cos(radians) * 7,
-                            16 + (float) Math.sin(radians) * 7,
-                            16 + (float) Math.cos(radians) * 11,
-                            16 + (float) Math.sin(radians) * 11,
-                            1,
-                            color);
-                }
-                drawLine(graphics, 16, 16, 21, 10, 2, GREEN);
-            }
-            case CYBERDECK_OS -> {
-                graphics.outline(6, 5, 20, 22, color);
-                graphics.outline(10, 9, 12, 14, CYAN_DIM);
-                graphics.fill(13, 12, 19, 20, GREEN);
-                for (int pin = 0; pin < 4; pin++) {
-                    graphics.fill(2, 7 + pin * 6, 7, 8 + pin * 6, color);
-                    graphics.fill(25, 7 + pin * 6, 30, 8 + pin * 6, color);
-                }
-            }
-            case GORILLA_ARMS -> {
-                graphics.outline(7, 13, 19, 14, color);
-                for (int finger = 0; finger < 4; finger++) {
-                    graphics.fill(7 + finger * 5, 4 + finger % 2,
-                            11 + finger * 5, 16, color);
-                }
-                graphics.fill(3, 17, 10, 23, CYAN_DIM);
-            }
-            case MANTIS_BLADES -> {
-                drawLine(graphics, 4, 27, 14, 5, 3, color);
-                drawLine(graphics, 18, 27, 28, 5, 3, color);
-                drawLine(graphics, 8, 23, 2, 18, 2, CYAN_DIM);
-                drawLine(graphics, 24, 23, 30, 18, 2, CYAN_DIM);
-            }
-            case ARM_CANNON -> {
-                drawCircle(graphics, 10, 16, 7, color);
-                drawCircle(graphics, 10, 16, 3, CYAN_DIM);
-                graphics.fill(15, 12, 29, 20, color);
-                graphics.fill(23, 14, 31, 18, GREEN);
-            }
-            case SMART_LINK -> {
-                graphics.outline(4, 13, 15, 14, color);
-                for (int finger = 0; finger < 4; finger++) {
-                    graphics.fill(4 + finger * 4, 5 + finger % 2,
-                            7 + finger * 4, 15, color);
-                }
-                drawCircle(graphics, 23, 10, 6, CYAN_DIM);
-                graphics.horizontalLine(18, 28, 10, GREEN);
-                graphics.verticalLine(23, 5, 15, GREEN);
-                graphics.fill(22, 9, 25, 12, BACKGROUND_BOTTOM);
-            }
-            case FROG_LEGS -> {
-                drawLine(graphics, 7, 4, 21, 11, 3, color);
-                drawLine(graphics, 21, 11, 10, 18, 3, color);
-                drawLine(graphics, 10, 18, 25, 27, 3, color);
-                drawLine(graphics, 20, 27, 29, 27, 2, GREEN);
-            }
-            case HYENA_LEGS -> {
-                drawLine(graphics, 9, 4, 18, 15, 4, color);
-                drawLine(graphics, 18, 15, 12, 26, 4, color);
-                drawLine(graphics, 12, 26, 27, 27, 3, CYAN_DIM);
-                drawLine(graphics, 3, 12, 10, 12, 2, GREEN);
-            }
-            case THRETEVAC -> {
-                drawLine(graphics, 3, 16, 16, 7, 1, color);
-                drawLine(graphics, 16, 7, 29, 16, 1, color);
-                drawLine(graphics, 29, 16, 16, 25, 1, color);
-                drawLine(graphics, 16, 25, 3, 16, 1, color);
-                drawCircle(graphics, 16, 16, 7, CYAN_DIM);
-                drawLine(graphics, 16, 16, 23, 12, 2, GREEN);
-            }
-            case NANO_PLATING -> {
-                graphics.outline(7, 4, 18, 18, color);
-                drawLine(graphics, 7, 17, 16, 28, 2, color);
-                drawLine(graphics, 25, 17, 16, 28, 2, color);
-                drawLine(graphics, 11, 12, 15, 17, 2, GREEN);
-                drawLine(graphics, 15, 17, 22, 9, 2, GREEN);
-            }
-            case OPTICAL_CAMO -> {
-                drawLine(graphics, 2, 16, 16, 7, 1, color);
-                drawLine(graphics, 16, 7, 30, 16, 1, color);
-                drawLine(graphics, 30, 16, 16, 25, 1, color);
-                drawLine(graphics, 16, 25, 2, 16, 1, color);
-                drawCircle(graphics, 16, 16, 5, GREEN);
-                graphics.fill(15, 15, 18, 18, BACKGROUND_BOTTOM);
-            }
-        }
+        graphics.pose().translate(x, y);
+        graphics.pose().scale(scale, scale);
+        graphics.item(stack, 0, 0, cyberware.ordinal());
         graphics.pose().popMatrix();
     }
 
