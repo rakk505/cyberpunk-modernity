@@ -15,8 +15,12 @@ grenades, cyberware, faction soldiers, and a procedurally generated neon city.
   M2038, Carnage, Ajax, Copperhead, Grad, and more).
 - **Grenades** — throwable incendiary and poison grenades with area effects.
 - **Faction soldiers** — Arasaka, Militech, and Kang Tao corpo enemies that patrol,
-  detect the player, alert their squad, and fight with cyberpunk weapons. Grenade-armed
-  soldiers lob grenades at you.
+  detect the player, alert their squad, and fight with cyberpunk weapons. They dash and
+  slide while firing, with synchronized full-body movement, recoil, reload, and malfunction
+  poses. Grenade-armed soldiers lob grenades at you.
+- **Tactical movement** — server-authoritative directional dashes (`Left Alt`) and grounded
+  sprint slides (`C`) with low collision, eased momentum, first-person weapon motion, camera
+  response, and third-person procedural animation.
 - **Cyberware** — installable body augmentations with active skills.
 - **Neon city** — a procedurally generated city to explore.
 - **City civilians** — eight corporate-worker variants populate only the Cyberpunk City and Neon
@@ -38,6 +42,13 @@ This branch also contains the standalone [Neon City world generator](neoncity/RE
 It installs alongside Cyberdeck and provides the `neoncity:megacity` world preset,
 infinite cultural districts, organic roads, elevated transit, and DFS service alleys.
 Its verified release JAR is available under `neoncity/deliverable/`.
+
+## Tactical movement controls
+
+- Hold a movement key and tap `Left Alt` to dash in that direction.
+- Sprint forward and tap `C` to slide.
+- Both moves have short server-enforced recovery windows. Gun handling, recoil, and reload
+  animation continue while moving.
 
 ## Running in a dev environment
 

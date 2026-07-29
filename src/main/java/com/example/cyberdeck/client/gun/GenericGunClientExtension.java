@@ -1,5 +1,6 @@
 package com.example.cyberdeck.client.gun;
 
+import com.example.cyberdeck.client.movement.TacticalFirstPerson;
 import com.example.cyberdeck.weapon.GunItem;
 import com.example.cyberdeck.weapon.GunType;
 import com.example.cyberdeck.weapon.ReloadState;
@@ -10,6 +11,9 @@ import com.mojang.math.Axis;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.HumanoidArm;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.client.extensions.common.IClientItemExtensions;
 
@@ -26,6 +30,18 @@ public final class GenericGunClientExtension implements IClientItemExtensions {
     private GenericGunClientExtension() {}
 
     @Override
+    public HumanoidModel.ArmPose getArmPose(LivingEntity entity, InteractionHand hand,
+                                             ItemStack stack) {
+        if (!(stack.getItem() instanceof GunItem) || hand != InteractionHand.MAIN_HAND) {
+            return null;
+        }
+        return entity instanceof net.minecraft.world.entity.player.Player player
+                && ReloadState.get(player).active()
+                ? HumanoidModel.ArmPose.CROSSBOW_CHARGE
+                : HumanoidModel.ArmPose.CROSSBOW_HOLD;
+    }
+
+    @Override
     public boolean applyForgeHandTransform(PoseStack poseStack, LocalPlayer player, HumanoidArm arm,
                                            ItemStack stack, float partialTick, float equipProgress,
                                            float swingProgress) {
@@ -33,6 +49,7 @@ public final class GenericGunClientExtension implements IClientItemExtensions {
             return false;
         }
 
+        TacticalFirstPerson.apply(poseStack, player, partialTick);
         int side = arm == HumanoidArm.RIGHT ? 1 : -1;
         // Vanilla's stable hand anchor. Returning true below prevents the generic melee swing from
         // turning firearms sideways while preserving each model's first-person display transform.

@@ -6,6 +6,7 @@ import com.example.cyberdeck.client.hud.QuickhackUploadOverlay;
 import com.example.cyberdeck.client.hud.RamHudOverlay;
 import com.example.cyberdeck.client.hud.SmartLockOverlay;
 import com.example.cyberdeck.client.gun.GenericGunClientExtension;
+import com.example.cyberdeck.client.movement.TacticalPlayerAnimations;
 import com.example.cyberdeck.client.render.FactionEnemyRenderer;
 import com.example.cyberdeck.client.render.CityNpcRenderer;
 import com.example.cyberdeck.client.render.MantisBladesLayer;
@@ -28,6 +29,7 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
+import net.neoforged.neoforge.client.renderstate.RegisterRenderStateModifiersEvent;
 import net.neoforged.neoforge.client.extensions.common.RegisterClientExtensionsEvent;
 import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
 import org.lwjgl.glfw.GLFW;
@@ -86,12 +88,25 @@ public final class CyberdeckClient {
             GLFW.GLFW_KEY_R,
             CATEGORY);
 
+    // Cyberpunk combat movement: a short directional burst and a momentum-preserving low slide.
+    public static final KeyMapping DASH_KEY = new KeyMapping(
+            "key.cyberdeck.dash",
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_LEFT_ALT,
+            CATEGORY);
+    public static final KeyMapping SLIDE_KEY = new KeyMapping(
+            "key.cyberdeck.slide",
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_C,
+            CATEGORY);
+
     public CyberdeckClient(IEventBus modEventBus) {
         modEventBus.addListener(this::registerKeyMappings);
         modEventBus.addListener(this::addLayers);
         modEventBus.addListener(this::registerGuiLayers);
         modEventBus.addListener(this::registerRenderers);
         modEventBus.addListener(this::registerClientExtensions);
+        modEventBus.addListener(TacticalPlayerAnimations::registerRenderStateModifiers);
     }
 
     private void registerClientExtensions(RegisterClientExtensionsEvent event) {
@@ -142,5 +157,7 @@ public final class CyberdeckClient {
         event.register(THRETEVAC_KEY);
         event.register(OPTICAL_CAMO_KEY);
         event.register(RELOAD_KEY);
+        event.register(DASH_KEY);
+        event.register(SLIDE_KEY);
     }
 }

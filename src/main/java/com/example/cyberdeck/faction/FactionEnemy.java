@@ -5,6 +5,7 @@ import com.example.cyberdeck.weapon.GunItem;
 import com.example.cyberdeck.npc.CityNpc;
 
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
@@ -31,6 +32,7 @@ import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.List;
 
@@ -69,10 +71,28 @@ public final class FactionEnemy extends Monster implements RangedAttackMob {
             SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<Boolean> DATA_USING_SECONDARY =
             SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Integer> DATA_TACTICAL_MANEUVER =
+            SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Long> DATA_TACTICAL_MANEUVER_START_TICK =
+            SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.LONG);
+    private static final EntityDataAccessor<Long> DATA_TACTICAL_MANEUVER_END_TICK =
+            SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.LONG);
+    private static final EntityDataAccessor<Float> DATA_TACTICAL_DIRECTION_X =
+            SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.FLOAT);
+    private static final EntityDataAccessor<Float> DATA_TACTICAL_DIRECTION_Z =
+            SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.FLOAT);
 
     private static final int WEAPON_GLITCH_NONE = 0;
     private static final int WEAPON_GLITCH_FIDDLING = 1;
     private static final int WEAPON_GLITCH_DRAWING_SECONDARY = 2;
+
+    private static final int DASH_TICKS = 5;
+    private static final int SLIDE_TICKS = 10;
+    private static final double DASH_SPEED = 0.66;
+    private static final double SLIDE_SPEED = 0.48;
+    private static final double MAX_TACTICAL_HORIZONTAL_SPEED = 0.68;
+    private static final double EXIT_HORIZONTAL_SPEED_CAP = 0.28;
+    private static final double MIN_DIRECTION_LENGTH_SQR = 1.0E-5;
 
     /** Initial interruption before a glitched primary is abandoned. */
     public static final int PRIMARY_MALFUNCTION_TICKS = 24;
@@ -124,6 +144,11 @@ public final class FactionEnemy extends Monster implements RangedAttackMob {
         entityData.define(DATA_WEAPON_GLITCH_END_TICK, -1L);
         entityData.define(DATA_WEAPON_GLITCH_SWITCH_PENDING, false);
         entityData.define(DATA_USING_SECONDARY, false);
+        entityData.define(DATA_TACTICAL_MANEUVER, TacticalManeuver.NONE.id());
+        entityData.define(DATA_TACTICAL_MANEUVER_START_TICK, -1L);
+        entityData.define(DATA_TACTICAL_MANEUVER_END_TICK, -1L);
+        entityData.define(DATA_TACTICAL_DIRECTION_X, 0.0F);
+        entityData.define(DATA_TACTICAL_DIRECTION_Z, 0.0F);
     }
 
     @Override
@@ -133,6 +158,9 @@ public final class FactionEnemy extends Monster implements RangedAttackMob {
         // Grenade lob takes priority over shooting when a grenade is carried and in range.
         this.goalSelector.addGoal(0, new WeaponMalfunctionGoal(this));
         this.goalSelector.addGoal(1, new ThrowGrenadeGoal(this));
+        // No MOVE/LOOK flags: tactical impulses can happen while RangedAttackGoal keeps aiming and
+        // firing. The entity owns validation and physics so reload/glitch can cancel immediately.
+        this.goalSelector.addGoal(2, new TacticalManeuverGoal(this));
         this.goalSelector.addGoal(2, new RangedAttackGoal(this, 1.0, 20, 15.0f));
         this.goalSelector.addGoal(3, new MeleeAttackGoal(this, 1.0, false));
         // Idle behavior: patrol a fixed area around the spawn point instead of roaming freely.
@@ -224,6 +252,7 @@ public final class FactionEnemy extends Monster implements RangedAttackMob {
         if (!isWeaponGlitching()) {
             tickGunReload(level);
         }
+        tickTacticalManeuver(level);
         if (!isTriggered()) {
             accumulateDetection(level);
         }
@@ -248,8 +277,191 @@ public final class FactionEnemy extends Monster implements RangedAttackMob {
         return this.getEntityData().get(DATA_LAST_GUN_SHOT_TICK);
     }
 
+    /** Current synchronized maneuver, used by both server physics and client animation. */
+    public TacticalManeuver getTacticalManeuver() {
+        return TacticalManeuver.byId(getTacticalManeuverId());
+    }
+
+    public int getTacticalManeuverId() {
+        return this.getEntityData().get(DATA_TACTICAL_MANEUVER);
+    }
+
+    public long getTacticalManeuverStartTick() {
+        return this.getEntityData().get(DATA_TACTICAL_MANEUVER_START_TICK);
+    }
+
+    public long getTacticalManeuverEndTick() {
+        return this.getEntityData().get(DATA_TACTICAL_MANEUVER_END_TICK);
+    }
+
+    public float getTacticalDirectionX() {
+        return this.getEntityData().get(DATA_TACTICAL_DIRECTION_X);
+    }
+
+    public float getTacticalDirectionZ() {
+        return this.getEntityData().get(DATA_TACTICAL_DIRECTION_Z);
+    }
+
+    public boolean isTacticalManeuvering() {
+        TacticalManeuver maneuver = getTacticalManeuver();
+        return maneuver != TacticalManeuver.NONE
+                && getTacticalManeuverStartTick() >= 0L
+                && this.level().getGameTime() < getTacticalManeuverEndTick();
+    }
+
+    /**
+     * Begins a short maneuver if the target, surface and projected first step are all safe. The
+     * direction is derived server-side from the target rather than trusted from a client.
+     */
+    public boolean tryStartTacticalManeuver(TacticalManeuver maneuver, LivingEntity target) {
+        if (!(this.level() instanceof ServerLevel level)
+                || maneuver == TacticalManeuver.NONE
+                || isTacticalManeuvering()
+                || !canManeuverAgainst(target)
+                || !this.hasLineOfSight(target)) {
+            return false;
+        }
+
+        Vec3 towardTarget = new Vec3(
+                target.getX() - this.getX(), 0.0, target.getZ() - this.getZ());
+        if (towardTarget.lengthSqr() < MIN_DIRECTION_LENGTH_SQR) {
+            return false;
+        }
+        Vec3 forward = towardTarget.normalize();
+        Vec3 direction = switch (maneuver) {
+            case DASH_LEFT -> new Vec3(forward.z, 0.0, -forward.x);
+            case DASH_RIGHT -> new Vec3(-forward.z, 0.0, forward.x);
+            case SLIDE_FORWARD -> forward;
+            case NONE -> Vec3.ZERO;
+        };
+        double speed = maneuver.isDash() ? DASH_SPEED : SLIDE_SPEED;
+        if (!canTravel(level, direction, speed)) {
+            return false;
+        }
+
+        long now = level.getGameTime();
+        this.getEntityData().set(DATA_TACTICAL_MANEUVER, maneuver.id());
+        this.getEntityData().set(DATA_TACTICAL_MANEUVER_START_TICK, now);
+        this.getEntityData().set(DATA_TACTICAL_MANEUVER_END_TICK,
+                now + (maneuver.isDash() ? DASH_TICKS : SLIDE_TICKS));
+        this.getEntityData().set(DATA_TACTICAL_DIRECTION_X, (float) direction.x);
+        this.getEntityData().set(DATA_TACTICAL_DIRECTION_Z, (float) direction.z);
+        this.getNavigation().stop();
+        applyTacticalVelocity(direction, speed);
+        return true;
+    }
+
+    /** Cancels a maneuver and keeps only modest residual momentum. Safe to call repeatedly. */
+    public void endTacticalManeuver() {
+        if (!(this.level() instanceof ServerLevel)) {
+            return;
+        }
+        if (getTacticalManeuver() == TacticalManeuver.NONE) {
+            clearTacticalManeuverData();
+            return;
+        }
+        Vec3 movement = this.getDeltaMovement();
+        double horizontal = movement.horizontalDistance();
+        if (horizontal > EXIT_HORIZONTAL_SPEED_CAP) {
+            double scale = EXIT_HORIZONTAL_SPEED_CAP / horizontal;
+            this.setDeltaMovement(movement.x * scale, movement.y, movement.z * scale);
+            this.hurtMarked = true;
+        }
+        clearTacticalManeuverData();
+    }
+
+    private boolean canManeuverAgainst(LivingEntity target) {
+        return this.isAlive()
+                && this.isTriggered()
+                && target != null
+                && target.isAlive()
+                && !(target instanceof CityNpc)
+                && this.canAttack(target)
+                && this.getMainHandItem().getItem() instanceof GunItem
+                && !this.isWeaponGlitching()
+                && !this.isGunReloading()
+                && this.onGround()
+                && !this.horizontalCollision
+                && !this.isPassenger()
+                && !this.isInWater()
+                && !this.isInLava();
+    }
+
+    private void tickTacticalManeuver(ServerLevel level) {
+        TacticalManeuver maneuver = getTacticalManeuver();
+        if (maneuver == TacticalManeuver.NONE) {
+            return;
+        }
+        LivingEntity target = this.getTarget();
+        long now = level.getGameTime();
+        if (now >= getTacticalManeuverEndTick()
+                || !canManeuverAgainst(target)) {
+            endTacticalManeuver();
+            return;
+        }
+
+        Vec3 direction = new Vec3(
+                getTacticalDirectionX(), 0.0, getTacticalDirectionZ());
+        if (direction.lengthSqr() < MIN_DIRECTION_LENGTH_SQR) {
+            endTacticalManeuver();
+            return;
+        }
+        direction = direction.normalize();
+
+        double duration = Math.max(1.0,
+                getTacticalManeuverEndTick() - getTacticalManeuverStartTick());
+        double progress = Math.max(0.0,
+                Math.min(1.0, (now - getTacticalManeuverStartTick()) / duration));
+        double speed = maneuver.isDash()
+                ? DASH_SPEED * (1.0 - 0.22 * progress)
+                : SLIDE_SPEED * (1.0 - 0.55 * progress);
+        if (!canTravel(level, direction, speed)) {
+            endTacticalManeuver();
+            return;
+        }
+
+        // Navigation resumes naturally after the short action; no goal flag is held, so shooting
+        // and look control continue throughout the maneuver.
+        this.getNavigation().stop();
+        applyTacticalVelocity(direction, speed);
+    }
+
+    private boolean canTravel(ServerLevel level, Vec3 direction, double speed) {
+        double cappedSpeed = Math.min(speed, MAX_TACTICAL_HORIZONTAL_SPEED);
+        Vec3 step = direction.scale(cappedSpeed);
+        // Check the swept volume, not only the destination, so a fast dash cannot tunnel through
+        // panes, fences or another entity between its current and projected boxes.
+        if (!level.noCollision(this, this.getBoundingBox().expandTowards(step))) {
+            return false;
+        }
+
+        // Do not dash blindly off roofs or into an unloaded column. Checking directly below the
+        // projected feet works for full blocks, slabs and stairs because all block movement shapes
+        // report motion-blocking here.
+        Vec3 next = this.position().add(step);
+        BlockPos support = BlockPos.containing(
+                next.x, this.getBoundingBox().minY - 0.12, next.z);
+        return level.isLoaded(support) && level.getBlockState(support).blocksMotion();
+    }
+
+    private void applyTacticalVelocity(Vec3 direction, double requestedSpeed) {
+        double speed = Math.min(requestedSpeed, MAX_TACTICAL_HORIZONTAL_SPEED);
+        Vec3 movement = this.getDeltaMovement();
+        this.setDeltaMovement(direction.x * speed, movement.y, direction.z * speed);
+        this.hurtMarked = true;
+    }
+
+    private void clearTacticalManeuverData() {
+        this.getEntityData().set(DATA_TACTICAL_MANEUVER, TacticalManeuver.NONE.id());
+        this.getEntityData().set(DATA_TACTICAL_MANEUVER_START_TICK, -1L);
+        this.getEntityData().set(DATA_TACTICAL_MANEUVER_END_TICK, -1L);
+        this.getEntityData().set(DATA_TACTICAL_DIRECTION_X, 0.0F);
+        this.getEntityData().set(DATA_TACTICAL_DIRECTION_Z, 0.0F);
+    }
+
     /** Starts (or restarts) a visible, combat-blocking Weapon Glitch on the held weapon. */
     public void beginWeaponGlitch(ServerLevel level) {
+        endTacticalManeuver();
         clearGunReload();
 
         boolean canSwitchToSecondary = !isUsingSecondary()
@@ -373,6 +585,7 @@ public final class FactionEnemy extends Monster implements RangedAttackMob {
         if (isGunReloading()) {
             return;
         }
+        endTacticalManeuver();
         long start = level.getGameTime();
         this.getEntityData().set(DATA_GUN_RELOAD_START_TICK, start);
         this.getEntityData().set(DATA_GUN_RELOAD_END_TICK,
@@ -554,6 +767,9 @@ public final class FactionEnemy extends Monster implements RangedAttackMob {
                 input.getBooleanOr("WeaponGlitchSwitchPending", false));
         this.getEntityData().set(DATA_USING_SECONDARY,
                 input.getBooleanOr("UsingSecondary", false));
+        // Maneuvers are brief presentation/combat impulses, not durable entity state. An entity
+        // reloaded from disk always resumes normal AI and receives a fresh deterministic cooldown.
+        clearTacticalManeuverData();
         grenadeType = "poison".equals(input.getStringOr("GrenadeType", "incendiary"))
                 ? com.example.cyberdeck.weapon.GrenadeType.POISON
                 : com.example.cyberdeck.weapon.GrenadeType.INCENDIARY;

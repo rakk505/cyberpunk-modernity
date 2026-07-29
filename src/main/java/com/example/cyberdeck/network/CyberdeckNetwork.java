@@ -1,6 +1,7 @@
 package com.example.cyberdeck.network;
 
 import com.example.cyberdeck.Cyberdeck;
+import com.example.cyberdeck.movement.TacticalMovementPacket;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
@@ -26,6 +27,10 @@ public final class CyberdeckNetwork {
                 ReloadPacket.TYPE,
                 ReloadPacket.STREAM_CODEC,
                 ReloadPacket::handle);
+        registrar.playToServer(
+                TacticalMovementPacket.TYPE,
+                TacticalMovementPacket.STREAM_CODEC,
+                TacticalMovementPacket::handle);
         registrar.playToServer(
                 EquipCyberwarePacket.TYPE,
                 EquipCyberwarePacket.STREAM_CODEC,

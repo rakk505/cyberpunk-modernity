@@ -22,6 +22,8 @@
   "key.cyberdeck.thretevac": "Activate Threat Detector",
   "key.cyberdeck.optical_camo": "Toggle Optical Camo",
   "key.cyberdeck.reload": "Reload Gun",
+  "key.cyberdeck.dash": "Combat Dash",
+  "key.cyberdeck.slide": "Combat Slide",
 
   "screen.cyberdeck.cyberware": "Cyberware",
   "screen.cyberdeck.slots": "Body Slots",
