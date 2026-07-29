@@ -2,6 +2,7 @@ package com.example.cyberdeck.faction;
 
 import com.example.cyberdeck.weapon.GunFiring;
 import com.example.cyberdeck.weapon.GunItem;
+import com.example.cyberdeck.npc.CityNpc;
 
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.syncher.EntityDataAccessor;
@@ -191,7 +192,7 @@ public final class FactionEnemy extends Monster implements RangedAttackMob {
      * No-op if it has no grenades left or isn't on the server.
      */
     public void throwGrenadeAt(LivingEntity target) {
-        if (isWeaponGlitching() || grenadeCount <= 0
+        if (target instanceof CityNpc || isWeaponGlitching() || grenadeCount <= 0
                 || !(this.level() instanceof ServerLevel level)) {
             return;
         }
@@ -430,7 +431,7 @@ public final class FactionEnemy extends Monster implements RangedAttackMob {
 
     /** Becomes hostile toward {@code target} and alerts nearby allies of the same faction. */
     public void trigger(ServerLevel level, LivingEntity target) {
-        if (isTriggered()) {
+        if (target instanceof CityNpc || !canAttack(target) || isTriggered()) {
             return;
         }
         setTriggered(true);
@@ -457,7 +458,8 @@ public final class FactionEnemy extends Monster implements RangedAttackMob {
 
     @Override
     public void performRangedAttack(LivingEntity target, float velocity) {
-        if (!(this.level() instanceof ServerLevel level)) {
+        if (target instanceof CityNpc || !canAttack(target)
+                || !(this.level() instanceof ServerLevel level)) {
             return;
         }
         if (isWeaponGlitching()) {
@@ -486,7 +488,14 @@ public final class FactionEnemy extends Monster implements RangedAttackMob {
 
     @Override
     public boolean doHurtTarget(ServerLevel level, Entity target) {
-        return !isWeaponGlitching() && super.doHurtTarget(level, target);
+        return !(target instanceof CityNpc)
+                && !isWeaponGlitching()
+                && super.doHurtTarget(level, target);
+    }
+
+    @Override
+    public boolean canAttack(LivingEntity target) {
+        return !(target instanceof CityNpc) && super.canAttack(target);
     }
 
     @Override

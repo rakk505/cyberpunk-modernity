@@ -1,5 +1,8 @@
 package com.example.cyberdeck.weapon;
 
+import com.example.cyberdeck.faction.FactionEnemy;
+import com.example.cyberdeck.npc.CityNpc;
+import com.example.cyberdeck.npc.GunshotAlerts;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -33,6 +36,7 @@ public final class GunFiring {
      */
     public static void fire(ServerLevel level, LivingEntity shooter, GunType gun) {
         RandomSource rng = shooter.getRandom();
+        GunshotAlerts.emit(level, shooter, gun);
 
         // Yukimura remains a conventional hitscan pistol until a player with Smart Link finishes
         // a server-authoritative lock. Enemies and pre-lock shots retain the normal gun behavior.
@@ -60,7 +64,9 @@ public final class GunFiring {
             EntityHitResult hit = ProjectileUtil.getEntityHitResult(
                     shooter, eye, rayEnd,
                     shooter.getBoundingBox().expandTowards(dir.scale(gun.range())).inflate(1.0),
-                    e -> e instanceof LivingEntity && e != shooter && e.isAlive() && !e.isSpectator(),
+                    e -> e instanceof LivingEntity living
+                            && e != shooter && e.isAlive() && !e.isSpectator()
+                            && (!(shooter instanceof FactionEnemy) || !(living instanceof CityNpc)),
                     gun.range() * gun.range());
 
             Vec3 impact = rayEnd;

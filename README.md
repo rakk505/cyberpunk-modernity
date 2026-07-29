@@ -19,6 +19,10 @@ grenades, cyberware, faction soldiers, and a procedurally generated neon city.
   soldiers lob grenades at you.
 - **Cyberware** — installable body augmentations with active skills.
 - **Neon city** — a procedurally generated city to explore.
+- **City civilians** — eight corporate-worker variants populate only the Cyberpunk City and Neon
+  City presets. They follow street-level paths, never fight back, and scatter away from gunshots.
+- **Coherent enemy squads** — faction soldiers arrive as deterministic four-person formations with
+  a shared faction and patrol anchor instead of inconsistent singleton spawns.
 
 ## Building
 

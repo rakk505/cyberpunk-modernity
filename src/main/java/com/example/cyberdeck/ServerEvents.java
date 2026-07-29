@@ -1,5 +1,6 @@
 package com.example.cyberdeck;
 
+import com.example.cyberdeck.npc.CityNpc;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.effect.MobEffectInstance;
@@ -8,12 +9,14 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.animal.golem.IronGolem;
+import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
+import net.neoforged.neoforge.event.entity.living.LivingChangeTargetEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 
 import java.util.List;
@@ -108,6 +111,17 @@ public final class ServerEvents {
             return false;
         }
         return entity instanceof Mob || entity instanceof Villager || entity instanceof IronGolem;
+    }
+
+    /** No hostile AI, vanilla or modded, may select a city civilian as an attack target. */
+    @SubscribeEvent
+    public void onLivingChangeTarget(LivingChangeTargetEvent event) {
+        if (event.getEntity() instanceof Enemy
+                && event.getNewAboutToBeSetTarget() instanceof CityNpc) {
+            // Do not cancel: cancellation retains the previous target. Replacing with null makes
+            // both Mob#setTarget and Brain StartAttacking integrations safely drop the civilian.
+            event.setNewAboutToBeSetTarget(null);
+        }
     }
 
     // Timed Weapon Glitch fallback: prevent non-faction ranged mobs from firing projectiles while

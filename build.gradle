@@ -177,6 +177,25 @@ tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
 }
 
+// Modernity's macOS verification process can be denied Java's localhost/network
+// entitlement even when the exact pinned Minecraft artifacts are already
+// present. This opt-in never affects ordinary builds; it lets the verification
+// sandbox consume its pre-populated `build/moddev/artifacts` directory.
+if (providers.gradleProperty('useCachedMinecraftArtifacts').orNull == 'true') {
+    def cachedMinecraftJar = files(layout.buildDirectory.file(
+            "moddev/artifacts/minecraft-patched-${neo_version}-merged.jar"))
+    tasks.matching { it.name == 'createMinecraftArtifacts' }.configureEach {
+        enabled = false
+    }
+    dependencies {
+        compileOnly cachedMinecraftJar
+    }
+    sourceSets.main.compileClasspath += cachedMinecraftJar
+    tasks.withType(JavaCompile).configureEach {
+        classpath += cachedMinecraftJar
+    }
+}
+
 // IDEA no longer automatically downloads sources/javadoc jars for dependencies, so we need to explicitly enable the behavior.
 idea {
     module {
