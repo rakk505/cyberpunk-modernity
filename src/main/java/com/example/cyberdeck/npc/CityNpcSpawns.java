@@ -16,7 +16,8 @@ import net.neoforged.neoforge.event.tick.LevelTickEvent;
 
 /** Maintains a modest pedestrian population around players, only in explicit city presets. */
 public final class CityNpcSpawns {
-    private static final int SPAWN_INTERVAL = 200;
+    // Retry quickly as players enter a freshly generated city; the population cap keeps this cheap.
+    private static final int SPAWN_INTERVAL = 40;
     private static final int TARGET_NEARBY = 12;
     private static final int NEARBY_CAP = 16;
     private static final int SPAWN_BATCH = 3;

@@ -3,12 +3,16 @@ package com.example.cyberdeck.city;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkGenerator;
+import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.levelgen.FlatLevelSource;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.fml.ModList;
@@ -18,7 +22,8 @@ public final class CityWorlds {
     public enum Kind {
         NONE(-1),
         CYBERDECK(-60),
-        NEON_CITY(0);
+        NEON_CITY(0),
+        NEON_MEGACITY(72);
 
         private final int streetY;
 
@@ -31,14 +36,25 @@ public final class CityWorlds {
         }
     }
 
+    private static final ResourceKey<DimensionType> NEON_MEGACITY_DIMENSION_TYPE =
+            ResourceKey.create(Registries.DIMENSION_TYPE,
+                    Identifier.fromNamespaceAndPath("neoncity", "megacity_overworld"));
+
     private CityWorlds() {
     }
 
     /**
-     * Returns a supported city kind. Normal/noise worlds and ordinary vanilla flat presets return
-     * {@link Kind#NONE}, which is the hard gate used by civilian spawning.
+     * Returns a supported city kind. Ordinary noise worlds and vanilla flat presets return
+     * {@link Kind#NONE}; Project Moon's marked noise world is an explicit supported exception.
      */
     public static Kind kind(ServerLevel level) {
+        // Neon City 2.0 keeps vanilla noise terrain but identifies its generated overworld with a
+        // custom dimension type. Detect that marker before applying the legacy flat-world checks.
+        if (ModList.get().isLoaded("neoncity")
+                && level.dimensionTypeRegistration().is(NEON_MEGACITY_DIMENSION_TYPE)) {
+            return Kind.NEON_MEGACITY;
+        }
+
         ChunkGenerator generator = level.getChunkSource().getGenerator();
         if (!(generator instanceof FlatLevelSource flat)) {
             return Kind.NONE;
@@ -56,6 +72,12 @@ public final class CityWorlds {
             return ModList.get().isLoaded("neoncity") ? Kind.NEON_CITY : Kind.NONE;
         }
         return Kind.NONE;
+    }
+
+    /** Pure Project Moon dimension-marker classifier exposed for regression tests. */
+    public static Kind classifyDimensionType(ResourceKey<DimensionType> dimensionType) {
+        return NEON_MEGACITY_DIMENSION_TYPE.equals(dimensionType)
+                ? Kind.NEON_MEGACITY : Kind.NONE;
     }
 
     /** Pure layer classifier exposed for regression tests. */

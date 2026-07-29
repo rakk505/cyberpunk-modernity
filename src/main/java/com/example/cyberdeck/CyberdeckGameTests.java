@@ -22,6 +22,7 @@ import java.util.function.Consumer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.gametest.framework.FunctionGameTestInstance;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.gametest.framework.TestData;
@@ -30,6 +31,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
@@ -101,6 +103,19 @@ public final class CyberdeckGameTests {
         helper.assertTrue(CityWorlds.classifyLayers(List.of(cyan, black))
                         == CityWorlds.Kind.NONE,
                 "reversed Neon City layers must be rejected");
+        ResourceKey<DimensionType> megacityDimension = ResourceKey.create(
+                Registries.DIMENSION_TYPE,
+                Identifier.fromNamespaceAndPath("neoncity", "megacity_overworld"));
+        helper.assertTrue(CityWorlds.classifyDimensionType(megacityDimension)
+                        == CityWorlds.Kind.NEON_MEGACITY,
+                "Project Moon's marked noise overworld must be recognized as a city");
+        helper.assertTrue(CityWorlds.Kind.NEON_MEGACITY.streetY() == 72,
+                "Project Moon pedestrians must use its generated Y=72 street deck");
+        helper.assertTrue(CityWorlds.classifyDimensionType(ResourceKey.create(
+                        Registries.DIMENSION_TYPE,
+                        Identifier.fromNamespaceAndPath("minecraft", "overworld")))
+                        == CityWorlds.Kind.NONE,
+                "ordinary noise overworlds must not gain city pedestrians");
         helper.succeed();
     }
 
