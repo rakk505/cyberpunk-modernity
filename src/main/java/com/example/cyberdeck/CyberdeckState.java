@@ -45,6 +45,17 @@ public final class CyberdeckState {
         }
     }
 
+    /** Sets scanner mode explicitly, used by the key toggle and the accessible command fallback. */
+    public static void setActive(ServerPlayer player, boolean active) {
+        if (active) {
+            if (!isActive(player) && isWearingCyberdeck(player)) {
+                activate(player);
+            }
+        } else {
+            deactivate(player);
+        }
+    }
+
     private static void activate(ServerPlayer player) {
         // Save the current hotbar so we can restore it later.
         ItemStack[] saved = new ItemStack[HOTBAR_SIZE];

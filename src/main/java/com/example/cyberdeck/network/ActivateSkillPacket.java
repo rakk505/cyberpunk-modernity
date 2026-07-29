@@ -66,9 +66,10 @@ public record ActivateSkillPacket(int slot, int targetId) implements CustomPacke
             QuickhackUploads.EnqueueResult result =
                     QuickhackUploads.enqueue(player, skill, living, level);
             switch (result.status()) {
-                case ACCEPTED -> player.sendSystemMessage(Component.translatable(
-                        "message.cyberdeck.quickhack_queued", skill.displayName(),
-                        result.position(), QuickhackUploads.MAX_QUEUE_SIZE), true);
+                case ACCEPTED -> {
+                    // The scanner list, RAM rail and upload marker acknowledge this without a
+                    // vanilla action-bar line obscuring the cinematic HUD.
+                }
                 case INSUFFICIENT_RAM -> {
                     player.sendSystemMessage(Component.translatable("message.cyberdeck.no_ram",
                             skill.ramCost(), result.availableRam()), true);

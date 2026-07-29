@@ -51,6 +51,7 @@ public class Cyberdeck {
         modEventBus.addListener(Cyberdeck::registerEntityAttributes);
 
         NeoForge.EVENT_BUS.register(new ServerEvents());
+        NeoForge.EVENT_BUS.addListener(CyberdeckCommands::register);
         NeoForge.EVENT_BUS.register(new com.example.cyberdeck.effect.CyberwareTickHandler());
         NeoForge.EVENT_BUS.register(new com.example.cyberdeck.effect.CyberwareCombatHandler());
         NeoForge.EVENT_BUS.register(new FactionSpawns());

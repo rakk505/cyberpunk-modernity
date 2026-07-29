@@ -142,14 +142,15 @@ public final class CyberdeckClient {
                 new QuickhackScannerOverlay());
     }
 
-    /** Adds a local green outline to only the entity currently under the scanner reticle. */
+    /** Adds the scanner's orange silhouette to only the entity under the reticle. */
     private void registerRenderStateModifiers(RegisterRenderStateModifiersEvent event) {
         event.registerEntityModifier(
                 new TypeToken<LivingEntityRenderer<LivingEntity, LivingEntityRenderState, ?>>() {},
                 (entity, state) -> {
                     if (QuickhackScannerClient.isActive()
                             && entity.getId() == QuickhackScannerClient.targetId()) {
-                        state.outlineColor = 0xFF55FF88;
+                        state.outlineColor = 0xFFFF653C;
+                        state.hasRedOverlay = true;
                     }
                 });
     }
