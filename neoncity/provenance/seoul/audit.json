@@ -1,0 +1,128 @@
+{
+  "schema_version": 1,
+  "district": "Seoul Gangnam / Teheran-ro corporate source",
+  "generator": {
+    "name": "Arnis",
+    "version": "3.0.0",
+    "binary": "arnis",
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "projection": "local",
+    "scale_blocks_per_meter": 1.0,
+    "options": [
+      "terrain",
+      "fillground",
+      "map-preview",
+      "map-item=false",
+      "gamemode=creative",
+      "world-time=18000"
+    ],
+    "overture_buildings_added_reported": 932
+  },
+  "selection": {
+    "bbox": {
+      "min_lat": 37.4962,
+      "min_lng": 127.0265,
+      "max_lat": 37.5093,
+      "max_lng": 127.0475
+    },
+    "approximate_area_km2": 2.69,
+    "spawn_geo": {
+      "lat": 37.5007,
+      "lng": 127.0365
+    },
+    "rationale": "One coherent crop spanning Gangnam Station through Yeoksam: the Teheran-ro corporate spine plus curved and diagonal neighborhood streets north and south."
+  },
+  "world_metadata": {
+    "level_name": "Arnis World 1",
+    "data_version": 4189,
+    "spawn_block": {
+      "x": 881,
+      "y": -27,
+      "z": 955
+    },
+    "bounds_blocks": {
+      "min_x": 0,
+      "max_x": 1852,
+      "min_z": 0,
+      "max_z": 1456
+    },
+    "dimensions_blocks": {
+      "x": 1853,
+      "z": 1457
+    },
+    "region_files": 12,
+    "populated_region_chunks_including_padding": 12288,
+    "world_bytes": 53382052
+  },
+  "osm": {
+    "elements": 22292,
+    "element_types": {
+      "node": 18521,
+      "way": 3758,
+      "relation": 13
+    },
+    "tagged_features": {
+      "building": 2877,
+      "highway": 810,
+      "railway": 59,
+      "waterway": 1,
+      "amenity": 1222,
+      "landuse": 33
+    },
+    "building_geometry": {
+      "node": 10,
+      "way": 2864,
+      "relation": 3,
+      "with_levels": 441,
+      "with_height": 396,
+      "with_name": 164,
+      "maximum_tagged_levels": 45,
+      "maximum_tagged_height_m": 204
+    },
+    "highway_ways": 681,
+    "named_highway_ways": 482,
+    "highway_way_classes": {
+      "primary": 41,
+      "primary_link": 10,
+      "secondary": 7,
+      "tertiary": 12,
+      "residential": 254,
+      "service": 229,
+      "pedestrian": 8,
+      "footway": 90,
+      "cycleway": 4,
+      "path": 5,
+      "steps": 17,
+      "busway": 2,
+      "platform": 2
+    }
+  },
+  "artifacts": {
+    "world": "generated/Arnis World 1",
+    "osm_json": "seoul_gangnam_osm.json",
+    "preview": "generated/Arnis World 1/arnis_world_map.png",
+    "preview_dimensions": [
+      1853,
+      1457
+    ],
+    "sha256": {
+      "osm_json": "8df4bbf2726c52992673ad58c27a5e3eb915a44fd0160c7fbbabe0becb39e590",
+      "metadata_json": "b49bdba19d2967fe430681d8f1be8b4f1cfe88baae86d1c046ab443e12283b6f",
+      "level_dat": "7de74dc415dd7b02334b1dcba38a0403446b04af34201605ceb52cdbf889c1e4",
+      "preview_png": "236d8f17ed605f481bc63c461fc6ff793f4728278969734370e97b8908ac1674",
+      "sorted_region_digest_manifest": "a9d66cbd4bbddcaeafcec312aca5750b8b77487a2e21a231196e035e9b86477e"
+    }
+  },
+  "preview_observations": [
+    "Dense small-lot fabric surrounds larger corporate footprints.",
+    "The central east-west arterial is crossed by curved and diagonal collectors; the street network is not a uniform grid.",
+    "Parks and open parcels provide useful visual breaks without fragmenting the district."
+  ],
+  "limitations": [
+    "Only 441 of 2877 OSM-tagged buildings provide level counts and 396 provide explicit heights; untagged heights depend on Arnis defaults.",
+    "The 932 Overture additions are supplemental inferred footprints and may contain false positives.",
+    "Local projection preserves this atlas internally but does not geospatially align it with separately generated local-projection districts.",
+    "Arnis fills complete Anvil regions, so padded chunks extend beyond the 1853 by 1457 metadata bounds.",
+    "The top-down preview was visually audited, but this source has not yet been repainted or validated inside the final cyberpunk runtime."
+  ]
+}

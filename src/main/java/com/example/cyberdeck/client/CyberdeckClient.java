@@ -6,8 +6,10 @@ import com.example.cyberdeck.client.hud.QuickhackScannerOverlay;
 import com.example.cyberdeck.client.hud.SmartLockOverlay;
 import com.example.cyberdeck.client.gun.GenericGunClientExtension;
 import com.example.cyberdeck.client.render.FactionEnemyRenderer;
+import com.example.cyberdeck.client.render.CityNpcRenderer;
 import com.example.cyberdeck.client.render.MantisBladesLayer;
 import com.example.cyberdeck.faction.FactionEntities;
+import com.example.cyberdeck.npc.CityNpcEntities;
 import com.example.cyberdeck.weapon.WeaponEntities;
 import com.example.cyberdeck.weapon.GunType;
 import com.example.cyberdeck.weapon.WeaponItems;
@@ -126,6 +128,7 @@ public final class CyberdeckClient {
         // Faction soldiers render as Steve-skinned humanoids; their identity shows through their
         // faction armor.
         event.registerEntityRenderer(FactionEntities.FACTION_ENEMY.get(), FactionEnemyRenderer::new);
+        event.registerEntityRenderer(CityNpcEntities.CITY_NPC.get(), CityNpcRenderer::new);
         event.registerEntityRenderer(WeaponEntities.THROWN_GRENADE.get(), ThrownItemRenderer::new);
         event.registerEntityRenderer(WeaponEntities.SMART_BULLET.get(), NoopRenderer::new);
     }

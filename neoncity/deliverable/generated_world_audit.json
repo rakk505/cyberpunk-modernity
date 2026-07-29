@@ -1,0 +1,89 @@
+{
+  "chunk_bounds": {
+    "max_x": 7,
+    "max_z": 7,
+    "min_x": -7,
+    "min_z": -7
+  },
+  "data_versions": {
+    "4903": 225
+  },
+  "distinct_blocks": 17,
+  "expected_chunks": 225,
+  "non_air_blocks": 2502184,
+  "parsed_chunks": 225,
+  "status": "pass",
+  "surface_columns": 57600,
+  "surface_y_max": 304,
+  "surface_y_min": 0,
+  "top_blocks": [
+    {
+      "block": "minecraft:tinted_glass",
+      "count": 722312
+    },
+    {
+      "block": "minecraft:light_gray_concrete",
+      "count": 542546
+    },
+    {
+      "block": "minecraft:polished_blackstone_bricks",
+      "count": 529005
+    },
+    {
+      "block": "minecraft:iron_block",
+      "count": 267388
+    },
+    {
+      "block": "minecraft:deepslate",
+      "count": 172800
+    },
+    {
+      "block": "minecraft:black_concrete",
+      "count": 79010
+    },
+    {
+      "block": "minecraft:cyan_concrete",
+      "count": 58145
+    },
+    {
+      "block": "minecraft:reinforced_deepslate",
+      "count": 57600
+    },
+    {
+      "block": "minecraft:sea_lantern",
+      "count": 25168
+    },
+    {
+      "block": "minecraft:polished_deepslate",
+      "count": 22965
+    },
+    {
+      "block": "minecraft:gray_concrete",
+      "count": 13103
+    },
+    {
+      "block": "minecraft:deepslate_tiles",
+      "count": 7253
+    },
+    {
+      "block": "minecraft:smooth_stone",
+      "count": 3072
+    },
+    {
+      "block": "minecraft:rail",
+      "count": 1028
+    },
+    {
+      "block": "minecraft:powered_rail",
+      "count": 508
+    },
+    {
+      "block": "minecraft:yellow_concrete",
+      "count": 202
+    },
+    {
+      "block": "minecraft:ochre_froglight",
+      "count": 79
+    }
+  ]
+}

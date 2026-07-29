@@ -2,6 +2,7 @@ package com.example.cyberdeck.faction;
 
 import com.example.cyberdeck.weapon.GunFiring;
 import com.example.cyberdeck.weapon.GunItem;
+import com.example.cyberdeck.npc.CityNpc;
 
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.syncher.EntityDataAccessor;
@@ -89,6 +90,8 @@ public final class FactionEnemy extends Monster implements RangedAttackMob {
     private static final double PATROL_RADIUS = 12.0;
 
     private int detection;
+    /** Fractional buildup retained so crouch visibility can reduce detection smoothly. */
+    private float detectionRemainder;
     /** The point this soldier patrols around; set on spawn. Null falls back to the current position. */
     private net.minecraft.core.BlockPos homePos;
     /** Grenades remaining to throw; 0 means this soldier was not issued any. */
@@ -191,7 +194,7 @@ public final class FactionEnemy extends Monster implements RangedAttackMob {
      * No-op if it has no grenades left or isn't on the server.
      */
     public void throwGrenadeAt(LivingEntity target) {
-        if (isWeaponGlitching() || grenadeCount <= 0
+        if (target instanceof CityNpc || isWeaponGlitching() || grenadeCount <= 0
                 || !(this.level() instanceof ServerLevel level)) {
             return;
         }
@@ -226,6 +229,19 @@ public final class FactionEnemy extends Monster implements RangedAttackMob {
         if (!isTriggered()) {
             accumulateDetection(level);
         }
+    }
+
+    /**
+     * Vanilla checks eye-to-eye visibility, which can see over a one-block wall even though a
+     * crouched player's torso is protected. This override is consumed by sensing, detection,
+     * ranged attacks, and grenade decisions, so all enemy combat agrees on low cover.
+     */
+    @Override
+    public boolean hasLineOfSight(Entity target) {
+        if (!super.hasLineOfSight(target)) {
+            return false;
+        }
+        return !(target instanceof Player player && CrouchCombat.hasLowCover(this, player));
     }
 
     /** True while this soldier's main-hand gun is waiting for its magazine reload to finish. */
@@ -404,33 +420,58 @@ public final class FactionEnemy extends Monster implements RangedAttackMob {
     }
 
     private void accumulateDetection(ServerLevel level) {
-        Player nearest = level.getNearestPlayer(this, DETECTION_RANGE);
-        boolean exposed = nearest != null
-                && !nearest.isCreative()
-                && !nearest.isSpectator()
-                && this.hasLineOfSight(nearest);
+        Player exposedPlayer = null;
+        double bestExposureScore = Double.MAX_VALUE;
+        List<Player> candidates = level.getEntitiesOfClass(
+                Player.class,
+                this.getBoundingBox().inflate(DETECTION_RANGE),
+                player -> !player.isCreative() && !player.isSpectator());
+        for (Player candidate : candidates) {
+            double distance = this.distanceTo(candidate);
+            double acquisitionRange = DETECTION_RANGE
+                    * CrouchCombat.detectionRangeMultiplier(candidate);
+            if (distance > acquisitionRange || !this.hasLineOfSight(candidate)) {
+                continue;
+            }
 
-        if (exposed) {
+            // Choose the most exposed candidate rather than letting a hidden nearby player mask a
+            // standing player elsewhere in the same multiplayer fight.
+            double score = distance / CrouchCombat.visibility(candidate);
+            if (score < bestExposureScore) {
+                bestExposureScore = score;
+                exposedPlayer = candidate;
+            }
+        }
+
+        if (exposedPlayer != null) {
             // Detect faster the closer the player is.
-            double dist = this.distanceTo(nearest);
-            int gain = dist < 4.0 ? 3 : (dist < 7.0 ? 2 : 1);
+            double distance = this.distanceTo(exposedPlayer);
+            int baseGain = distance < 4.0 ? 3 : (distance < 7.0 ? 2 : 1);
+            detectionRemainder += baseGain * CrouchCombat.visibility(exposedPlayer);
+            int gain = (int) detectionRemainder;
+            detectionRemainder -= gain;
+            int previous = detection;
             detection += gain;
             // Small warning cue as detection climbs.
-            if (detection == DETECTION_THRESHOLD / 2) {
+            if (previous < DETECTION_THRESHOLD / 2
+                    && detection >= DETECTION_THRESHOLD / 2) {
                 level.playSound(null, this, SoundEvents.VILLAGER_NO, SoundSource.HOSTILE, 0.6f, 1.4f);
             }
             if (detection >= DETECTION_THRESHOLD) {
-                trigger(level, nearest);
+                trigger(level, exposedPlayer);
             }
         } else if (detection > 0) {
             // Slowly forget when the player leaves.
+            detectionRemainder = 0.0F;
             detection = Math.max(0, detection - 1);
+        } else {
+            detectionRemainder = 0.0F;
         }
     }
 
     /** Becomes hostile toward {@code target} and alerts nearby allies of the same faction. */
     public void trigger(ServerLevel level, LivingEntity target) {
-        if (isTriggered()) {
+        if (target instanceof CityNpc || !canAttack(target) || isTriggered()) {
             return;
         }
         setTriggered(true);
@@ -457,10 +498,11 @@ public final class FactionEnemy extends Monster implements RangedAttackMob {
 
     @Override
     public void performRangedAttack(LivingEntity target, float velocity) {
-        if (!(this.level() instanceof ServerLevel level)) {
+        if (target instanceof CityNpc || !canAttack(target)
+                || !(this.level() instanceof ServerLevel level)) {
             return;
         }
-        if (isWeaponGlitching()) {
+        if (isWeaponGlitching() || !this.hasLineOfSight(target)) {
             return;
         }
         if (this.getMainHandItem().getItem() instanceof GunItem gunItem) {
@@ -486,7 +528,14 @@ public final class FactionEnemy extends Monster implements RangedAttackMob {
 
     @Override
     public boolean doHurtTarget(ServerLevel level, Entity target) {
-        return !isWeaponGlitching() && super.doHurtTarget(level, target);
+        return !(target instanceof CityNpc)
+                && !isWeaponGlitching()
+                && super.doHurtTarget(level, target);
+    }
+
+    @Override
+    public boolean canAttack(LivingEntity target) {
+        return !(target instanceof CityNpc) && super.canAttack(target);
     }
 
     @Override

@@ -6,6 +6,9 @@ import com.example.cyberdeck.faction.FactionEnemy;
 import com.example.cyberdeck.faction.FactionEntities;
 import com.example.cyberdeck.faction.FactionSpawns;
 import com.example.cyberdeck.network.CyberdeckNetwork;
+import com.example.cyberdeck.npc.CityNpc;
+import com.example.cyberdeck.npc.CityNpcEntities;
+import com.example.cyberdeck.npc.CityNpcSpawns;
 import com.example.cyberdeck.ram.RamAttachments;
 import com.example.cyberdeck.weapon.AmmoItems;
 import com.example.cyberdeck.weapon.ReloadState;
@@ -43,6 +46,8 @@ public class Cyberdeck {
         SmartLockState.ATTACHMENT_TYPES.register(modEventBus);
         WeaponEntities.ENTITY_TYPES.register(modEventBus);
         FactionEntities.ENTITY_TYPES.register(modEventBus);
+        CityNpcEntities.ENTITY_TYPES.register(modEventBus);
+        CyberdeckGameTests.bootstrap(modEventBus);
 
         modEventBus.addListener(CyberdeckNetwork::register);
         modEventBus.addListener(CyberdeckItems::addCreative);
@@ -55,10 +60,12 @@ public class Cyberdeck {
         NeoForge.EVENT_BUS.register(new com.example.cyberdeck.effect.CyberwareTickHandler());
         NeoForge.EVENT_BUS.register(new com.example.cyberdeck.effect.CyberwareCombatHandler());
         NeoForge.EVENT_BUS.register(new FactionSpawns());
+        NeoForge.EVENT_BUS.register(new CityNpcSpawns());
         NeoForge.EVENT_BUS.register(new com.example.cyberdeck.city.CityBuilder());
     }
 
     private static void registerEntityAttributes(EntityAttributeCreationEvent event) {
         event.put(FactionEntities.FACTION_ENEMY.get(), FactionEnemy.createAttributes().build());
+        event.put(CityNpcEntities.CITY_NPC.get(), CityNpc.createAttributes().build());
     }
 }

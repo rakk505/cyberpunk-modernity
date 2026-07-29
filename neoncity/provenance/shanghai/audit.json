@@ -1,0 +1,197 @@
+{
+  "schema_version": 1,
+  "district": "Shanghai Lujiazui corporate and Huangpu waterfront",
+  "generator": {
+    "name": "Arnis",
+    "version": "3.0.0",
+    "projection": "local",
+    "scale_blocks_per_meter": 1.0,
+    "options": [
+      "terrain",
+      "fillground",
+      "map-preview",
+      "overture=true",
+      "world-time=18000"
+    ],
+    "bbox": {
+      "min_lat": 31.2295,
+      "min_lon": 121.4885,
+      "max_lat": 31.2435,
+      "max_lon": 121.5065,
+      "approx_area_km2": 2.666
+    },
+    "requested_spawn": {
+      "lat": 31.2355,
+      "lon": 121.5
+    },
+    "command": "arnis --bbox 31.2295,121.4885,31.2435,121.5065 --save-json-file osm_lujiazui.json --output-dir generated --projection local --terrain --fillground --map-preview --spawn-lat 31.2355 --spawn-lng 121.5000 --world-time 18000 --overture true"
+  },
+  "world": {
+    "path": "generated/Arnis World 1",
+    "level_name": "Arnis World 1",
+    "minecraft_data_version": 4189,
+    "metadata": {
+      "min_mc_x": 0,
+      "max_mc_x": 1711,
+      "min_mc_z": 0,
+      "max_mc_z": 1556,
+      "width_blocks": 1712,
+      "depth_blocks": 1557,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "spawn": {
+      "x": 1093,
+      "y": -48,
+      "z": 889,
+      "gamemode": "creative",
+      "day_time": 18000
+    },
+    "storage": {
+      "region_files": 16,
+      "stored_chunks_in_padded_128x128_region_grid": 16384,
+      "metadata_coverage_chunks_x": 107,
+      "metadata_coverage_chunks_z": 98,
+      "metadata_coverage_chunks": 10486,
+      "region_bytes": 68222976,
+      "world_kib": 68888
+    },
+    "preview": {
+      "path": "generated/Arnis World 1/arnis_world_map.png",
+      "width_px": 1712,
+      "height_px": 1557
+    }
+  },
+  "osm": {
+    "path": "osm_lujiazui.json",
+    "timestamp_osm_base": "2026-07-29T04:44:21Z",
+    "element_records": 19069,
+    "unique_elements_by_type_and_id": 18695,
+    "duplicate_element_records": 374,
+    "node_records": 17142,
+    "unique_nodes": 16916,
+    "way_records": 1892,
+    "unique_ways": 1744,
+    "relation_records": 35,
+    "unique_relations": 35,
+    "unique_tagged_elements": 2193,
+    "unique_named_elements": 645,
+    "buildings": {
+      "unique_features": 264,
+      "unique_ways": 241,
+      "unique_relations": 23,
+      "unique_explicit_height_features": 31,
+      "unique_height_ge_150m_features": 22,
+      "unique_height_ge_200m_features": 13,
+      "unique_height_ge_400m_features": 3,
+      "overture_only_footprints_added_during_generation": 177
+    },
+    "transport": {
+      "unique_highway_ways": 989,
+      "vehicle_road_ways": 534,
+      "vehicle_road_km": 78.89,
+      "turn_measurable_vehicle_polylines": 398,
+      "curved_vehicle_polylines": 210,
+      "curved_share": 0.5276,
+      "sharp_turn_vehicle_polylines": 37,
+      "roundabouts": 7,
+      "bridges": 35,
+      "tunnels": 59,
+      "rail_ways": 12,
+      "highway_classes": {
+        "cycleway": 11,
+        "footway": 386,
+        "path": 4,
+        "pedestrian": 20,
+        "primary": 44,
+        "primary_link": 1,
+        "proposed": 1,
+        "residential": 42,
+        "secondary": 144,
+        "secondary_link": 4,
+        "service": 224,
+        "steps": 33,
+        "tertiary": 35,
+        "tertiary_link": 28,
+        "trunk": 10,
+        "unclassified": 2
+      },
+      "curvature_method": "Vehicle ways with at least two measurable segments; curved when cumulative absolute heading change is at least 25 degrees or any turn is at least 18 degrees."
+    },
+    "water_and_harbor": {
+      "unique_water_features": 26,
+      "piers": 33,
+      "ferry_features": 6
+    },
+    "unique_landuse_features": 107,
+    "unique_amenity_features": 186,
+    "representative_high_rises": [
+      {
+        "name": "Shanghai Tower",
+        "height_m": 632.0,
+        "levels": 128,
+        "approx_mc_x": 1215,
+        "approx_mc_z": 880
+      },
+      {
+        "name": "Shanghai World Financial Center",
+        "height_m": 492.0,
+        "levels": 101,
+        "approx_mc_x": 1380,
+        "approx_mc_z": 769
+      },
+      {
+        "name": "Jin Mao Tower",
+        "height_m": 420.5,
+        "approx_mc_x": 1227,
+        "approx_mc_z": 694
+      },
+      {
+        "name": "Two International Finance Center",
+        "height_m": 259.9,
+        "levels": 56
+      },
+      {
+        "name": "HSBC Building",
+        "height_m": 249.9,
+        "levels": 58
+      },
+      {
+        "name": "Shanghai Stock Exchange",
+        "height_m": 180.0,
+        "levels": 26
+      },
+      {
+        "name": "Oriental Pearl Tower",
+        "height_m": null,
+        "approx_mc_x": 644,
+        "approx_mc_z": 178,
+        "note": "OSM footprint is present but its outline lacks an explicit height tag."
+      }
+    ]
+  },
+  "generation_observations": {
+    "overture_buildings_added": 177,
+    "wikidata_models_requested": 2,
+    "wikidata_models_placed": 0,
+    "terrain_source": "Mapterhorn parent tiles after all 16 requested z16 tiles were absent",
+    "terrain_outliers_filtered": 12165,
+    "water_components_leveled": 10,
+    "surface_cells_flattened": 685124
+  },
+  "hashes_sha256": {
+    "osm_lujiazui.json": "0b4a83caa004af2a8ba50ce4605031ddd8e28746fed0cb57164575ff902f1eda",
+    "metadata.json": "5f83e3016bbf0e9a521b0769647fe495d6be4b8030a90656a961d8d807dd3bf7",
+    "arnis_world_map.png": "d0aa6424db58373cb8f69775564d0292d51e1966268240072e0b10a1cac80674",
+    "level.dat": "536ceb1212c25b922d5d02adb687094535f07c6c5e02acfc0e93e295934c177d",
+    "sorted_region_sha256_manifest": "336b29c29ff32af238a81356ad49ab34ce3bb03bf8a8dc67f59b1136f9a3301d"
+  },
+  "limitations": [
+    "This is one coherent local-projection atlas; coordinates do not align with separately generated local-projection districts without an explicit placement transform.",
+    "The saved OSM JSON is the Overpass response and does not embed the 177 extra Overture footprints reported by Arnis.",
+    "Both attempted Shanghai Tower Wikidata model placements were rejected because the 632 m model exceeded Arnis's 600 m voxelizer cap; the OSM footprint remains, but skyline landmark geometry should be procedurally extruded or repainted by the mod.",
+    "Interiors were not generated.",
+    "Anvil storage is padded to a 128 by 128 chunk grid; consumers should crop to metadata block bounds 0..1711 by 0..1556.",
+    "The source is suitable as road, waterfront, footprint, and massing provenance; it still needs cyberpunk materials, lighting, signage, rooftop machinery, and vertical transit during repainting."
+  ]
+}

@@ -69,6 +69,19 @@ public final class FirstPersonGunRenderer {
         } else {
             GunAnimator.apply(model, clip, controller.clipTime());
         }
+
+        float crouchBlend = CrouchAnimationController.update(player);
+        if (crouchBlend > 0.0F) {
+            BedrockAnimationData stance = GunModelRegistry.crouchAnimation();
+            String stanceName = CrouchAnimationController.isMoving(player)
+                    ? "crouch_walk"
+                    : "crouch_idle";
+            GunAnimator.applyAdditive(
+                    model,
+                    stance.clips.get(stanceName),
+                    CrouchAnimationController.playbackTime(player, event.getPartialTick()),
+                    crouchBlend);
+        }
         BedrockPart reloadAssembly = model.getBone("mag_and_hand");
         if (reloadAssembly != null) {
             reloadAssembly.visible = clipName.startsWith("reload_");

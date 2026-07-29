@@ -31,6 +31,8 @@ import java.util.Optional;
 public final class GunModelRegistry {
     private static final Map<String, Entry> CACHE = new HashMap<>();
     private static final Map<String, Boolean> MISSING = new HashMap<>();
+    private static BedrockAnimationData crouchAnimation;
+    private static boolean crouchAnimationLoaded;
 
     private GunModelRegistry() {}
 
@@ -63,6 +65,31 @@ public final class GunModelRegistry {
     public static void clear() {
         CACHE.clear();
         MISSING.clear();
+        crouchAnimation = null;
+        crouchAnimationLoaded = false;
+    }
+
+    /** Shared Blockbench-authored stance layered over every animated first-person gun rig. */
+    public static BedrockAnimationData crouchAnimation() {
+        if (crouchAnimationLoaded) {
+            return crouchAnimation;
+        }
+        crouchAnimationLoaded = true;
+        ResourceManager resources = Minecraft.getInstance().getResourceManager();
+        Identifier id = Identifier.fromNamespaceAndPath(
+                Cyberdeck.MODID, "gun_anim/player_crouch.animation.json");
+        JsonObject json = readJson(resources, id);
+        if (json == null) {
+            crouchAnimation = new BedrockAnimationData();
+            return crouchAnimation;
+        }
+        try {
+            crouchAnimation = BedrockAnimationData.parse(json);
+        } catch (RuntimeException exception) {
+            Cyberdeck.LOGGER.error("Failed to parse shared crouch animation {}", id, exception);
+            crouchAnimation = new BedrockAnimationData();
+        }
+        return crouchAnimation;
     }
 
     private static Entry load(GunType gun) {

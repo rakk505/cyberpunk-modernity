@@ -2,6 +2,7 @@ package com.example.cyberdeck.skill;
 
 import com.example.cyberdeck.WeaponGlitchData;
 import com.example.cyberdeck.faction.FactionEnemy;
+import com.example.cyberdeck.npc.CityNpc;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -109,7 +110,7 @@ public final class SkillExecutor {
     private static void cyberpsychosis(LivingEntity target, ServerLevel level) {
         AABB area = target.getBoundingBox().inflate(5.0);
         List<Mob> nearby = level.getEntitiesOfClass(Mob.class, area,
-                e -> e != target && e.isAlive());
+                e -> e != target && e.isAlive() && !(e instanceof CityNpc));
         if (nearby.isEmpty()) {
             target.hurtServer(level, level.damageSources().magic(), Float.MAX_VALUE);
             level.sendParticles(ParticleTypes.LARGE_SMOKE,
