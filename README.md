@@ -28,6 +28,13 @@ grenades, cyberware, faction soldiers, and a procedurally generated neon city.
 
 The built mod jar is written to `build/libs/`.
 
+## Neon City Worldgen v1
+
+This branch also contains the standalone [Neon City world generator](neoncity/README.md).
+It installs alongside Cyberdeck and provides the `neoncity:megacity` world preset,
+infinite cultural districts, organic roads, elevated transit, and DFS service alleys.
+Its verified release JAR is available under `neoncity/deliverable/`.
+
 ## Running in a dev environment
 
 ```bash

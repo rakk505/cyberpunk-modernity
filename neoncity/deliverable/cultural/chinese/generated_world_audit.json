@@ -1,0 +1,97 @@
+{
+  "chunk_bounds": {
+    "max_x": -12,
+    "max_z": 19,
+    "min_x": -20,
+    "min_z": 11
+  },
+  "data_versions": {
+    "4903": 81
+  },
+  "distinct_blocks": 19,
+  "expected_chunks": 81,
+  "non_air_blocks": 633774,
+  "parsed_chunks": 81,
+  "status": "pass",
+  "surface_columns": 20736,
+  "surface_y_max": 238,
+  "surface_y_min": 0,
+  "top_blocks": [
+    {
+      "block": "minecraft:cyan_stained_glass",
+      "count": 172531
+    },
+    {
+      "block": "minecraft:waxed_cut_copper",
+      "count": 140567
+    },
+    {
+      "block": "minecraft:red_terracotta",
+      "count": 111305
+    },
+    {
+      "block": "minecraft:deepslate",
+      "count": 62208
+    },
+    {
+      "block": "minecraft:yellow_concrete",
+      "count": 61442
+    },
+    {
+      "block": "minecraft:black_concrete",
+      "count": 22096
+    },
+    {
+      "block": "minecraft:cyan_concrete",
+      "count": 20736
+    },
+    {
+      "block": "minecraft:reinforced_deepslate",
+      "count": 20736
+    },
+    {
+      "block": "minecraft:gray_concrete",
+      "count": 5757
+    },
+    {
+      "block": "minecraft:shroomlight",
+      "count": 5504
+    },
+    {
+      "block": "minecraft:waxed_weathered_cut_copper",
+      "count": 4448
+    },
+    {
+      "block": "minecraft:grass_block",
+      "count": 2904
+    },
+    {
+      "block": "minecraft:deepslate_tiles",
+      "count": 2735
+    },
+    {
+      "block": "minecraft:moss_block",
+      "count": 495
+    },
+    {
+      "block": "minecraft:dark_oak_log",
+      "count": 136
+    },
+    {
+      "block": "minecraft:light_gray_concrete",
+      "count": 105
+    },
+    {
+      "block": "minecraft:ochre_froglight",
+      "count": 34
+    },
+    {
+      "block": "minecraft:azalea_leaves",
+      "count": 30
+    },
+    {
+      "block": "minecraft:dirt",
+      "count": 5
+    }
+  ]
+}

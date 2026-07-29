@@ -1,0 +1,190 @@
+{
+  "note": "Urban morphology informs procedural parameters; source geometry is not stitched across projections and no proprietary game assets are used.",
+  "profiles": {
+    "chinese_harbor": {
+      "buildings": {
+        "approximate_footprint_coverage": 0.117755,
+        "area_m2": {
+          "max": 24255.758,
+          "median": 631.168,
+          "min": 5.055,
+          "p25": 231.071,
+          "p75": 1563.469,
+          "p90": 3083.789
+        },
+        "height_m": {
+          "max": 632.0,
+          "median": 64.0,
+          "min": 3.0,
+          "p25": 19.2,
+          "p75": 185.0,
+          "p90": 256.0
+        },
+        "height_samples": 51,
+        "ways": 225
+      },
+      "label": "Longwei Harbor",
+      "roads": {
+        "classes": {
+          "cycleway": 11,
+          "footway": 381,
+          "path": 4,
+          "pedestrian": 22,
+          "primary": 38,
+          "primary_link": 1,
+          "proposed": 1,
+          "residential": 41,
+          "secondary": 142,
+          "secondary_link": 4,
+          "service": 218,
+          "steps": 33,
+          "tertiary": 33,
+          "tertiary_link": 28,
+          "trunk": 10,
+          "unclassified": 1
+        },
+        "diagonal_segment_fraction": 0.757503,
+        "length_m": 98584.1,
+        "orientation_entropy": 0.990439,
+        "segments": 5864,
+        "strong_turn_fraction": 0.378881,
+        "ways": 968
+      },
+      "runtime_intent": "monumental towers, river curves, red-gold-teal podiums",
+      "source": {
+        "approximate_size_m": {
+          "x": 1713.3,
+          "z": 1558.5
+        },
+        "center_lat": 31.2365,
+        "center_lon": 121.4975,
+        "path": "provenance/shanghai/osm_lujiazui.json",
+        "sha256": "0b4a83caa004af2a8ba50ce4605031ddd8e28746fed0cb57164575ff902f1eda"
+      },
+      "source_city": "Shanghai / Lujiazui"
+    },
+    "japanese_neon": {
+      "buildings": {
+        "approximate_footprint_coverage": 0.338622,
+        "area_m2": {
+          "max": 10418.891,
+          "median": 87.871,
+          "min": 2.172,
+          "p25": 47.61,
+          "p75": 182.594,
+          "p90": 413.181
+        },
+        "height_m": {
+          "max": 225.0,
+          "median": 22.4,
+          "min": 2.4,
+          "p25": 12.7,
+          "p75": 35.0,
+          "p90": 44.8
+        },
+        "height_samples": 856,
+        "ways": 4678
+      },
+      "label": "Kairocho",
+      "roads": {
+        "classes": {
+          "corridor": 192,
+          "elevator": 2,
+          "footway": 1943,
+          "living_street": 4,
+          "motorway_link": 2,
+          "path": 32,
+          "pedestrian": 205,
+          "primary": 86,
+          "primary_link": 19,
+          "residential": 177,
+          "secondary": 159,
+          "secondary_link": 13,
+          "service": 327,
+          "steps": 613,
+          "tertiary": 22,
+          "tertiary_link": 1,
+          "trunk": 34,
+          "unclassified": 141
+        },
+        "diagonal_segment_fraction": 0.580378,
+        "length_m": 203256.7,
+        "orientation_entropy": 0.925894,
+        "segments": 13984,
+        "strong_turn_fraction": 0.333666,
+        "ways": 3972
+      },
+      "runtime_intent": "tight mixed parcels, rail megablock, layered alleys",
+      "source": {
+        "approximate_size_m": {
+          "x": 1943.8,
+          "z": 1502.8
+        },
+        "center_lat": 35.69275,
+        "center_lon": 139.69875,
+        "path": "provenance/tokyo/shinjuku_core_osm.json",
+        "sha256": "85d3e3801c76a7f1365dc1e4b7c05fb90ad45ed142d8d4ca8084df2a99ad0644"
+      },
+      "source_city": "Tokyo / Shinjuku"
+    },
+    "korean_corporate": {
+      "buildings": {
+        "approximate_footprint_coverage": 0.266509,
+        "area_m2": {
+          "max": 15399.981,
+          "median": 179.376,
+          "min": 2.827,
+          "p25": 140.472,
+          "p75": 250.16,
+          "p90": 424.087
+        },
+        "height_m": {
+          "max": 204.0,
+          "median": 44.0,
+          "min": 6.4,
+          "p25": 35.0,
+          "p75": 63.0,
+          "p90": 82.0
+        },
+        "height_samples": 427,
+        "ways": 2815
+      },
+      "label": "Haneul Tech Quarter",
+      "roads": {
+        "classes": {
+          "busway": 2,
+          "cycleway": 4,
+          "footway": 86,
+          "path": 5,
+          "pedestrian": 8,
+          "primary": 40,
+          "primary_link": 10,
+          "residential": 238,
+          "secondary": 7,
+          "service": 210,
+          "steps": 17,
+          "tertiary": 12
+        },
+        "diagonal_segment_fraction": 0.916786,
+        "length_m": 81120.3,
+        "orientation_entropy": 0.779253,
+        "segments": 2091,
+        "strong_turn_fraction": 0.237603,
+        "ways": 639
+      },
+      "runtime_intent": "glass corporate podiums, diagonal side streets, skybridges",
+      "source": {
+        "approximate_size_m": {
+          "x": 1854.6,
+          "z": 1458.3
+        },
+        "center_lat": 37.50275,
+        "center_lon": 127.037,
+        "path": "provenance/seoul/seoul_gangnam_osm.json",
+        "sha256": "8df4bbf2726c52992673ad58c27a5e3eb915a44fd0160c7fbbabe0becb39e590"
+      },
+      "source_city": "Seoul / Gangnam"
+    }
+  },
+  "schema_version": 1
+}

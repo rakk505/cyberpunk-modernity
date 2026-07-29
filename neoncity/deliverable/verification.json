@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "mod": {
+    "id": "neoncity",
+    "version": "1.0.1",
+    "minecraft": "26.2",
+    "neoforge": "26.2.0.7-beta",
+    "installed_neoforge_compatibility": "26.2.0.8-beta satisfies declared [26.2.0.7-beta,) range",
+    "java_package": "dev.modernity.neoncity",
+    "generator_fingerprint": "neon-megacity-v2-dense-facades-continuous-transit-20260728"
+  },
+  "artifact": {
+    "path": "deliverable/neoncity-1.0.1.jar",
+    "sha256": "4272ce572f86b5b71e31514717066fe492ce2df7a7267270c6e99452d866c36f",
+    "source_snapshot_sha256": "d31236251c400e3d7f514709be1cd2e7ca63a1334f15de146394339c42580931",
+    "installed_path": "minecraft/mods/neoncity-1.0.1.jar"
+  },
+  "modernity": {
+    "sandbox_id": "ephemeral",
+    "verified_by": [
+      "create",
+      "compile",
+      "gametest",
+      "boot",
+      "client_install",
+      "client_load",
+      "client_connectivity",
+      "visual"
+    ],
+    "gametests": {
+      "required": 7,
+      "passed": 7
+    },
+    "compatibility_startup": {
+      "mods": [
+        "city17-2.0.0",
+        "cyberdeck-1.0.0",
+        "neoncity-1.0.1"
+      ],
+      "module_path_validation": "pass",
+      "managed_client_load": "pass",
+      "managed_client_connectivity": "pass"
+    }
+  },
+  "generated_world": {
+    "persistent_chunks": 468,
+    "core": {
+      "chunks": 225,
+      "surface_columns": 57600,
+      "non_air_blocks": 2502184,
+      "surface_y_max": 304,
+      "audit": "deliverable/generated_world_audit.json",
+      "isometric_sha256": "0361b8bc1248fd0b593fceb058c68a933e97dff0fa17c027bfd4015c415f3c7e",
+      "topdown_sha256": "37f797cf322c919425f6dd33881b0602c6313b107845497348842d50b71ea1b4"
+    },
+    "japanese": {
+      "chunks": 81,
+      "non_air_blocks": 405302,
+      "surface_y_max": 108,
+      "audit": "deliverable/cultural/japanese/generated_world_audit.json",
+      "isometric_sha256": "f5fc009192b6ddf25610254e94a3dc1f618a955aa71b5df24f2f18f977e2db4f"
+    },
+    "korean": {
+      "chunks": 81,
+      "non_air_blocks": 649334,
+      "surface_y_max": 200,
+      "audit": "deliverable/cultural/korean/generated_world_audit.json",
+      "isometric_sha256": "196dab129021655f5becb143e4da019c43f7083469a4dd9142eb1d793abb19b0"
+    },
+    "chinese": {
+      "chunks": 81,
+      "non_air_blocks": 633774,
+      "surface_y_max": 238,
+      "audit": "deliverable/cultural/chinese/generated_world_audit.json",
+      "isometric_sha256": "047faaa1aa18c2e0dc79b623efc8600a3aa932127c8c3482d404582c843536e4"
+    }
+  },
+  "client_captures": [
+    {
+      "name": "neoncity-101-three-mod-startup",
+      "path": "deliverable/client_compatibility_1.0.1.png",
+      "sha256": "f7112b53a36ac5ddc1b3645ca0c742c88811e65dddded5781701449eeed9a72a"
+    }
+  ],
+  "provenance": {
+    "tokyo_osm_sha256": "85d3e3801c76a7f1365dc1e4b7c05fb90ad45ed142d8d4ca8084df2a99ad0644",
+    "seoul_osm_sha256": "8df4bbf2726c52992673ad58c27a5e3eb915a44fd0160c7fbbabe0becb39e590",
+    "shanghai_osm_sha256": "0b4a83caa004af2a8ba50ce4605031ddd8e28746fed0cb57164575ff902f1eda"
+  }
+}

@@ -1,0 +1,3 @@
+# Reproducible local Arnis world exports. Keep source OSM and audits in Git;
+# omit bulky Minecraft saves and derived map exports.
+provenance/*/generated/
