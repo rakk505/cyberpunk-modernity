@@ -18,12 +18,15 @@ python3 tools/arnis/arnis_import.py import ../ArnisWorld \
   --license-url "https://opendatacommons.org/licenses/odbl/1-0/" \
   --attribution "OpenStreetMap contributors" \
   --selection harbor=12,8:14,10 \
-  --selection hillside=18,4:19,6
+  --selection hillside=18,4:19,6 \
+  --surface-y 68
 ```
 
-Selection coordinates are inclusive chunk coordinates. Each selection must be
-at most 3x3 chunks (48x48 blocks), the vanilla StructureTemplate horizontal
-limit. Negative coordinates are supported. The default output is
+Selection coordinates are inclusive chunk coordinates. Each reviewed selection
+must be at most 3x3 chunks (48x48 blocks). A multi-chunk crop is automatically
+split into runtime-safe one-chunk files named `<selection>_<x>_<z>`; the runtime
+recognizes those names as one coherent mosaic. Negative coordinates are
+supported. The default output is
 `src/main/resources/data/neoncity/arnis/structures/<district>/`, and catalog
 paths are always relative.
 
@@ -41,6 +44,12 @@ structure blocks, barriers, jigsaws, and light blocks. It records what was
 stripped. Boundary runs of common vanilla road materials are emitted as
 low-confidence connector hints for later road stitching; they are hints, not
 semantic guarantees, and should be curated for production atlases.
+
+`--surface-y` records the source world's street/deck elevation. Runtime aligns
+that Y level to the megacity deck, and connector inference ignores apparent
+"roads" far above it (for example, stone on a cropped skyscraper roof). When
+omitted it defaults to two blocks above the imported minimum Y; pass it
+explicitly for every curated production atlas.
 
 Limitations:
 

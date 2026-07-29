@@ -106,14 +106,17 @@ public final class MegacityLayout {
                 nodes.add(new Node(district, 0, 0, 990, 900, phase, identity));
                 continue;
             }
-            double radial = 735.0 * Math.sqrt(index) + signedUnit(identity >>> 9) * 95.0;
-            double angle = phase + index * GOLDEN_ANGLE + signedUnit(identity >>> 23) * 0.13;
+            double radial = 735.0 * Math.sqrt(index)
+                    + signedUnit(Long.rotateRight(identity, 9)) * 95.0;
+            double angle = phase + index * GOLDEN_ANGLE
+                    + signedUnit(Long.rotateRight(identity, 23)) * 0.13;
             int x = (int) Math.round(Math.cos(angle) * radial);
             int z = (int) Math.round(Math.sin(angle) * radial);
             int radius = 960 + floorMod((int) (identity >>> 32), 281);
             int radiusX = radius + floorMod((int) identity, 151) - 75;
             int radiusZ = radius + floorMod((int) (identity >>> 16), 151) - 75;
-            double rotation = angle * 0.31 + signedUnit(identity >>> 41) * 0.5;
+            double rotation = angle * 0.31
+                    + signedUnit(Long.rotateRight(identity, 41)) * 0.5;
             nodes.add(new Node(district, x, z, radiusX, radiusZ, rotation, identity));
         }
         return new MegacityLayout(seed, nodes, buildEdges(seed, nodes));
@@ -176,7 +179,7 @@ public final class MegacityLayout {
             case 2 -> ConnectionKind.SCENIC_ROAD;
             default -> ConnectionKind.GRAND_BOULEVARD;
         };
-        double bend = signedUnit(identity >>> 21) * 0.22;
+        double bend = signedUnit(Long.rotateRight(identity, 21)) * 0.22;
         edges.add(new Edge(nodes.get(low), nodes.get(high), kind, bend, identity));
     }
 
@@ -214,7 +217,7 @@ public final class MegacityLayout {
             zone = Zone.WILDERNESS;
         } else if (inBlob && primary.score() <= 0.45) {
             zone = Zone.NEST;
-        } else if (inBlob && primary.score() <= 0.82) {
+        } else if (inBlob && primary.score() <= 0.67) {
             zone = Zone.BACKSTREETS;
         } else if (inBlob && primary.score() <= 1.08) {
             zone = Zone.OUTSKIRTS;

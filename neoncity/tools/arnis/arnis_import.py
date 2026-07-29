@@ -47,7 +47,8 @@ DEFAULT_NAMESPACE = "neoncity"
 DEFAULT_DATA_VERSION = 0  # 0 means retain the highest source DataVersion.
 MAX_PATCH_AXIS = 48
 MIN_WORLD_Y = -64
-MAX_WORLD_Y = 319
+CITY_SURFACE_Y = 72
+MAX_PLACED_Y = 318
 
 TAG_END = 0
 TAG_BYTE = 1
@@ -92,8 +93,9 @@ ROAD_BLOCKS = frozenset(
 )
 
 _SLUG = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
-_DISTRICT = re.compile(r"^[A-Z][A-Z0-9_-]{0,15}$")
+_DISTRICT = re.compile(r"^[A-Z]$")
 _REGION_FILE = re.compile(r"^r\.(-?\d+)\.(-?\d+)\.mca$")
+_ATLAS_TILE = re.compile(r"^(.+)_([0-9]+)_([0-9]+)$")
 
 
 class ImportFailure(RuntimeError):
@@ -571,7 +573,9 @@ def structure_bytes(patch: Patch, data_version: int) -> bytes:
     return compressed.getvalue()
 
 
-def road_connectors(patch: Patch) -> list[dict[str, Any]]:
+def road_connectors(
+    patch: Patch, source_surface_y: int | None = None
+) -> list[dict[str, Any]]:
     """Infer road runs touching a patch edge from topmost vanilla materials."""
     size_x, _, size_z = patch.size
     edges = (
@@ -585,7 +589,14 @@ def road_connectors(patch: Patch) -> list[dict[str, Any]]:
         candidates: list[tuple[int, int, str]] = []
         for offset in range(length):
             surface = patch.top_surface.get(coordinate(offset))
-            if surface is not None and surface[1] in ROAD_BLOCKS:
+            if (
+                surface is not None
+                and surface[1] in ROAD_BLOCKS
+                and (
+                    source_surface_y is None
+                    or abs(surface[0] - source_surface_y) <= 2
+                )
+            ):
                 candidates.append((offset, surface[0], surface[1]))
         start = 0
         while start < len(candidates):
@@ -671,6 +682,23 @@ def parse_selection(value: str) -> Selection:
     return selection
 
 
+def split_selection(selection: Selection) -> list[Selection]:
+    """Split a reviewed multi-chunk crop into runtime-safe one-chunk tiles."""
+    if selection.chunks_x == 1 and selection.chunks_z == 1:
+        return [selection]
+    return [
+        Selection(
+            f"{selection.name}_{chunk_x - selection.min_x}_{chunk_z - selection.min_z}",
+            chunk_x,
+            chunk_z,
+            chunk_x,
+            chunk_z,
+        )
+        for chunk_z in range(selection.min_z, selection.max_z + 1)
+        for chunk_x in range(selection.min_x, selection.max_x + 1)
+    ]
+
+
 def parse_geo_bbox(value: str) -> dict[str, float]:
     try:
         min_lat, min_lon, max_lat, max_lon = (float(item) for item in value.split(","))
@@ -733,7 +761,10 @@ def import_world(args: argparse.Namespace) -> dict[str, Any]:
         raise ImportFailure("at least one --selection is required")
     if not re.fullmatch(r"[0-9a-fA-F]{64}", args.source_sha256):
         raise ImportFailure("source SHA-256 must contain exactly 64 hexadecimal digits")
-    names = [item.name for item in args.selection]
+    selections = [
+        tile for selection in args.selection for tile in split_selection(selection)
+    ]
+    names = [item.name for item in selections]
     if len(names) != len(set(names)):
         raise ImportFailure("selection names must be unique")
     catalog_path = args.catalog.resolve()
@@ -757,7 +788,7 @@ def import_world(args: argparse.Namespace) -> dict[str, Any]:
             "values": metadata_value,
         }
 
-    for selection in args.selection:
+    for selection in selections:
         patch = build_patch(
             regions,
             selection,
@@ -765,6 +796,14 @@ def import_world(args: argparse.Namespace) -> dict[str, Any]:
             args.max_y,
             args.allow_missing,
         )
+        source_surface_y = (
+            args.surface_y if args.surface_y is not None else patch.min_source_y + 2
+        )
+        if not patch.min_source_y <= source_surface_y <= patch.max_source_y:
+            raise ImportFailure(
+                f"selection {selection.name!r} surface Y {source_surface_y} is outside "
+                f"the imported range {patch.min_source_y}..{patch.max_source_y}"
+            )
         data_version = args.data_version or max(patch.source_versions, default=0)
         if data_version <= 0:
             raise ImportFailure(
@@ -816,7 +855,10 @@ def import_world(args: argparse.Namespace) -> dict[str, Any]:
             "footprint": {
                 "blocks": {"x": patch.size[0], "y": patch.size[1], "z": patch.size[2]},
                 "chunks": {"x": selection.chunks_x, "z": selection.chunks_z},
-                "anchor": {"source_y": patch.min_source_y},
+                "anchor": {
+                    "source_y": patch.min_source_y,
+                    "surface_y": source_surface_y,
+                },
             },
             "source": {
                 "arnis_version": ARNIS_VERSION,
@@ -850,7 +892,7 @@ def import_world(args: argparse.Namespace) -> dict[str, Any]:
                 "canonical_order": "y,z,x",
                 "gzip_mtime": 0,
             },
-            "road_connectors": road_connectors(patch),
+            "road_connectors": road_connectors(patch, source_surface_y),
         }
         # Verify bytes before making the catalog point at them.
         validate_structure(data, entry)
@@ -941,6 +983,20 @@ def validate_structure(data: bytes, entry: dict[str, Any] | None = None) -> dict
             raise ImportFailure(f"block-count mismatch for patch {entry.get('id')}")
         if entry.get("palette_size") != len(states):
             raise ImportFailure(f"palette-size mismatch for patch {entry.get('id')}")
+        anchor = entry.get("footprint", {}).get("anchor", {})
+        source_y = anchor.get("source_y")
+        surface_y = anchor.get("surface_y")
+        if not isinstance(source_y, int):
+            raise ImportFailure(f"patch {entry.get('id')} has no vertical anchor")
+        # Schema v1 catalogs created before surface_y used minY+2. Keep those
+        # catalogs readable while all newly imported production patches record
+        # the street/deck level explicitly.
+        if surface_y is None:
+            surface_y = source_y + 2
+        if not isinstance(surface_y, int):
+            raise ImportFailure(f"patch {entry.get('id')} has an invalid surface anchor")
+        if not source_y <= surface_y < source_y + size[1]:
+            raise ImportFailure(f"patch {entry.get('id')} has an invalid surface anchor")
     return {
         "size": size,
         "blocks": len(blocks),
@@ -953,6 +1009,7 @@ def validate_catalog(path: Path) -> dict[str, Any]:
     catalog = load_catalog(path)
     ids: set[str] = set()
     summaries = []
+    atlas_groups: dict[str, set[tuple[int, int]]] = {}
     for entry in catalog["patches"]:
         if not isinstance(entry, dict) or not isinstance(entry.get("id"), str):
             raise ImportFailure("catalog contains a patch without an id")
@@ -960,12 +1017,19 @@ def validate_catalog(path: Path) -> dict[str, Any]:
         if patch_id in ids:
             raise ImportFailure(f"duplicate catalog patch id {patch_id}")
         ids.add(patch_id)
+        district = entry.get("district")
+        if not isinstance(district, str) or not _DISTRICT.fullmatch(district):
+            raise ImportFailure(f"patch {patch_id} has an invalid A-Z district code")
+        if not patch_id.startswith(f"{district.lower()}/"):
+            raise ImportFailure(f"patch {patch_id} does not match district {district}")
         file_value = entry.get("file")
         if not isinstance(file_value, str):
             raise ImportFailure(f"patch {patch_id} has no file")
         relative = Path(file_value)
         if relative.is_absolute() or ".." in relative.parts:
             raise ImportFailure(f"patch {patch_id} has unsafe file path")
+        if relative.as_posix() != f"structures/{patch_id}.nbt":
+            raise ImportFailure(f"patch {patch_id} file path does not match its catalog id")
         structure_path = path.parent / relative
         if not structure_path.is_file():
             raise ImportFailure(f"patch {patch_id} is missing {file_value}")
@@ -985,9 +1049,59 @@ def validate_catalog(path: Path) -> dict[str, Any]:
             isinstance(source_bbox.get(kind), dict) for kind in ("chunks", "blocks")
         ):
             raise ImportFailure(f"patch {patch_id} has no source bounding box")
-        if not isinstance(entry.get("road_connectors"), list):
+        connectors = entry.get("road_connectors")
+        if not isinstance(connectors, list):
             raise ImportFailure(f"patch {patch_id} has invalid road connectors")
-        summaries.append(validate_structure(structure_path.read_bytes(), entry))
+        for connector in connectors:
+            if not isinstance(connector, dict) or connector.get("edge") not in {
+                "north", "south", "west", "east"
+            }:
+                raise ImportFailure(f"patch {patch_id} has an invalid connector edge")
+            offset = connector.get("offset")
+            width = connector.get("width")
+            if (
+                not isinstance(offset, int)
+                or not isinstance(width, int)
+                or width < 3
+                or offset < 0
+                or offset + width > 16
+            ):
+                raise ImportFailure(f"patch {patch_id} has an out-of-bounds connector run")
+        chunks = entry.get("footprint", {}).get("chunks", {})
+        if chunks != {"x": 1, "z": 1}:
+            raise ImportFailure(
+                f"runtime patch {patch_id} must be one chunk; re-import the source "
+                "selection so it is split into a named tile mosaic"
+            )
+        summary = validate_structure(structure_path.read_bytes(), entry)
+        if summary["size"][0] != 16 or summary["size"][2] != 16:
+            raise ImportFailure(f"runtime patch {patch_id} is not exactly 16x16 blocks")
+        anchor = entry["footprint"]["anchor"]
+        source_y = anchor["source_y"]
+        surface_y = anchor.get("surface_y", source_y + 2)
+        placed_bottom = CITY_SURFACE_Y - (surface_y - source_y)
+        placed_top = placed_bottom + summary["size"][1] - 1
+        if placed_bottom < MIN_WORLD_Y or placed_top > MAX_PLACED_Y:
+            raise ImportFailure(
+                f"patch {patch_id} places at Y={placed_bottom}..{placed_top}, outside "
+                f"the runtime range {MIN_WORLD_Y}..{MAX_PLACED_Y}"
+            )
+        match = _ATLAS_TILE.fullmatch(patch_id)
+        if match:
+            atlas_groups.setdefault(match.group(1), set()).add(
+                (int(match.group(2)), int(match.group(3)))
+            )
+        summaries.append(summary)
+    for atlas_id, coordinates in atlas_groups.items():
+        max_x = max(value[0] for value in coordinates)
+        max_z = max(value[1] for value in coordinates)
+        expected = {
+            (x, z) for z in range(max_z + 1) for x in range(max_x + 1)
+        }
+        if max_x > 2 or max_z > 2 or coordinates != expected:
+            raise ImportFailure(
+                f"atlas {atlas_id} is sparse or exceeds the supported 3x3 mosaic"
+            )
     return {
         "status": "ok",
         "catalog": str(path),
@@ -1051,6 +1165,12 @@ def parser() -> argparse.ArgumentParser:
     )
     importer.add_argument("--min-y", type=int, default=None)
     importer.add_argument("--max-y", type=int, default=None)
+    importer.add_argument(
+        "--surface-y",
+        type=int,
+        default=None,
+        help="source street/ground Y aligned to the generated city deck",
+    )
     importer.add_argument(
         "--data-version",
         type=int,

@@ -11,6 +11,7 @@ import net.minecraft.gametest.framework.GameTestHelper;
 public final class ExampleGameTests {
     private static final long TEST_SEED = 0x4E454F4E43495459L;
     private static final int RADIAL_STEPS = 72;
+    private static final long[] ZONE_SEED_OFFSETS = {0L, 20L, 85L, 127L};
 
     private ExampleGameTests() {}
 
@@ -176,7 +177,10 @@ public final class ExampleGameTests {
     public static void districtZonesAndCulture(GameTestHelper helper) {
         Set<String> codes = new HashSet<>();
         Set<String> labels = new HashSet<>();
+        Set<District.CultureSignature> signatures = new HashSet<>();
         EnumSet<District.Architecture> architectures = EnumSet.noneOf(District.Architecture.class);
+        EnumSet<District.StreetPattern> streetPatterns = EnumSet.noneOf(District.StreetPattern.class);
+        EnumSet<District.RoofStyle> roofStyles = EnumSet.noneOf(District.RoofStyle.class);
         for (District district : District.values()) {
             helper.assertTrue(codes.add(district.code()) && district.code().length() == 1,
                     "district code must be one unique letter: " + district);
@@ -184,6 +188,12 @@ public final class ExampleGameTests {
             helper.assertTrue(!district.flavor().isBlank(), "missing cultural flavor for " + district);
             helper.assertTrue(architectures.add(district.architecture()),
                     "architecture must distinguish each culture: " + district.architecture());
+            helper.assertTrue(streetPatterns.add(district.streetPattern()),
+                    "street grammar must distinguish each culture: " + district.streetPattern());
+            helper.assertTrue(roofStyles.add(district.roofStyle()),
+                    "roofline must distinguish each culture: " + district.roofStyle());
+            helper.assertTrue(signatures.add(district.cultureSignature()),
+                    "duplicate complete culture signature: " + district);
             helper.assertTrue(district.parcelSize() >= 24 && district.parcelSize() <= 60,
                     "invalid parcel grain for " + district);
             helper.assertTrue(district.minHeight() >= 8 && district.maxHeight() > district.minHeight(),
@@ -195,27 +205,62 @@ public final class ExampleGameTests {
         }
         helper.assertTrue(architectures.equals(EnumSet.allOf(District.Architecture.class)),
                 "not every architectural culture is represented");
+        helper.assertTrue(streetPatterns.equals(EnumSet.allOf(District.StreetPattern.class)),
+                "not every district-scale street culture is represented");
+        helper.assertTrue(roofStyles.equals(EnumSet.allOf(District.RoofStyle.class)),
+                "not every district roof culture is represented");
 
-        MegacityLayout layout = MegacityLayout.create(TEST_SEED);
         EnumSet<MegacityLayout.Zone> allZones = EnumSet.of(MegacityLayout.Zone.WILDERNESS);
-        for (MegacityLayout.Node node : layout.nodes()) {
-            EnumSet<MegacityLayout.Zone> districtZones = EnumSet.noneOf(MegacityLayout.Zone.class);
-            for (double radius = 0.0; radius <= 1.12; radius += 0.07) {
-                for (int angle = 0; angle < RADIAL_STEPS; angle++) {
-                    int[] point = ellipsePoint(node, radius, angle, RADIAL_STEPS);
-                    MegacityLayout.Location location = layout.locate(point[0], point[1]);
-                    allZones.add(location.zone());
-                    if (location.district() == node.district()) districtZones.add(location.zone());
+        for (long seedOffset : ZONE_SEED_OFFSETS) {
+            MegacityLayout layout = MegacityLayout.create(TEST_SEED + seedOffset);
+            for (MegacityLayout.Node node : layout.nodes()) {
+                EnumSet<MegacityLayout.Zone> districtZones =
+                        EnumSet.noneOf(MegacityLayout.Zone.class);
+                collectDistrictZones(layout, node, districtZones, allZones, 0.02, 24);
+                if (!hasUrbanBands(districtZones)) {
+                    // Crowded border cases expose a narrow but intentional
+                    // outskirts wedge. Refine only those few districts rather
+                    // than paying this sampling cost for every node and seed.
+                    collectDistrictZones(layout, node, districtZones, allZones, 0.01, 72);
                 }
+                String context = node.district() + " at seed offset " + seedOffset;
+                helper.assertTrue(districtZones.contains(MegacityLayout.Zone.NEST),
+                        context + " has no premium Nest core");
+                helper.assertTrue(districtZones.contains(MegacityLayout.Zone.BACKSTREETS),
+                        context + " has no Backstreets belt");
+                helper.assertTrue(districtZones.contains(MegacityLayout.Zone.OUTSKIRTS),
+                        context + " has no sparse outskirts transition");
             }
-            helper.assertTrue(districtZones.contains(MegacityLayout.Zone.NEST),
-                    node.district() + " has no premium Nest core");
-            helper.assertTrue(districtZones.contains(MegacityLayout.Zone.BACKSTREETS),
-                    node.district() + " has no Backstreets belt");
         }
         helper.assertTrue(allZones.equals(EnumSet.allOf(MegacityLayout.Zone.class)),
                 "layout sampling did not expose every zone: " + allZones);
         helper.succeed();
+    }
+
+    private static void collectDistrictZones(
+            MegacityLayout layout,
+            MegacityLayout.Node node,
+            EnumSet<MegacityLayout.Zone> districtZones,
+            EnumSet<MegacityLayout.Zone> allZones,
+            double radialStep,
+            int angleSteps) {
+        int radialSamples = (int) Math.round(1.12 / radialStep);
+        for (int radialIndex = 0; radialIndex <= radialSamples; radialIndex++) {
+            double radius = Math.min(1.12, radialIndex * radialStep);
+            for (int angle = 0; angle < angleSteps; angle++) {
+                int[] point = ellipsePoint(node, radius, angle, angleSteps);
+                MegacityLayout.Location location = layout.locate(point[0], point[1]);
+                allZones.add(location.zone());
+                if (location.district() == node.district()) districtZones.add(location.zone());
+                if (hasUrbanBands(districtZones)) return;
+            }
+        }
+    }
+
+    private static boolean hasUrbanBands(EnumSet<MegacityLayout.Zone> zones) {
+        return zones.contains(MegacityLayout.Zone.NEST)
+                && zones.contains(MegacityLayout.Zone.BACKSTREETS)
+                && zones.contains(MegacityLayout.Zone.OUTSKIRTS);
     }
 
     public static void connectionContinuity(GameTestHelper helper) {
@@ -319,45 +364,149 @@ public final class ExampleGameTests {
         NeonCityGenerator.reset();
         MegacityLayout layout = NeonCityGenerator.layout();
         ArnisPatchLibrary.Patch patch = ArnisPatchLibrary.SHINJUKU_CORE;
-        helper.assertTrue(ArnisPatchLibrary.PATCHES.size() == 1,
-                "unexpected unaudited Arnis patch in runtime index");
+        helper.assertTrue(ArnisPatchLibrary.PATCHES.size() == 28,
+                "runtime index does not match the audited 28-tile catalog");
+        helper.assertTrue(ArnisPatchLibrary.atlasCount() == 4,
+                "expected Gangnam, Lujiazui, Shinjuku Crossing, and legacy Shinjuku atlases");
+        helper.assertTrue(ArnisPatchLibrary.PATCHES.stream()
+                        .filter(candidate -> candidate.district() == District.L_CORP).count() == 9,
+                "Gangnam atlas is not a complete 3x3 neighborhood");
+        helper.assertTrue(ArnisPatchLibrary.PATCHES.stream()
+                        .filter(candidate -> candidate.district() == District.W_CORP).count() == 9,
+                "Lujiazui atlas is not a complete 3x3 neighborhood");
+        helper.assertTrue(ArnisPatchLibrary.PATCHES.stream()
+                        .filter(candidate -> candidate.catalogId().startsWith("z/crossing_")).count() == 9,
+                "Shinjuku Crossing atlas is not a complete 3x3 neighborhood");
         helper.assertTrue(patch.district() == District.Z_CORP
                         && patch.sizeX() == 16 && patch.sizeZ() == 16
                         && patch.surfaceOffset() == 132
                         && patch.sha256().length() == 64,
                 "Shinjuku patch metadata disagrees with its audited catalog");
 
-        MegacityLayout.Node node = layout.node(District.Z_CORP);
-        ArnisPatchLibrary.Placement found = null;
-        int radius = Math.max(node.radiusX(), node.radiusZ());
-        for (int chunkZ = Math.floorDiv(node.z() - radius, 16);
-             chunkZ <= Math.floorDiv(node.z() + radius, 16) && found == null; chunkZ++) {
-            for (int chunkX = Math.floorDiv(node.x() - radius, 16);
-                 chunkX <= Math.floorDiv(node.x() + radius, 16); chunkX++) {
-                var candidate = ArnisPatchLibrary.select(layout, chunkX, chunkZ);
-                if (candidate.isPresent()) {
-                    found = candidate.get();
-                    break;
-                }
-            }
-        }
-        helper.assertTrue(found != null, "Z Corp contains no deterministic Arnis patch placement");
+        ArnisPatchLibrary.Placement gangnam = findAtlasOrigin(
+                layout, District.L_CORP, "l/gangnam_0_0");
+        ArnisPatchLibrary.Placement lujiazui = findAtlasOrigin(
+                layout, District.W_CORP, "w/lujiazui_0_0");
+        ArnisPatchLibrary.Placement crossing = findAtlasOrigin(
+                layout, District.Z_CORP, "z/crossing_0_0");
+        helper.assertTrue(gangnam != null, "L Corp contains no deterministic Gangnam atlas");
+        helper.assertTrue(lujiazui != null, "W Corp contains no deterministic Lujiazui atlas");
+        helper.assertTrue(crossing != null, "Z Corp contains no deterministic Shinjuku Crossing atlas");
+        assertMosaic(helper, layout, gangnam, "l/gangnam");
+        assertMosaic(helper, layout, lujiazui, "w/lujiazui");
+        assertMosaic(helper, layout, crossing, "z/crossing");
+
+        ArnisPatchLibrary.Placement found = findPlacementWithConnector(layout, District.L_CORP);
+        helper.assertTrue(found != null, "no selected Arnis tile exposes a stitched connector");
         helper.assertTrue(ArnisPatchLibrary.select(layout, found.chunkX(), found.chunkZ())
                         .orElseThrow().equals(found),
                 "Arnis selection changed between identical calls");
         int patchCenterX = (found.chunkX() << 4) + 8;
         int patchCenterZ = (found.chunkZ() << 4) + 8;
-        helper.assertTrue(layout.locate(patchCenterX, patchCenterZ).district() == District.Z_CORP,
+        helper.assertTrue(layout.locate(patchCenterX, patchCenterZ).district() == found.patch().district(),
                 "Arnis patch escaped its assigned district");
-        helper.assertTrue(ArnisPatchLibrary.connectorApproachAt(
-                        layout, (found.chunkX() << 4) - 1, (found.chunkZ() << 4) + 3),
-                "west Arnis road connector was not stitched into its neighbour");
-        helper.assertTrue(ArnisPatchLibrary.connectorApproachAt(
-                        layout, ((found.chunkX() + 1) << 4), (found.chunkZ() << 4) + 6),
-                "east Arnis road connector was not stitched into its neighbour");
+        assertConnectorApproach(helper, layout, found, found.patch().connectors().getFirst());
         helper.assertTrue(ArnisPatchLibrary.select(layout, 1000, 1000).isEmpty(),
                 "Arnis patch selection leaked into distant wilderness");
         helper.succeed();
+    }
+
+    private static ArnisPatchLibrary.Placement findAtlasOrigin(
+            MegacityLayout layout, District district, String catalogId) {
+        MegacityLayout.Node node = layout.node(district);
+        int centerChunkX = Math.floorDiv(node.x(), 16);
+        int centerChunkZ = Math.floorDiv(node.z(), 16);
+        for (int ring = 0; ring <= 72; ring++) {
+            for (int dz = -ring; dz <= ring; dz++) {
+                for (int dx = -ring; dx <= ring; dx++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != ring) continue;
+                    var placement = ArnisPatchLibrary.select(
+                            layout, centerChunkX + dx, centerChunkZ + dz);
+                    if (placement.isPresent()
+                            && placement.get().patch().catalogId().equals(catalogId)) {
+                        return placement.get();
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private static ArnisPatchLibrary.Placement findPlacementWithConnector(
+            MegacityLayout layout, District district) {
+        MegacityLayout.Node node = layout.node(district);
+        int centerChunkX = Math.floorDiv(node.x(), 16);
+        int centerChunkZ = Math.floorDiv(node.z(), 16);
+        for (int ring = 0; ring <= 72; ring++) {
+            for (int dz = -ring; dz <= ring; dz++) {
+                for (int dx = -ring; dx <= ring; dx++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != ring) continue;
+                    var placement = ArnisPatchLibrary.select(
+                            layout, centerChunkX + dx, centerChunkZ + dz);
+                    if (placement.isPresent()
+                            && placement.get().patch().district() == district
+                            && !placement.get().patch().connectors().isEmpty()) {
+                        return placement.get();
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private static void assertMosaic(
+            GameTestHelper helper,
+            MegacityLayout layout,
+            ArnisPatchLibrary.Placement origin,
+            String prefix) {
+        for (int tileZ = 0; tileZ < 3; tileZ++) {
+            for (int tileX = 0; tileX < 3; tileX++) {
+                String expected = prefix + "_" + tileX + "_" + tileZ;
+                var tile = ArnisPatchLibrary.select(
+                        layout, origin.chunkX() + tileX, origin.chunkZ() + tileZ);
+                helper.assertTrue(tile.isPresent()
+                                && tile.get().patch().catalogId().equals(expected),
+                        "coherent Arnis mosaic broke at " + expected);
+            }
+        }
+    }
+
+    private static void assertConnectorApproach(
+            GameTestHelper helper,
+            MegacityLayout layout,
+            ArnisPatchLibrary.Placement placement,
+            ArnisPatchLibrary.Connector connector) {
+        for (int offset = connector.offset(); offset < connector.offset() + connector.width(); offset++) {
+            assertConnectorPoint(helper, layout, placement, connector, offset, true);
+        }
+        if (connector.offset() > 0) {
+            assertConnectorPoint(helper, layout, placement, connector, connector.offset() - 1, false);
+        }
+        int after = connector.offset() + connector.width();
+        if (after < 16) {
+            assertConnectorPoint(helper, layout, placement, connector, after, false);
+        }
+    }
+
+    private static void assertConnectorPoint(
+            GameTestHelper helper,
+            MegacityLayout layout,
+            ArnisPatchLibrary.Placement placement,
+            ArnisPatchLibrary.Connector connector,
+            int offset,
+            boolean expected) {
+        int minX = placement.chunkX() << 4;
+        int minZ = placement.chunkZ() << 4;
+        int[] point = switch (connector.edge()) {
+            case WEST -> new int[]{minX - 1, minZ + offset};
+            case EAST -> new int[]{minX + 16, minZ + offset};
+            case NORTH -> new int[]{minX + offset, minZ - 1};
+            case SOUTH -> new int[]{minX + offset, minZ + 16};
+        };
+        boolean actual = ArnisPatchLibrary.connectorApproachAt(layout, point[0], point[1]);
+        helper.assertTrue(actual == expected,
+                "Arnis road connector " + connector.edge() + " offset " + offset
+                        + " expected stitched=" + expected + " but was " + actual);
     }
 
     private static void assertSpecialRoad(GameTestHelper helper, District district,

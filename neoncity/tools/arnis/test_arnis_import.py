@@ -22,8 +22,19 @@ class ImporterTests(unittest.TestCase):
         value = MODULE.parse_selection("plaza=-2,4:0,6")
         self.assertEqual((value.chunks_x, value.chunks_z), (3, 3))
         self.assertEqual((value.size_x, value.size_z), (48, 48))
+        tiles = MODULE.split_selection(value)
+        self.assertEqual(len(tiles), 9)
+        self.assertEqual(tiles[0].name, "plaza_0_0")
+        self.assertEqual(tiles[-1].name, "plaza_2_2")
+        self.assertTrue(all(tile.chunks_x == tile.chunks_z == 1 for tile in tiles))
         with self.assertRaises(Exception):
             MODULE.parse_selection("too_big=0,0:3,0")
+
+    def test_district_contract_is_exactly_a_through_z(self) -> None:
+        self.assertTrue(MODULE._DISTRICT.fullmatch("A"))
+        self.assertTrue(MODULE._DISTRICT.fullmatch("Z"))
+        self.assertIsNone(MODULE._DISTRICT.fullmatch("AA"))
+        self.assertIsNone(MODULE._DISTRICT.fullmatch("A-1"))
 
     def test_structure_is_deterministic_and_safe(self) -> None:
         stone = MODULE.State("minecraft:stone", ())
@@ -50,9 +61,10 @@ class ImporterTests(unittest.TestCase):
         summary = MODULE.validate_structure(first)
         self.assertEqual(summary["blocks"], 4)
         self.assertEqual(summary["size"], [16, 2, 16])
-        connectors = MODULE.road_connectors(patch)
+        connectors = MODULE.road_connectors(patch, 64)
         self.assertEqual(connectors[0]["edge"], "north")
         self.assertEqual(connectors[0]["width"], 3)
+        self.assertEqual(MODULE.road_connectors(patch, 70), [])
 
 
 if __name__ == "__main__":

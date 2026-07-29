@@ -129,9 +129,9 @@ public final class testmod {
     /** Reject natural spawn placement before a mob is constructed. */
     @SubscribeEvent
     public void onSpawnPlacement(MobSpawnEvent.SpawnPlacementCheck event) {
-        if (generationEnabled && NeonCityGenerator.isMegacityWorld(event.getLevel().getLevel())
-                && NeonCityGenerator.isInsideCity(
-                event.getPos().getX(), event.getPos().getZ())) {
+        ServerLevel level = event.getLevel().getLevel();
+        if (NeonCityGenerator.isInsideCity(
+                level, event.getPos().getX(), event.getPos().getZ())) {
             event.setResult(MobSpawnEvent.SpawnPlacementCheck.Result.FAIL);
         }
     }
@@ -142,11 +142,10 @@ public final class testmod {
      */
     @SubscribeEvent
     public void onEntityJoin(EntityJoinLevelEvent event) {
-        if (!generationEnabled || !(event.getEntity() instanceof Mob)
-                || !(event.getLevel() instanceof ServerLevel level)
-                || !NeonCityGenerator.isMegacityWorld(level)) return;
+        if (!(event.getEntity() instanceof Mob)
+                || !(event.getLevel() instanceof ServerLevel level)) return;
         if (NeonCityGenerator.isInsideCity(
-                event.getEntity().getBlockX(), event.getEntity().getBlockZ())) {
+                level, event.getEntity().getBlockX(), event.getEntity().getBlockZ())) {
             event.setCanceled(true);
         }
     }

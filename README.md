@@ -35,8 +35,9 @@ It installs alongside Cyberdeck and provides the `neoncity:megacity` world prese
 a finite world-seeded city of 26 A–Z cultural districts, organic graph connections,
 bridges, elevated transit, border rivers and hills, and vanilla wilderness beyond the
 urban footprint. Artifacts currently under `neoncity/deliverable/` are legacy v1
-previews except for `neoncity-2.0.0.jar` and `verification-v2.json`, which are
-the finite v2 build and its verification record.
+previews except for the versioned finite-megacity JARs and their verification
+records. Version 2.1 adds culture-specific street/roof/ecology grammars and
+coherent Gangnam, Lujiazui, and Shinjuku Arnis neighborhood atlases.
 
 ## Running in a dev environment
 

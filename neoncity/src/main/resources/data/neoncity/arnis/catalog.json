@@ -3,13 +3,3016 @@
   "format": "neoncity:arnis_patch_catalog",
   "patches": [
     {
+      "block_count": 2060,
+      "compressed_bytes": 6706,
+      "district": "L",
+      "file": "structures/l/gangnam_0_0.nbt",
+      "footprint": {
+        "anchor": {
+          "source_y": -62,
+          "surface_y": -62
+        },
+        "blocks": {
+          "x": 16,
+          "y": 73,
+          "z": 16
+        },
+        "chunks": {
+          "x": 1,
+          "z": 1
+        }
+      },
+      "id": "l/gangnam_0_0",
+      "normalization": {
+        "air": "omitted",
+        "block_entity_payloads": "stripped",
+        "canonical_order": "y,z,x",
+        "dangerous_blocks": {},
+        "entities": "stripped",
+        "gzip_mtime": 0,
+        "missing_chunks_as_air": [],
+        "source_block_entities": {},
+        "template_data_version": 3955
+      },
+      "palette_size": 17,
+      "road_connectors": [
+        {
+          "confidence": 0.71,
+          "edge": "north",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:stone_bricks",
+          "offset": 6,
+          "source_y": -62,
+          "width": 4
+        },
+        {
+          "confidence": 0.91,
+          "edge": "south",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:gray_concrete",
+          "offset": 1,
+          "source_y": -62,
+          "width": 9
+        },
+        {
+          "confidence": 0.95,
+          "edge": "west",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:gray_concrete",
+          "offset": 0,
+          "source_y": -62,
+          "width": 14
+        }
+      ],
+      "sha256": "42ed14e20666dccab38ce009848e001f0795fbf9957b6b6ac46d1335aa8a8111",
+      "source": {
+        "arnis_version": "3.0.0",
+        "bbox": {
+          "blocks": {
+            "max_x": 143,
+            "max_y": 10,
+            "max_z": 95,
+            "min_x": 128,
+            "min_y": -62,
+            "min_z": 80
+          },
+          "chunks": {
+            "max_x": 8,
+            "max_z": 5,
+            "min_x": 8,
+            "min_z": 5
+          }
+        },
+        "data_versions": [
+          3955
+        ],
+        "dimension": "overworld",
+        "files": [
+          {
+            "bytes": 4325376,
+            "file": "r.0.0.mca",
+            "sha256": "41fb5442308ddce403d1dc398e9e819b30242f9c7f2c85f8fd6e4370858467b6"
+          }
+        ],
+        "geographic_bbox": {
+          "max_lat": 37.5022,
+          "max_lon": 127.0385,
+          "min_lat": 37.4992,
+          "min_lon": 127.0345
+        },
+        "id": "osm-gangnam-culture-atlas-v1",
+        "input_sha256": "8df4bbf2726c52992673ad58c27a5e3eb915a44fd0160c7fbbabe0becb39e590",
+        "license": {
+          "attribution": "OpenStreetMap contributors",
+          "id": "ODbL-1.0",
+          "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+        },
+        "name": "Seoul Gangnam cultural atlas",
+        "url": "https://www.openstreetmap.org/copyright",
+        "world": "Arnis World 1",
+        "world_metadata": {
+          "file": "metadata.json",
+          "sha256": "a536850b6164d16d831142d32df24754ecf0683cdff4c5c655d5089b78a1b401",
+          "values": {
+            "maxGeoLat": 37.5022,
+            "maxGeoLon": 127.0385,
+            "maxMcX": 352,
+            "maxMcZ": 333,
+            "minGeoLat": 37.4992,
+            "minGeoLon": 127.0345,
+            "minMcX": 0,
+            "minMcZ": 0,
+            "projection": "local",
+            "scale": 1.0
+          }
+        }
+      }
+    },
+    {
+      "block_count": 851,
+      "compressed_bytes": 2894,
+      "district": "L",
+      "file": "structures/l/gangnam_0_1.nbt",
+      "footprint": {
+        "anchor": {
+          "source_y": -62,
+          "surface_y": -62
+        },
+        "blocks": {
+          "x": 16,
+          "y": 36,
+          "z": 16
+        },
+        "chunks": {
+          "x": 1,
+          "z": 1
+        }
+      },
+      "id": "l/gangnam_0_1",
+      "normalization": {
+        "air": "omitted",
+        "block_entity_payloads": "stripped",
+        "canonical_order": "y,z,x",
+        "dangerous_blocks": {},
+        "entities": "stripped",
+        "gzip_mtime": 0,
+        "missing_chunks_as_air": [],
+        "source_block_entities": {},
+        "template_data_version": 3955
+      },
+      "palette_size": 12,
+      "road_connectors": [
+        {
+          "confidence": 0.95,
+          "edge": "north",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:gray_concrete",
+          "offset": 1,
+          "source_y": -62,
+          "width": 10
+        },
+        {
+          "confidence": 0.95,
+          "edge": "south",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:gray_concrete",
+          "offset": 0,
+          "source_y": -62,
+          "width": 16
+        },
+        {
+          "confidence": 0.71,
+          "edge": "west",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:gray_concrete",
+          "offset": 12,
+          "source_y": -62,
+          "width": 4
+        },
+        {
+          "confidence": 0.67,
+          "edge": "east",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:stone_bricks",
+          "offset": 3,
+          "source_y": -62,
+          "width": 3
+        },
+        {
+          "confidence": 0.75,
+          "edge": "east",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:stone_bricks",
+          "offset": 7,
+          "source_y": -62,
+          "width": 5
+        }
+      ],
+      "sha256": "d2d44cb411720978a8df03971b0896cd1a8fc4a7fc30720fc23a9b9e69d4bedd",
+      "source": {
+        "arnis_version": "3.0.0",
+        "bbox": {
+          "blocks": {
+            "max_x": 143,
+            "max_y": -27,
+            "max_z": 111,
+            "min_x": 128,
+            "min_y": -62,
+            "min_z": 96
+          },
+          "chunks": {
+            "max_x": 8,
+            "max_z": 6,
+            "min_x": 8,
+            "min_z": 6
+          }
+        },
+        "data_versions": [
+          3955
+        ],
+        "dimension": "overworld",
+        "files": [
+          {
+            "bytes": 4325376,
+            "file": "r.0.0.mca",
+            "sha256": "41fb5442308ddce403d1dc398e9e819b30242f9c7f2c85f8fd6e4370858467b6"
+          }
+        ],
+        "geographic_bbox": {
+          "max_lat": 37.5022,
+          "max_lon": 127.0385,
+          "min_lat": 37.4992,
+          "min_lon": 127.0345
+        },
+        "id": "osm-gangnam-culture-atlas-v1",
+        "input_sha256": "8df4bbf2726c52992673ad58c27a5e3eb915a44fd0160c7fbbabe0becb39e590",
+        "license": {
+          "attribution": "OpenStreetMap contributors",
+          "id": "ODbL-1.0",
+          "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+        },
+        "name": "Seoul Gangnam cultural atlas",
+        "url": "https://www.openstreetmap.org/copyright",
+        "world": "Arnis World 1",
+        "world_metadata": {
+          "file": "metadata.json",
+          "sha256": "a536850b6164d16d831142d32df24754ecf0683cdff4c5c655d5089b78a1b401",
+          "values": {
+            "maxGeoLat": 37.5022,
+            "maxGeoLon": 127.0385,
+            "maxMcX": 352,
+            "maxMcZ": 333,
+            "minGeoLat": 37.4992,
+            "minGeoLon": 127.0345,
+            "minMcX": 0,
+            "minMcZ": 0,
+            "projection": "local",
+            "scale": 1.0
+          }
+        }
+      }
+    },
+    {
+      "block_count": 1471,
+      "compressed_bytes": 4754,
+      "district": "L",
+      "file": "structures/l/gangnam_0_2.nbt",
+      "footprint": {
+        "anchor": {
+          "source_y": -62,
+          "surface_y": -62
+        },
+        "blocks": {
+          "x": 16,
+          "y": 78,
+          "z": 16
+        },
+        "chunks": {
+          "x": 1,
+          "z": 1
+        }
+      },
+      "id": "l/gangnam_0_2",
+      "normalization": {
+        "air": "omitted",
+        "block_entity_payloads": "stripped",
+        "canonical_order": "y,z,x",
+        "dangerous_blocks": {},
+        "entities": "stripped",
+        "gzip_mtime": 0,
+        "missing_chunks_as_air": [],
+        "source_block_entities": {},
+        "template_data_version": 3955
+      },
+      "palette_size": 12,
+      "road_connectors": [
+        {
+          "confidence": 0.95,
+          "edge": "north",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:gray_concrete",
+          "offset": 0,
+          "source_y": -62,
+          "width": 10
+        },
+        {
+          "confidence": 0.67,
+          "edge": "south",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:stone_bricks",
+          "offset": 0,
+          "source_y": -62,
+          "width": 3
+        },
+        {
+          "confidence": 0.83,
+          "edge": "west",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:gray_concrete",
+          "offset": 0,
+          "source_y": -62,
+          "width": 7
+        },
+        {
+          "confidence": 0.83,
+          "edge": "west",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:stone_bricks",
+          "offset": 9,
+          "source_y": -62,
+          "width": 7
+        },
+        {
+          "confidence": 0.67,
+          "edge": "east",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:stone_bricks",
+          "offset": 5,
+          "source_y": -62,
+          "width": 3
+        }
+      ],
+      "sha256": "f5fd71d718a406dc9a9415afa23a39e94a996ac57840f05b47e17c4bfb8f764d",
+      "source": {
+        "arnis_version": "3.0.0",
+        "bbox": {
+          "blocks": {
+            "max_x": 143,
+            "max_y": 15,
+            "max_z": 127,
+            "min_x": 128,
+            "min_y": -62,
+            "min_z": 112
+          },
+          "chunks": {
+            "max_x": 8,
+            "max_z": 7,
+            "min_x": 8,
+            "min_z": 7
+          }
+        },
+        "data_versions": [
+          3955
+        ],
+        "dimension": "overworld",
+        "files": [
+          {
+            "bytes": 4325376,
+            "file": "r.0.0.mca",
+            "sha256": "41fb5442308ddce403d1dc398e9e819b30242f9c7f2c85f8fd6e4370858467b6"
+          }
+        ],
+        "geographic_bbox": {
+          "max_lat": 37.5022,
+          "max_lon": 127.0385,
+          "min_lat": 37.4992,
+          "min_lon": 127.0345
+        },
+        "id": "osm-gangnam-culture-atlas-v1",
+        "input_sha256": "8df4bbf2726c52992673ad58c27a5e3eb915a44fd0160c7fbbabe0becb39e590",
+        "license": {
+          "attribution": "OpenStreetMap contributors",
+          "id": "ODbL-1.0",
+          "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+        },
+        "name": "Seoul Gangnam cultural atlas",
+        "url": "https://www.openstreetmap.org/copyright",
+        "world": "Arnis World 1",
+        "world_metadata": {
+          "file": "metadata.json",
+          "sha256": "a536850b6164d16d831142d32df24754ecf0683cdff4c5c655d5089b78a1b401",
+          "values": {
+            "maxGeoLat": 37.5022,
+            "maxGeoLon": 127.0385,
+            "maxMcX": 352,
+            "maxMcZ": 333,
+            "minGeoLat": 37.4992,
+            "minGeoLon": 127.0345,
+            "minMcX": 0,
+            "minMcZ": 0,
+            "projection": "local",
+            "scale": 1.0
+          }
+        }
+      }
+    },
+    {
+      "block_count": 5498,
+      "compressed_bytes": 17106,
+      "district": "L",
+      "file": "structures/l/gangnam_1_0.nbt",
+      "footprint": {
+        "anchor": {
+          "source_y": -62,
+          "surface_y": -62
+        },
+        "blocks": {
+          "x": 16,
+          "y": 77,
+          "z": 16
+        },
+        "chunks": {
+          "x": 1,
+          "z": 1
+        }
+      },
+      "id": "l/gangnam_1_0",
+      "normalization": {
+        "air": "omitted",
+        "block_entity_payloads": "stripped",
+        "canonical_order": "y,z,x",
+        "dangerous_blocks": {},
+        "entities": "stripped",
+        "gzip_mtime": 0,
+        "missing_chunks_as_air": [],
+        "source_block_entities": {},
+        "template_data_version": 3955
+      },
+      "palette_size": 22,
+      "road_connectors": [
+        {
+          "confidence": 0.67,
+          "edge": "east",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:stone_bricks",
+          "offset": 9,
+          "source_y": -62,
+          "width": 3
+        }
+      ],
+      "sha256": "3d4e666d69dcdd3e85feb45298cc4a3fe9301f6ca69222139181124912b7fcdb",
+      "source": {
+        "arnis_version": "3.0.0",
+        "bbox": {
+          "blocks": {
+            "max_x": 159,
+            "max_y": 14,
+            "max_z": 95,
+            "min_x": 144,
+            "min_y": -62,
+            "min_z": 80
+          },
+          "chunks": {
+            "max_x": 9,
+            "max_z": 5,
+            "min_x": 9,
+            "min_z": 5
+          }
+        },
+        "data_versions": [
+          3955
+        ],
+        "dimension": "overworld",
+        "files": [
+          {
+            "bytes": 4325376,
+            "file": "r.0.0.mca",
+            "sha256": "41fb5442308ddce403d1dc398e9e819b30242f9c7f2c85f8fd6e4370858467b6"
+          }
+        ],
+        "geographic_bbox": {
+          "max_lat": 37.5022,
+          "max_lon": 127.0385,
+          "min_lat": 37.4992,
+          "min_lon": 127.0345
+        },
+        "id": "osm-gangnam-culture-atlas-v1",
+        "input_sha256": "8df4bbf2726c52992673ad58c27a5e3eb915a44fd0160c7fbbabe0becb39e590",
+        "license": {
+          "attribution": "OpenStreetMap contributors",
+          "id": "ODbL-1.0",
+          "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+        },
+        "name": "Seoul Gangnam cultural atlas",
+        "url": "https://www.openstreetmap.org/copyright",
+        "world": "Arnis World 1",
+        "world_metadata": {
+          "file": "metadata.json",
+          "sha256": "a536850b6164d16d831142d32df24754ecf0683cdff4c5c655d5089b78a1b401",
+          "values": {
+            "maxGeoLat": 37.5022,
+            "maxGeoLon": 127.0385,
+            "maxMcX": 352,
+            "maxMcZ": 333,
+            "minGeoLat": 37.4992,
+            "minGeoLon": 127.0345,
+            "minMcX": 0,
+            "minMcZ": 0,
+            "projection": "local",
+            "scale": 1.0
+          }
+        }
+      }
+    },
+    {
+      "block_count": 4803,
+      "compressed_bytes": 14615,
+      "district": "L",
+      "file": "structures/l/gangnam_1_1.nbt",
+      "footprint": {
+        "anchor": {
+          "source_y": -62,
+          "surface_y": -62
+        },
+        "blocks": {
+          "x": 16,
+          "y": 77,
+          "z": 16
+        },
+        "chunks": {
+          "x": 1,
+          "z": 1
+        }
+      },
+      "id": "l/gangnam_1_1",
+      "normalization": {
+        "air": "omitted",
+        "block_entity_payloads": "stripped",
+        "canonical_order": "y,z,x",
+        "dangerous_blocks": {},
+        "entities": "stripped",
+        "gzip_mtime": 0,
+        "missing_chunks_as_air": [],
+        "source_block_entities": {},
+        "template_data_version": 3955
+      },
+      "palette_size": 15,
+      "road_connectors": [
+        {
+          "confidence": 0.75,
+          "edge": "south",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:stone_bricks",
+          "offset": 5,
+          "source_y": -62,
+          "width": 5
+        },
+        {
+          "confidence": 0.91,
+          "edge": "west",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:stone_bricks",
+          "offset": 7,
+          "source_y": -62,
+          "width": 9
+        }
+      ],
+      "sha256": "bc4bb1f97b047fa5bfaf9aba041cf4d1987321a66aabdb5b2834d6dc418ef2b8",
+      "source": {
+        "arnis_version": "3.0.0",
+        "bbox": {
+          "blocks": {
+            "max_x": 159,
+            "max_y": 14,
+            "max_z": 111,
+            "min_x": 144,
+            "min_y": -62,
+            "min_z": 96
+          },
+          "chunks": {
+            "max_x": 9,
+            "max_z": 6,
+            "min_x": 9,
+            "min_z": 6
+          }
+        },
+        "data_versions": [
+          3955
+        ],
+        "dimension": "overworld",
+        "files": [
+          {
+            "bytes": 4325376,
+            "file": "r.0.0.mca",
+            "sha256": "41fb5442308ddce403d1dc398e9e819b30242f9c7f2c85f8fd6e4370858467b6"
+          }
+        ],
+        "geographic_bbox": {
+          "max_lat": 37.5022,
+          "max_lon": 127.0385,
+          "min_lat": 37.4992,
+          "min_lon": 127.0345
+        },
+        "id": "osm-gangnam-culture-atlas-v1",
+        "input_sha256": "8df4bbf2726c52992673ad58c27a5e3eb915a44fd0160c7fbbabe0becb39e590",
+        "license": {
+          "attribution": "OpenStreetMap contributors",
+          "id": "ODbL-1.0",
+          "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+        },
+        "name": "Seoul Gangnam cultural atlas",
+        "url": "https://www.openstreetmap.org/copyright",
+        "world": "Arnis World 1",
+        "world_metadata": {
+          "file": "metadata.json",
+          "sha256": "a536850b6164d16d831142d32df24754ecf0683cdff4c5c655d5089b78a1b401",
+          "values": {
+            "maxGeoLat": 37.5022,
+            "maxGeoLon": 127.0385,
+            "maxMcX": 352,
+            "maxMcZ": 333,
+            "minGeoLat": 37.4992,
+            "minGeoLon": 127.0345,
+            "minMcX": 0,
+            "minMcZ": 0,
+            "projection": "local",
+            "scale": 1.0
+          }
+        }
+      }
+    },
+    {
+      "block_count": 3897,
+      "compressed_bytes": 12169,
+      "district": "L",
+      "file": "structures/l/gangnam_1_2.nbt",
+      "footprint": {
+        "anchor": {
+          "source_y": -62,
+          "surface_y": -62
+        },
+        "blocks": {
+          "x": 16,
+          "y": 78,
+          "z": 16
+        },
+        "chunks": {
+          "x": 1,
+          "z": 1
+        }
+      },
+      "id": "l/gangnam_1_2",
+      "normalization": {
+        "air": "omitted",
+        "block_entity_payloads": "stripped",
+        "canonical_order": "y,z,x",
+        "dangerous_blocks": {},
+        "entities": "stripped",
+        "gzip_mtime": 0,
+        "missing_chunks_as_air": [],
+        "source_block_entities": {},
+        "template_data_version": 3955
+      },
+      "palette_size": 12,
+      "road_connectors": [
+        {
+          "confidence": 0.67,
+          "edge": "north",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:stone_bricks",
+          "offset": 1,
+          "source_y": -62,
+          "width": 3
+        },
+        {
+          "confidence": 0.75,
+          "edge": "north",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:stone_bricks",
+          "offset": 5,
+          "source_y": -62,
+          "width": 5
+        },
+        {
+          "confidence": 0.75,
+          "edge": "west",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:stone_bricks",
+          "offset": 3,
+          "source_y": -62,
+          "width": 5
+        },
+        {
+          "confidence": 0.79,
+          "edge": "east",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:stone_bricks",
+          "offset": 3,
+          "source_y": -62,
+          "width": 6
+        }
+      ],
+      "sha256": "4586ddd6c03997efb86757cd945518d89442e0a22f924be6b2c8e5b9ae69dd9a",
+      "source": {
+        "arnis_version": "3.0.0",
+        "bbox": {
+          "blocks": {
+            "max_x": 159,
+            "max_y": 15,
+            "max_z": 127,
+            "min_x": 144,
+            "min_y": -62,
+            "min_z": 112
+          },
+          "chunks": {
+            "max_x": 9,
+            "max_z": 7,
+            "min_x": 9,
+            "min_z": 7
+          }
+        },
+        "data_versions": [
+          3955
+        ],
+        "dimension": "overworld",
+        "files": [
+          {
+            "bytes": 4325376,
+            "file": "r.0.0.mca",
+            "sha256": "41fb5442308ddce403d1dc398e9e819b30242f9c7f2c85f8fd6e4370858467b6"
+          }
+        ],
+        "geographic_bbox": {
+          "max_lat": 37.5022,
+          "max_lon": 127.0385,
+          "min_lat": 37.4992,
+          "min_lon": 127.0345
+        },
+        "id": "osm-gangnam-culture-atlas-v1",
+        "input_sha256": "8df4bbf2726c52992673ad58c27a5e3eb915a44fd0160c7fbbabe0becb39e590",
+        "license": {
+          "attribution": "OpenStreetMap contributors",
+          "id": "ODbL-1.0",
+          "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+        },
+        "name": "Seoul Gangnam cultural atlas",
+        "url": "https://www.openstreetmap.org/copyright",
+        "world": "Arnis World 1",
+        "world_metadata": {
+          "file": "metadata.json",
+          "sha256": "a536850b6164d16d831142d32df24754ecf0683cdff4c5c655d5089b78a1b401",
+          "values": {
+            "maxGeoLat": 37.5022,
+            "maxGeoLon": 127.0385,
+            "maxMcX": 352,
+            "maxMcZ": 333,
+            "minGeoLat": 37.4992,
+            "minGeoLon": 127.0345,
+            "minMcX": 0,
+            "minMcZ": 0,
+            "projection": "local",
+            "scale": 1.0
+          }
+        }
+      }
+    },
+    {
+      "block_count": 5035,
+      "compressed_bytes": 16486,
+      "district": "L",
+      "file": "structures/l/gangnam_2_0.nbt",
+      "footprint": {
+        "anchor": {
+          "source_y": -62,
+          "surface_y": -62
+        },
+        "blocks": {
+          "x": 16,
+          "y": 77,
+          "z": 16
+        },
+        "chunks": {
+          "x": 1,
+          "z": 1
+        }
+      },
+      "id": "l/gangnam_2_0",
+      "normalization": {
+        "air": "omitted",
+        "block_entity_payloads": "stripped",
+        "canonical_order": "y,z,x",
+        "dangerous_blocks": {},
+        "entities": "stripped",
+        "gzip_mtime": 0,
+        "missing_chunks_as_air": [],
+        "source_block_entities": {},
+        "template_data_version": 3955
+      },
+      "palette_size": 26,
+      "road_connectors": [
+        {
+          "confidence": 0.71,
+          "edge": "west",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:stone_bricks",
+          "offset": 7,
+          "source_y": -62,
+          "width": 4
+        }
+      ],
+      "sha256": "b9d04e6fb501a652a0327ebc9c603e066e8107da20c7255ad35541892abe3b85",
+      "source": {
+        "arnis_version": "3.0.0",
+        "bbox": {
+          "blocks": {
+            "max_x": 175,
+            "max_y": 14,
+            "max_z": 95,
+            "min_x": 160,
+            "min_y": -62,
+            "min_z": 80
+          },
+          "chunks": {
+            "max_x": 10,
+            "max_z": 5,
+            "min_x": 10,
+            "min_z": 5
+          }
+        },
+        "data_versions": [
+          3955
+        ],
+        "dimension": "overworld",
+        "files": [
+          {
+            "bytes": 4325376,
+            "file": "r.0.0.mca",
+            "sha256": "41fb5442308ddce403d1dc398e9e819b30242f9c7f2c85f8fd6e4370858467b6"
+          }
+        ],
+        "geographic_bbox": {
+          "max_lat": 37.5022,
+          "max_lon": 127.0385,
+          "min_lat": 37.4992,
+          "min_lon": 127.0345
+        },
+        "id": "osm-gangnam-culture-atlas-v1",
+        "input_sha256": "8df4bbf2726c52992673ad58c27a5e3eb915a44fd0160c7fbbabe0becb39e590",
+        "license": {
+          "attribution": "OpenStreetMap contributors",
+          "id": "ODbL-1.0",
+          "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+        },
+        "name": "Seoul Gangnam cultural atlas",
+        "url": "https://www.openstreetmap.org/copyright",
+        "world": "Arnis World 1",
+        "world_metadata": {
+          "file": "metadata.json",
+          "sha256": "a536850b6164d16d831142d32df24754ecf0683cdff4c5c655d5089b78a1b401",
+          "values": {
+            "maxGeoLat": 37.5022,
+            "maxGeoLon": 127.0385,
+            "maxMcX": 352,
+            "maxMcZ": 333,
+            "minGeoLat": 37.4992,
+            "minGeoLon": 127.0345,
+            "minMcX": 0,
+            "minMcZ": 0,
+            "projection": "local",
+            "scale": 1.0
+          }
+        }
+      }
+    },
+    {
+      "block_count": 5801,
+      "compressed_bytes": 15960,
+      "district": "L",
+      "file": "structures/l/gangnam_2_1.nbt",
+      "footprint": {
+        "anchor": {
+          "source_y": -62,
+          "surface_y": -62
+        },
+        "blocks": {
+          "x": 16,
+          "y": 77,
+          "z": 16
+        },
+        "chunks": {
+          "x": 1,
+          "z": 1
+        }
+      },
+      "id": "l/gangnam_2_1",
+      "normalization": {
+        "air": "omitted",
+        "block_entity_payloads": "stripped",
+        "canonical_order": "y,z,x",
+        "dangerous_blocks": {},
+        "entities": "stripped",
+        "gzip_mtime": 0,
+        "missing_chunks_as_air": [],
+        "source_block_entities": {},
+        "template_data_version": 3955
+      },
+      "palette_size": 16,
+      "road_connectors": [],
+      "sha256": "695f26c4a96f7262c3263bc0bd17ee05ffe007f174da610ad3b79d5626cb683d",
+      "source": {
+        "arnis_version": "3.0.0",
+        "bbox": {
+          "blocks": {
+            "max_x": 175,
+            "max_y": 14,
+            "max_z": 111,
+            "min_x": 160,
+            "min_y": -62,
+            "min_z": 96
+          },
+          "chunks": {
+            "max_x": 10,
+            "max_z": 6,
+            "min_x": 10,
+            "min_z": 6
+          }
+        },
+        "data_versions": [
+          3955
+        ],
+        "dimension": "overworld",
+        "files": [
+          {
+            "bytes": 4325376,
+            "file": "r.0.0.mca",
+            "sha256": "41fb5442308ddce403d1dc398e9e819b30242f9c7f2c85f8fd6e4370858467b6"
+          }
+        ],
+        "geographic_bbox": {
+          "max_lat": 37.5022,
+          "max_lon": 127.0385,
+          "min_lat": 37.4992,
+          "min_lon": 127.0345
+        },
+        "id": "osm-gangnam-culture-atlas-v1",
+        "input_sha256": "8df4bbf2726c52992673ad58c27a5e3eb915a44fd0160c7fbbabe0becb39e590",
+        "license": {
+          "attribution": "OpenStreetMap contributors",
+          "id": "ODbL-1.0",
+          "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+        },
+        "name": "Seoul Gangnam cultural atlas",
+        "url": "https://www.openstreetmap.org/copyright",
+        "world": "Arnis World 1",
+        "world_metadata": {
+          "file": "metadata.json",
+          "sha256": "a536850b6164d16d831142d32df24754ecf0683cdff4c5c655d5089b78a1b401",
+          "values": {
+            "maxGeoLat": 37.5022,
+            "maxGeoLon": 127.0385,
+            "maxMcX": 352,
+            "maxMcZ": 333,
+            "minGeoLat": 37.4992,
+            "minGeoLon": 127.0345,
+            "minMcX": 0,
+            "minMcZ": 0,
+            "projection": "local",
+            "scale": 1.0
+          }
+        }
+      }
+    },
+    {
+      "block_count": 4393,
+      "compressed_bytes": 14465,
+      "district": "L",
+      "file": "structures/l/gangnam_2_2.nbt",
+      "footprint": {
+        "anchor": {
+          "source_y": -62,
+          "surface_y": -62
+        },
+        "blocks": {
+          "x": 16,
+          "y": 78,
+          "z": 16
+        },
+        "chunks": {
+          "x": 1,
+          "z": 1
+        }
+      },
+      "id": "l/gangnam_2_2",
+      "normalization": {
+        "air": "omitted",
+        "block_entity_payloads": "stripped",
+        "canonical_order": "y,z,x",
+        "dangerous_blocks": {},
+        "entities": "stripped",
+        "gzip_mtime": 0,
+        "missing_chunks_as_air": [],
+        "source_block_entities": {},
+        "template_data_version": 3955
+      },
+      "palette_size": 27,
+      "road_connectors": [
+        {
+          "confidence": 0.67,
+          "edge": "west",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:stone_bricks",
+          "offset": 0,
+          "source_y": -62,
+          "width": 3
+        }
+      ],
+      "sha256": "4e0ca7c1ca9610de1e9833b6895dd1034d678de30627942aafa2c3bab91a8249",
+      "source": {
+        "arnis_version": "3.0.0",
+        "bbox": {
+          "blocks": {
+            "max_x": 175,
+            "max_y": 15,
+            "max_z": 127,
+            "min_x": 160,
+            "min_y": -62,
+            "min_z": 112
+          },
+          "chunks": {
+            "max_x": 10,
+            "max_z": 7,
+            "min_x": 10,
+            "min_z": 7
+          }
+        },
+        "data_versions": [
+          3955
+        ],
+        "dimension": "overworld",
+        "files": [
+          {
+            "bytes": 4325376,
+            "file": "r.0.0.mca",
+            "sha256": "41fb5442308ddce403d1dc398e9e819b30242f9c7f2c85f8fd6e4370858467b6"
+          }
+        ],
+        "geographic_bbox": {
+          "max_lat": 37.5022,
+          "max_lon": 127.0385,
+          "min_lat": 37.4992,
+          "min_lon": 127.0345
+        },
+        "id": "osm-gangnam-culture-atlas-v1",
+        "input_sha256": "8df4bbf2726c52992673ad58c27a5e3eb915a44fd0160c7fbbabe0becb39e590",
+        "license": {
+          "attribution": "OpenStreetMap contributors",
+          "id": "ODbL-1.0",
+          "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+        },
+        "name": "Seoul Gangnam cultural atlas",
+        "url": "https://www.openstreetmap.org/copyright",
+        "world": "Arnis World 1",
+        "world_metadata": {
+          "file": "metadata.json",
+          "sha256": "a536850b6164d16d831142d32df24754ecf0683cdff4c5c655d5089b78a1b401",
+          "values": {
+            "maxGeoLat": 37.5022,
+            "maxGeoLon": 127.0385,
+            "maxMcX": 352,
+            "maxMcZ": 333,
+            "minGeoLat": 37.4992,
+            "minGeoLon": 127.0345,
+            "minMcX": 0,
+            "minMcZ": 0,
+            "projection": "local",
+            "scale": 1.0
+          }
+        }
+      }
+    },
+    {
+      "block_count": 2514,
+      "compressed_bytes": 7788,
+      "district": "W",
+      "file": "structures/w/lujiazui_0_0.nbt",
+      "footprint": {
+        "anchor": {
+          "source_y": -62,
+          "surface_y": -62
+        },
+        "blocks": {
+          "x": 16,
+          "y": 247,
+          "z": 16
+        },
+        "chunks": {
+          "x": 1,
+          "z": 1
+        }
+      },
+      "id": "w/lujiazui_0_0",
+      "normalization": {
+        "air": "omitted",
+        "block_entity_payloads": "stripped",
+        "canonical_order": "y,z,x",
+        "dangerous_blocks": {},
+        "entities": "stripped",
+        "gzip_mtime": 0,
+        "missing_chunks_as_air": [],
+        "source_block_entities": {},
+        "template_data_version": 3955
+      },
+      "palette_size": 18,
+      "road_connectors": [],
+      "sha256": "14cca630b60abb2aefdcef57edb0f49e7ad616872b88f1f9dda337fbd138b90c",
+      "source": {
+        "arnis_version": "3.0.0",
+        "bbox": {
+          "blocks": {
+            "max_x": 287,
+            "max_y": 184,
+            "max_z": 191,
+            "min_x": 272,
+            "min_y": -62,
+            "min_z": 176
+          },
+          "chunks": {
+            "max_x": 17,
+            "max_z": 11,
+            "min_x": 17,
+            "min_z": 11
+          }
+        },
+        "data_versions": [
+          3955
+        ],
+        "dimension": "overworld",
+        "files": [
+          {
+            "bytes": 4407296,
+            "file": "r.0.0.mca",
+            "sha256": "15fa0b857f03d8d905536e3c33622be5a578ee67c228e4aa1c4c00aa136446df"
+          }
+        ],
+        "geographic_bbox": {
+          "max_lat": 31.2373,
+          "max_lon": 121.5022,
+          "min_lat": 31.2337,
+          "min_lon": 121.4978
+        },
+        "id": "osm-lujiazui-future-atlas-v1",
+        "input_sha256": "0b4a83caa004af2a8ba50ce4605031ddd8e28746fed0cb57164575ff902f1eda",
+        "license": {
+          "attribution": "OpenStreetMap contributors",
+          "id": "ODbL-1.0",
+          "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+        },
+        "name": "Shanghai Lujiazui future skyline atlas",
+        "url": "https://www.openstreetmap.org/copyright",
+        "world": "Arnis World 1",
+        "world_metadata": {
+          "file": "metadata.json",
+          "sha256": "c82f1fbf1d1ab028befc5d5f4b5d904e9c47b9fc29a73e50be3363852c39ecd4",
+          "values": {
+            "maxGeoLat": 31.2373,
+            "maxGeoLon": 121.5022,
+            "maxMcX": 418,
+            "maxMcZ": 400,
+            "minGeoLat": 31.2337,
+            "minGeoLon": 121.4978,
+            "minMcX": 0,
+            "minMcZ": 0,
+            "projection": "local",
+            "scale": 1.0
+          }
+        }
+      }
+    },
+    {
+      "block_count": 4649,
+      "compressed_bytes": 14444,
+      "district": "W",
+      "file": "structures/w/lujiazui_0_1.nbt",
+      "footprint": {
+        "anchor": {
+          "source_y": -62,
+          "surface_y": -62
+        },
+        "blocks": {
+          "x": 16,
+          "y": 247,
+          "z": 16
+        },
+        "chunks": {
+          "x": 1,
+          "z": 1
+        }
+      },
+      "id": "w/lujiazui_0_1",
+      "normalization": {
+        "air": "omitted",
+        "block_entity_payloads": "stripped",
+        "canonical_order": "y,z,x",
+        "dangerous_blocks": {},
+        "entities": "stripped",
+        "gzip_mtime": 0,
+        "missing_chunks_as_air": [],
+        "source_block_entities": {},
+        "template_data_version": 3955
+      },
+      "palette_size": 25,
+      "road_connectors": [],
+      "sha256": "1d3f90e1fce4aefad6a97986865a5136112a6dfaf037aa483871559687a2b581",
+      "source": {
+        "arnis_version": "3.0.0",
+        "bbox": {
+          "blocks": {
+            "max_x": 287,
+            "max_y": 184,
+            "max_z": 207,
+            "min_x": 272,
+            "min_y": -62,
+            "min_z": 192
+          },
+          "chunks": {
+            "max_x": 17,
+            "max_z": 12,
+            "min_x": 17,
+            "min_z": 12
+          }
+        },
+        "data_versions": [
+          3955
+        ],
+        "dimension": "overworld",
+        "files": [
+          {
+            "bytes": 4407296,
+            "file": "r.0.0.mca",
+            "sha256": "15fa0b857f03d8d905536e3c33622be5a578ee67c228e4aa1c4c00aa136446df"
+          }
+        ],
+        "geographic_bbox": {
+          "max_lat": 31.2373,
+          "max_lon": 121.5022,
+          "min_lat": 31.2337,
+          "min_lon": 121.4978
+        },
+        "id": "osm-lujiazui-future-atlas-v1",
+        "input_sha256": "0b4a83caa004af2a8ba50ce4605031ddd8e28746fed0cb57164575ff902f1eda",
+        "license": {
+          "attribution": "OpenStreetMap contributors",
+          "id": "ODbL-1.0",
+          "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+        },
+        "name": "Shanghai Lujiazui future skyline atlas",
+        "url": "https://www.openstreetmap.org/copyright",
+        "world": "Arnis World 1",
+        "world_metadata": {
+          "file": "metadata.json",
+          "sha256": "c82f1fbf1d1ab028befc5d5f4b5d904e9c47b9fc29a73e50be3363852c39ecd4",
+          "values": {
+            "maxGeoLat": 31.2373,
+            "maxGeoLon": 121.5022,
+            "maxMcX": 418,
+            "maxMcZ": 400,
+            "minGeoLat": 31.2337,
+            "minGeoLon": 121.4978,
+            "minMcX": 0,
+            "minMcZ": 0,
+            "projection": "local",
+            "scale": 1.0
+          }
+        }
+      }
+    },
+    {
+      "block_count": 2157,
+      "compressed_bytes": 6595,
+      "district": "W",
+      "file": "structures/w/lujiazui_0_2.nbt",
+      "footprint": {
+        "anchor": {
+          "source_y": -62,
+          "surface_y": -62
+        },
+        "blocks": {
+          "x": 16,
+          "y": 247,
+          "z": 16
+        },
+        "chunks": {
+          "x": 1,
+          "z": 1
+        }
+      },
+      "id": "w/lujiazui_0_2",
+      "normalization": {
+        "air": "omitted",
+        "block_entity_payloads": "stripped",
+        "canonical_order": "y,z,x",
+        "dangerous_blocks": {},
+        "entities": "stripped",
+        "gzip_mtime": 0,
+        "missing_chunks_as_air": [],
+        "source_block_entities": {},
+        "template_data_version": 3955
+      },
+      "palette_size": 12,
+      "road_connectors": [
+        {
+          "confidence": 0.67,
+          "edge": "north",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:stone_bricks",
+          "offset": 6,
+          "source_y": -62,
+          "width": 3
+        },
+        {
+          "confidence": 0.67,
+          "edge": "south",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:stone_bricks",
+          "offset": 0,
+          "source_y": -62,
+          "width": 3
+        },
+        {
+          "confidence": 0.79,
+          "edge": "south",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:stone_bricks",
+          "offset": 4,
+          "source_y": -62,
+          "width": 6
+        },
+        {
+          "confidence": 0.67,
+          "edge": "west",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:stone_bricks",
+          "offset": 9,
+          "source_y": -62,
+          "width": 3
+        },
+        {
+          "confidence": 0.67,
+          "edge": "east",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:stone_bricks",
+          "offset": 12,
+          "source_y": -62,
+          "width": 3
+        }
+      ],
+      "sha256": "6ea398adbf39c37a1adc427e01b85e3ddba94ff39d7c198514a609bf0c823faf",
+      "source": {
+        "arnis_version": "3.0.0",
+        "bbox": {
+          "blocks": {
+            "max_x": 287,
+            "max_y": 184,
+            "max_z": 223,
+            "min_x": 272,
+            "min_y": -62,
+            "min_z": 208
+          },
+          "chunks": {
+            "max_x": 17,
+            "max_z": 13,
+            "min_x": 17,
+            "min_z": 13
+          }
+        },
+        "data_versions": [
+          3955
+        ],
+        "dimension": "overworld",
+        "files": [
+          {
+            "bytes": 4407296,
+            "file": "r.0.0.mca",
+            "sha256": "15fa0b857f03d8d905536e3c33622be5a578ee67c228e4aa1c4c00aa136446df"
+          }
+        ],
+        "geographic_bbox": {
+          "max_lat": 31.2373,
+          "max_lon": 121.5022,
+          "min_lat": 31.2337,
+          "min_lon": 121.4978
+        },
+        "id": "osm-lujiazui-future-atlas-v1",
+        "input_sha256": "0b4a83caa004af2a8ba50ce4605031ddd8e28746fed0cb57164575ff902f1eda",
+        "license": {
+          "attribution": "OpenStreetMap contributors",
+          "id": "ODbL-1.0",
+          "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+        },
+        "name": "Shanghai Lujiazui future skyline atlas",
+        "url": "https://www.openstreetmap.org/copyright",
+        "world": "Arnis World 1",
+        "world_metadata": {
+          "file": "metadata.json",
+          "sha256": "c82f1fbf1d1ab028befc5d5f4b5d904e9c47b9fc29a73e50be3363852c39ecd4",
+          "values": {
+            "maxGeoLat": 31.2373,
+            "maxGeoLon": 121.5022,
+            "maxMcX": 418,
+            "maxMcZ": 400,
+            "minGeoLat": 31.2337,
+            "minGeoLon": 121.4978,
+            "minMcX": 0,
+            "minMcZ": 0,
+            "projection": "local",
+            "scale": 1.0
+          }
+        }
+      }
+    },
+    {
+      "block_count": 8316,
+      "compressed_bytes": 22889,
+      "district": "W",
+      "file": "structures/w/lujiazui_1_0.nbt",
+      "footprint": {
+        "anchor": {
+          "source_y": -62,
+          "surface_y": -62
+        },
+        "blocks": {
+          "x": 16,
+          "y": 247,
+          "z": 16
+        },
+        "chunks": {
+          "x": 1,
+          "z": 1
+        }
+      },
+      "id": "w/lujiazui_1_0",
+      "normalization": {
+        "air": "omitted",
+        "block_entity_payloads": "stripped",
+        "canonical_order": "y,z,x",
+        "dangerous_blocks": {},
+        "entities": "stripped",
+        "gzip_mtime": 0,
+        "missing_chunks_as_air": [],
+        "source_block_entities": {},
+        "template_data_version": 3955
+      },
+      "palette_size": 22,
+      "road_connectors": [],
+      "sha256": "64b298c1ffe1bb541b9bb6a11e00673afbb02c4be0ae6f9d1926a943086559d3",
+      "source": {
+        "arnis_version": "3.0.0",
+        "bbox": {
+          "blocks": {
+            "max_x": 303,
+            "max_y": 184,
+            "max_z": 191,
+            "min_x": 288,
+            "min_y": -62,
+            "min_z": 176
+          },
+          "chunks": {
+            "max_x": 18,
+            "max_z": 11,
+            "min_x": 18,
+            "min_z": 11
+          }
+        },
+        "data_versions": [
+          3955
+        ],
+        "dimension": "overworld",
+        "files": [
+          {
+            "bytes": 4407296,
+            "file": "r.0.0.mca",
+            "sha256": "15fa0b857f03d8d905536e3c33622be5a578ee67c228e4aa1c4c00aa136446df"
+          }
+        ],
+        "geographic_bbox": {
+          "max_lat": 31.2373,
+          "max_lon": 121.5022,
+          "min_lat": 31.2337,
+          "min_lon": 121.4978
+        },
+        "id": "osm-lujiazui-future-atlas-v1",
+        "input_sha256": "0b4a83caa004af2a8ba50ce4605031ddd8e28746fed0cb57164575ff902f1eda",
+        "license": {
+          "attribution": "OpenStreetMap contributors",
+          "id": "ODbL-1.0",
+          "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+        },
+        "name": "Shanghai Lujiazui future skyline atlas",
+        "url": "https://www.openstreetmap.org/copyright",
+        "world": "Arnis World 1",
+        "world_metadata": {
+          "file": "metadata.json",
+          "sha256": "c82f1fbf1d1ab028befc5d5f4b5d904e9c47b9fc29a73e50be3363852c39ecd4",
+          "values": {
+            "maxGeoLat": 31.2373,
+            "maxGeoLon": 121.5022,
+            "maxMcX": 418,
+            "maxMcZ": 400,
+            "minGeoLat": 31.2337,
+            "minGeoLon": 121.4978,
+            "minMcX": 0,
+            "minMcZ": 0,
+            "projection": "local",
+            "scale": 1.0
+          }
+        }
+      }
+    },
+    {
+      "block_count": 14428,
+      "compressed_bytes": 39466,
+      "district": "W",
+      "file": "structures/w/lujiazui_1_1.nbt",
+      "footprint": {
+        "anchor": {
+          "source_y": -62,
+          "surface_y": -62
+        },
+        "blocks": {
+          "x": 16,
+          "y": 247,
+          "z": 16
+        },
+        "chunks": {
+          "x": 1,
+          "z": 1
+        }
+      },
+      "id": "w/lujiazui_1_1",
+      "normalization": {
+        "air": "omitted",
+        "block_entity_payloads": "stripped",
+        "canonical_order": "y,z,x",
+        "dangerous_blocks": {},
+        "entities": "stripped",
+        "gzip_mtime": 0,
+        "missing_chunks_as_air": [],
+        "source_block_entities": {},
+        "template_data_version": 3955
+      },
+      "palette_size": 17,
+      "road_connectors": [],
+      "sha256": "445bcb7987f5818a70f3e110ed4235cdce4b68a6c0293a8d9f0e2f494d3a8311",
+      "source": {
+        "arnis_version": "3.0.0",
+        "bbox": {
+          "blocks": {
+            "max_x": 303,
+            "max_y": 184,
+            "max_z": 207,
+            "min_x": 288,
+            "min_y": -62,
+            "min_z": 192
+          },
+          "chunks": {
+            "max_x": 18,
+            "max_z": 12,
+            "min_x": 18,
+            "min_z": 12
+          }
+        },
+        "data_versions": [
+          3955
+        ],
+        "dimension": "overworld",
+        "files": [
+          {
+            "bytes": 4407296,
+            "file": "r.0.0.mca",
+            "sha256": "15fa0b857f03d8d905536e3c33622be5a578ee67c228e4aa1c4c00aa136446df"
+          }
+        ],
+        "geographic_bbox": {
+          "max_lat": 31.2373,
+          "max_lon": 121.5022,
+          "min_lat": 31.2337,
+          "min_lon": 121.4978
+        },
+        "id": "osm-lujiazui-future-atlas-v1",
+        "input_sha256": "0b4a83caa004af2a8ba50ce4605031ddd8e28746fed0cb57164575ff902f1eda",
+        "license": {
+          "attribution": "OpenStreetMap contributors",
+          "id": "ODbL-1.0",
+          "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+        },
+        "name": "Shanghai Lujiazui future skyline atlas",
+        "url": "https://www.openstreetmap.org/copyright",
+        "world": "Arnis World 1",
+        "world_metadata": {
+          "file": "metadata.json",
+          "sha256": "c82f1fbf1d1ab028befc5d5f4b5d904e9c47b9fc29a73e50be3363852c39ecd4",
+          "values": {
+            "maxGeoLat": 31.2373,
+            "maxGeoLon": 121.5022,
+            "maxMcX": 418,
+            "maxMcZ": 400,
+            "minGeoLat": 31.2337,
+            "minGeoLon": 121.4978,
+            "minMcX": 0,
+            "minMcZ": 0,
+            "projection": "local",
+            "scale": 1.0
+          }
+        }
+      }
+    },
+    {
+      "block_count": 9653,
+      "compressed_bytes": 26462,
+      "district": "W",
+      "file": "structures/w/lujiazui_1_2.nbt",
+      "footprint": {
+        "anchor": {
+          "source_y": -62,
+          "surface_y": -62
+        },
+        "blocks": {
+          "x": 16,
+          "y": 247,
+          "z": 16
+        },
+        "chunks": {
+          "x": 1,
+          "z": 1
+        }
+      },
+      "id": "w/lujiazui_1_2",
+      "normalization": {
+        "air": "omitted",
+        "block_entity_payloads": "stripped",
+        "canonical_order": "y,z,x",
+        "dangerous_blocks": {},
+        "entities": "stripped",
+        "gzip_mtime": 0,
+        "missing_chunks_as_air": [],
+        "source_block_entities": {},
+        "template_data_version": 3955
+      },
+      "palette_size": 18,
+      "road_connectors": [
+        {
+          "confidence": 0.79,
+          "edge": "west",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:stone_bricks",
+          "offset": 10,
+          "source_y": -62,
+          "width": 6
+        }
+      ],
+      "sha256": "ee0f99cc82434cb0ba75f71f3eaf77955b52dd7c98dbabb8452b75d05dedc61d",
+      "source": {
+        "arnis_version": "3.0.0",
+        "bbox": {
+          "blocks": {
+            "max_x": 303,
+            "max_y": 184,
+            "max_z": 223,
+            "min_x": 288,
+            "min_y": -62,
+            "min_z": 208
+          },
+          "chunks": {
+            "max_x": 18,
+            "max_z": 13,
+            "min_x": 18,
+            "min_z": 13
+          }
+        },
+        "data_versions": [
+          3955
+        ],
+        "dimension": "overworld",
+        "files": [
+          {
+            "bytes": 4407296,
+            "file": "r.0.0.mca",
+            "sha256": "15fa0b857f03d8d905536e3c33622be5a578ee67c228e4aa1c4c00aa136446df"
+          }
+        ],
+        "geographic_bbox": {
+          "max_lat": 31.2373,
+          "max_lon": 121.5022,
+          "min_lat": 31.2337,
+          "min_lon": 121.4978
+        },
+        "id": "osm-lujiazui-future-atlas-v1",
+        "input_sha256": "0b4a83caa004af2a8ba50ce4605031ddd8e28746fed0cb57164575ff902f1eda",
+        "license": {
+          "attribution": "OpenStreetMap contributors",
+          "id": "ODbL-1.0",
+          "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+        },
+        "name": "Shanghai Lujiazui future skyline atlas",
+        "url": "https://www.openstreetmap.org/copyright",
+        "world": "Arnis World 1",
+        "world_metadata": {
+          "file": "metadata.json",
+          "sha256": "c82f1fbf1d1ab028befc5d5f4b5d904e9c47b9fc29a73e50be3363852c39ecd4",
+          "values": {
+            "maxGeoLat": 31.2373,
+            "maxGeoLon": 121.5022,
+            "maxMcX": 418,
+            "maxMcZ": 400,
+            "minGeoLat": 31.2337,
+            "minGeoLon": 121.4978,
+            "minMcX": 0,
+            "minMcZ": 0,
+            "projection": "local",
+            "scale": 1.0
+          }
+        }
+      }
+    },
+    {
+      "block_count": 24033,
+      "compressed_bytes": 64481,
+      "district": "W",
+      "file": "structures/w/lujiazui_2_0.nbt",
+      "footprint": {
+        "anchor": {
+          "source_y": -62,
+          "surface_y": -62
+        },
+        "blocks": {
+          "x": 16,
+          "y": 247,
+          "z": 16
+        },
+        "chunks": {
+          "x": 1,
+          "z": 1
+        }
+      },
+      "id": "w/lujiazui_2_0",
+      "normalization": {
+        "air": "omitted",
+        "block_entity_payloads": "stripped",
+        "canonical_order": "y,z,x",
+        "dangerous_blocks": {},
+        "entities": "stripped",
+        "gzip_mtime": 0,
+        "missing_chunks_as_air": [],
+        "source_block_entities": {},
+        "template_data_version": 3955
+      },
+      "palette_size": 18,
+      "road_connectors": [],
+      "sha256": "89148f3d448a42b68fcf487314e409d4cd20c1d9b75195b0a0dbd3f229e2ee63",
+      "source": {
+        "arnis_version": "3.0.0",
+        "bbox": {
+          "blocks": {
+            "max_x": 319,
+            "max_y": 184,
+            "max_z": 191,
+            "min_x": 304,
+            "min_y": -62,
+            "min_z": 176
+          },
+          "chunks": {
+            "max_x": 19,
+            "max_z": 11,
+            "min_x": 19,
+            "min_z": 11
+          }
+        },
+        "data_versions": [
+          3955
+        ],
+        "dimension": "overworld",
+        "files": [
+          {
+            "bytes": 4407296,
+            "file": "r.0.0.mca",
+            "sha256": "15fa0b857f03d8d905536e3c33622be5a578ee67c228e4aa1c4c00aa136446df"
+          }
+        ],
+        "geographic_bbox": {
+          "max_lat": 31.2373,
+          "max_lon": 121.5022,
+          "min_lat": 31.2337,
+          "min_lon": 121.4978
+        },
+        "id": "osm-lujiazui-future-atlas-v1",
+        "input_sha256": "0b4a83caa004af2a8ba50ce4605031ddd8e28746fed0cb57164575ff902f1eda",
+        "license": {
+          "attribution": "OpenStreetMap contributors",
+          "id": "ODbL-1.0",
+          "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+        },
+        "name": "Shanghai Lujiazui future skyline atlas",
+        "url": "https://www.openstreetmap.org/copyright",
+        "world": "Arnis World 1",
+        "world_metadata": {
+          "file": "metadata.json",
+          "sha256": "c82f1fbf1d1ab028befc5d5f4b5d904e9c47b9fc29a73e50be3363852c39ecd4",
+          "values": {
+            "maxGeoLat": 31.2373,
+            "maxGeoLon": 121.5022,
+            "maxMcX": 418,
+            "maxMcZ": 400,
+            "minGeoLat": 31.2337,
+            "minGeoLon": 121.4978,
+            "minMcX": 0,
+            "minMcZ": 0,
+            "projection": "local",
+            "scale": 1.0
+          }
+        }
+      }
+    },
+    {
+      "block_count": 22803,
+      "compressed_bytes": 61116,
+      "district": "W",
+      "file": "structures/w/lujiazui_2_1.nbt",
+      "footprint": {
+        "anchor": {
+          "source_y": -62,
+          "surface_y": -62
+        },
+        "blocks": {
+          "x": 16,
+          "y": 247,
+          "z": 16
+        },
+        "chunks": {
+          "x": 1,
+          "z": 1
+        }
+      },
+      "id": "w/lujiazui_2_1",
+      "normalization": {
+        "air": "omitted",
+        "block_entity_payloads": "stripped",
+        "canonical_order": "y,z,x",
+        "dangerous_blocks": {},
+        "entities": "stripped",
+        "gzip_mtime": 0,
+        "missing_chunks_as_air": [],
+        "source_block_entities": {},
+        "template_data_version": 3955
+      },
+      "palette_size": 16,
+      "road_connectors": [],
+      "sha256": "f54a99c29356110a8904cc99eaa1b19d2d64ba6ca8ff774e464f78fab7ce4fe6",
+      "source": {
+        "arnis_version": "3.0.0",
+        "bbox": {
+          "blocks": {
+            "max_x": 319,
+            "max_y": 184,
+            "max_z": 207,
+            "min_x": 304,
+            "min_y": -62,
+            "min_z": 192
+          },
+          "chunks": {
+            "max_x": 19,
+            "max_z": 12,
+            "min_x": 19,
+            "min_z": 12
+          }
+        },
+        "data_versions": [
+          3955
+        ],
+        "dimension": "overworld",
+        "files": [
+          {
+            "bytes": 4407296,
+            "file": "r.0.0.mca",
+            "sha256": "15fa0b857f03d8d905536e3c33622be5a578ee67c228e4aa1c4c00aa136446df"
+          }
+        ],
+        "geographic_bbox": {
+          "max_lat": 31.2373,
+          "max_lon": 121.5022,
+          "min_lat": 31.2337,
+          "min_lon": 121.4978
+        },
+        "id": "osm-lujiazui-future-atlas-v1",
+        "input_sha256": "0b4a83caa004af2a8ba50ce4605031ddd8e28746fed0cb57164575ff902f1eda",
+        "license": {
+          "attribution": "OpenStreetMap contributors",
+          "id": "ODbL-1.0",
+          "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+        },
+        "name": "Shanghai Lujiazui future skyline atlas",
+        "url": "https://www.openstreetmap.org/copyright",
+        "world": "Arnis World 1",
+        "world_metadata": {
+          "file": "metadata.json",
+          "sha256": "c82f1fbf1d1ab028befc5d5f4b5d904e9c47b9fc29a73e50be3363852c39ecd4",
+          "values": {
+            "maxGeoLat": 31.2373,
+            "maxGeoLon": 121.5022,
+            "maxMcX": 418,
+            "maxMcZ": 400,
+            "minGeoLat": 31.2337,
+            "minGeoLon": 121.4978,
+            "minMcX": 0,
+            "minMcZ": 0,
+            "projection": "local",
+            "scale": 1.0
+          }
+        }
+      }
+    },
+    {
+      "block_count": 18503,
+      "compressed_bytes": 50440,
+      "district": "W",
+      "file": "structures/w/lujiazui_2_2.nbt",
+      "footprint": {
+        "anchor": {
+          "source_y": -62,
+          "surface_y": -62
+        },
+        "blocks": {
+          "x": 16,
+          "y": 247,
+          "z": 16
+        },
+        "chunks": {
+          "x": 1,
+          "z": 1
+        }
+      },
+      "id": "w/lujiazui_2_2",
+      "normalization": {
+        "air": "omitted",
+        "block_entity_payloads": "stripped",
+        "canonical_order": "y,z,x",
+        "dangerous_blocks": {},
+        "entities": "stripped",
+        "gzip_mtime": 0,
+        "missing_chunks_as_air": [],
+        "source_block_entities": {},
+        "template_data_version": 3955
+      },
+      "palette_size": 18,
+      "road_connectors": [],
+      "sha256": "ad292088f742bd45c447ff999986f8f354319c2b14cb2862c82194634ea0863b",
+      "source": {
+        "arnis_version": "3.0.0",
+        "bbox": {
+          "blocks": {
+            "max_x": 319,
+            "max_y": 184,
+            "max_z": 223,
+            "min_x": 304,
+            "min_y": -62,
+            "min_z": 208
+          },
+          "chunks": {
+            "max_x": 19,
+            "max_z": 13,
+            "min_x": 19,
+            "min_z": 13
+          }
+        },
+        "data_versions": [
+          3955
+        ],
+        "dimension": "overworld",
+        "files": [
+          {
+            "bytes": 4407296,
+            "file": "r.0.0.mca",
+            "sha256": "15fa0b857f03d8d905536e3c33622be5a578ee67c228e4aa1c4c00aa136446df"
+          }
+        ],
+        "geographic_bbox": {
+          "max_lat": 31.2373,
+          "max_lon": 121.5022,
+          "min_lat": 31.2337,
+          "min_lon": 121.4978
+        },
+        "id": "osm-lujiazui-future-atlas-v1",
+        "input_sha256": "0b4a83caa004af2a8ba50ce4605031ddd8e28746fed0cb57164575ff902f1eda",
+        "license": {
+          "attribution": "OpenStreetMap contributors",
+          "id": "ODbL-1.0",
+          "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+        },
+        "name": "Shanghai Lujiazui future skyline atlas",
+        "url": "https://www.openstreetmap.org/copyright",
+        "world": "Arnis World 1",
+        "world_metadata": {
+          "file": "metadata.json",
+          "sha256": "c82f1fbf1d1ab028befc5d5f4b5d904e9c47b9fc29a73e50be3363852c39ecd4",
+          "values": {
+            "maxGeoLat": 31.2373,
+            "maxGeoLon": 121.5022,
+            "maxMcX": 418,
+            "maxMcZ": 400,
+            "minGeoLat": 31.2337,
+            "minGeoLon": 121.4978,
+            "minMcX": 0,
+            "minMcZ": 0,
+            "projection": "local",
+            "scale": 1.0
+          }
+        }
+      }
+    },
+    {
+      "block_count": 3429,
+      "compressed_bytes": 10602,
+      "district": "Z",
+      "file": "structures/z/crossing_0_0.nbt",
+      "footprint": {
+        "anchor": {
+          "source_y": -62,
+          "surface_y": -62
+        },
+        "blocks": {
+          "x": 16,
+          "y": 37,
+          "z": 16
+        },
+        "chunks": {
+          "x": 1,
+          "z": 1
+        }
+      },
+      "id": "z/crossing_0_0",
+      "normalization": {
+        "air": "omitted",
+        "block_entity_payloads": "stripped",
+        "canonical_order": "y,z,x",
+        "dangerous_blocks": {},
+        "entities": "stripped",
+        "gzip_mtime": 0,
+        "missing_chunks_as_air": [],
+        "source_block_entities": {},
+        "template_data_version": 3955
+      },
+      "palette_size": 26,
+      "road_connectors": [],
+      "sha256": "1b2a83903d1add34aebb149ca74aeef22e0ecf7d7241e1e439cbd1916805e4fa",
+      "source": {
+        "arnis_version": "3.0.0",
+        "bbox": {
+          "blocks": {
+            "max_x": 207,
+            "max_y": -26,
+            "max_z": 143,
+            "min_x": 192,
+            "min_y": -62,
+            "min_z": 128
+          },
+          "chunks": {
+            "max_x": 12,
+            "max_z": 8,
+            "min_x": 12,
+            "min_z": 8
+          }
+        },
+        "data_versions": [
+          3955
+        ],
+        "dimension": "overworld",
+        "files": [
+          {
+            "bytes": 4317184,
+            "file": "r.0.0.mca",
+            "sha256": "d2e6d716fa596969ae56eaceae59c5a8fa9eb4e8a81c6a5877202817725b34c4"
+          }
+        ],
+        "geographic_bbox": {
+          "max_lat": 35.6945,
+          "max_lon": 139.701,
+          "min_lat": 35.691,
+          "min_lon": 139.6965
+        },
+        "id": "osm-shinjuku-crossing-atlas-v1",
+        "input_sha256": "85d3e3801c76a7f1365dc1e4b7c05fb90ad45ed142d8d4ca8084df2a99ad0644",
+        "license": {
+          "attribution": "OpenStreetMap contributors",
+          "id": "ODbL-1.0",
+          "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+        },
+        "name": "Tokyo Shinjuku rail and crossing atlas",
+        "url": "https://www.openstreetmap.org/copyright",
+        "world": "Arnis World 1",
+        "world_metadata": {
+          "file": "metadata.json",
+          "sha256": "5c2271e2a6525a7e9d3bb87772fbdcfc0a6f2fc63581f6b4a680aaee88bb6b1f",
+          "values": {
+            "maxGeoLat": 35.6945,
+            "maxGeoLon": 139.701,
+            "maxMcX": 406,
+            "maxMcZ": 389,
+            "minGeoLat": 35.691,
+            "minGeoLon": 139.6965,
+            "minMcX": 0,
+            "minMcZ": 0,
+            "projection": "local",
+            "scale": 1.0
+          }
+        }
+      }
+    },
+    {
+      "block_count": 2060,
+      "compressed_bytes": 6179,
+      "district": "Z",
+      "file": "structures/z/crossing_0_1.nbt",
+      "footprint": {
+        "anchor": {
+          "source_y": -62,
+          "surface_y": -62
+        },
+        "blocks": {
+          "x": 16,
+          "y": 31,
+          "z": 16
+        },
+        "chunks": {
+          "x": 1,
+          "z": 1
+        }
+      },
+      "id": "z/crossing_0_1",
+      "normalization": {
+        "air": "omitted",
+        "block_entity_payloads": "stripped",
+        "canonical_order": "y,z,x",
+        "dangerous_blocks": {},
+        "entities": "stripped",
+        "gzip_mtime": 0,
+        "missing_chunks_as_air": [],
+        "source_block_entities": {},
+        "template_data_version": 3955
+      },
+      "palette_size": 26,
+      "road_connectors": [],
+      "sha256": "42d0ba3fbe15f24b13e75844770759ad1bfe5db05ee4a588fb8ad81d82c1ffcf",
+      "source": {
+        "arnis_version": "3.0.0",
+        "bbox": {
+          "blocks": {
+            "max_x": 207,
+            "max_y": -32,
+            "max_z": 159,
+            "min_x": 192,
+            "min_y": -62,
+            "min_z": 144
+          },
+          "chunks": {
+            "max_x": 12,
+            "max_z": 9,
+            "min_x": 12,
+            "min_z": 9
+          }
+        },
+        "data_versions": [
+          3955
+        ],
+        "dimension": "overworld",
+        "files": [
+          {
+            "bytes": 4317184,
+            "file": "r.0.0.mca",
+            "sha256": "d2e6d716fa596969ae56eaceae59c5a8fa9eb4e8a81c6a5877202817725b34c4"
+          }
+        ],
+        "geographic_bbox": {
+          "max_lat": 35.6945,
+          "max_lon": 139.701,
+          "min_lat": 35.691,
+          "min_lon": 139.6965
+        },
+        "id": "osm-shinjuku-crossing-atlas-v1",
+        "input_sha256": "85d3e3801c76a7f1365dc1e4b7c05fb90ad45ed142d8d4ca8084df2a99ad0644",
+        "license": {
+          "attribution": "OpenStreetMap contributors",
+          "id": "ODbL-1.0",
+          "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+        },
+        "name": "Tokyo Shinjuku rail and crossing atlas",
+        "url": "https://www.openstreetmap.org/copyright",
+        "world": "Arnis World 1",
+        "world_metadata": {
+          "file": "metadata.json",
+          "sha256": "5c2271e2a6525a7e9d3bb87772fbdcfc0a6f2fc63581f6b4a680aaee88bb6b1f",
+          "values": {
+            "maxGeoLat": 35.6945,
+            "maxGeoLon": 139.701,
+            "maxMcX": 406,
+            "maxMcZ": 389,
+            "minGeoLat": 35.691,
+            "minGeoLon": 139.6965,
+            "minMcX": 0,
+            "minMcZ": 0,
+            "projection": "local",
+            "scale": 1.0
+          }
+        }
+      }
+    },
+    {
+      "block_count": 2584,
+      "compressed_bytes": 8196,
+      "district": "Z",
+      "file": "structures/z/crossing_0_2.nbt",
+      "footprint": {
+        "anchor": {
+          "source_y": -62,
+          "surface_y": -62
+        },
+        "blocks": {
+          "x": 16,
+          "y": 27,
+          "z": 16
+        },
+        "chunks": {
+          "x": 1,
+          "z": 1
+        }
+      },
+      "id": "z/crossing_0_2",
+      "normalization": {
+        "air": "omitted",
+        "block_entity_payloads": "stripped",
+        "canonical_order": "y,z,x",
+        "dangerous_blocks": {},
+        "entities": "stripped",
+        "gzip_mtime": 0,
+        "missing_chunks_as_air": [],
+        "source_block_entities": {},
+        "template_data_version": 3955
+      },
+      "palette_size": 27,
+      "road_connectors": [],
+      "sha256": "bf300c1efe526fa139a8ae8f9deacec46508c2a517ef7932c60f35312c04b99f",
+      "source": {
+        "arnis_version": "3.0.0",
+        "bbox": {
+          "blocks": {
+            "max_x": 207,
+            "max_y": -36,
+            "max_z": 175,
+            "min_x": 192,
+            "min_y": -62,
+            "min_z": 160
+          },
+          "chunks": {
+            "max_x": 12,
+            "max_z": 10,
+            "min_x": 12,
+            "min_z": 10
+          }
+        },
+        "data_versions": [
+          3955
+        ],
+        "dimension": "overworld",
+        "files": [
+          {
+            "bytes": 4317184,
+            "file": "r.0.0.mca",
+            "sha256": "d2e6d716fa596969ae56eaceae59c5a8fa9eb4e8a81c6a5877202817725b34c4"
+          }
+        ],
+        "geographic_bbox": {
+          "max_lat": 35.6945,
+          "max_lon": 139.701,
+          "min_lat": 35.691,
+          "min_lon": 139.6965
+        },
+        "id": "osm-shinjuku-crossing-atlas-v1",
+        "input_sha256": "85d3e3801c76a7f1365dc1e4b7c05fb90ad45ed142d8d4ca8084df2a99ad0644",
+        "license": {
+          "attribution": "OpenStreetMap contributors",
+          "id": "ODbL-1.0",
+          "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+        },
+        "name": "Tokyo Shinjuku rail and crossing atlas",
+        "url": "https://www.openstreetmap.org/copyright",
+        "world": "Arnis World 1",
+        "world_metadata": {
+          "file": "metadata.json",
+          "sha256": "5c2271e2a6525a7e9d3bb87772fbdcfc0a6f2fc63581f6b4a680aaee88bb6b1f",
+          "values": {
+            "maxGeoLat": 35.6945,
+            "maxGeoLon": 139.701,
+            "maxMcX": 406,
+            "maxMcZ": 389,
+            "minGeoLat": 35.691,
+            "minGeoLon": 139.6965,
+            "minMcX": 0,
+            "minMcZ": 0,
+            "projection": "local",
+            "scale": 1.0
+          }
+        }
+      }
+    },
+    {
+      "block_count": 4092,
+      "compressed_bytes": 12323,
+      "district": "Z",
+      "file": "structures/z/crossing_1_0.nbt",
+      "footprint": {
+        "anchor": {
+          "source_y": -62,
+          "surface_y": -62
+        },
+        "blocks": {
+          "x": 16,
+          "y": 40,
+          "z": 16
+        },
+        "chunks": {
+          "x": 1,
+          "z": 1
+        }
+      },
+      "id": "z/crossing_1_0",
+      "normalization": {
+        "air": "omitted",
+        "block_entity_payloads": "stripped",
+        "canonical_order": "y,z,x",
+        "dangerous_blocks": {},
+        "entities": "stripped",
+        "gzip_mtime": 0,
+        "missing_chunks_as_air": [],
+        "source_block_entities": {},
+        "template_data_version": 3955
+      },
+      "palette_size": 17,
+      "road_connectors": [],
+      "sha256": "18b6e88b7146a4ca10bdd7672ebd11c9ae3c24c9ddee6ea0ce9ff5635cc201a9",
+      "source": {
+        "arnis_version": "3.0.0",
+        "bbox": {
+          "blocks": {
+            "max_x": 223,
+            "max_y": -23,
+            "max_z": 143,
+            "min_x": 208,
+            "min_y": -62,
+            "min_z": 128
+          },
+          "chunks": {
+            "max_x": 13,
+            "max_z": 8,
+            "min_x": 13,
+            "min_z": 8
+          }
+        },
+        "data_versions": [
+          3955
+        ],
+        "dimension": "overworld",
+        "files": [
+          {
+            "bytes": 4317184,
+            "file": "r.0.0.mca",
+            "sha256": "d2e6d716fa596969ae56eaceae59c5a8fa9eb4e8a81c6a5877202817725b34c4"
+          }
+        ],
+        "geographic_bbox": {
+          "max_lat": 35.6945,
+          "max_lon": 139.701,
+          "min_lat": 35.691,
+          "min_lon": 139.6965
+        },
+        "id": "osm-shinjuku-crossing-atlas-v1",
+        "input_sha256": "85d3e3801c76a7f1365dc1e4b7c05fb90ad45ed142d8d4ca8084df2a99ad0644",
+        "license": {
+          "attribution": "OpenStreetMap contributors",
+          "id": "ODbL-1.0",
+          "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+        },
+        "name": "Tokyo Shinjuku rail and crossing atlas",
+        "url": "https://www.openstreetmap.org/copyright",
+        "world": "Arnis World 1",
+        "world_metadata": {
+          "file": "metadata.json",
+          "sha256": "5c2271e2a6525a7e9d3bb87772fbdcfc0a6f2fc63581f6b4a680aaee88bb6b1f",
+          "values": {
+            "maxGeoLat": 35.6945,
+            "maxGeoLon": 139.701,
+            "maxMcX": 406,
+            "maxMcZ": 389,
+            "minGeoLat": 35.691,
+            "minGeoLon": 139.6965,
+            "minMcX": 0,
+            "minMcZ": 0,
+            "projection": "local",
+            "scale": 1.0
+          }
+        }
+      }
+    },
+    {
+      "block_count": 2222,
+      "compressed_bytes": 6259,
+      "district": "Z",
+      "file": "structures/z/crossing_1_1.nbt",
+      "footprint": {
+        "anchor": {
+          "source_y": -62,
+          "surface_y": -62
+        },
+        "blocks": {
+          "x": 16,
+          "y": 37,
+          "z": 16
+        },
+        "chunks": {
+          "x": 1,
+          "z": 1
+        }
+      },
+      "id": "z/crossing_1_1",
+      "normalization": {
+        "air": "omitted",
+        "block_entity_payloads": "stripped",
+        "canonical_order": "y,z,x",
+        "dangerous_blocks": {},
+        "entities": "stripped",
+        "gzip_mtime": 0,
+        "missing_chunks_as_air": [],
+        "source_block_entities": {},
+        "template_data_version": 3955
+      },
+      "palette_size": 16,
+      "road_connectors": [],
+      "sha256": "5fd7fafb7578165d196f94f0bc71206035040b27d1c4dd7ff32f9c60c004a5a6",
+      "source": {
+        "arnis_version": "3.0.0",
+        "bbox": {
+          "blocks": {
+            "max_x": 223,
+            "max_y": -26,
+            "max_z": 159,
+            "min_x": 208,
+            "min_y": -62,
+            "min_z": 144
+          },
+          "chunks": {
+            "max_x": 13,
+            "max_z": 9,
+            "min_x": 13,
+            "min_z": 9
+          }
+        },
+        "data_versions": [
+          3955
+        ],
+        "dimension": "overworld",
+        "files": [
+          {
+            "bytes": 4317184,
+            "file": "r.0.0.mca",
+            "sha256": "d2e6d716fa596969ae56eaceae59c5a8fa9eb4e8a81c6a5877202817725b34c4"
+          }
+        ],
+        "geographic_bbox": {
+          "max_lat": 35.6945,
+          "max_lon": 139.701,
+          "min_lat": 35.691,
+          "min_lon": 139.6965
+        },
+        "id": "osm-shinjuku-crossing-atlas-v1",
+        "input_sha256": "85d3e3801c76a7f1365dc1e4b7c05fb90ad45ed142d8d4ca8084df2a99ad0644",
+        "license": {
+          "attribution": "OpenStreetMap contributors",
+          "id": "ODbL-1.0",
+          "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+        },
+        "name": "Tokyo Shinjuku rail and crossing atlas",
+        "url": "https://www.openstreetmap.org/copyright",
+        "world": "Arnis World 1",
+        "world_metadata": {
+          "file": "metadata.json",
+          "sha256": "5c2271e2a6525a7e9d3bb87772fbdcfc0a6f2fc63581f6b4a680aaee88bb6b1f",
+          "values": {
+            "maxGeoLat": 35.6945,
+            "maxGeoLon": 139.701,
+            "maxMcX": 406,
+            "maxMcZ": 389,
+            "minGeoLat": 35.691,
+            "minGeoLon": 139.6965,
+            "minMcX": 0,
+            "minMcZ": 0,
+            "projection": "local",
+            "scale": 1.0
+          }
+        }
+      }
+    },
+    {
+      "block_count": 3456,
+      "compressed_bytes": 10851,
+      "district": "Z",
+      "file": "structures/z/crossing_1_2.nbt",
+      "footprint": {
+        "anchor": {
+          "source_y": -62,
+          "surface_y": -62
+        },
+        "blocks": {
+          "x": 16,
+          "y": 38,
+          "z": 16
+        },
+        "chunks": {
+          "x": 1,
+          "z": 1
+        }
+      },
+      "id": "z/crossing_1_2",
+      "normalization": {
+        "air": "omitted",
+        "block_entity_payloads": "stripped",
+        "canonical_order": "y,z,x",
+        "dangerous_blocks": {},
+        "entities": "stripped",
+        "gzip_mtime": 0,
+        "missing_chunks_as_air": [],
+        "source_block_entities": {},
+        "template_data_version": 3955
+      },
+      "palette_size": 21,
+      "road_connectors": [
+        {
+          "confidence": 0.71,
+          "edge": "south",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:stone_bricks",
+          "offset": 4,
+          "source_y": -62,
+          "width": 4
+        }
+      ],
+      "sha256": "e00a316503d3d74a38c79447f23f7452d16062dfd714257cbb698941ed30e115",
+      "source": {
+        "arnis_version": "3.0.0",
+        "bbox": {
+          "blocks": {
+            "max_x": 223,
+            "max_y": -25,
+            "max_z": 175,
+            "min_x": 208,
+            "min_y": -62,
+            "min_z": 160
+          },
+          "chunks": {
+            "max_x": 13,
+            "max_z": 10,
+            "min_x": 13,
+            "min_z": 10
+          }
+        },
+        "data_versions": [
+          3955
+        ],
+        "dimension": "overworld",
+        "files": [
+          {
+            "bytes": 4317184,
+            "file": "r.0.0.mca",
+            "sha256": "d2e6d716fa596969ae56eaceae59c5a8fa9eb4e8a81c6a5877202817725b34c4"
+          }
+        ],
+        "geographic_bbox": {
+          "max_lat": 35.6945,
+          "max_lon": 139.701,
+          "min_lat": 35.691,
+          "min_lon": 139.6965
+        },
+        "id": "osm-shinjuku-crossing-atlas-v1",
+        "input_sha256": "85d3e3801c76a7f1365dc1e4b7c05fb90ad45ed142d8d4ca8084df2a99ad0644",
+        "license": {
+          "attribution": "OpenStreetMap contributors",
+          "id": "ODbL-1.0",
+          "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+        },
+        "name": "Tokyo Shinjuku rail and crossing atlas",
+        "url": "https://www.openstreetmap.org/copyright",
+        "world": "Arnis World 1",
+        "world_metadata": {
+          "file": "metadata.json",
+          "sha256": "5c2271e2a6525a7e9d3bb87772fbdcfc0a6f2fc63581f6b4a680aaee88bb6b1f",
+          "values": {
+            "maxGeoLat": 35.6945,
+            "maxGeoLon": 139.701,
+            "maxMcX": 406,
+            "maxMcZ": 389,
+            "minGeoLat": 35.691,
+            "minGeoLon": 139.6965,
+            "minMcX": 0,
+            "minMcZ": 0,
+            "projection": "local",
+            "scale": 1.0
+          }
+        }
+      }
+    },
+    {
+      "block_count": 1987,
+      "compressed_bytes": 6572,
+      "district": "Z",
+      "file": "structures/z/crossing_2_0.nbt",
+      "footprint": {
+        "anchor": {
+          "source_y": -62,
+          "surface_y": -62
+        },
+        "blocks": {
+          "x": 16,
+          "y": 40,
+          "z": 16
+        },
+        "chunks": {
+          "x": 1,
+          "z": 1
+        }
+      },
+      "id": "z/crossing_2_0",
+      "normalization": {
+        "air": "omitted",
+        "block_entity_payloads": "stripped",
+        "canonical_order": "y,z,x",
+        "dangerous_blocks": {},
+        "entities": "stripped",
+        "gzip_mtime": 0,
+        "missing_chunks_as_air": [],
+        "source_block_entities": {
+          "minecraft:banner": 4
+        },
+        "template_data_version": 3955
+      },
+      "palette_size": 25,
+      "road_connectors": [
+        {
+          "confidence": 0.79,
+          "edge": "north",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:stone_bricks",
+          "offset": 2,
+          "source_y": -62,
+          "width": 6
+        },
+        {
+          "confidence": 0.75,
+          "edge": "south",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:smooth_stone",
+          "offset": 7,
+          "source_y": -62,
+          "width": 5
+        }
+      ],
+      "sha256": "124ac6d555852bdc086691bb911ca87e2d139ca629cac68b7b0472d727b5d5c3",
+      "source": {
+        "arnis_version": "3.0.0",
+        "bbox": {
+          "blocks": {
+            "max_x": 239,
+            "max_y": -23,
+            "max_z": 143,
+            "min_x": 224,
+            "min_y": -62,
+            "min_z": 128
+          },
+          "chunks": {
+            "max_x": 14,
+            "max_z": 8,
+            "min_x": 14,
+            "min_z": 8
+          }
+        },
+        "data_versions": [
+          3955
+        ],
+        "dimension": "overworld",
+        "files": [
+          {
+            "bytes": 4317184,
+            "file": "r.0.0.mca",
+            "sha256": "d2e6d716fa596969ae56eaceae59c5a8fa9eb4e8a81c6a5877202817725b34c4"
+          }
+        ],
+        "geographic_bbox": {
+          "max_lat": 35.6945,
+          "max_lon": 139.701,
+          "min_lat": 35.691,
+          "min_lon": 139.6965
+        },
+        "id": "osm-shinjuku-crossing-atlas-v1",
+        "input_sha256": "85d3e3801c76a7f1365dc1e4b7c05fb90ad45ed142d8d4ca8084df2a99ad0644",
+        "license": {
+          "attribution": "OpenStreetMap contributors",
+          "id": "ODbL-1.0",
+          "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+        },
+        "name": "Tokyo Shinjuku rail and crossing atlas",
+        "url": "https://www.openstreetmap.org/copyright",
+        "world": "Arnis World 1",
+        "world_metadata": {
+          "file": "metadata.json",
+          "sha256": "5c2271e2a6525a7e9d3bb87772fbdcfc0a6f2fc63581f6b4a680aaee88bb6b1f",
+          "values": {
+            "maxGeoLat": 35.6945,
+            "maxGeoLon": 139.701,
+            "maxMcX": 406,
+            "maxMcZ": 389,
+            "minGeoLat": 35.691,
+            "minGeoLon": 139.6965,
+            "minMcX": 0,
+            "minMcZ": 0,
+            "projection": "local",
+            "scale": 1.0
+          }
+        }
+      }
+    },
+    {
+      "block_count": 1795,
+      "compressed_bytes": 5570,
+      "district": "Z",
+      "file": "structures/z/crossing_2_1.nbt",
+      "footprint": {
+        "anchor": {
+          "source_y": -62,
+          "surface_y": -62
+        },
+        "blocks": {
+          "x": 16,
+          "y": 31,
+          "z": 16
+        },
+        "chunks": {
+          "x": 1,
+          "z": 1
+        }
+      },
+      "id": "z/crossing_2_1",
+      "normalization": {
+        "air": "omitted",
+        "block_entity_payloads": "stripped",
+        "canonical_order": "y,z,x",
+        "dangerous_blocks": {},
+        "entities": "stripped",
+        "gzip_mtime": 0,
+        "missing_chunks_as_air": [],
+        "source_block_entities": {},
+        "template_data_version": 3955
+      },
+      "palette_size": 18,
+      "road_connectors": [
+        {
+          "confidence": 0.75,
+          "edge": "north",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:smooth_stone",
+          "offset": 7,
+          "source_y": -62,
+          "width": 5
+        },
+        {
+          "confidence": 0.75,
+          "edge": "south",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:smooth_stone",
+          "offset": 10,
+          "source_y": -62,
+          "width": 5
+        }
+      ],
+      "sha256": "b0685bc25d488f9b8a075c1a92e479c75e9f36f3d2b6058e6e6fc67ca691050f",
+      "source": {
+        "arnis_version": "3.0.0",
+        "bbox": {
+          "blocks": {
+            "max_x": 239,
+            "max_y": -32,
+            "max_z": 159,
+            "min_x": 224,
+            "min_y": -62,
+            "min_z": 144
+          },
+          "chunks": {
+            "max_x": 14,
+            "max_z": 9,
+            "min_x": 14,
+            "min_z": 9
+          }
+        },
+        "data_versions": [
+          3955
+        ],
+        "dimension": "overworld",
+        "files": [
+          {
+            "bytes": 4317184,
+            "file": "r.0.0.mca",
+            "sha256": "d2e6d716fa596969ae56eaceae59c5a8fa9eb4e8a81c6a5877202817725b34c4"
+          }
+        ],
+        "geographic_bbox": {
+          "max_lat": 35.6945,
+          "max_lon": 139.701,
+          "min_lat": 35.691,
+          "min_lon": 139.6965
+        },
+        "id": "osm-shinjuku-crossing-atlas-v1",
+        "input_sha256": "85d3e3801c76a7f1365dc1e4b7c05fb90ad45ed142d8d4ca8084df2a99ad0644",
+        "license": {
+          "attribution": "OpenStreetMap contributors",
+          "id": "ODbL-1.0",
+          "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+        },
+        "name": "Tokyo Shinjuku rail and crossing atlas",
+        "url": "https://www.openstreetmap.org/copyright",
+        "world": "Arnis World 1",
+        "world_metadata": {
+          "file": "metadata.json",
+          "sha256": "5c2271e2a6525a7e9d3bb87772fbdcfc0a6f2fc63581f6b4a680aaee88bb6b1f",
+          "values": {
+            "maxGeoLat": 35.6945,
+            "maxGeoLon": 139.701,
+            "maxMcX": 406,
+            "maxMcZ": 389,
+            "minGeoLat": 35.691,
+            "minGeoLon": 139.6965,
+            "minMcX": 0,
+            "minMcZ": 0,
+            "projection": "local",
+            "scale": 1.0
+          }
+        }
+      }
+    },
+    {
+      "block_count": 3020,
+      "compressed_bytes": 9333,
+      "district": "Z",
+      "file": "structures/z/crossing_2_2.nbt",
+      "footprint": {
+        "anchor": {
+          "source_y": -62,
+          "surface_y": -62
+        },
+        "blocks": {
+          "x": 16,
+          "y": 38,
+          "z": 16
+        },
+        "chunks": {
+          "x": 1,
+          "z": 1
+        }
+      },
+      "id": "z/crossing_2_2",
+      "normalization": {
+        "air": "omitted",
+        "block_entity_payloads": "stripped",
+        "canonical_order": "y,z,x",
+        "dangerous_blocks": {},
+        "entities": "stripped",
+        "gzip_mtime": 0,
+        "missing_chunks_as_air": [],
+        "source_block_entities": {},
+        "template_data_version": 3955
+      },
+      "palette_size": 20,
+      "road_connectors": [
+        {
+          "confidence": 0.71,
+          "edge": "south",
+          "inferred": true,
+          "kind": "road",
+          "material": "minecraft:smooth_stone",
+          "offset": 12,
+          "source_y": -62,
+          "width": 4
+        }
+      ],
+      "sha256": "ead515721f679db4fbfd87f45b7c3b32ab35077185d3381d0adec67a854778d5",
+      "source": {
+        "arnis_version": "3.0.0",
+        "bbox": {
+          "blocks": {
+            "max_x": 239,
+            "max_y": -25,
+            "max_z": 175,
+            "min_x": 224,
+            "min_y": -62,
+            "min_z": 160
+          },
+          "chunks": {
+            "max_x": 14,
+            "max_z": 10,
+            "min_x": 14,
+            "min_z": 10
+          }
+        },
+        "data_versions": [
+          3955
+        ],
+        "dimension": "overworld",
+        "files": [
+          {
+            "bytes": 4317184,
+            "file": "r.0.0.mca",
+            "sha256": "d2e6d716fa596969ae56eaceae59c5a8fa9eb4e8a81c6a5877202817725b34c4"
+          }
+        ],
+        "geographic_bbox": {
+          "max_lat": 35.6945,
+          "max_lon": 139.701,
+          "min_lat": 35.691,
+          "min_lon": 139.6965
+        },
+        "id": "osm-shinjuku-crossing-atlas-v1",
+        "input_sha256": "85d3e3801c76a7f1365dc1e4b7c05fb90ad45ed142d8d4ca8084df2a99ad0644",
+        "license": {
+          "attribution": "OpenStreetMap contributors",
+          "id": "ODbL-1.0",
+          "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+        },
+        "name": "Tokyo Shinjuku rail and crossing atlas",
+        "url": "https://www.openstreetmap.org/copyright",
+        "world": "Arnis World 1",
+        "world_metadata": {
+          "file": "metadata.json",
+          "sha256": "5c2271e2a6525a7e9d3bb87772fbdcfc0a6f2fc63581f6b4a680aaee88bb6b1f",
+          "values": {
+            "maxGeoLat": 35.6945,
+            "maxGeoLon": 139.701,
+            "maxMcX": 406,
+            "maxMcZ": 389,
+            "minGeoLat": 35.691,
+            "minGeoLon": 139.6965,
+            "minMcX": 0,
+            "minMcZ": 0,
+            "projection": "local",
+            "scale": 1.0
+          }
+        }
+      }
+    },
+    {
       "block_count": 2446,
       "compressed_bytes": 6870,
       "district": "Z",
       "file": "structures/z/shinjuku_core.nbt",
       "footprint": {
         "anchor": {
-          "source_y": -64
+          "source_y": -64,
+          "surface_y": 68
         },
         "blocks": {
           "x": 16,

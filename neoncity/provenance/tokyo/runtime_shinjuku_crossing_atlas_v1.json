@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "purpose": "Arnis source world for the bundled Z Corp Shinjuku Crossing 3x3 runtime atlas",
+  "generator": {
+    "name": "Arnis",
+    "version": "3.0.0",
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "argv": [
+      "arnis", "--bbox", "35.6910,139.6965,35.6945,139.7010",
+      "--file", "provenance/tokyo/shinjuku_core_osm.json",
+      "--output-dir", "<output-directory>", "--projection", "local",
+      "--fillground", "--overture", "false", "--no-3d",
+      "--map-preview", "--map-item", "false", "--gamemode", "creative",
+      "--world-time", "18000"
+    ],
+    "settings": {
+      "scale_blocks_per_meter": 1.0,
+      "ground_level": -62,
+      "terrain": false,
+      "fillground": true,
+      "overture": false,
+      "external_3d_and_schematic_props": false,
+      "map_preview": true,
+      "map_item": false,
+      "gamemode": "creative",
+      "world_time": 18000
+    }
+  },
+  "input": {
+    "file": "shinjuku_core_osm.json",
+    "sha256": "85d3e3801c76a7f1365dc1e4b7c05fb90ad45ed142d8d4ca8084df2a99ad0644",
+    "license": "ODbL-1.0",
+    "attribution": "OpenStreetMap contributors"
+  },
+  "world": {
+    "bundled": false,
+    "metadata_sha256": "5c2271e2a6525a7e9d3bb87772fbdcfc0a6f2fc63581f6b4a680aaee88bb6b1f",
+    "level_dat_sha256": "99ddd922fe464401abda83f8308b28889c761ada87751b54ba0d69161365dfc4",
+    "preview_sha256": "0b57b63f09cd06f3e0d58e24761522c6cb1aa07ed04d41507e3d38503d17ee15",
+    "region_r_0_0_sha256": "d2e6d716fa596969ae56eaceae59c5a8fa9eb4e8a81c6a5877202817725b34c4",
+    "metadata_bounds": {"max_mc_x": 406, "max_mc_z": 389}
+  },
+  "import": {
+    "district": "Z",
+    "selection": "crossing=12,8:14,10",
+    "min_y": -62,
+    "surface_y": -62,
+    "catalog_ids": "z/crossing_0_0 through z/crossing_2_2",
+    "known_payload_stripping": "four minecraft:banner block-entity payloads in z/crossing_2_0"
+  }
+}

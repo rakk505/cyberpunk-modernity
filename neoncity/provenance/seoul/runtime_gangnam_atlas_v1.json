@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "purpose": "Arnis source world for the bundled L Corp Gangnam 3x3 runtime atlas",
+  "generator": {
+    "name": "Arnis",
+    "version": "3.0.0",
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "argv": [
+      "arnis", "--bbox", "37.4992,127.0345,37.5022,127.0385",
+      "--file", "provenance/seoul/seoul_gangnam_osm.json",
+      "--output-dir", "<output-directory>", "--projection", "local",
+      "--fillground", "--overture", "false", "--no-3d",
+      "--map-preview", "--map-item", "false", "--gamemode", "creative",
+      "--world-time", "18000"
+    ],
+    "settings": {
+      "scale_blocks_per_meter": 1.0,
+      "ground_level": -62,
+      "terrain": false,
+      "fillground": true,
+      "overture": false,
+      "external_3d_and_schematic_props": false,
+      "map_preview": true,
+      "map_item": false,
+      "gamemode": "creative",
+      "world_time": 18000
+    }
+  },
+  "input": {
+    "file": "seoul_gangnam_osm.json",
+    "sha256": "8df4bbf2726c52992673ad58c27a5e3eb915a44fd0160c7fbbabe0becb39e590",
+    "license": "ODbL-1.0",
+    "attribution": "OpenStreetMap contributors"
+  },
+  "world": {
+    "bundled": false,
+    "metadata_sha256": "a536850b6164d16d831142d32df24754ecf0683cdff4c5c655d5089b78a1b401",
+    "level_dat_sha256": "fb029e143cd5236fbfd22bb1b7dfb99ef6253563f6c5d079298364904f91700e",
+    "preview_sha256": "2d2c41905b1ff08311413f96f05c8f1e57cc97d53aa019a13c3f61cdaff6feb7",
+    "region_r_0_0_sha256": "41fb5442308ddce403d1dc398e9e819b30242f9c7f2c85f8fd6e4370858467b6",
+    "metadata_bounds": {"max_mc_x": 352, "max_mc_z": 333}
+  },
+  "import": {
+    "district": "L",
+    "selection": "gangnam=8,5:10,7",
+    "min_y": -62,
+    "surface_y": -62,
+    "catalog_ids": "l/gangnam_0_0 through l/gangnam_2_2"
+  }
+}

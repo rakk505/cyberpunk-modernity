@@ -13,10 +13,12 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.PoweredRailBlock;
 import net.minecraft.world.level.block.RailBlock;
 import net.minecraft.world.level.block.WeatheringCopper;
@@ -43,7 +45,7 @@ public final class NeonCityGenerator {
 
     public static final String NAMESPACE = "neoncity";
     public static final String GENERATOR_FINGERPRINT =
-            "project-moon-megacity-v3-finite-26-districts-arnis-20260729";
+            "project-moon-megacity-v5-cultural-atlases-20260729";
     public static final int CITY_GROUND_Y = 72;
     public static final int WATER_Y = 67;
     public static final int ENQUEUE_RADIUS_CHUNKS = 7;
@@ -62,6 +64,7 @@ public final class NeonCityGenerator {
     private static final Set<Long> GENERATED = new HashSet<>();
     private static final Map<Long, AlleyMaze.Plan> DIAGNOSTIC_ALLEY_PLANS = new HashMap<>();
     private static MegacityLayout layout = MegacityLayout.create(MegacityLayout.DEFAULT_SEED);
+    private static long layoutWorldSeed = Long.MIN_VALUE;
     private static NeonCitySavedData savedData;
     private static boolean enabled;
 
@@ -112,6 +115,8 @@ public final class NeonCityGenerator {
             BlockState roof
     ) {}
 
+    private record TreePalette(BlockState trunk, BlockState leaves) {}
+
     private record LocalCoordinates(double u, double v) {}
 
     public static boolean initialize(ServerLevel level) {
@@ -122,6 +127,7 @@ public final class NeonCityGenerator {
             return false;
         }
         layout = MegacityLayout.create(level.getSeed());
+        layoutWorldSeed = level.getSeed();
         savedData = level.getDataStorage().computeIfAbsent(NeonCitySavedData.TYPE);
         if (!savedData.isCompatible(GENERATOR_FINGERPRINT)) {
             LOGGER.error(
@@ -140,6 +146,7 @@ public final class NeonCityGenerator {
         clearTransientState();
         savedData = null;
         layout = MegacityLayout.create(MegacityLayout.DEFAULT_SEED);
+        layoutWorldSeed = Long.MIN_VALUE;
     }
 
     private static void clearTransientState() {
@@ -147,6 +154,7 @@ public final class NeonCityGenerator {
         QUEUED.clear();
         GENERATED.clear();
         DIAGNOSTIC_ALLEY_PLANS.clear();
+        ArnisPatchLibrary.clearSelectionCache();
         enabled = false;
     }
 
@@ -267,6 +275,11 @@ public final class NeonCityGenerator {
             StructureTemplate patchTemplate = patchPlacement
                     .flatMap(placement -> level.getStructureManager().get(placement.patch().templateId()))
                     .orElse(null);
+            if (patchPlacement.isPresent() && patchTemplate == null) {
+                LOGGER.error("[NeonCity] audited Arnis template {} is missing; chunk {} will retry",
+                        patchPlacement.get().patch().templateId(), chunk);
+                return false;
+            }
             Map<Long, AlleyMaze.Plan> alleyPlans = new HashMap<>();
             BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
             int minX = chunk.getMinBlockX();
@@ -326,7 +339,9 @@ public final class NeonCityGenerator {
         StructurePlaceSettings settings = new StructurePlaceSettings()
                 .setIgnoreEntities(true)
                 .setKnownShape(true);
-        template.placeInWorld(level, origin, origin, settings, level.getRandom(), PLACE_FLAGS);
+        template.placeInWorld(
+                level, origin, origin, settings,
+                RandomSource.create(placement.selectionHash()), PLACE_FLAGS);
     }
 
     private static void buildColumn(ServerLevel level, BlockPos.MutableBlockPos pos,
@@ -334,14 +349,16 @@ public final class NeonCityGenerator {
                                     boolean facadeBoundary) {
         int naturalTop = level.getHeight(Heightmap.Types.WORLD_SURFACE, x, z);
         int ground = sample.groundY();
-        int clearFrom = sample.roadClass() == RoadClass.BORDER_RIVER ? WATER_Y + 1 : ground + 1;
+        int clearFrom = sample.roadClass() == RoadClass.BORDER_RIVER
+                || sample.roadClass() == RoadClass.BRIDGE ? WATER_Y + 1 : ground + 1;
         for (int y = clearFrom; y <= Math.min(MAX_BUILD_Y, naturalTop + 2); y++) {
             set(level, pos, x, y, z, Blocks.AIR.defaultBlockState());
         }
 
         int foundationTop = sample.roadClass() == RoadClass.BORDER_RIVER
                 || sample.roadClass() == RoadClass.CANAL
-                || sample.roadClass() == RoadClass.HARBOR ? WATER_Y - 1 : ground;
+                || sample.roadClass() == RoadClass.HARBOR
+                || sample.roadClass() == RoadClass.BRIDGE ? WATER_Y - 1 : ground;
         for (int y = Math.min(naturalTop, foundationTop - 5); y <= foundationTop; y++) {
             if (y < level.getMinY()) continue;
             BlockState state = y == foundationTop
@@ -350,7 +367,7 @@ public final class NeonCityGenerator {
             set(level, pos, x, y, z, state);
         }
 
-        if (isWater(sample.roadClass())) {
+        if (isWater(sample.roadClass()) || sample.roadClass() == RoadClass.BRIDGE) {
             for (int y = foundationTop + 1; y <= WATER_Y; y++) {
                 set(level, pos, x, y, z, Blocks.WATER.defaultBlockState());
             }
@@ -410,7 +427,8 @@ public final class NeonCityGenerator {
     private static void decorateInfrastructure(ServerLevel level, BlockPos.MutableBlockPos pos,
                                                int x, int z, UrbanSample sample) {
         if (sample.roadClass() == RoadClass.BRIDGE) {
-            int deck = CITY_GROUND_Y + 8;
+            boolean graphBridge = sample.location().onConnection();
+            int deck = graphBridge ? CITY_GROUND_Y + 8 : CITY_GROUND_Y + 1;
             if (floorMod(x * 31 + z * 17, 37) == 0) {
                 for (int y = WATER_Y; y < deck; y++) {
                     set(level, pos, x, y, z, Blocks.POLISHED_BASALT.defaultBlockState());
@@ -419,7 +437,7 @@ public final class NeonCityGenerator {
             set(level, pos, x, deck - 1, z, Blocks.POLISHED_BLACKSTONE_BRICKS.defaultBlockState());
             set(level, pos, x, deck, z, laneMark(x, z)
                     ? concrete(DyeColor.YELLOW) : concrete(DyeColor.BLACK));
-            if (sample.location().connectionDistance() > 10.5) {
+            if (graphBridge && sample.location().connectionDistance() > 10.5) {
                 set(level, pos, x, deck + 1, z, Blocks.IRON_BARS.defaultBlockState());
             }
         }
@@ -431,12 +449,48 @@ public final class NeonCityGenerator {
                 }
             }
             set(level, pos, x, deck - 1, z, Blocks.SMOOTH_STONE.defaultBlockState());
-            BlockState rail = floorMod(x + z, 3) == 0
-                    ? Blocks.POWERED_RAIL.defaultBlockState().setValue(
-                            PoweredRailBlock.SHAPE, RailShape.EAST_WEST)
-                    : Blocks.RAIL.defaultBlockState().setValue(RailBlock.SHAPE, RailShape.EAST_WEST);
-            set(level, pos, x, deck, z, rail);
+            set(level, pos, x, deck, z, Blocks.SMOOTH_STONE.defaultBlockState());
+            if (sample.location().connectionDistance() <= 2.2) {
+                RailShape railShape = railShape(sample.location().nearestConnection(), x, z);
+                BlockState rail = floorMod(x + z, 3) == 0
+                        ? Blocks.POWERED_RAIL.defaultBlockState().setValue(
+                                PoweredRailBlock.SHAPE, railShape)
+                        : Blocks.RAIL.defaultBlockState().setValue(RailBlock.SHAPE, railShape);
+                set(level, pos, x, deck, z, rail);
+            }
         }
+    }
+
+    private static RailShape railShape(MegacityLayout.Edge edge, int worldX, int worldZ) {
+        if (edge == null) return RailShape.EAST_WEST;
+        MegacityLayout.Node first = edge.first();
+        MegacityLayout.Node second = edge.second();
+        double dx = second.x() - first.x();
+        double dz = second.z() - first.z();
+        double length = Math.max(1.0, Math.hypot(dx, dz));
+        double controlX = (first.x() + second.x()) * 0.5 - dz * edge.bend();
+        double controlZ = (first.z() + second.z()) * 0.5 + dx * edge.bend();
+        double bestDistance = Double.MAX_VALUE;
+        double tangentX = dx;
+        double tangentZ = dz;
+        for (int step = 0; step <= 24; step++) {
+            double t = step / 24.0;
+            double inverse = 1.0 - t;
+            double curveX = inverse * inverse * first.x()
+                    + 2.0 * inverse * t * controlX + t * t * second.x();
+            double curveZ = inverse * inverse * first.z()
+                    + 2.0 * inverse * t * controlZ + t * t * second.z();
+            double distance = Math.hypot(worldX - curveX, worldZ - curveZ);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                tangentX = 2.0 * inverse * (controlX - first.x())
+                        + 2.0 * t * (second.x() - controlX);
+                tangentZ = 2.0 * inverse * (controlZ - first.z())
+                        + 2.0 * t * (second.z() - controlZ);
+            }
+        }
+        return Math.abs(tangentX) >= Math.abs(tangentZ)
+                ? RailShape.EAST_WEST : RailShape.NORTH_SOUTH;
     }
 
     private static void decorateOpenGround(ServerLevel level, BlockPos.MutableBlockPos pos,
@@ -450,13 +504,10 @@ public final class NeonCityGenerator {
         if ((sample.roadClass() == RoadClass.PARK
                 || sample.zone() == MegacityLayout.Zone.OUTSKIRTS)
                 && unit(hash) < sample.district().vegetation() * 0.018) {
-            BlockState trunk = sample.district() == District.Y_CORP
-                    ? Blocks.SPRUCE_LOG.defaultBlockState() : Blocks.DARK_OAK_LOG.defaultBlockState();
-            BlockState leaves = sample.district() == District.Y_CORP
-                    ? Blocks.SPRUCE_LEAVES.defaultBlockState() : Blocks.AZALEA_LEAVES.defaultBlockState();
+            TreePalette trees = treePalette(sample.district());
             int height = 4 + floorMod((int) hash, 3);
-            for (int dy = 0; dy < height; dy++) set(level, pos, x, y + dy, z, trunk);
-            for (int dy = height; dy <= height + 2; dy++) set(level, pos, x, y + dy, z, leaves);
+            for (int dy = 0; dy < height; dy++) set(level, pos, x, y + dy, z, trees.trunk());
+            for (int dy = height; dy <= height + 2; dy++) set(level, pos, x, y + dy, z, trees.leaves());
         }
         if (sample.roadClass() == RoadClass.FARM && !surface(sample, x, z).is(Blocks.WATER)) {
             set(level, pos, x, y, z, Blocks.WHEAT.defaultBlockState());
@@ -473,7 +524,11 @@ public final class NeonCityGenerator {
         if (sample.roadClass() == RoadClass.EXTRACTION_SITE
                 && floorMod(x * 17 + z * 23, 97) == 0) {
             for (int dy = 0; dy <= 9; dy++) set(level, pos, x, y + dy, z, Blocks.IRON_BARS.defaultBlockState());
-            for (int arm = 0; arm <= 5; arm++) set(level, pos, x, y + 9, z, Blocks.IRON_BARS.defaultBlockState());
+            int armDirection = floorMod(x, 16) <= 10 ? 1 : -1;
+            for (int arm = 1; arm <= 5; arm++) {
+                set(level, pos, x + armDirection * arm, y + 9, z,
+                        Blocks.IRON_BARS.defaultBlockState());
+            }
             set(level, pos, x, y + 10, z, Blocks.IRON_BLOCK.defaultBlockState());
         }
         if (sample.district() == District.Y_CORP && sample.zone() != MegacityLayout.Zone.BORDER_RIVER
@@ -515,11 +570,172 @@ public final class NeonCityGenerator {
             set(level, pos, x, base + relativeY, z, state);
         }
 
-        if (height >= 70 && floorMod((int) sample.parcelHash(), 3) == 0 && nearParcelCenter(sample)) {
-            for (int y = base + height + 1; y <= Math.min(MAX_BUILD_Y, base + height + 9); y++) {
-                set(level, pos, x, y, z, palette.accent());
+        decorateCulturalRoof(level, pos, x, z, sample, palette, base, height);
+    }
+
+    private static void decorateCulturalRoof(
+            ServerLevel level,
+            BlockPos.MutableBlockPos pos,
+            int x,
+            int z,
+            UrbanSample sample,
+            Palette palette,
+            int base,
+            int height) {
+        int supportedTopInset = tierInset(sample, height, height);
+        if (!insideTier(sample, supportedTopInset)) return;
+        double center = sample.parcelSize() * 0.5;
+        double du = Math.abs(sample.parcelLocalU() - center);
+        double dv = Math.abs(sample.parcelLocalV() - center);
+        double span = Math.max(4.0, center - footprintInset(sample));
+        double square = Math.max(du, dv) / span;
+        double radial = Math.hypot(du, dv) / (span * 1.34);
+        long hash = sample.parcelHash() ^ ((long) x * 31L) ^ ((long) z * 17L);
+        int rise = 0;
+        BlockState material = palette.roof();
+        boolean glowingTip = false;
+
+        switch (sample.district().roofStyle()) {
+            case BLACK_CROWN -> {
+                rise = taperedRise(square, 12, 0.58);
+                material = palette.wall();
+                glowingTip = true;
+            }
+            case GREEN_TERRACE -> {
+                if (square < 0.72 && floorMod((int) hash, 5) <= 2) {
+                    set(level, pos, x, Math.min(MAX_BUILD_Y, base + height + 1), z,
+                            Blocks.MOSS_BLOCK.defaultBlockState());
+                }
+            }
+            case SAWTOOTH -> rise = floorMod(
+                    (int) Math.floor(sample.parcelLocalU()), 10) < 5
+                    ? Math.max(0, 5 - floorMod((int) Math.floor(sample.parcelLocalU()), 5)) : 0;
+            case GLASS_CANOPY -> {
+                rise = domeRise(radial, 6);
+                material = palette.glass();
+            }
+            case COURTYARD_TILE -> rise = gableRise(du / span, 5);
+            case DECO_FIN -> {
+                rise = du < 1.6 ? taperedRise(dv / span, 8, 0.74) : 0;
+                material = palette.accent();
+            }
+            case TROPICAL_GARDEN -> {
+                if (square < 0.68 && floorMod((int) hash, 11) == 0) {
+                    set(level, pos, x, Math.min(MAX_BUILD_Y, base + height + 1), z,
+                            Blocks.JUNGLE_LEAVES.defaultBlockState()
+                                    .setValue(LeavesBlock.PERSISTENT, true));
+                }
+            }
+            case MECHANICAL_CLUSTER -> {
+                if (floorMod((int) Math.floor(sample.parcelLocalU()), 7) <= 1
+                        && floorMod((int) Math.floor(sample.parcelLocalV()), 7) <= 1) {
+                    rise = 3 + floorMod((int) hash, 5);
+                    material = palette.frame();
+                }
+            }
+            case TERRACOTTA_DOME -> rise = domeRise(radial, 8);
+            case CASINO_CROWN -> {
+                rise = taperedRise(square, 10, 0.72);
+                material = floorMod((int) hash, 3) == 0 ? palette.accent() : palette.frame();
+                glowingTip = true;
+            }
+            case LAB_DOME -> {
+                rise = domeRise(radial, 7);
+                material = floorMod((int) hash, 4) == 0 ? palette.frame() : palette.glass();
+            }
+            case METRO_ANTENNA -> {
+                rise = du < 0.8 && dv < 0.8 ? 11 : (square < 0.28 ? 2 : 0);
+                material = palette.accent();
+                glowingTip = true;
+            }
+            case STEPPED_SLAB -> {
+                rise = square < 0.34 ? 5 : square < 0.62 ? 2 : 0;
+                material = palette.secondary();
+            }
+            case MANSARD -> rise = square < 0.78 ? Math.max(1, (int) Math.round((0.78 - square) * 7.0)) : 0;
+            case COPPER_DOME -> rise = domeRise(radial, 9);
+            case ART_DECO_SPIRE -> {
+                rise = taperedRise(square, 15, 0.68);
+                material = square < 0.18 ? palette.accent() : palette.roof();
+                glowingTip = true;
+            }
+            case FACTORY_VENTS -> {
+                if (floorMod((int) Math.floor(sample.parcelLocalU()), 9) == 2
+                        && floorMod((int) Math.floor(sample.parcelLocalV()), 11) == 3) {
+                    rise = 5;
+                    material = Blocks.IRON_BARS.defaultBlockState();
+                }
+            }
+            case NEON_BILLBOARD -> {
+                if (dv > span * 0.72 && du < span * 0.48) {
+                    rise = 6;
+                    material = floorMod((int) hash, 2) == 0 ? palette.accent() : palette.glass();
+                }
+            }
+            case HANOK_GABLE -> {
+                rise = gableRise(du / span, 7);
+                if (dv > span * 0.82 && rise > 0) material = palette.frame();
+            }
+            case STEAM_STACKS -> {
+                boolean stack = Math.abs(du - span * 0.56) < 1.1
+                        && Math.abs(dv - span * 0.56) < 1.1;
+                if (stack) {
+                    rise = 8 + floorMod((int) sample.parcelHash(), 7);
+                    material = floorMod((int) hash, 5) == 0
+                            ? palette.accent() : Blocks.TUFF_BRICKS.defaultBlockState();
+                }
+            }
+            case PORT_CRANE -> {
+                if (du < 0.9 && dv < span * 0.66) {
+                    rise = 7;
+                    material = palette.frame();
+                }
+            }
+            case ALPINE_GABLE -> rise = gableRise(dv / span, 8);
+            case FUTURE_SPIRE -> {
+                rise = taperedRise(radial, 17, 0.66);
+                material = floorMod((int) hash, 4) == 0 ? palette.accent() : palette.glass();
+                glowingTip = true;
+            }
+            case INDUSTRIAL_TANKS -> {
+                double tank = Math.hypot(du - span * 0.32, dv - span * 0.32) / (span * 0.28);
+                rise = domeRise(tank, 5);
+                material = palette.frame();
+            }
+            case SNOW_CROWN -> {
+                rise = taperedRise(square, 8, 0.72);
+                material = Blocks.SNOW_BLOCK.defaultBlockState();
+                glowingTip = true;
+            }
+            case ELECTRIC_SIGNS -> {
+                if ((du > span * 0.76 || dv > span * 0.76)
+                        && floorMod((int) hash, 4) <= 1) {
+                    rise = 5 + floorMod((int) sample.parcelHash(), 4);
+                    material = floorMod((int) hash, 2) == 0 ? palette.accent() : palette.glass();
+                }
             }
         }
+
+        int top = Math.min(rise, MAX_BUILD_Y - base - height);
+        for (int dy = 1; dy <= top; dy++) {
+            BlockState state = glowingTip && dy == top ? palette.accent() : material;
+            set(level, pos, x, base + height + dy, z, state);
+        }
+    }
+
+    private static int taperedRise(double normalized, int height, double reach) {
+        if (normalized >= reach) return 0;
+        return Math.max(1, (int) Math.ceil((1.0 - normalized / reach) * height));
+    }
+
+    private static int domeRise(double normalized, int height) {
+        if (normalized >= 1.0) return 0;
+        return Math.max(1, (int) Math.round(Math.sqrt(1.0 - normalized * normalized) * height));
+    }
+
+    private static int gableRise(double normalized, int height) {
+        if (normalized >= 0.86) return 0;
+        return Math.max(1, (int) Math.ceil((1.0 - normalized / 0.86) * height));
     }
 
     private static int tierInset(UrbanSample sample, int y, int top) {
@@ -598,12 +814,6 @@ public final class NeonCityGenerator {
                 || floorMod((int) Math.floor(sample.parcelLocalV()), 5) == 0);
     }
 
-    private static boolean nearParcelCenter(UrbanSample sample) {
-        double center = sample.parcelSize() * 0.5;
-        return Math.abs(sample.parcelLocalU() - center) < 0.75
-                && Math.abs(sample.parcelLocalV() - center) < 0.75;
-    }
-
     private static Palette palette(District district) {
         return switch (district) {
             case A_CORP -> p(Blocks.POLISHED_BLACKSTONE_BRICKS, concrete(DyeColor.BLACK), Blocks.TINTED_GLASS,
@@ -665,6 +875,25 @@ public final class NeonCityGenerator {
                              Object accent, Object frame, Object roof) {
         return new Palette(asState(wall), asState(secondary), asState(glass),
                 asState(accent), asState(frame), asState(roof));
+    }
+
+    private static TreePalette treePalette(District district) {
+        return switch (district.treeStyle()) {
+            case FORMAL -> new TreePalette(
+                    Blocks.DARK_OAK_LOG.defaultBlockState(), Blocks.AZALEA_LEAVES.defaultBlockState());
+            case BROADLEAF -> new TreePalette(
+                    Blocks.OAK_LOG.defaultBlockState(), Blocks.OAK_LEAVES.defaultBlockState());
+            case EVERGREEN, ALPINE, WINTER -> new TreePalette(
+                    Blocks.SPRUCE_LOG.defaultBlockState(), Blocks.SPRUCE_LEAVES.defaultBlockState());
+            case ARID, MEDITERRANEAN -> new TreePalette(
+                    Blocks.ACACIA_LOG.defaultBlockState(), Blocks.ACACIA_LEAVES.defaultBlockState());
+            case TROPICAL -> new TreePalette(
+                    Blocks.JUNGLE_LOG.defaultBlockState(), Blocks.JUNGLE_LEAVES.defaultBlockState());
+            case CHERRY -> new TreePalette(
+                    Blocks.CHERRY_LOG.defaultBlockState(), Blocks.CHERRY_LEAVES.defaultBlockState());
+            case INDUSTRIAL -> new TreePalette(
+                    Blocks.DARK_OAK_LOG.defaultBlockState(), Blocks.DARK_OAK_LEAVES.defaultBlockState());
+        };
     }
 
     private static BlockState asState(Object value) {
@@ -729,7 +958,7 @@ public final class NeonCityGenerator {
             case OUTSKIRTS -> 0.46;
             default -> 0.0;
         };
-        boolean selected = unit(parcelHash >>> 7) < density;
+        boolean selected = unit(Long.rotateRight(parcelHash, 7)) < density;
         boolean footprint = road == RoadClass.NONE && selected && insideTier(provisional, 0);
         return new UrbanSample(location, district, zone, road, groundY,
                 footprint ? height : 0, parcelSize, footprint,
@@ -776,9 +1005,15 @@ public final class NeonCityGenerator {
         if (district == District.V_CORP) {
             double canalA = local.v() - 0.22 * local.u() - 72.0 * Math.sin(local.u() / 131.0);
             double canalB = local.u() + 0.18 * local.v() - 64.0 * Math.sin(local.v() / 117.0);
-            if (Math.abs(foldLine(canalA, 210.0)) < 5.5 || Math.abs(foldLine(canalB, 248.0)) < 5.0) {
+            double canalDistance = Math.min(
+                    Math.abs(foldLine(canalA, 210.0)),
+                    Math.abs(foldLine(canalB, 248.0)));
+            boolean crossing = distanceToGrid(local.u() + local.v(), 112) < 4.0;
+            if (canalDistance < 5.0) {
+                if (crossing) return RoadClass.BRIDGE;
                 return RoadClass.CANAL;
             }
+            if (crossing && canalDistance < 24.0) return RoadClass.LOCAL_STREET;
         }
         if (district == District.U_CORP && location.normalizedDistance() > 0.52) {
             double quay = local.v() - 55.0 * Math.sin(local.u() / 137.0);
@@ -788,6 +1023,9 @@ public final class NeonCityGenerator {
                 && floorMod((int) (hash >>> 11), 5) <= 3) return RoadClass.FARM;
         if (district == District.X_CORP && location.normalizedDistance() > 0.68
                 && floorMod((int) hash, 4) <= 2) return RoadClass.EXTRACTION_SITE;
+
+        RoadClass culturalRoad = culturalRoad(district, local, location, hash);
+        if (culturalRoad != null) return culturalRoad;
 
         int parcel = district.parcelSize();
         double lineU = distanceToGrid(local.u(), parcel);
@@ -801,6 +1039,89 @@ public final class NeonCityGenerator {
         double parkChance = district.vegetation() * (location.zone() == MegacityLayout.Zone.OUTSKIRTS ? 0.42 : 0.16);
         if (unit(patch) < parkChance) return RoadClass.PARK;
         return RoadClass.NONE;
+    }
+
+    /** A second, culture-specific circulation layer below the shared civic rings. */
+    private static RoadClass culturalRoad(
+            District district,
+            LocalCoordinates local,
+            MegacityLayout.Location location,
+            long hash) {
+        double u = local.u();
+        double v = local.v();
+        double radius = Math.hypot(u, v);
+        double angle = Math.atan2(v, u);
+        return switch (district.streetPattern()) {
+            case CEREMONIAL_AXES -> Math.abs(foldLine(v + 0.12 * u, 320.0)) < 4.2
+                    ? RoadClass.DISTRICT_BOULEVARD : null;
+            case CAMPUS_LOOPS -> {
+                double loop = Math.hypot(foldLine(u, 238.0), foldLine(v, 212.0));
+                if (Math.abs(loop - 70.0) < 3.4) yield RoadClass.LOCAL_STREET;
+                yield loop < 26.0 && unit(Long.rotateRight(hash, 19)) < 0.72
+                        ? RoadClass.PARK : null;
+            }
+            case PORTLAND_GREENWAYS -> Math.abs(foldLine(
+                    v + 21.0 * Math.sin(u / 67.0), 186.0)) < 3.2 ? RoadClass.PARK : null;
+            case EVERGREEN_ARCS -> Math.abs(foldLine(
+                    radius + 18.0 * Math.sin(angle * 5.0), 176.0)) < 3.0
+                    ? RoadClass.PARK : null;
+            case COURTYARD_LANES -> Math.abs(foldLine(u + v * 0.34, 118.0)) < 2.4
+                    ? RoadClass.SERVICE_ALLEY : null;
+            case COASTAL_SWEEPS -> Math.abs(foldLine(
+                    v - 42.0 * Math.sin(u / 145.0), 224.0)) < 4.4
+                    ? RoadClass.LOCAL_STREET : null;
+            case TROPICAL_WEAVE -> Math.abs(foldLine(
+                    v + 27.0 * Math.sin(u / 91.0), 154.0)) < 3.0
+                    || Math.abs(foldLine(u - 19.0 * Math.sin(v / 83.0), 198.0)) < 2.7
+                    ? RoadClass.LOCAL_STREET : null;
+            case VERTICAL_ALLEYS -> distanceToGrid(u + 9.0 * Math.sin(v / 43.0), 46) < 2.0
+                    ? RoadClass.SERVICE_ALLEY : null;
+            case CLASSICAL_RADIALS -> angularDistance(angle, Math.rint(angle * 4.0 / Math.PI)
+                    * Math.PI / 4.0) * Math.max(radius, 44.0) < 3.8
+                    ? RoadClass.LOCAL_STREET : null;
+            case SPECTACLE_STRIP -> Math.abs(foldLine(v, 390.0)) < 7.5
+                    ? RoadClass.DISTRICT_BOULEVARD : null;
+            case RESEARCH_CAMPUS -> {
+                double loop = Math.hypot(foldLine(u, 272.0), foldLine(v, 244.0));
+                if (Math.abs(loop - 82.0) < 4.0) yield RoadClass.LOCAL_STREET;
+                yield loop < 31.0 && unit(Long.rotateRight(hash, 9)) < 0.55
+                        ? RoadClass.PARK : null;
+            }
+            case SEOUL_SUPERBLOCKS -> distanceToGrid(u + v * 0.43, 184) < 4.2
+                    ? RoadClass.LOCAL_STREET : null;
+            case TORONTO_CONCESSIONS -> distanceToGrid(u, 196) < 4.5
+                    || distanceToGrid(v + 0.18 * u, 238) < 3.5 ? RoadClass.LOCAL_STREET : null;
+            case PARIS_BOULEVARDS -> angularDistance(angle, Math.rint(angle * 6.0 / Math.PI)
+                    * Math.PI / 6.0) * Math.max(radius, 56.0) < 5.0
+                    ? RoadClass.DISTRICT_BOULEVARD : null;
+            case VIENNA_RINGS -> Math.abs(foldLine(radius, 214.0)) < 4.4
+                    ? RoadClass.DISTRICT_BOULEVARD : null;
+            case MANHATTAN_AVENUES -> distanceToGrid(u, 112) < 5.2
+                    ? RoadClass.DISTRICT_BOULEVARD : null;
+            case NAGOYA_SPINES -> distanceToGrid(v + 0.08 * u, 152) < 4.8
+                    ? RoadClass.LOCAL_STREET : null;
+            case OSAKA_MERCHANT_LANES -> distanceToGrid(
+                    u + 8.0 * Math.sin(v / 41.0), 68) < 2.2
+                    ? RoadClass.SERVICE_ALLEY : null;
+            case JOSEON_FIELD_ROADS -> location.zone() == MegacityLayout.Zone.NEST
+                    && distanceToGrid(u + v * 0.18, 164) < 3.2
+                    ? RoadClass.LOCAL_STREET : null;
+            case STEAMWORKS_YARDS -> distanceToGrid(u, 132) < 5.8
+                    && floorMod((int) (hash >>> 7), 3) != 0 ? RoadClass.LOCAL_STREET : null;
+            case PORT_QUAYS -> distanceToGrid(u + 0.14 * v, 176) < 5.5
+                    ? RoadClass.LOCAL_STREET : null;
+            case ALPINE_CANALS -> distanceToGrid(u - v * 0.22, 168) < 3.2
+                    ? RoadClass.LOCAL_STREET : null;
+            case SHENZHEN_AXES -> Math.abs(foldLine(u + v * 0.52, 246.0)) < 5.0
+                    ? RoadClass.DISTRICT_BOULEVARD : null;
+            case HANOI_INDUSTRIAL -> Math.abs(foldLine(
+                    v + 14.0 * Math.sin(u / 73.0), 126.0)) < 4.0
+                    ? RoadClass.LOCAL_STREET : null;
+            case WINTER_PROSPEKTS -> Math.abs(foldLine(v + u * 0.24, 286.0)) < 6.0
+                    ? RoadClass.DISTRICT_BOULEVARD : null;
+            case TOKYO_CROSSINGS -> distanceToGrid(u + v, 92) < 3.0
+                    || distanceToGrid(u - v, 116) < 2.6 ? RoadClass.LOCAL_STREET : null;
+        };
     }
 
     private static double foldLine(double value, double period) {
@@ -930,6 +1251,12 @@ public final class NeonCityGenerator {
     public static District districtAt(int worldX, int worldZ) { return layout.locate(worldX, worldZ).district(); }
     public static RoadClass roadAt(int worldX, int worldZ) { return sample(worldX, worldZ).roadClass(); }
     public static boolean isInsideCity(int worldX, int worldZ) { return layout.locate(worldX, worldZ).insideCity(); }
+    public static boolean isInsideCity(ServerLevel level, int worldX, int worldZ) {
+        if (!isMegacityWorld(level)) return false;
+        MegacityLayout activeLayout = layoutWorldSeed == level.getSeed()
+                ? layout : MegacityLayout.create(level.getSeed());
+        return activeLayout.locate(worldX, worldZ).insideCity();
+    }
     public static boolean isEnabled() { return enabled; }
     public static int pendingChunks() { return PENDING.size(); }
     public static int generatedChunks() { return GENERATED.size(); }

@@ -2,6 +2,8 @@ package dev.modernity.neoncity;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
+import com.mojang.brigadier.arguments.StringArgumentType;
+import java.util.Locale;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
@@ -23,6 +25,11 @@ public final class NeonCityCommand {
                                                         context.getSource(),
                                                         IntegerArgumentType.getInteger(context, "x"),
                                                         IntegerArgumentType.getInteger(context, "z"))))))
+                        .then(Commands.literal("atlas")
+                                .then(Commands.argument("district", StringArgumentType.word())
+                                        .executes(context -> atlas(
+                                                context.getSource(),
+                                                StringArgumentType.getString(context, "district")))))
                         .then(Commands.literal("generate")
                                 .then(Commands.argument("chunkX", IntegerArgumentType.integer())
                                         .then(Commands.argument("chunkZ", IntegerArgumentType.integer())
@@ -64,5 +71,30 @@ public final class NeonCityCommand {
                 "Queued %d chunks around (%d,%d), radius %d. Chunks generate when loaded.",
                 added, chunkX, chunkZ, radius)), true);
         return added;
+    }
+
+    private static int atlas(CommandSourceStack source, String code) {
+        District district;
+        try {
+            String normalized = code.toUpperCase(Locale.ROOT);
+            if (normalized.length() != 1) throw new IllegalArgumentException();
+            district = District.valueOf(normalized + "_CORP");
+        } catch (IllegalArgumentException error) {
+            source.sendFailure(Component.literal("District must be one letter from A through Z."));
+            return 0;
+        }
+        var placement = ArnisPatchLibrary.findNearest(
+                NeonCityGenerator.layout(), district, 96);
+        if (placement.isEmpty()) {
+            source.sendFailure(Component.literal(
+                    district.label() + " has no curated Arnis atlas in this build."));
+            return 0;
+        }
+        ArnisPatchLibrary.Placement found = placement.get();
+        source.sendSuccess(() -> Component.literal(String.format(
+                "%s atlas=%s chunk=(%d,%d) block=(%d,%d) sourceSurfaceY=%d",
+                district.label(), found.patch().catalogId(), found.chunkX(), found.chunkZ(),
+                found.chunkX() << 4, found.chunkZ() << 4, found.patch().sourceSurfaceY())), false);
+        return 1;
     }
 }

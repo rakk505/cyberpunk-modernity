@@ -1,0 +1,99 @@
+{
+  "artifact": {
+    "file": "neoncity-2.1.0.jar",
+    "sha256": "3d67f9fc6a7f89610c6f023ca39c95a1cf70a955e3d277667b3b032ea3e5a336",
+    "size_bytes": 314704,
+    "version": "2.1.0"
+  },
+  "branch": "project-moon-megacity-worldgen",
+  "base_commit": "0681c3047faf",
+  "date": "2026-07-29",
+  "source_checks": {
+    "arnis_catalog": {
+      "atlases": 4,
+      "blocks": 167956,
+      "connectors": 36,
+      "patches": 28,
+      "sha256": "e599ae8a951efcfdd9ef2aec6eea7bb46c7861aad9a94eda5d46876b82331e13",
+      "status": "passed"
+    },
+    "arnis_importer_unit_tests": {
+      "passed": 3,
+      "status": "passed"
+    },
+    "packaging": {
+      "arnis_structure_templates": 28,
+      "duplicate_audit_path_templates": 0,
+      "status": "passed"
+    }
+  },
+  "modernity": {
+    "sandbox_id": "sb-f52ecbcc",
+    "quick_compile": {
+      "duration_seconds": 8.228,
+      "status": "passed",
+      "verified_by": "compile"
+    },
+    "full_build": {
+      "duration_seconds": 4.220,
+      "status": "passed",
+      "verified_by": "compile"
+    },
+    "gametest": {
+      "duration_seconds": 14.334,
+      "required_tests": 14,
+      "status": "passed",
+      "verified_by": "gametest"
+    },
+    "boot": {
+      "duration_seconds": 12.082,
+      "ready_match": "Done (1.610s)! For help, type \"help\"",
+      "status": "passed",
+      "verified_by": "boot"
+    }
+  },
+  "runtime": {
+    "dedicated_preset": {
+      "districts": 26,
+      "enabled": true,
+      "generated_spawn_chunks": 9,
+      "graph_edges": 40,
+      "layout_seed": -1715146552947985774,
+      "queued_chunks": 216,
+      "world_name": "project-moon-megacity-v5-live",
+      "world_seed": -6434655345345737913
+    },
+    "checks": [
+      "A Corp owns (0,0) as NEST/CENTRAL_PLAZA",
+      "(8000,8000) resolves to WILDERNESS/WILDERNESS",
+      "L, W, and Z atlas diagnostics returned deterministic catalog placements",
+      "the full L Corp Gangnam 3x3 generated, raising the ledger from 9 to 18 chunks",
+      "minecraft:polished_andesite from l/gangnam_0_2 exists at (2895,149,60)",
+      "a tagged zombie summon inside the city reported success but no entity joined",
+      "a tagged zombie summon at (8000,200,8000) in wilderness joined normally",
+      "after a clean restart the ledger restored all 18 generated chunks and the atlas proof block remained",
+      "no missing Arnis template, chunk-generation, or fingerprint errors matched server logs"
+    ],
+    "generator_fingerprint": "project-moon-megacity-v5-cultural-atlases-20260729"
+  },
+  "arnis": {
+    "direct_runtime_districts": ["L", "W", "Z"],
+    "provenance_manifests": [
+      "provenance/seoul/runtime_gangnam_atlas_v1.json",
+      "provenance/shanghai/runtime_lujiazui_atlas_v1.json",
+      "provenance/tokyo/runtime_shinjuku_crossing_atlas_v1.json"
+    ],
+    "runtime_proof": {
+      "catalog_patch": "l/gangnam_0_2",
+      "chunk": [180, 3],
+      "status": "placed",
+      "world_block": [2895, 149, 60]
+    }
+  },
+  "unverified": [
+    "managed client load and fresh visual captures",
+    "long-distance multiplayer performance soak",
+    "visual review of every randomized world seed",
+    "direct Arnis geometry for districts other than L, W, and Z"
+  ]
+}

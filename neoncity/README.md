@@ -26,7 +26,7 @@ Roads are generated in district-local coordinates. Curved spokes, two uneven orb
 
 ## District cultures
 
-Every Corp has a distinct parcel grain, density, height range, façade rhythm, Minecraft palette, vegetation rate, and architectural massing rule.
+Every Corp has a distinct combined culture signature. Architecture, palette, street grammar, roof silhouette, parcel grain, density, height, vegetation, and tree style are deliberately recombined; some individual parameters are shared where the real-world references call for similar urban fabric. The shared rings and graph roads make the city legible, while the culture layer adds district-specific campus loops, greenways, radial avenues, superblocks, merchant lanes, industrial spines, canals, prospects, or diagonal crossings. The result is mechanically different urban biomes rather than one building generator with 26 paint schemes.
 
 | District | Procedural direction |
 | --- | --- |
@@ -61,7 +61,7 @@ S, U, V, and X have dedicated farm, harbor, canal, and extraction-site generator
 
 ## Arnis and offline city studies
 
-Arnis is an **offline preparation and analysis tool**, not a runtime dependency. [`arnis_import.py`](tools/arnis/arnis_import.py) can convert explicitly selected chunks from an unpacked Arnis Java world into deterministic, entity-free vanilla structure NBT. A patch may cover at most 3×3 chunks. The standard-library-only importer strips entities, block-entity payloads, air, and dangerous utility blocks; then records a SHA-256, footprint, bounding box, source-region hash, explicit license/attribution, and heuristic edge-road hints in [`catalog.json`](src/main/resources/data/neoncity/arnis/catalog.json).
+Arnis is an **offline preparation and analysis tool**, not a runtime dependency. [`arnis_import.py`](tools/arnis/arnis_import.py) converts explicitly selected chunks from an unpacked Arnis Java world into deterministic, entity-free vanilla structure NBT. A reviewed source selection may cover at most 3×3 chunks; the importer automatically splits it into one-chunk files named `<selection>_<x>_<z>`. The runtime recognizes those files as a coherent mosaic, so it never writes through an unloaded chunk while source roads and footprints remain adjacent. The standard-library-only importer strips entities, block-entity payloads, air, and dangerous utility blocks; then records SHA-256 hashes, an explicit street-level vertical anchor, footprint, bounding box, source-region hash, license/attribution, and edge-road hints in [`catalog.json`](src/main/resources/data/neoncity/arnis/catalog.json).
 
 From the `neoncity/` directory, an import has this form:
 
@@ -70,8 +70,10 @@ python3 tools/arnis/arnis_import.py import /path/to/ArnisWorld \
   --district Z \
   --source-id tokyo-core \
   --source-name "Tokyo urban core" \
+  --source-sha256 85d3e3801c76a7f1365dc1e4b7c05fb90ad45ed142d8d4ca8084df2a99ad0644 \
   --license ODbL-1.0 \
   --attribution "OpenStreetMap contributors" \
+  --surface-y 68 \
   --selection shibuya=12,8:14,10
 
 python3 tools/arnis/arnis_import.py list
@@ -81,7 +83,15 @@ python3 -m unittest tools/arnis/test_arnis_import.py
 
 Selection coordinates are inclusive chunk coordinates; see [`tools/arnis/USAGE.md`](tools/arnis/USAGE.md) for the complete interface and redistribution checklist. Source identity, license, and attribution are mandatory because the tool deliberately does not infer them.
 
-The catalog currently contains one real Arnis 3.0.0 patch: a 16×162×16 Shinjuku study assigned to Z Corp, with 2,446 blocks, 14 palette states, two road connectors, and complete ODbL attribution and hashes. The runtime selects it deterministically in compatible Z Corp chunks, aligns its source street level with the city deck, clears conflicting procedural massing, and extends its west/east connectors into neighbouring streets. The importer does not support LZ4-compressed Anvil chunks, block-entity payloads such as signs or inventories, rotation, automatic terrain blending, or biome translation, and its road-connection hints require human review.
+The exact Arnis 3.0.0 arguments, binary hash, OSM-only settings (`--overture false`), source/world hashes, and import selections for the three new neighborhoods are preserved in the Seoul, Shanghai, and Tokyo `runtime_*_atlas_v1.json` records under [`provenance/`](provenance/).
+
+The audited catalog currently contains 28 Arnis 3.0.0 tiles and 167,956 blocks across four deterministic atlases:
+
+- **L Corp:** a coherent 3×3 Seoul/Gangnam corporate boulevard and campus neighborhood.
+- **W Corp:** a coherent 3×3 Shanghai/Lujiazui landmark and future-skyline study used as Chinese high-rise reference material for W's Shenzhen-influenced procedural culture. Towers are safely cropped to the normal build ceiling.
+- **Z Corp:** a coherent 3×3 Tokyo/Shinjuku rail-and-crossing neighborhood plus the original standalone Shinjuku core study.
+
+The runtime loads the audited catalog directly, groups `<name>_<x>_<z>` tiles into mosaics, and places rare complete neighborhoods inside compatible Nest or Backstreets cells. A seeded 23×23-chunk atlas cell changes their locations with the world seed while preserving every 3×3 source adjacency. Explicit source street levels align to the city deck, conflicting procedural massing is cleared, and catalogued inferred edge connectors continue into neighboring procedural streets. The importer does not support LZ4-compressed Anvil chunks, block-entity payloads such as signs or inventories, rotation, automatic terrain blending, or biome translation; connector hints still require human review.
 
 Separately, the repository contains reproducible Tokyo/Shinjuku, Seoul/Gangnam, and Shanghai/Lujiazui OSM studies plus `tools/compile_cultural_profiles.py`. Their distributions are recorded in [`cultural_profiles.json`](src/main/resources/data/neoncity/cultural_profiles.json) and `provenance/`. They inform baked procedural parameters; changing the JSON alone does not retune Java generation. Source Arnis worlds remain external and must be obtained or generated under appropriate terms.
 
@@ -120,6 +130,12 @@ Reports whether generation is enabled; the district and graph-edge counts; the m
 Samples block coordinates without generating or loading terrain. It reports the owning district, zone, infrastructure class, district-node center, and normalized distance from that node. Wilderness points still report their nearest district for orientation while showing `zone=WILDERNESS` and `infrastructure=WILDERNESS`.
 
 ```text
+/neoncity atlas <A-Z>
+```
+
+Reports the nearest deterministic Arnis tile selected for that district, including its catalog ID and chunk/block origin. It currently succeeds for L, W, and Z and gives a clear error for cultures that are entirely procedural in this build. This is an operator diagnostic; it does not load or generate the reported chunk.
+
+```text
 /neoncity generate <chunkX> <chunkZ> <radius>
 ```
 
@@ -144,10 +160,10 @@ Requirements: Java 25 and the included Gradle wrapper. The project pins Minecraf
 From the `neoncity/` directory:
 
 ```bash
-# Fast compile and resource validation
+# Fast compile and resource processing
 ./gradlew --no-daemon compileJava processResources
 
-# Build build/libs/neoncity-2.0.0.jar
+# Build build/libs/neoncity-2.1.0.jar
 ./gradlew --no-daemon build
 
 # Run the registered pure NeoForge GameTests
@@ -157,7 +173,7 @@ From the `neoncity/` directory:
 ./gradlew --no-daemon runClient
 ```
 
-The regression suite exercises the 26-culture seeded layout, connected graph and alternate routes, finite wilderness boundary, Nest/Backstreets/outskirts coverage, roads/bridges/rail, border rivers and hills, special S/U/V/X/Y behavior, skyline tapering, deterministic negative coordinates, and connected cross-sector service alleys.
+The regression suite exercises the 26 unique combined culture signatures, seeded layout, connected graph and alternate routes, finite wilderness boundary, sampled urban-zone coverage, roads/bridges/rail, border rivers and hills, special S/U/V/X culture contracts, Y's winter contract, skyline tapering, deterministic negative coordinates, connected cross-sector service alleys, and deterministic 3×3 Arnis mosaic selection. Compile/GameTest success does not by itself prove client visuals, every placed decorative block, or long multiplayer soak; those remain separate runtime and visual checks.
 
 ## Current limitations
 
@@ -165,7 +181,7 @@ The regression suite exercises the 26-culture seeded layout, connected graph and
 - **Procedural shells:** buildings have district-specific massing, façades, floor plates, roof tiers, and lights, but no authored interiors, doors, utilities, NPCs, traffic, or functional trains.
 - **Local parcel grids remain:** the global plan is organic, but individual districts still use warped, rotated parcel grids beneath their curved boulevards and irregular borders.
 - **Mob ban is city-scoped:** spawning and world-join attempts inside the city are rejected; vanilla wilderness outside it retains normal ecology. A mob created outside the footprint is not currently culled merely for later walking across the border.
-- **Curated Arnis allowlist:** runtime never invokes Arnis and only places patches represented in the audited catalog and the compact Java allowlist. The first Z Corp patch is integrated; broader A–Y coverage, rotation, and richer terrain blending require additional reviewed imports.
+- **Curated Arnis coverage:** runtime never invokes Arnis and only places patches represented in the audited catalog. L, W, and Z have direct 3×3 Arnis neighborhoods; all 26 cultures have distinct combined procedural profiles, but additional reviewed atlases are still needed for direct geographic geometry in A–K, M–V, and X–Y. Rotation and richer terrain blending are not implemented.
 - **No save migration:** a fingerprint change requires a new world until an explicit migration tool exists.
 - **Legacy previews:** images and v1 audit artifacts under `deliverable/` describe the previous six-district generator and should not be treated as verification of this finite v2 layout.
 

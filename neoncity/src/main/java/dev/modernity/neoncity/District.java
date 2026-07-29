@@ -65,6 +65,86 @@ public enum District {
         TOKYO_ELECTRIC
     }
 
+    /** District-scale circulation grammar; every Corp owns a distinct plan. */
+    public enum StreetPattern {
+        CEREMONIAL_AXES,
+        CAMPUS_LOOPS,
+        PORTLAND_GREENWAYS,
+        EVERGREEN_ARCS,
+        COURTYARD_LANES,
+        COASTAL_SWEEPS,
+        TROPICAL_WEAVE,
+        VERTICAL_ALLEYS,
+        CLASSICAL_RADIALS,
+        SPECTACLE_STRIP,
+        RESEARCH_CAMPUS,
+        SEOUL_SUPERBLOCKS,
+        TORONTO_CONCESSIONS,
+        PARIS_BOULEVARDS,
+        VIENNA_RINGS,
+        MANHATTAN_AVENUES,
+        NAGOYA_SPINES,
+        OSAKA_MERCHANT_LANES,
+        JOSEON_FIELD_ROADS,
+        STEAMWORKS_YARDS,
+        PORT_QUAYS,
+        ALPINE_CANALS,
+        SHENZHEN_AXES,
+        HANOI_INDUSTRIAL,
+        WINTER_PROSPEKTS,
+        TOKYO_CROSSINGS
+    }
+
+    /** Roof silhouette used by the per-column cultural massing pass. */
+    public enum RoofStyle {
+        BLACK_CROWN,
+        GREEN_TERRACE,
+        SAWTOOTH,
+        GLASS_CANOPY,
+        COURTYARD_TILE,
+        DECO_FIN,
+        TROPICAL_GARDEN,
+        MECHANICAL_CLUSTER,
+        TERRACOTTA_DOME,
+        CASINO_CROWN,
+        LAB_DOME,
+        METRO_ANTENNA,
+        STEPPED_SLAB,
+        MANSARD,
+        COPPER_DOME,
+        ART_DECO_SPIRE,
+        FACTORY_VENTS,
+        NEON_BILLBOARD,
+        HANOK_GABLE,
+        STEAM_STACKS,
+        PORT_CRANE,
+        ALPINE_GABLE,
+        FUTURE_SPIRE,
+        INDUSTRIAL_TANKS,
+        SNOW_CROWN,
+        ELECTRIC_SIGNS
+    }
+
+    public enum TreeStyle {
+        FORMAL,
+        BROADLEAF,
+        EVERGREEN,
+        ARID,
+        TROPICAL,
+        MEDITERRANEAN,
+        CHERRY,
+        ALPINE,
+        WINTER,
+        INDUSTRIAL
+    }
+
+    public record CultureSignature(
+            Architecture architecture,
+            StreetPattern streets,
+            RoofStyle roof,
+            TreeStyle trees
+    ) {}
+
     private final String label;
     private final String flavor;
     private final Architecture architecture;
@@ -99,4 +179,31 @@ public enum District {
     public double density() { return density; }
     public double vegetation() { return vegetation; }
     public String code() { return name().substring(0, 1); }
+
+    public StreetPattern streetPattern() {
+        return StreetPattern.values()[ordinal()];
+    }
+
+    public RoofStyle roofStyle() {
+        return RoofStyle.values()[ordinal()];
+    }
+
+    public TreeStyle treeStyle() {
+        return switch (this) {
+            case A_CORP, J_CORP, K_CORP, N_CORP, O_CORP, P_CORP -> TreeStyle.FORMAL;
+            case B_CORP, C_CORP, M_CORP -> TreeStyle.BROADLEAF;
+            case D_CORP, Q_CORP -> TreeStyle.EVERGREEN;
+            case E_CORP -> TreeStyle.ARID;
+            case F_CORP, G_CORP, H_CORP, U_CORP -> TreeStyle.TROPICAL;
+            case I_CORP -> TreeStyle.MEDITERRANEAN;
+            case L_CORP, R_CORP, S_CORP, Z_CORP -> TreeStyle.CHERRY;
+            case V_CORP -> TreeStyle.ALPINE;
+            case Y_CORP -> TreeStyle.WINTER;
+            case T_CORP, W_CORP, X_CORP -> TreeStyle.INDUSTRIAL;
+        };
+    }
+
+    public CultureSignature cultureSignature() {
+        return new CultureSignature(architecture, streetPattern(), roofStyle(), treeStyle());
+    }
 }
