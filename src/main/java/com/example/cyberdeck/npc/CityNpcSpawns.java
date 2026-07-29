@@ -1,5 +1,6 @@
 package com.example.cyberdeck.npc;
 
+import com.example.cyberdeck.Cyberdeck;
 import com.example.cyberdeck.city.CityWorlds;
 import java.util.HashSet;
 import java.util.List;
@@ -16,7 +17,8 @@ import net.neoforged.neoforge.event.tick.LevelTickEvent;
 
 /** Maintains a modest pedestrian population around players, only in explicit city presets. */
 public final class CityNpcSpawns {
-    private static final int SPAWN_INTERVAL = 200;
+    // Retry quickly as players enter a freshly generated city; the population cap keeps this cheap.
+    private static final int SPAWN_INTERVAL = 40;
     private static final int TARGET_NEARBY = 12;
     private static final int NEARBY_CAP = 16;
     private static final int SPAWN_BATCH = 3;
@@ -60,6 +62,8 @@ public final class CityNpcSpawns {
         BlockPos anchor = CityWorlds.findStreetNear(
                 level, player.blockPosition(), 16, 42, 32, random);
         if (anchor == null) {
+            Cyberdeck.LOGGER.debug("No loaded walkable city street found near {} in {}",
+                    player.getScoreboardName(), CityWorlds.kind(level));
             return;
         }
 
@@ -92,6 +96,10 @@ public final class CityNpcSpawns {
             if (level.addFreshEntity(npc)) {
                 spawned++;
             }
+        }
+        if (spawned > 0) {
+            Cyberdeck.LOGGER.info("Spawned {} city civilians near {} in {}",
+                    spawned, player.getScoreboardName(), CityWorlds.kind(level));
         }
     }
 

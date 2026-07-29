@@ -15,6 +15,9 @@ import com.example.cyberdeck.faction.FactionSpawns;
 import com.example.cyberdeck.npc.CityNpc;
 import com.example.cyberdeck.npc.CityNpcEntities;
 import com.example.cyberdeck.npc.GunshotAlerts;
+import com.example.cyberdeck.movement.TacticalAction;
+import com.example.cyberdeck.movement.TacticalMovement;
+import com.example.cyberdeck.movement.TacticalMovementState;
 import com.example.cyberdeck.weapon.GunType;
 import java.util.HashSet;
 import java.util.List;
@@ -22,6 +25,7 @@ import java.util.function.Consumer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.gametest.framework.FunctionGameTestInstance;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.gametest.framework.TestData;
@@ -30,9 +34,11 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.event.RegisterGameTestsEvent;
 import net.neoforged.neoforge.registries.DeferredHolder;
@@ -62,6 +68,12 @@ public final class CyberdeckGameTests {
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             CYBERWARE_VARIANT_MAPPINGS = register(
                     "cyberware_variant_mappings", CyberdeckGameTests::variantMappings);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            TACTICAL_MOVEMENT_MATH = register(
+                    "tactical_movement_math", CyberdeckGameTests::tacticalMovementMath);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            TACTICAL_MOVEMENT_STATE = register(
+                    "tactical_movement_state", CyberdeckGameTests::tacticalMovementState);
 
     private CyberdeckGameTests() {
     }
@@ -101,6 +113,19 @@ public final class CyberdeckGameTests {
         helper.assertTrue(CityWorlds.classifyLayers(List.of(cyan, black))
                         == CityWorlds.Kind.NONE,
                 "reversed Neon City layers must be rejected");
+        ResourceKey<DimensionType> megacityDimension = ResourceKey.create(
+                Registries.DIMENSION_TYPE,
+                Identifier.fromNamespaceAndPath("neoncity", "megacity_overworld"));
+        helper.assertTrue(CityWorlds.classifyDimensionType(megacityDimension)
+                        == CityWorlds.Kind.NEON_MEGACITY,
+                "Project Moon's marked noise overworld must be recognized as a city");
+        helper.assertTrue(CityWorlds.Kind.NEON_MEGACITY.streetY() == 72,
+                "Project Moon pedestrians must use its generated Y=72 street deck");
+        helper.assertTrue(CityWorlds.classifyDimensionType(ResourceKey.create(
+                        Registries.DIMENSION_TYPE,
+                        Identifier.fromNamespaceAndPath("minecraft", "overworld")))
+                        == CityWorlds.Kind.NONE,
+                "ordinary noise overworlds must not gain city pedestrians");
         helper.succeed();
     }
 
@@ -283,6 +308,67 @@ public final class CyberdeckGameTests {
         return Math.abs(actual - expected) < 1.0E-6;
     }
 
+    private static void tacticalMovementMath(GameTestHelper helper) {
+        helper.assertTrue(TacticalMovement.validInputAxes(1.0F, 0.0F),
+                "a unit forward input must be accepted");
+        helper.assertTrue(TacticalMovement.validInputAxes(1.0F, 1.0F),
+                "diagonal movement input must be accepted");
+        helper.assertTrue(!TacticalMovement.validInputAxes(0.0F, 0.0F),
+                "a dash without movement intent must be rejected");
+        helper.assertTrue(!TacticalMovement.validInputAxes(Float.NaN, 0.0F),
+                "non-finite packet input must be rejected");
+        helper.assertTrue(!TacticalMovement.validInputAxes(1.1F, 0.0F),
+                "out-of-range packet input must be rejected");
+
+        Vec3 forward = TacticalMovement.yawRelativeDirection(0.0F, 1.0F, 0.0F);
+        Vec3 right = TacticalMovement.yawRelativeDirection(0.0F, 0.0F, 1.0F);
+        Vec3 diagonal = TacticalMovement.yawRelativeDirection(90.0F, 1.0F, 1.0F);
+        helper.assertTrue(forward.distanceToSqr(new Vec3(0.0, 0.0, 1.0)) < 1.0E-8,
+                "yaw-zero forward input must point toward positive Z");
+        helper.assertTrue(right.distanceToSqr(new Vec3(-1.0, 0.0, 0.0)) < 1.0E-8,
+                "positive strafe must follow the client right-input convention");
+        helper.assertTrue(Math.abs(diagonal.horizontalDistance() - 1.0) < 1.0E-8,
+                "diagonal movement intent must be normalized");
+
+        double dashStart = TacticalMovement.speedFor(TacticalAction.DASH, 0.0);
+        double dashEnd = TacticalMovement.speedFor(TacticalAction.DASH, 1.0);
+        double slideStart = TacticalMovement.speedFor(TacticalAction.SLIDE, 0.0);
+        helper.assertTrue(dashStart > dashEnd && slideStart > 0.0,
+                "tactical movement curves must decay through recovery");
+        Vec3 replacement = TacticalMovement.velocityFor(
+                new Vec3(0.1, 0.42, -0.1), new Vec3(0.0, 0.0, 1.0), 0.75);
+        helper.assertTrue(Math.abs(replacement.y - 0.42) < 1.0E-8,
+                "horizontal maneuvers must preserve vertical momentum");
+        helper.succeed();
+    }
+
+    private static void tacticalMovementState(GameTestHelper helper) {
+        TacticalMovementState idle = TacticalMovementState.idle();
+        TacticalMovementState dash = TacticalMovementState.begin(
+                idle, TacticalAction.DASH, 100L, 3.0, 4.0);
+        helper.assertTrue(dash.isActiveAt(100L) && dash.isActiveAt(105L),
+                "dash must stay active for its configured animation window");
+        helper.assertTrue(!dash.isActiveAt(106L),
+                "dash must end exactly at its exclusive end tick");
+        helper.assertTrue(Math.abs(dash.directionX() - 0.6) < 1.0E-8
+                        && Math.abs(dash.directionZ() - 0.8) < 1.0E-8,
+                "synchronized maneuver directions must be normalized");
+        helper.assertTrue(!TacticalMovement.canStart(dash, TacticalAction.DASH, 106L),
+                "the recovery cooldown must prevent dash spam");
+        helper.assertTrue(TacticalMovement.canStart(
+                        dash.finish(), TacticalAction.SLIDE, dash.cooldownUntilTick()),
+                "another move must become available after recovery");
+
+        TacticalMovementState fired = dash.withLastShotTick(103L);
+        helper.assertTrue(TacticalMovement.firedRecently(fired, 107L, 5),
+                "recent gunfire must drive the recoil animation window");
+        helper.assertTrue(!TacticalMovement.firedRecently(fired, 109L, 5),
+                "recoil state must expire outside its bounded window");
+        helper.assertTrue(TacticalMovement.actionProgress(100L, 106L, 103L) == 0.5,
+                "animation progress must interpolate from synchronized world ticks");
+        helper.succeed();
+    }
+
     private static void registerGameTests(RegisterGameTestsEvent event) {
         Holder<TestEnvironmentDefinition<?>> environment = event.registerEnvironment(
                 Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "pure"),
@@ -306,6 +392,8 @@ public final class CyberdeckGameTests {
         registerInstance(event, "sandevistan_profile_balance", SANDEVISTAN_PROFILE_BALANCE, data);
         registerInstance(event, "sandevistan_charge_model", SANDEVISTAN_CHARGE_MODEL, data);
         registerInstance(event, "cyberware_variant_mappings", CYBERWARE_VARIANT_MAPPINGS, data);
+        registerInstance(event, "tactical_movement_math", TACTICAL_MOVEMENT_MATH, data);
+        registerInstance(event, "tactical_movement_state", TACTICAL_MOVEMENT_STATE, data);
     }
 
     private static void registerInstance(

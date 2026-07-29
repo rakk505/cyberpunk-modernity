@@ -1,6 +1,7 @@
 package com.example.cyberdeck.client.gun;
 
 import com.example.cyberdeck.Cyberdeck;
+import com.example.cyberdeck.client.movement.TacticalFirstPerson;
 import com.example.cyberdeck.weapon.GunItem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
@@ -88,6 +89,7 @@ public final class FirstPersonGunRenderer {
         }
 
         poseStack.pushPose();
+        TacticalFirstPerson.apply(poseStack, player, event.getPartialTick());
         applyFirstPersonTransform(poseStack, entry.model());
 
         int overlay = OverlayTexture.NO_OVERLAY;

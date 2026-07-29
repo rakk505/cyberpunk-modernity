@@ -2,6 +2,7 @@ package com.example.cyberdeck.weapon;
 
 import com.example.cyberdeck.effect.SandevistanMechanics;
 import com.example.cyberdeck.faction.FactionEnemy;
+import com.example.cyberdeck.movement.TacticalMovement;
 import com.example.cyberdeck.npc.CityNpc;
 import com.example.cyberdeck.npc.GunshotAlerts;
 import net.minecraft.core.particles.DustParticleOptions;
@@ -41,6 +42,9 @@ public final class GunFiring {
     public static void fire(ServerLevel level, LivingEntity shooter, GunType gun) {
         RandomSource rng = shooter.getRandom();
         GunshotAlerts.emit(level, shooter, gun);
+        if (shooter instanceof ServerPlayer player) {
+            TacticalMovement.markShot(player);
+        }
 
         // Yukimura remains a conventional hitscan pistol until a player with Smart Link finishes
         // a server-authoritative lock. Enemies and pre-lock shots retain the normal gun behavior.

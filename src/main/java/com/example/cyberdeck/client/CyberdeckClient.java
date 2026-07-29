@@ -5,6 +5,7 @@ import com.example.cyberdeck.client.hud.AmmoHudOverlay;
 import com.example.cyberdeck.client.hud.QuickhackScannerOverlay;
 import com.example.cyberdeck.client.hud.SmartLockOverlay;
 import com.example.cyberdeck.client.gun.GenericGunClientExtension;
+import com.example.cyberdeck.client.movement.TacticalPlayerAnimations;
 import com.example.cyberdeck.client.render.FactionEnemyRenderer;
 import com.example.cyberdeck.client.render.CityNpcRenderer;
 import com.example.cyberdeck.client.render.MantisBladesLayer;
@@ -109,6 +110,18 @@ public final class CyberdeckClient {
             GLFW.GLFW_KEY_F,
             CATEGORY);
 
+    // Cyberpunk combat movement: a short directional burst and a momentum-preserving low slide.
+    public static final KeyMapping DASH_KEY = new KeyMapping(
+            "key.cyberdeck.dash",
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_LEFT_ALT,
+            CATEGORY);
+    public static final KeyMapping SLIDE_KEY = new KeyMapping(
+            "key.cyberdeck.slide",
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_C,
+            CATEGORY);
+
     public CyberdeckClient(IEventBus modEventBus) {
         modEventBus.addListener(this::registerKeyMappings);
         modEventBus.addListener(this::addLayers);
@@ -116,6 +129,7 @@ public final class CyberdeckClient {
         modEventBus.addListener(this::registerRenderers);
         modEventBus.addListener(this::registerClientExtensions);
         modEventBus.addListener(this::registerRenderStateModifiers);
+        modEventBus.addListener(TacticalPlayerAnimations::registerRenderStateModifiers);
     }
 
     private void registerClientExtensions(RegisterClientExtensionsEvent event) {
@@ -179,5 +193,7 @@ public final class CyberdeckClient {
         event.register(PREVIOUS_QUICKHACK_KEY);
         event.register(NEXT_QUICKHACK_KEY);
         event.register(QUEUE_QUICKHACK_KEY);
+        event.register(DASH_KEY);
+        event.register(SLIDE_KEY);
     }
 }

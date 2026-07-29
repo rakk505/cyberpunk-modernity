@@ -5,6 +5,7 @@ import com.example.cyberdeck.cyberware.CyberwareItems;
 import com.example.cyberdeck.faction.FactionEnemy;
 import com.example.cyberdeck.faction.FactionEntities;
 import com.example.cyberdeck.faction.FactionSpawns;
+import com.example.cyberdeck.movement.TacticalMovement;
 import com.example.cyberdeck.network.CyberdeckNetwork;
 import com.example.cyberdeck.npc.CityNpc;
 import com.example.cyberdeck.npc.CityNpcEntities;
@@ -37,6 +38,7 @@ public class Cyberdeck {
         CyberwareAttachments.ATTACHMENT_TYPES.register(modEventBus);
         RamAttachments.ATTACHMENT_TYPES.register(modEventBus);
         QuickhackAttachments.ATTACHMENT_TYPES.register(modEventBus);
+        TacticalMovement.ATTACHMENT_TYPES.register(modEventBus);
 
         // Guns, ammo, grenades, ballistic armor and their entities.
         WeaponItems.ITEMS.register(modEventBus);
@@ -57,6 +59,7 @@ public class Cyberdeck {
 
         NeoForge.EVENT_BUS.register(new ServerEvents());
         NeoForge.EVENT_BUS.addListener(CyberdeckCommands::register);
+        NeoForge.EVENT_BUS.register(new TacticalMovement());
         NeoForge.EVENT_BUS.register(new com.example.cyberdeck.effect.CyberwareTickHandler());
         NeoForge.EVENT_BUS.register(new com.example.cyberdeck.effect.CyberwareCombatHandler());
         NeoForge.EVENT_BUS.register(new FactionSpawns());
