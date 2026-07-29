@@ -1,5 +1,8 @@
 package com.example.cyberdeck.weapon;
 
+import com.example.cyberdeck.faction.FactionEnemy;
+import com.example.cyberdeck.npc.CityNpc;
+import com.example.cyberdeck.npc.GunshotAlerts;
 import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
@@ -36,6 +39,7 @@ public final class GunFiring {
      */
     public static void fire(ServerLevel level, LivingEntity shooter, GunType gun) {
         RandomSource rng = shooter.getRandom();
+        GunshotAlerts.emit(level, shooter, gun);
 
         // Yukimura remains a conventional hitscan pistol until a player with Smart Link finishes
         // a server-authoritative lock. Enemies and pre-lock shots retain the normal gun behavior.
@@ -183,8 +187,9 @@ public final class GunFiring {
         }
         return ProjectileUtil.getEntityHitResult(
                 shooter, start, end, new AABB(start, end).inflate(1.0),
-                entity -> entity instanceof LivingEntity && entity != shooter
-                        && entity.isAlive() && !entity.isSpectator(),
+                entity -> entity instanceof LivingEntity living && entity != shooter
+                        && entity.isAlive() && !entity.isSpectator()
+                        && (!(shooter instanceof FactionEnemy) || !(living instanceof CityNpc)),
                 start.distanceToSqr(end));
     }
 

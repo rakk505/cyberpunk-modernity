@@ -1,19 +1,36 @@
 package com.example.cyberdeck;
 
+import com.example.cyberdeck.npc.CityNpc;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.animal.golem.IronGolem;
+import net.minecraft.world.entity.monster.Enemy;
+import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.entity.projectile.Projectile;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
+import net.neoforged.neoforge.event.entity.living.LivingChangeTargetEvent;
 import net.neoforged.neoforge.event.entity.living.LivingSwapItemsEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 
+import java.util.List;
+
 /**
- * Server-side event handling for cyberdeck mode, uploads, reloading, and Weapon Glitch enforcement.
+ * Server-side event handling for cyberdeck mode, uploads, reloading, entity outlining, and Weapon
+ * Glitch enforcement.
  */
 public final class ServerEvents {
+    // How far the scan reaches and how wide the "field of view" cone is (dot-product threshold).
+    private static final double SCAN_RANGE = 48.0;
+    private static final double FOV_DOT = 0.5; // ~120 degree cone
+
     @SubscribeEvent
     public void onPlayerTick(PlayerTickEvent.Post event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) {
@@ -44,6 +61,27 @@ public final class ServerEvents {
         // Uploads are advanced only after mode and helmet validation, preventing a completion on
         // the same tick that quickhacking is deactivated.
         com.example.cyberdeck.skill.QuickhackUploads.tick(player, level);
+
+        // Outline valid entities within the player's field of view while the cyberdeck is active.
+        Vec3 eye = player.getEyePosition();
+        Vec3 look = player.getLookAngle().normalize();
+        AABB scanBox = player.getBoundingBox().inflate(SCAN_RANGE);
+        List<LivingEntity> candidates = level.getEntitiesOfClass(LivingEntity.class, scanBox,
+                ServerEvents::isTargetable);
+        for (LivingEntity entity : candidates) {
+            if (entity == player) {
+                continue;
+            }
+            Vec3 toEntity = entity.position().add(0, entity.getBbHeight() * 0.5, 0).subtract(eye);
+            if (toEntity.lengthSqr() < 1.0e-4) {
+                continue;
+            }
+            if (look.dot(toEntity.normalize()) < FOV_DOT) {
+                continue;
+            }
+            // Re-apply a short glowing effect each tick so it stays lit while in view.
+            entity.addEffect(new MobEffectInstance(MobEffects.GLOWING, 12, 0, false, false));
+        }
     }
 
     /**
@@ -66,6 +104,24 @@ public final class ServerEvents {
         if (level.getGameTime() >= state.endTick()) {
             gun.completeReload(player, held);
             com.example.cyberdeck.weapon.ReloadState.clear(player);
+        }
+    }
+
+    private static boolean isTargetable(LivingEntity entity) {
+        if (!entity.isAlive()) {
+            return false;
+        }
+        return entity instanceof Mob || entity instanceof Villager || entity instanceof IronGolem;
+    }
+
+    /** No hostile AI, vanilla or modded, may select a city civilian as an attack target. */
+    @SubscribeEvent
+    public void onLivingChangeTarget(LivingChangeTargetEvent event) {
+        if (event.getEntity() instanceof Enemy
+                && event.getNewAboutToBeSetTarget() instanceof CityNpc) {
+            // Do not cancel: cancellation retains the previous target. Replacing with null makes
+            // both Mob#setTarget and Brain StartAttacking integrations safely drop the civilian.
+            event.setNewAboutToBeSetTarget(null);
         }
     }
 
