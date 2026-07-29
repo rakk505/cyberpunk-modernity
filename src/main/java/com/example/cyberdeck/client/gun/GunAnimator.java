@@ -32,6 +32,46 @@ public final class GunAnimator {
         applyClip(model, action, actionTime);
     }
 
+    /**
+     * Adds a Blockbench clip on top of the already-sampled gun action. Position and rotation are
+     * treated as deltas, while scale blends away from identity. This keeps recoil/reload animation
+     * intact while the shared crouch stance moves the complete rig through its root bone.
+     */
+    public static void applyAdditive(BedrockModel model, BedrockAnimationData.Clip clip,
+                                     double time, float weight) {
+        if (clip == null || weight <= 0.0F) {
+            return;
+        }
+        double t = clip.length > 0 && clip.loop ? time % clip.length : Math.min(time, clip.length);
+        for (var entry : clip.bones.entrySet()) {
+            BedrockPart bone = model.getBone(entry.getKey());
+            if (bone == null) {
+                continue;
+            }
+            BedrockAnimationData.BoneChannels channels = entry.getValue();
+            if (channels.position != null) {
+                float[] position = sample(channels.position, t);
+                bone.offsetX += position[0] * weight;
+                bone.offsetY -= position[1] * weight;
+                bone.offsetZ += position[2] * weight;
+            }
+            if (channels.rotation != null) {
+                float[] rotation = sample(channels.rotation, t);
+                Quaternionf delta = new Quaternionf();
+                delta.mul(Axis.ZP.rotationDegrees(rotation[2] * weight));
+                delta.mul(Axis.YP.rotationDegrees(rotation[1] * weight));
+                delta.mul(Axis.XP.rotationDegrees(rotation[0] * weight));
+                bone.animRotation.mul(delta);
+            }
+            if (channels.scale != null) {
+                float[] scale = sample(channels.scale, t);
+                bone.scaleX *= 1.0F + (scale[0] - 1.0F) * weight;
+                bone.scaleY *= 1.0F + (scale[1] - 1.0F) * weight;
+                bone.scaleZ *= 1.0F + (scale[2] - 1.0F) * weight;
+            }
+        }
+    }
+
     private static void applyClip(BedrockModel model, BedrockAnimationData.Clip clip, double time) {
         if (clip == null) {
             return;
