@@ -1,5 +1,6 @@
 package com.example.cyberdeck.faction;
 
+import com.example.cyberdeck.Cyberdeck;
 import com.example.cyberdeck.city.CityWorlds;
 import java.util.ArrayList;
 import java.util.List;
@@ -102,6 +103,8 @@ public final class FactionSpawns {
                 return;
             }
         }
+        Cyberdeck.LOGGER.info("Spawned {} {} faction enemies near {} in {}",
+                members.size(), faction.id(), player.getScoreboardName(), CityWorlds.kind(level));
     }
 
     private static BlockPos findSpawnAnchor(ServerLevel level, ServerPlayer player,
@@ -131,8 +134,9 @@ public final class FactionSpawns {
             BlockPos horizontal = anchor.offset(offset.getX(), 0, offset.getZ());
             BlockPos position;
             if (CityWorlds.isCity(level)) {
-                position = horizontal;
-                if (!CityWorlds.isWalkableStreet(level, position)) {
+                position = CityWorlds.resolveStreetFeet(
+                        level, horizontal.getX(), horizontal.getZ(), anchor.getY());
+                if (position == null) {
                     return List.of();
                 }
             } else {

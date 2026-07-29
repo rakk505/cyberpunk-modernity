@@ -75,8 +75,9 @@ public final class CityNpcSpawns {
             }
             int ox = rotateX(offset[0], offset[1], rotation);
             int oz = rotateZ(offset[0], offset[1], rotation);
-            BlockPos position = anchor.offset(ox, 0, oz);
-            if (!CityWorlds.isWalkableStreet(level, position)) {
+            BlockPos position = CityWorlds.resolveStreetFeet(
+                    level, anchor.getX() + ox, anchor.getZ() + oz, anchor.getY());
+            if (position == null) {
                 continue;
             }
             CityNpc npc = CityNpcEntities.CITY_NPC.get().create(level, EntitySpawnReason.NATURAL);

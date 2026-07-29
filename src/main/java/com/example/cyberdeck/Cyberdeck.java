@@ -2,6 +2,7 @@ package com.example.cyberdeck;
 
 import com.example.cyberdeck.cyberware.CyberwareAttachments;
 import com.example.cyberdeck.cyberware.CyberwareItems;
+import com.example.cyberdeck.city.CityActorJoinCompatibility;
 import com.example.cyberdeck.faction.FactionEnemy;
 import com.example.cyberdeck.faction.FactionEntities;
 import com.example.cyberdeck.faction.FactionSpawns;
@@ -64,6 +65,7 @@ public class Cyberdeck {
         NeoForge.EVENT_BUS.register(new com.example.cyberdeck.effect.CyberwareCombatHandler());
         NeoForge.EVENT_BUS.register(new FactionSpawns());
         NeoForge.EVENT_BUS.register(new CityNpcSpawns());
+        NeoForge.EVENT_BUS.register(new CityActorJoinCompatibility());
         NeoForge.EVENT_BUS.register(new com.example.cyberdeck.city.CityBuilder());
     }
 

@@ -1,6 +1,7 @@
 package com.example.cyberdeck;
 
 import com.example.cyberdeck.city.CityWorlds;
+import com.example.cyberdeck.city.CityActorJoinCompatibility;
 import com.example.cyberdeck.cyberware.BodySlot;
 import com.example.cyberdeck.cyberware.Cyberware;
 import com.example.cyberdeck.cyberware.CyberwareData;
@@ -33,15 +34,20 @@ import net.minecraft.gametest.framework.TestData;
 import net.minecraft.gametest.framework.TestEnvironmentDefinition;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
+import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.RegisterGameTestsEvent;
+import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
@@ -60,6 +66,10 @@ public final class CyberdeckGameTests {
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             CIVILIAN_NONCOMBAT = register(
                     "civilian_noncombat", CyberdeckGameTests::civilianNoncombat);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            CITY_ACTOR_JOIN_COMPATIBILITY = register(
+                    "city_actor_join_compatibility",
+                    CyberdeckGameTests::cityActorJoinCompatibility);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             SANDEVISTAN_PROFILE_BALANCE = register(
                     "sandevistan_profile_balance", CyberdeckGameTests::profileBalance);
@@ -94,6 +104,7 @@ public final class CyberdeckGameTests {
         BlockState bedrock = Blocks.BEDROCK.defaultBlockState();
         BlockState black = Blocks.CONCRETE.pick(DyeColor.BLACK).defaultBlockState();
         BlockState cyan = Blocks.CONCRETE.pick(DyeColor.CYAN).defaultBlockState();
+        BlockState purple = Blocks.CONCRETE.pick(DyeColor.PURPLE).defaultBlockState();
 
         helper.assertTrue(CityWorlds.classifyLayers(
                         List.of(bedrock, black, black, black, black))
@@ -102,6 +113,19 @@ public final class CyberdeckGameTests {
         helper.assertTrue(CityWorlds.classifyLayers(List.of(black, cyan))
                         == CityWorlds.Kind.NEON_CITY,
                 "exact Neon City flat layers must be accepted");
+        helper.assertTrue(CityWorlds.classifyLayers(List.of(purple))
+                        == CityWorlds.Kind.CITY17,
+                "the exact City17 Taiwan atlas marker must be accepted");
+        helper.assertTrue(CityWorlds.Kind.CITY17.usesDynamicStreetY(),
+                "Taiwan atlas streets must resolve their generated terrain height per column");
+        helper.assertTrue(CityWorlds.isCity17PedestrianSurface(
+                        Blocks.CONCRETE.pick(DyeColor.GRAY).defaultBlockState()),
+                "Taiwan's Arnis gray road surface must accept pedestrians");
+        helper.assertFalse(CityWorlds.isCity17PedestrianSurface(
+                        Blocks.STONE_BRICKS.defaultBlockState()),
+                "Taiwan building roofs must not be mistaken for roads");
+        helper.assertFalse(CityWorlds.isCity17PedestrianSurface(purple),
+                "the untouched purple marker must never spawn pedestrians");
         helper.assertTrue(CityWorlds.classifyLayers(List.of(
                         bedrock,
                         Blocks.DIRT.defaultBlockState(),
@@ -195,6 +219,61 @@ public final class CyberdeckGameTests {
         helper.assertTrue(!enemy.isTriggered() && enemy.getTarget() == null,
                 "a faction enemy must not become triggered by or target a civilian");
         helper.succeed();
+    }
+
+    private static void cityActorJoinCompatibility(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        CityNpc civilian = CityNpcEntities.CITY_NPC.get().create(
+                level, EntitySpawnReason.COMMAND);
+        FactionEnemy enemy = FactionEntities.FACTION_ENEMY.get().create(
+                level, EntitySpawnReason.COMMAND);
+        Entity unrelated = EntityTypes.ZOMBIE.create(
+                level, EntitySpawnReason.COMMAND);
+        helper.assertTrue(civilian != null && enemy != null && unrelated != null,
+                "entity factories needed by join compatibility must be available");
+        if (civilian == null || enemy == null || unrelated == null) {
+            return;
+        }
+
+        EntityJoinLevelEvent civilianJoin = canceledJoin(civilian, level);
+        CityActorJoinCompatibility.restoreManagedCityActor(civilianJoin, true);
+        helper.assertFalse(civilianJoin.isCanceled(),
+                "a city civilian canceled by a companion generator must be restored");
+
+        EntityJoinLevelEvent enemyJoin = canceledJoin(enemy, level);
+        CityActorJoinCompatibility.restoreManagedCityActor(enemyJoin, true);
+        helper.assertFalse(enemyJoin.isCanceled(),
+                "a faction enemy canceled by a companion generator must be restored");
+
+        EntityJoinLevelEvent unrelatedJoin = canceledJoin(unrelated, level);
+        CityActorJoinCompatibility.restoreManagedCityActor(unrelatedJoin, true);
+        helper.assertTrue(unrelatedJoin.isCanceled(),
+                "unrelated mob cancellations must remain intact");
+
+        EntityJoinLevelEvent ordinaryWorldJoin = canceledJoin(civilian, level);
+        CityActorJoinCompatibility.restoreManagedCityActor(ordinaryWorldJoin, false);
+        helper.assertTrue(ordinaryWorldJoin.isCanceled(),
+                "ordinary Minecraft worlds must not receive the city compatibility override");
+
+        try {
+            SubscribeEvent subscription = CityActorJoinCompatibility.class
+                    .getDeclaredMethod("onEntityJoin", EntityJoinLevelEvent.class)
+                    .getAnnotation(SubscribeEvent.class);
+            helper.assertTrue(subscription != null
+                            && subscription.priority() == EventPriority.LOWEST
+                            && subscription.receiveCanceled(),
+                    "the compatibility listener must run after Neon City's canceled join event");
+        } catch (NoSuchMethodException exception) {
+            helper.fail("city actor join listener is missing: " + exception.getMessage());
+        }
+        helper.succeed();
+    }
+
+    private static EntityJoinLevelEvent canceledJoin(
+            Entity entity, ServerLevel level) {
+        EntityJoinLevelEvent event = new EntityJoinLevelEvent(entity, level);
+        event.setCanceled(true);
+        return event;
     }
 
     private static void profileBalance(GameTestHelper helper) {
@@ -402,6 +481,8 @@ public final class CyberdeckGameTests {
         registerInstance(event, "cluster_plan", CLUSTER_PLAN, data);
         registerInstance(event, "gunshot_radius", GUNSHOT_RADIUS, data);
         registerInstance(event, "civilian_noncombat", CIVILIAN_NONCOMBAT, data);
+        registerInstance(event, "city_actor_join_compatibility",
+                CITY_ACTOR_JOIN_COMPATIBILITY, data);
         registerInstance(event, "sandevistan_profile_balance", SANDEVISTAN_PROFILE_BALANCE, data);
         registerInstance(event, "sandevistan_charge_model", SANDEVISTAN_CHARGE_MODEL, data);
         registerInstance(event, "cyberware_variant_mappings", CYBERWARE_VARIANT_MAPPINGS, data);
