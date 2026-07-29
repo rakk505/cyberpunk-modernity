@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "cyberdeck:item/tattoo_tyger_claws_dermal_imprint"
+  }
+}

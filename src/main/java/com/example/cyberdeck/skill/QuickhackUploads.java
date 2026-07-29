@@ -33,12 +33,14 @@ public final class QuickhackUploads {
      * spent by the caller. Instant quickhacks (0 upload ticks) apply immediately.
      */
     public static void start(ServerPlayer caster, Skill skill, LivingEntity target, ServerLevel level) {
-        if (skill.uploadTicks() <= 0) {
+        int uploadTicks = com.example.cyberdeck.effect.CyberwareEffects
+                .quickhackUploadTicks(caster, skill);
+        if (uploadTicks <= 0) {
             SkillExecutor.execute(skill, caster, target, level);
             return;
         }
         long now = level.getGameTime();
-        Upload upload = new Upload(skill, target.getId(), now, now + skill.uploadTicks());
+        Upload upload = new Upload(skill, target.getId(), now, now + uploadTicks);
         ACTIVE.put(caster.getUUID(), upload);
         sync(caster, upload);
     }

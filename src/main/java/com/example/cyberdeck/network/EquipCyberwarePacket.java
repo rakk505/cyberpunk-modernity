@@ -18,16 +18,22 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
  * Client -> server request from the cyberware screen to install a specific cyberware. The server
  * verifies the player is holding (or has in inventory) a matching cyberware item and consumes it.
  *
- * @param cyberwareId the stable {@link Cyberware} id to install
+ * @param cyberwareId the stable, tier-specific {@link Cyberware} id to install
+ * @param socket body-system socket index selected on the ripperdoc screen
  */
-public record EquipCyberwarePacket(String cyberwareId) implements CustomPacketPayload {
+public record EquipCyberwarePacket(String cyberwareId, int socket) implements CustomPacketPayload {
     public static final Type<EquipCyberwarePacket> TYPE =
             new Type<>(Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "equip_cyberware"));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, EquipCyberwarePacket> STREAM_CODEC =
             StreamCodec.composite(
                     ByteBufCodecs.STRING_UTF8, EquipCyberwarePacket::cyberwareId,
+                    ByteBufCodecs.VAR_INT, EquipCyberwarePacket::socket,
                     EquipCyberwarePacket::new);
+
+    public EquipCyberwarePacket(String cyberwareId) {
+        this(cyberwareId, 0);
+    }
 
     @Override
     public Type<? extends CustomPacketPayload> type() {
@@ -49,8 +55,8 @@ public record EquipCyberwarePacket(String cyberwareId) implements CustomPacketPa
                 return;
             }
             ItemStack stack = player.getInventory().getItem(found);
-            CyberwareInstaller.install(player, cyberware);
-            if (!player.getAbilities().instabuild) {
+            boolean installed = CyberwareInstaller.install(player, cyberware, packet.socket());
+            if (installed && !player.getAbilities().instabuild) {
                 stack.shrink(1);
             }
         });

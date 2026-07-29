@@ -13,21 +13,16 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class ActiveAbilities {
     /** Optical Camo remaining ticks (invisibility + aggro immunity). */
     public static final ConcurrentHashMap<UUID, Integer> opticalCamo = new ConcurrentHashMap<>();
-    /** Sandevistan remaining ticks (world slow for others). */
-    public static final ConcurrentHashMap<UUID, Integer> sandevistan = new ConcurrentHashMap<>();
-
     /** Generic cooldowns keyed by "<uuid>:<ability>". */
     private static final ConcurrentHashMap<String, Integer> cooldowns = new ConcurrentHashMap<>();
+    /** Generic active-effect durations keyed by "<uuid>:<ability>". */
+    private static final ConcurrentHashMap<String, Integer> active = new ConcurrentHashMap<>();
 
     private ActiveAbilities() {
     }
 
     public static boolean isOpticalCamoActive(ServerPlayer player) {
         return opticalCamo.getOrDefault(player.getUUID(), 0) > 0;
-    }
-
-    public static boolean isSandevistanActive(ServerPlayer player) {
-        return sandevistan.getOrDefault(player.getUUID(), 0) > 0;
     }
 
     public static boolean onCooldown(ServerPlayer player, String ability) {
@@ -38,15 +33,48 @@ public final class ActiveAbilities {
         cooldowns.put(key(player, ability), ticks);
     }
 
+    public static int cooldownRemaining(ServerPlayer player, String ability) {
+        return cooldowns.getOrDefault(key(player, ability), 0);
+    }
+
+    public static void reduceCooldowns(ServerPlayer player, double fraction) {
+        if (fraction <= 0.0) {
+            return;
+        }
+        String prefix = player.getUUID() + ":";
+        cooldowns.replaceAll((key, value) -> key.startsWith(prefix)
+                ? Math.max(0, (int) Math.floor(value * (1.0 - Math.min(1.0, fraction))))
+                : value);
+        cooldowns.values().removeIf(value -> value <= 0);
+    }
+
+    public static void activate(ServerPlayer player, String ability, int ticks) {
+        active.put(key(player, ability), Math.max(1, ticks));
+    }
+
+    public static void deactivate(ServerPlayer player, String ability) {
+        active.remove(key(player, ability));
+    }
+
+    public static boolean isActive(ServerPlayer player, String ability) {
+        return active.getOrDefault(key(player, ability), 0) > 0;
+    }
+
+    public static int activeRemaining(ServerPlayer player, String ability) {
+        return active.getOrDefault(key(player, ability), 0);
+    }
+
     public static void forget(UUID id) {
         opticalCamo.remove(id);
-        sandevistan.remove(id);
         cooldowns.keySet().removeIf(k -> k.startsWith(id.toString() + ":"));
+        active.keySet().removeIf(k -> k.startsWith(id.toString() + ":"));
     }
 
     static void tickCooldowns() {
         cooldowns.replaceAll((k, v) -> v - 1);
         cooldowns.values().removeIf(v -> v <= 0);
+        active.replaceAll((k, v) -> v - 1);
+        active.values().removeIf(v -> v <= 0);
     }
 
     private static String key(ServerPlayer player, String ability) {

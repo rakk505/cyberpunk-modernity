@@ -33,8 +33,6 @@ import java.util.List;
  * packets) and enforce cooldowns where appropriate.
  */
 public final class CyberwareActions {
-    private static final int SANDEVISTAN_TICKS = 8 * 20; // 8 seconds
-    private static final int SANDEVISTAN_COOLDOWN = 20 * 20; // 20 seconds
     private static final float ARM_CANNON_POWER = 3.0f;
     private static final int ARM_CANNON_COOLDOWN = 6 * 20;
     private static final double ARM_CANNON_RANGE = 64.0;
@@ -51,22 +49,31 @@ public final class CyberwareActions {
 
     /** Sandevistan (T): slows the world for everyone except the player for a few seconds. */
     public static void sandevistan(ServerPlayer player) {
-        if (at(player, BodySlot.OPERATING_SYSTEM) != Cyberware.SANDEVISTAN) {
+        Cyberware operatingSystem = at(player, BodySlot.OPERATING_SYSTEM);
+        if (operatingSystem != null && operatingSystem.hasFlag("berserk")) {
+            CyberwareEffects.toggleBerserk(player, operatingSystem);
             return;
         }
-        if (ActiveAbilities.isSandevistanActive(player) || ActiveAbilities.onCooldown(player, "sandevistan")) {
-            return;
+        SandevistanMechanics.ToggleResult result = SandevistanMechanics.toggle(player);
+        switch (result) {
+            case ACTIVATED -> {
+                player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
+                        SoundEvents.ELYTRA_FLYING, SoundSource.PLAYERS, 0.8f, 0.5f);
+                player.sendSystemMessage(Component.translatable("message.cyberdeck.sandevistan"), true);
+            }
+            case DEACTIVATED -> player.sendSystemMessage(
+                    Component.translatable("message.cyberdeck.sandevistan_off"), true);
+            case RECHARGING -> player.sendSystemMessage(
+                    Component.translatable("message.cyberdeck.sandevistan_recharging"), true);
+            case INVALID, DEBOUNCED -> {
+            }
         }
-        ActiveAbilities.sandevistan.put(player.getUUID(), SANDEVISTAN_TICKS);
-        ActiveAbilities.setCooldown(player, "sandevistan", SANDEVISTAN_TICKS + SANDEVISTAN_COOLDOWN);
-        player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
-                SoundEvents.ELYTRA_FLYING, SoundSource.PLAYERS, 0.8f, 0.5f);
-        player.sendSystemMessage(Component.translatable("message.cyberdeck.sandevistan"), true);
     }
 
     /** Arm Cannon (V): explosion where the player is aiming, with scattered fire at the impact. */
     public static void armCannon(ServerPlayer player) {
-        if (at(player, BodySlot.ARMS) != Cyberware.ARM_CANNON) {
+        Cyberware launcher = CyberwareEffects.findFlag(player, "projectile_launcher");
+        if (launcher == null) {
             return;
         }
         if (ActiveAbilities.onCooldown(player, "arm_cannon")) {
@@ -85,7 +92,8 @@ public final class CyberwareActions {
         Vec3 impact = hit.getType() == HitResult.Type.MISS ? end : hit.getLocation();
 
         // Explosion (does not destroy blocks by default here to avoid griefing; damages entities).
-        level.explode(player, impact.x, impact.y, impact.z, ARM_CANNON_POWER, Level.ExplosionInteraction.NONE);
+        level.explode(player, impact.x, impact.y, impact.z, ARM_CANNON_POWER,
+                Level.ExplosionInteraction.NONE);
 
         // Scatter fire around the impact on exposed top faces.
         scatterFire(level, BlockPos.containing(impact));
@@ -114,31 +122,24 @@ public final class CyberwareActions {
         }
     }
 
-    /** Thretevac (P): highlight all hostile mobs within 15 blocks for 14 seconds. */
+    /** Legacy P action: ThreatEvac itself is passive; Blood Pump is activated here when installed. */
     public static void thretevac(ServerPlayer player) {
-        if (at(player, BodySlot.NERVOUS_SYSTEM) != Cyberware.THRETEVAC) {
+        Cyberware bloodPump = CyberwareEffects.findFlag(player, "blood_pump");
+        if (bloodPump == null || ActiveAbilities.onCooldown(player, "blood_pump")) {
             return;
         }
-        if (ActiveAbilities.onCooldown(player, "thretevac")) {
-            return;
-        }
-        ActiveAbilities.setCooldown(player, "thretevac", THRETEVAC_COOLDOWN);
-
-        AABB area = player.getBoundingBox().inflate(THRETEVAC_RADIUS);
-        List<Mob> mobs = player.level().getEntitiesOfClass(Mob.class, area,
-                m -> m instanceof Enemy && m.isAlive());
-        for (Mob mob : mobs) {
-            mob.addEffect(new MobEffectInstance(MobEffects.GLOWING, THRETEVAC_TICKS, 0, false, false, false));
-        }
+        float instant = (float) Math.max(1.0, bloodPump.value("blood_pump_instant_health"));
+        player.heal(instant);
+        ActiveAbilities.activate(player, "blood_pump_regen", 6 * 20);
+        ActiveAbilities.setCooldown(player, "blood_pump", 30 * 20);
         player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
-                SoundEvents.SCULK_BLOCK_CHARGE, SoundSource.PLAYERS, 1.0f, 1.2f);
-        player.sendSystemMessage(Component.translatable("message.cyberdeck.thretevac",
-                mobs.size()), true);
+                SoundEvents.BREWING_STAND_BREW, SoundSource.PLAYERS, 1.0f, 1.2f);
+        player.sendSystemMessage(Component.translatable("message.cyberdeck.blood_pump"), true);
     }
 
     /** Optical Camo (U): toggle invisibility + aggro immunity. */
     public static void opticalCamo(ServerPlayer player) {
-        if (at(player, BodySlot.INTEGUMENTARY_SYSTEM) != Cyberware.OPTICAL_CAMO) {
+        if (CyberwareEffects.findFlag(player, "optical_camo") == null) {
             return;
         }
         OpticalCamo.toggle(player);
@@ -146,7 +147,7 @@ public final class CyberwareActions {
 
     /** Frog Legs double jump: applies an extra upward impulse mid-air. Validated server-side. */
     public static void doubleJump(ServerPlayer player) {
-        if (at(player, BodySlot.LEGS) != Cyberware.FROG_LEGS) {
+        if (CyberwareEffects.findFlag(player, "double_jump") == null) {
             return;
         }
         Vec3 m = player.getDeltaMovement();

@@ -32,6 +32,7 @@ public class Cyberdeck {
         CyberdeckItems.CREATIVE_MODE_TABS.register(modEventBus);
         CyberwareItems.CYBERWARE_ITEMS.register(modEventBus);
         CyberwareAttachments.ATTACHMENT_TYPES.register(modEventBus);
+        CyberdeckGameTests.register(modEventBus);
         RamAttachments.ATTACHMENT_TYPES.register(modEventBus);
         QuickhackAttachments.ATTACHMENT_TYPES.register(modEventBus);
 

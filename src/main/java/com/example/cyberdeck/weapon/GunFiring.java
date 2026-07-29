@@ -1,5 +1,7 @@
 package com.example.cyberdeck.weapon;
 
+import com.example.cyberdeck.effect.SandevistanMechanics;
+
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -49,7 +51,13 @@ public final class GunFiring {
         Vec3 baseDir = shooter.getViewVector(1.0f).normalize();
 
         for (int i = 0; i < gun.pellets(); i++) {
-            Vec3 dir = applySpread(baseDir, gun.spreadDegrees(), rng);
+            float spread = gun.spreadDegrees();
+            if (shooter instanceof ServerPlayer player) {
+                double reduction = com.example.cyberdeck.effect.CyberwareEffects
+                        .sumValue(player, "spread_reduction_percent") / 100.0;
+                spread *= (float) (1.0 - Math.min(0.9, reduction));
+            }
+            Vec3 dir = applySpread(baseDir, spread, rng);
             Vec3 end = eye.add(dir.scale(gun.range()));
 
             // Stop the ray at the first solid block so bullets can't shoot through walls.
@@ -68,7 +76,13 @@ public final class GunFiring {
                 impact = hit.getLocation();
                 double dist = eye.distanceTo(impact);
                 float dmg = gun.damageAtDistance(dist);
-                target.hurtServer(level, damageSource(shooter), dmg);
+                DamageSource source = damageSource(shooter);
+                if (shooter instanceof ServerPlayer player) {
+                    SandevistanMechanics.hurtWithGunModifiers(
+                            level, player, target, source, dmg, impact);
+                } else {
+                    target.hurtServer(level, source, dmg);
+                }
                 // A single crisp spark at the hit, no spread so it reads as a clean impact
                 // instead of a lingering cloud.
                 level.sendParticles(ParticleTypes.CRIT,

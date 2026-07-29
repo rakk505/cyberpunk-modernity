@@ -17,7 +17,9 @@ grenades, cyberware, faction soldiers, and a procedurally generated neon city.
 - **Faction soldiers** — Arasaka, Militech, and Kang Tao corpo enemies that patrol,
   detect the player, alert their squad, and fight with cyberpunk weapons. Grenade-armed
   soldiers lob grenades at you.
-- **Cyberware** — installable body augmentations with active skills.
+- **Cyberware** — 121 wiki-sourced implant families across all ten body systems, represented by
+  1,025 distinct Tier 1 through Tier 5++ variants. The ripperdoc screen selects a physical socket,
+  implant family, and exact tier while showing that tier's capacity, armor, and source effect text.
 - **Neon city** — a procedurally generated city to explore.
 
 ## Building
@@ -34,6 +36,20 @@ The built mod jar is written to `build/libs/`.
 ./gradlew runClient   # launch the client
 ./gradlew runServer   # launch a dedicated server
 ```
+
+## Cyberware catalog and slot integration
+
+`tools/import_cyberware_wiki.py` regenerates the checked-in catalog, tier item definitions, model
+links, and source-image manifest from the Cyberpunk Wiki. The 16×16 item textures are generated from
+the downloaded references with the `pixelart-downsample` pipeline; see
+`.modernity/art/references/cyberware/sources.json` for per-icon provenance.
+
+The three optional sockets are persisted and owner-synced. A quest/perk integration can call
+`CyberwareInstaller.unlock(...)` directly, or set these persistent player-data booleans:
+
+- `cyberdeck.quest.birds_with_broken_wings` — second Face socket
+- `cyberdeck.perk.license_to_chrome` — third Skeleton socket
+- `cyberdeck.perk.ambidextrous` — second Hands socket
 
 ## Mapping names
 

@@ -173,8 +173,54 @@ publishing {
     }
 }
 
+def modernityReuseMinecraftArtifacts = Boolean.getBoolean('modernity.reuseMinecraftArtifacts')
+
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
+}
+
+// macOS can deny NeoFormRuntime's Java HTTP client even when the exact patched artifacts were
+// produced by an earlier build. Modernity verification opts into reusing those three files from
+// its disposable sandbox; ordinary builds never set this system property and remain unchanged.
+def modernityArtifactDir = layout.buildDirectory.dir('moddev/artifacts').get().asFile
+def modernityExpectedMinecraftArtifacts = [
+    new File(modernityArtifactDir, "minecraft-patched-${neo_version}.jar"),
+    new File(modernityArtifactDir, "minecraft-patched-${neo_version}-merged.jar"),
+    new File(modernityArtifactDir, "minecraft-patched-${neo_version}-sources.jar"),
+]
+tasks.matching { it.name == 'createMinecraftArtifacts' }.configureEach {
+    onlyIf {
+        !modernityReuseMinecraftArtifacts
+                || !modernityExpectedMinecraftArtifacts.every { it.isFile() }
+    }
+}
+
+// Gradle's Java worker also uses localhost IPC. Under the same opt-in, invoke the resolved JDK 25
+// compiler directly against Gradle's real NeoForge classpath, then let the normal resources/classes
+// lifecycle continue. This is a real javac compilation; only its transport differs.
+if (modernityReuseMinecraftArtifacts) {
+    def modernityClassesDir = layout.buildDirectory.dir('classes/java/main').get().asFile
+    modernityClassesDir.mkdirs()
+    def modernityCompiler = javaToolchains.compilerFor {
+        languageVersion = JavaLanguageVersion.of(25)
+    }.get().executablePath.asFile.absolutePath
+    def modernitySources = sourceSets.main.java.files.collect { it.absolutePath }.sort()
+    def modernityClasspath = sourceSets.main.compileClasspath.asPath
+    def modernityJavac = tasks.register('modernityJavac', Exec) {
+        inputs.files(sourceSets.main.java)
+        inputs.files(sourceSets.main.compileClasspath)
+        outputs.dir(modernityClassesDir)
+        executable modernityCompiler
+        args '--release', '25', '-encoding', 'UTF-8', '-classpath', modernityClasspath,
+                '-d', modernityClassesDir.absolutePath
+        args modernitySources
+    }
+    tasks.named('compileJava').configure {
+        enabled = false
+    }
+    tasks.named('processResources').configure {
+        dependsOn modernityJavac
+    }
 }
 
 // IDEA no longer automatically downloads sources/javadoc jars for dependencies, so we need to explicitly enable the behavior.
