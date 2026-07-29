@@ -34,15 +34,21 @@ public class CyberwareItem extends Item {
     }
 
     @Override
+    public Component getName(ItemStack stack) {
+        return Component.literal(cyberware.fullDisplayName());
+    }
+
+    @Override
     public InteractionResult use(Level level, Player player, InteractionHand hand) {
         ItemStack held = player.getItemInHand(hand);
         if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer) {
-            CyberwareInstaller.install(serverPlayer, cyberware);
-            if (!player.getAbilities().instabuild) {
-                held.shrink(1);
+            if (CyberwareInstaller.install(serverPlayer, cyberware)) {
+                if (!player.getAbilities().instabuild) {
+                    held.shrink(1);
+                }
+                level.playSound(null, player.getX(), player.getY(), player.getZ(),
+                        SoundEvents.BEACON_ACTIVATE, SoundSource.PLAYERS, 0.6f, 1.4f);
             }
-            level.playSound(null, player.getX(), player.getY(), player.getZ(),
-                    SoundEvents.BEACON_ACTIVATE, SoundSource.PLAYERS, 0.6f, 1.4f);
         }
         return InteractionResult.SUCCESS;
     }
@@ -52,7 +58,22 @@ public class CyberwareItem extends Item {
                                 TooltipDisplay display, Consumer<Component> adder, TooltipFlag flag) {
         adder.accept(Component.translatable("tooltip.cyberdeck.slot",
                 Component.literal(cyberware.slot().displayName())).withStyle(ChatFormatting.DARK_AQUA));
-        adder.accept(Component.translatable("tooltip.cyberdeck.cyberware." + cyberware.id())
-                .withStyle(ChatFormatting.GRAY));
+        adder.accept(Component.literal(cyberware.tier().displayName())
+                .withStyle(ChatFormatting.LIGHT_PURPLE));
+        adder.accept(Component.translatable("tooltip.cyberdeck.capacity", cyberware.capacity())
+                .withStyle(ChatFormatting.GOLD));
+        if (cyberware.armor() > 0.0) {
+            adder.accept(Component.translatable("tooltip.cyberdeck.armor",
+                    format(cyberware.armor())).withStyle(ChatFormatting.BLUE));
+        }
+        for (String line : cyberware.effect().split("\\n")) {
+            if (!line.isBlank()) {
+                adder.accept(Component.literal(line).withStyle(ChatFormatting.GRAY));
+            }
+        }
+    }
+
+    private static String format(double value) {
+        return value == Math.rint(value) ? Integer.toString((int) value) : Double.toString(value);
     }
 }

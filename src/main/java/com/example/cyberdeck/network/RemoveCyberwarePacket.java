@@ -2,10 +2,7 @@ package com.example.cyberdeck.network;
 
 import com.example.cyberdeck.Cyberdeck;
 import com.example.cyberdeck.cyberware.BodySlot;
-import com.example.cyberdeck.cyberware.Cyberware;
-import com.example.cyberdeck.cyberware.CyberwareAttachments;
 import com.example.cyberdeck.cyberware.CyberwareInstaller;
-import com.example.cyberdeck.cyberware.CyberwareItems;
 
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
@@ -13,7 +10,6 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 /**
@@ -21,15 +17,21 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
  * The removed cyberware is returned to the player as an item (dropped if the inventory is full).
  *
  * @param slot ordinal of the {@link BodySlot} to clear
+ * @param socket physical socket index inside that body system
  */
-public record RemoveCyberwarePacket(int slot) implements CustomPacketPayload {
+public record RemoveCyberwarePacket(int slot, int socket) implements CustomPacketPayload {
     public static final Type<RemoveCyberwarePacket> TYPE =
             new Type<>(Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "remove_cyberware"));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, RemoveCyberwarePacket> STREAM_CODEC =
             StreamCodec.composite(
                     ByteBufCodecs.VAR_INT, RemoveCyberwarePacket::slot,
+                    ByteBufCodecs.VAR_INT, RemoveCyberwarePacket::socket,
                     RemoveCyberwarePacket::new);
+
+    public RemoveCyberwarePacket(int slot) {
+        this(slot, 0);
+    }
 
     @Override
     public Type<? extends CustomPacketPayload> type() {
@@ -45,16 +47,10 @@ public record RemoveCyberwarePacket(int slot) implements CustomPacketPayload {
                 return;
             }
             BodySlot slot = BodySlot.VALUES[packet.slot()];
-            Cyberware removed = CyberwareAttachments.get(player).get(slot);
-            if (removed == null) {
+            if (packet.socket() < 0 || packet.socket() >= slot.maximumSockets()) {
                 return;
             }
-            CyberwareInstaller.remove(player, slot);
-            // Return the physical item so uninstalling is non-destructive.
-            ItemStack stack = new ItemStack(CyberwareItems.item(removed).get());
-            if (!player.getInventory().add(stack)) {
-                player.drop(stack, false);
-            }
+            CyberwareInstaller.remove(player, slot, packet.socket());
         });
     }
 }

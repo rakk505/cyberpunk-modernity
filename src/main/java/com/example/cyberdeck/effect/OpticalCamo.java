@@ -6,10 +6,8 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.effect.MobEffects;
 
-/** Optical Camo: toggle up to 3 minutes of invisibility + hostile aggro immunity. */
+/** Tier-aware Optical Camo visibility reduction represented by invisibility + aggro immunity. */
 public final class OpticalCamo {
-    public static final int MAX_TICKS = 3 * 60 * 20; // 3 minutes
-
     private OpticalCamo() {
     }
 
@@ -22,7 +20,16 @@ public final class OpticalCamo {
     }
 
     public static void activate(ServerPlayer player) {
-        ActiveAbilities.opticalCamo.put(player.getUUID(), MAX_TICKS);
+        com.example.cyberdeck.cyberware.Cyberware camo =
+                CyberwareEffects.findFlag(player, "optical_camo");
+        if (camo == null || ActiveAbilities.onCooldown(player, "optical_camo")) {
+            player.sendSystemMessage(Component.translatable("message.cyberdeck.camo_recharging"), true);
+            return;
+        }
+        int duration = Math.max(1, (int) Math.round(camo.value("duration_seconds") * 20));
+        ActiveAbilities.opticalCamo.put(player.getUUID(), duration);
+        ActiveAbilities.setCooldown(player, "optical_camo",
+                CyberwareEffects.cooldownTicks(player, camo, "cooldown_seconds"));
         player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
                 SoundEvents.AMETHYST_BLOCK_CHIME, SoundSource.PLAYERS, 0.7f, 1.6f);
         player.sendSystemMessage(Component.translatable("message.cyberdeck.camo_on"), true);
