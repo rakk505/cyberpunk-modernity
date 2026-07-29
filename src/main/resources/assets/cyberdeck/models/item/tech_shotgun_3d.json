@@ -1,0 +1,7 @@
+{
+  "parent": "cyberdeck:item/shotgun_3d",
+  "textures": {
+    "voxels_atlas": "cyberdeck:item/tech_shotgun_gpp",
+    "particle": "cyberdeck:item/tech_shotgun_gpp"
+  }
+}

@@ -74,14 +74,16 @@ public final class GunItem extends Item {
             return InteractionResult.CONSUME;
         }
 
+        // Check this before starting a charged shot. Otherwise sniper-style guns can begin their
+        // wind-up during cooldown and bypass the Tech variant's slower firing interval.
+        if (player.getCooldowns().isOnCooldown(held)) {
+            return InteractionResult.FAIL;
+        }
+
         // Snipers wind up via the use/charge animation and fire in finishUsingItem.
         if (gun.reloadTicks() > 0) {
             player.startUsingItem(hand);
             return InteractionResult.CONSUME;
-        }
-
-        if (player.getCooldowns().isOnCooldown(held)) {
-            return InteractionResult.FAIL;
         }
 
         if (level instanceof ServerLevel serverLevel && player instanceof ServerPlayer serverPlayer) {
@@ -94,7 +96,8 @@ public final class GunItem extends Item {
     public ItemStack finishUsingItem(ItemStack stack, Level level, LivingEntity entity) {
         if (gun.reloadTicks() > 0 && entity instanceof Player player
                 && level instanceof ServerLevel serverLevel && player instanceof ServerPlayer serverPlayer
-                && !ReloadState.get(player).active() && magazine(stack) > 0) {
+                && !ReloadState.get(player).active() && magazine(stack) > 0
+                && !player.getCooldowns().isOnCooldown(stack)) {
             fireOnce(serverLevel, serverPlayer, stack);
         }
         return stack;
@@ -173,7 +176,11 @@ public final class GunItem extends Item {
         adder.accept(Component.translatable("tooltip.cyberdeck.gun.ammo",
                 Component.translatable("item.cyberdeck." + gun.ammo().itemId()))
                 .withStyle(ChatFormatting.DARK_AQUA));
-        adder.accept(Component.translatable("tooltip.cyberdeck.gun." + gun.id())
+        adder.accept(Component.translatable("tooltip.cyberdeck.gun." + gun.baseGun().id())
                 .withStyle(ChatFormatting.GRAY));
+        if (gun.isTech()) {
+            adder.accept(Component.translatable("tooltip.cyberdeck.gun.tech")
+                    .withStyle(ChatFormatting.AQUA));
+        }
     }
 }

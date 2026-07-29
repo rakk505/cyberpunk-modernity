@@ -36,7 +36,7 @@ public final class FirstPersonGunRenderer {
         if (!(stack.getItem() instanceof GunItem gunItem)) {
             return;
         }
-        GunModelRegistry.Entry entry = GunModelRegistry.get(gunItem.gun().id());
+        GunModelRegistry.Entry entry = GunModelRegistry.get(gunItem.gun());
         if (entry == null) {
             return; // No animated model for this gun; leave the vanilla render alone.
         }

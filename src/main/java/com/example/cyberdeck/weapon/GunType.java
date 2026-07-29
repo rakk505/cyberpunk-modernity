@@ -39,6 +39,28 @@ public enum GunType {
     M2038("m2038", AmmoType.SHOTGUN, 4.0f, 6, 7.0f, 26.0, 4, 0, 8.0, 18.0, 7, 20),
     CARNAGE("carnage", AmmoType.SHOTGUN, 3.0f, 20, 9.0f, 22.0, 10, 0, 5.0, 14.0, 3, 73),
     GRAD("grad", AmmoType.HEAVY, 22.0f, 1, 0.15f, 128.0, 13, 30, 100.0, 128.0, 3, 110),
+
+    // --- Tech variants ---
+    // These clone the complete balance profile of their conventional counterpart except for a
+    // 50% longer firing interval. Their shots can penetrate the first solid block they encounter.
+    // Mantis Blade is intentionally excluded: it is a melee cyberware weapon, not a firearm.
+    TECH_PISTOL("tech_pistol", PISTOL),
+    TECH_SMG("tech_smg", SMG),
+    TECH_SHOTGUN("tech_shotgun", SHOTGUN),
+    TECH_ASSAULT_RIFLE("tech_assault_rifle", ASSAULT_RIFLE),
+    TECH_SNIPER("tech_sniper", SNIPER),
+    TECH_OVERTURE("tech_overture", OVERTURE),
+    TECH_UNITY("tech_unity", UNITY),
+    TECH_YUKIMURA("tech_yukimura", YUKIMURA),
+    TECH_THREE_FIVE_ONE_SIX("tech_3516", THREE_FIVE_ONE_SIX),
+    TECH_SARATOGA("tech_saratoga", SARATOGA),
+    TECH_G58_DIAN("tech_g58_dian", G58_DIAN),
+    TECH_AJAX("tech_ajax", AJAX),
+    TECH_COPPERHEAD("tech_copperhead", COPPERHEAD),
+    TECH_M2038("tech_m2038", M2038),
+    TECH_CARNAGE("tech_carnage", CARNAGE),
+    TECH_GRAD("tech_grad", GRAD),
+
     MANTIS_BLADE("mantis_blade", AmmoType.HEAVY, 6.0f, 7, 5.0f, 14.0, 12, 0, 4.0, 10.0, 1, 8);
 
     private final String id;
@@ -53,6 +75,7 @@ public enum GunType {
     private final double falloffEnd;
     private final int magazineSize;
     private final int reloadTimeTicks;
+    private final GunType baseGun;
 
     GunType(String id, AmmoType ammo, float damage, int pellets, float spreadDegrees, double range,
             int cooldownTicks, int reloadTicks, double falloffStart, double falloffEnd,
@@ -69,6 +92,28 @@ public enum GunType {
         this.falloffEnd = falloffEnd;
         this.magazineSize = magazineSize;
         this.reloadTimeTicks = reloadTimeTicks;
+        this.baseGun = null;
+    }
+
+    /** Creates a Tech firearm by cloning a conventional gun and slowing its firing interval. */
+    GunType(String id, GunType baseGun) {
+        this.id = id;
+        this.ammo = baseGun.ammo;
+        this.damage = baseGun.damage;
+        this.pellets = baseGun.pellets;
+        this.spreadDegrees = baseGun.spreadDegrees;
+        this.range = baseGun.range;
+        // Charged guns wait for cooldown and then perform their wind-up, so include both in the
+        // cadence calculation to make every Tech counterpart's true shot interval 50% longer.
+        this.cooldownTicks = Math.max(baseGun.cooldownTicks + 1,
+                (int) Math.ceil((baseGun.cooldownTicks + baseGun.reloadTicks) * 1.5)
+                        - baseGun.reloadTicks);
+        this.reloadTicks = baseGun.reloadTicks;
+        this.falloffStart = baseGun.falloffStart;
+        this.falloffEnd = baseGun.falloffEnd;
+        this.magazineSize = baseGun.magazineSize;
+        this.reloadTimeTicks = baseGun.reloadTimeTicks;
+        this.baseGun = baseGun;
     }
 
     public int magazineSize() {
@@ -109,6 +154,16 @@ public enum GunType {
 
     public int reloadTicks() {
         return reloadTicks;
+    }
+
+    /** Whether this firearm uses Tech wall-penetration and cyan shot effects. */
+    public boolean isTech() {
+        return baseGun != null;
+    }
+
+    /** Conventional counterpart used for shared geometry, animations, sounds, and descriptions. */
+    public GunType baseGun() {
+        return baseGun == null ? this : baseGun;
     }
 
     /**

@@ -1,0 +1,7 @@
+{
+  "parent": "cyberdeck:item/smg_3d",
+  "textures": {
+    "particle": "cyberdeck:item/tech_smg_model",
+    "layer0": "cyberdeck:item/tech_smg_model"
+  }
+}

@@ -1,6 +1,7 @@
 package com.example.cyberdeck.client.gun;
 
 import com.example.cyberdeck.Cyberdeck;
+import com.example.cyberdeck.weapon.GunType;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
@@ -35,8 +36,13 @@ public final class GunModelRegistry {
 
     public record Entry(BedrockModel model, BedrockAnimationData animation, Identifier texture) {}
 
-    /** @return the compiled model for the gun id, or {@code null} if no animated model exists. */
-    public static Entry get(String gunId) {
+    /**
+     * @return the compiled model for the gun, or {@code null} if no animated model exists.
+     * Tech guns reuse their conventional counterpart's geometry and animation but load their own
+     * cyan/gunmetal texture atlas.
+     */
+    public static Entry get(GunType gun) {
+        String gunId = gun.id();
         Entry cached = CACHE.get(gunId);
         if (cached != null) {
             return cached;
@@ -44,7 +50,7 @@ public final class GunModelRegistry {
         if (Boolean.TRUE.equals(MISSING.get(gunId))) {
             return null;
         }
-        Entry loaded = load(gunId);
+        Entry loaded = load(gun);
         if (loaded == null) {
             MISSING.put(gunId, Boolean.TRUE);
         } else {
@@ -59,10 +65,13 @@ public final class GunModelRegistry {
         MISSING.clear();
     }
 
-    private static Entry load(String gunId) {
+    private static Entry load(GunType gun) {
+        String modelId = gun.baseGun().id();
         ResourceManager rm = Minecraft.getInstance().getResourceManager();
-        Identifier geoId = Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "gun_geo/" + gunId + ".geo.json");
-        Identifier animId = Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "gun_anim/" + gunId + ".animation.json");
+        Identifier geoId = Identifier.fromNamespaceAndPath(
+                Cyberdeck.MODID, "gun_geo/" + modelId + ".geo.json");
+        Identifier animId = Identifier.fromNamespaceAndPath(
+                Cyberdeck.MODID, "gun_anim/" + modelId + ".animation.json");
 
         JsonObject geoJson = readJson(rm, geoId);
         if (geoJson == null) {
@@ -83,7 +92,8 @@ public final class GunModelRegistry {
             }
         }
 
-        Identifier texture = Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "textures/item/" + gunId + "_uv.png");
+        Identifier texture = Identifier.fromNamespaceAndPath(
+                Cyberdeck.MODID, "textures/item/" + gun.id() + "_uv.png");
         return new Entry(model, animation, texture);
     }
 

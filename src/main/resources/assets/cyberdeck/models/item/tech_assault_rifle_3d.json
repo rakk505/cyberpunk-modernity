@@ -1,0 +1,11 @@
+{
+  "parent": "cyberdeck:item/assault_rifle_3d",
+  "textures": {
+    "ak_47_1": "cyberdeck:item/tech_assault_rifle_gpp_1",
+    "ak_47_2": "cyberdeck:item/tech_assault_rifle_gpp_2",
+    "ak_47_3": "cyberdeck:item/tech_assault_rifle_gpp_3",
+    "particle": "cyberdeck:item/tech_assault_rifle_gpp_4",
+    "ak_47_4": "cyberdeck:item/tech_assault_rifle_gpp_4",
+    "ak_47_white": "cyberdeck:item/tech_assault_rifle_gpp_white"
+  }
+}

@@ -1,5 +1,6 @@
 package com.example.cyberdeck.weapon;
 
+import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -13,6 +14,8 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
@@ -52,16 +55,22 @@ public final class GunFiring {
             Vec3 dir = applySpread(baseDir, gun.spreadDegrees(), rng);
             Vec3 end = eye.add(dir.scale(gun.range()));
 
-            // Stop the ray at the first solid block so bullets can't shoot through walls.
-            HitResult block = level.clip(new ClipContext(
-                    eye, end, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, shooter));
-            Vec3 rayEnd = block.getType() == HitResult.Type.MISS ? end : block.getLocation();
+            ShotPath path = traceBlocks(level, shooter, gun, eye, end, dir);
+            Vec3 rayEnd = path.rayEnd();
 
-            EntityHitResult hit = ProjectileUtil.getEntityHitResult(
-                    shooter, eye, rayEnd,
-                    shooter.getBoundingBox().expandTowards(dir.scale(gun.range())).inflate(1.0),
-                    e -> e instanceof LivingEntity && e != shooter && e.isAlive() && !e.isSpectator(),
-                    gun.range() * gun.range());
+            // Treat the penetrated cell as solid space for entity targeting: check the segment in
+            // front of it first, then resume beyond its exit face. This prevents hitting an entity
+            // whose bounding box happens to overlap the wall itself.
+            EntityHitResult hit;
+            if (path.penetrationEntry() == null) {
+                hit = findEntityHit(shooter, eye, rayEnd);
+            } else {
+                hit = findEntityHit(shooter, eye, path.penetrationEntry());
+                if (hit == null) {
+                    Vec3 resumed = path.penetrationExit().add(dir.scale(PENETRATION_EPSILON));
+                    hit = findEntityHit(shooter, resumed, rayEnd);
+                }
+            }
 
             Vec3 impact = rayEnd;
             if (hit != null && hit.getEntity() instanceof LivingEntity target) {
@@ -71,13 +80,24 @@ public final class GunFiring {
                 target.hurtServer(level, damageSource(shooter), dmg);
                 // A single crisp spark at the hit, no spread so it reads as a clean impact
                 // instead of a lingering cloud.
-                level.sendParticles(ParticleTypes.CRIT,
-                        impact.x, impact.y, impact.z, 1, 0.0, 0.0, 0.0, 0.0);
+                if (gun.isTech()) {
+                    level.sendParticles(TECH_PARTICLE, true, false,
+                            impact.x, impact.y, impact.z, 4, 0.04, 0.04, 0.04, 0.0);
+                } else {
+                    level.sendParticles(ParticleTypes.CRIT,
+                            impact.x, impact.y, impact.z, 1, 0.0, 0.0, 0.0, 0.0);
+                }
+            }
+
+            if (path.penetrationEntry() != null
+                    && eye.distanceToSqr(impact) >= eye.distanceToSqr(path.penetrationEntry())) {
+                spawnPenetrationEffect(level, path.penetrationEntry());
+                spawnPenetrationEffect(level, path.penetrationExit());
             }
 
             // Bullet trail: a thin, fast-fading tracer from the muzzle to the impact point.
             Vec3 muzzle = eye.add(dir.scale(1.2));
-            spawnBulletTrail(level, muzzle, impact);
+            spawnBulletTrail(level, muzzle, impact, gun.isTech());
         }
 
         playFireSound(level, shooter, gun, rng);
@@ -98,7 +118,8 @@ public final class GunFiring {
      * clutters the view. Points are widely spaced and skip the muzzle stub so the tracer doesn't
      * bloom right in front of the camera.
      */
-    private static void spawnBulletTrail(ServerLevel level, Vec3 muzzle, Vec3 impact) {
+    private static void spawnBulletTrail(ServerLevel level, Vec3 muzzle, Vec3 impact,
+                                         boolean tech) {
         Vec3 delta = impact.subtract(muzzle);
         double length = delta.length();
         if (length < 1.0e-4) {
@@ -109,10 +130,67 @@ public final class GunFiring {
         // Start a little past the muzzle so the tracer doesn't flash across the player's face.
         Vec3 point = muzzle.add(stepVec.scale(TRAIL_MUZZLE_SKIP));
         for (int s = TRAIL_MUZZLE_SKIP; s <= steps; s++) {
-            level.sendParticles(ParticleTypes.ELECTRIC_SPARK, point.x, point.y, point.z,
-                    1, 0.0, 0.0, 0.0, 0.0);
+            if (tech) {
+                // Override the 32-block packet radius so long-range Tech sniper tracers remain
+                // visible to the shooter.
+                level.sendParticles(TECH_PARTICLE, true, false,
+                        point.x, point.y, point.z, 1, 0.0, 0.0, 0.0, 0.0);
+            } else {
+                level.sendParticles(ParticleTypes.ELECTRIC_SPARK,
+                        point.x, point.y, point.z, 1, 0.0, 0.0, 0.0, 0.0);
+            }
             point = point.add(stepVec);
         }
+    }
+
+    /**
+     * Clips a hitscan ray against terrain. Conventional rounds stop at the first collision. Tech
+     * rounds resume immediately beyond that collision's block cell and then stop at the next one,
+     * which permits a one-block wall but never a contiguous two-block wall.
+     */
+    private static ShotPath traceBlocks(ServerLevel level, LivingEntity shooter, GunType gun,
+                                        Vec3 start, Vec3 end, Vec3 direction) {
+        BlockHitResult first = level.clipIncludingBorder(new ClipContext(
+                start, end, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, shooter));
+        if (first.getType() == HitResult.Type.MISS) {
+            return new ShotPath(end, null, null);
+        }
+        if (!gun.isTech() || first.isWorldBorderHit()
+                || level.getBlockState(first.getBlockPos())
+                        .getDestroySpeed(level, first.getBlockPos()) < 0.0F) {
+            return new ShotPath(first.getLocation(), null, null);
+        }
+
+        Vec3 entry = first.getLocation();
+        Vec3 exit = new AABB(first.getBlockPos()).clip(end, entry).orElse(null);
+        if (exit == null) {
+            return new ShotPath(entry, null, null);
+        }
+        Vec3 resumed = exit.add(direction.scale(PENETRATION_EPSILON));
+        if (resumed.distanceToSqr(end) >= exit.distanceToSqr(end)) {
+            return new ShotPath(exit, entry, exit);
+        }
+
+        BlockHitResult second = level.clipIncludingBorder(new ClipContext(
+                resumed, end, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, shooter));
+        Vec3 rayEnd = second.getType() == HitResult.Type.MISS ? end : second.getLocation();
+        return new ShotPath(rayEnd, entry, exit);
+    }
+
+    private static EntityHitResult findEntityHit(LivingEntity shooter, Vec3 start, Vec3 end) {
+        if (start.distanceToSqr(end) < 1.0E-8) {
+            return null;
+        }
+        return ProjectileUtil.getEntityHitResult(
+                shooter, start, end, new AABB(start, end).inflate(1.0),
+                entity -> entity instanceof LivingEntity && entity != shooter
+                        && entity.isAlive() && !entity.isSpectator(),
+                start.distanceToSqr(end));
+    }
+
+    private static void spawnPenetrationEffect(ServerLevel level, Vec3 point) {
+        level.sendParticles(TECH_PARTICLE, true, false,
+                point.x, point.y, point.z, 7, 0.08, 0.08, 0.08, 0.015);
     }
 
     /** Spacing in blocks between successive tracer particles along a bullet trail. */
@@ -121,6 +199,13 @@ public final class GunFiring {
     private static final int TRAIL_MAX_POINTS = 16;
     /** Number of near-muzzle tracer points to skip so the streak doesn't bloom in the camera. */
     private static final int TRAIL_MUZZLE_SKIP = 1;
+    /** Cyan shared by Tech tracers, impacts, and wall-penetration sparks. */
+    private static final DustParticleOptions TECH_PARTICLE =
+            new DustParticleOptions(0x26E6FF, 0.9F);
+    private static final double PENETRATION_EPSILON = 1.0E-4;
+
+    private record ShotPath(Vec3 rayEnd, Vec3 penetrationEntry, Vec3 penetrationExit) {
+    }
 
     private static Vec3 applySpread(Vec3 dir, float spreadDegrees, RandomSource rng) {
         if (spreadDegrees <= 0.0f) {
@@ -144,7 +229,7 @@ public final class GunFiring {
     }
 
     private static SoundEvent fireSound(GunType gun) {
-        return switch (gun) {
+        return switch (gun.baseGun()) {
             case SHOTGUN, M2038, CARNAGE -> SoundEvents.GENERIC_EXPLODE.value();
             case SNIPER, GRAD -> SoundEvents.FIREWORK_ROCKET_BLAST;
             default -> SoundEvents.CROSSBOW_SHOOT;
@@ -152,13 +237,14 @@ public final class GunFiring {
     }
 
     private static float pitchFor(GunType gun, RandomSource rng) {
-        float base = switch (gun) {
+        float base = switch (gun.baseGun()) {
             case SNIPER, GRAD -> 0.7f;
             case SHOTGUN, M2038, CARNAGE -> 0.6f;
             case ASSAULT_RIFLE, AJAX, COPPERHEAD -> 1.3f;
             case SMG, SARATOGA, G58_DIAN, YUKIMURA -> 1.6f;
             case PISTOL, OVERTURE, UNITY, THREE_FIVE_ONE_SIX -> 1.1f;
             case MANTIS_BLADE -> 0.9f;
+            default -> 1.1f; // baseGun() never returns a Tech variant.
         };
         return base + (rng.nextFloat() - 0.5f) * 0.1f;
     }
