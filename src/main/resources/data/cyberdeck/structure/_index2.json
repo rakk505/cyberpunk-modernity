@@ -1,0 +1,67 @@
+{
+  "cp_tower": {
+    "name": "cp_tower",
+    "source": "Cyberpunk",
+    "size": [
+      33,
+      27,
+      26
+    ],
+    "floor_y": -29,
+    "block_count": 6304,
+    "palette_size": 228,
+    "file_bytes": 24552
+  },
+  "cp_shack": {
+    "name": "cp_shack",
+    "source": "Cyberpunk (1)",
+    "size": [
+      15,
+      28,
+      20
+    ],
+    "floor_y": -22,
+    "block_count": 3967,
+    "palette_size": 281,
+    "file_bytes": 16676
+  },
+  "cp_garage": {
+    "name": "cp_garage",
+    "source": "CyberpunkGarage",
+    "size": [
+      58,
+      54,
+      82
+    ],
+    "floor_y": -43,
+    "block_count": 59166,
+    "palette_size": 391,
+    "file_bytes": 187975
+  },
+  "cp_house": {
+    "name": "cp_house",
+    "source": "CyberpunkHouse",
+    "size": [
+      21,
+      46,
+      27
+    ],
+    "floor_y": -34,
+    "block_count": 6881,
+    "palette_size": 240,
+    "file_bytes": 24985
+  },
+  "cp_shop": {
+    "name": "cp_shop",
+    "source": "Build",
+    "size": [
+      13,
+      36,
+      23
+    ],
+    "floor_y": -33,
+    "block_count": 3875,
+    "palette_size": 63,
+    "file_bytes": 13972
+  }
+}

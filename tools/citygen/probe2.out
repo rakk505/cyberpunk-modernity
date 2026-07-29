@@ -1,0 +1,8 @@
+
+=== Cyberpunk ===
+  bounds x[-13..19] y[-29..-3] z[3..28] size 33x27x26  solid=6,304
+  densest layers (y: count / top block):
+    y=-29: 780  minecraft:spruce_planks x392
+    y=-28: 780  minecraft:moss_block x294
+    y=-18: 429  minecraft:smooth_stone x256
+  top blocks: smooth_stone=1,097, spruce_planks=392, brown_wool=388, coal_block=370, moss_block=294, grass_block=280, light_gray_wool=208, andesite_wall=192

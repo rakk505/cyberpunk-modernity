@@ -1,0 +1,12 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+    }
+}
+
+// foojay-resolver-convention is disabled: v1.0.0 is incompatible with Gradle 9.2.1.
+// A JDK 25 toolchain is provided via ~/.gradle/jdks and registered through
+// org.gradle.java.installations.paths for Gradle auto-detection instead.
+// plugins {
+//     id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+// }

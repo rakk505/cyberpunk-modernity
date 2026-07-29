@@ -1,0 +1,824 @@
+{
+  "bones": [
+    {
+      "name": "root",
+      "parent": null,
+      "pivot": [
+        0,
+        8,
+        0
+      ]
+    },
+    {
+      "name": "slide",
+      "parent": "root",
+      "pivot": [
+        0,
+        10,
+        0
+      ]
+    },
+    {
+      "name": "optic",
+      "parent": "slide",
+      "pivot": [
+        0,
+        12,
+        -6
+      ]
+    },
+    {
+      "name": "frame",
+      "parent": "root",
+      "pivot": [
+        0,
+        8,
+        0
+      ]
+    },
+    {
+      "name": "grip",
+      "parent": "frame",
+      "pivot": [
+        0,
+        8,
+        -7
+      ]
+    },
+    {
+      "name": "magazine",
+      "parent": "frame",
+      "pivot": [
+        0,
+        8,
+        4
+      ]
+    }
+  ],
+  "collision": {
+    "eye_height": 0.25,
+    "height": 0.5,
+    "width": 1.1
+  },
+  "cubes": [
+    {
+      "bone": "slide",
+      "center": [
+        0,
+        10.5,
+        0
+      ],
+      "faces": {
+        "east": {
+          "flip_x": true,
+          "material": "gun_black_vent"
+        },
+        "up": {
+          "material": "gun_black_vent"
+        },
+        "west": {
+          "material": "gun_black_vent"
+        }
+      },
+      "material": "gun_black",
+      "name": "slide_body",
+      "origin": [
+        0,
+        10,
+        0
+      ],
+      "role": "upper_slide",
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        4,
+        3.5,
+        20
+      ]
+    },
+    {
+      "bone": "slide",
+      "center": [
+        0,
+        12.35,
+        1
+      ],
+      "material": "gun_black_vent",
+      "name": "slide_top_rail",
+      "origin": [
+        0,
+        12,
+        1
+      ],
+      "role": "top_rail",
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        3,
+        1,
+        14
+      ]
+    },
+    {
+      "bone": "slide",
+      "center": [
+        0,
+        10.2,
+        11
+      ],
+      "material": "gun_black",
+      "name": "muzzle_block",
+      "origin": [
+        0,
+        10,
+        11
+      ],
+      "role": "muzzle",
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        3.5,
+        3.8,
+        2
+      ]
+    },
+    {
+      "bone": "slide",
+      "center": [
+        0,
+        10.2,
+        12.4
+      ],
+      "material": "gun_black",
+      "name": "muzzle_tip",
+      "origin": [
+        0,
+        10,
+        12.4
+      ],
+      "role": "muzzle_tip",
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        2,
+        2,
+        1.5
+      ]
+    },
+    {
+      "bone": "slide",
+      "center": [
+        0,
+        11.4,
+        -8.5
+      ],
+      "faces": {
+        "east": {
+          "flip_x": true,
+          "material": "gun_black_vent"
+        },
+        "west": {
+          "material": "gun_black_vent"
+        }
+      },
+      "material": "gun_black_vent",
+      "name": "rear_slide_step",
+      "origin": [
+        0,
+        11,
+        -8.5
+      ],
+      "role": "rear_slide",
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        4,
+        2.8,
+        3
+      ]
+    },
+    {
+      "bone": "frame",
+      "center": [
+        0,
+        8.4,
+        -2
+      ],
+      "material": "gun_black",
+      "name": "lower_receiver",
+      "origin": [
+        0,
+        8,
+        0
+      ],
+      "role": "lower_receiver",
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        3.6,
+        2.5,
+        10
+      ]
+    },
+    {
+      "bone": "optic",
+      "center": [
+        0,
+        12.9,
+        -6
+      ],
+      "material": "gun_black",
+      "name": "optic_base",
+      "origin": [
+        0,
+        12,
+        -6
+      ],
+      "role": "optic_base",
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        3,
+        1,
+        3.5
+      ]
+    },
+    {
+      "bone": "optic",
+      "center": [
+        0,
+        14,
+        -6
+      ],
+      "material": "gun_black",
+      "name": "optic_hood",
+      "origin": [
+        0,
+        13,
+        -6
+      ],
+      "role": "optic",
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        2.5,
+        1.6,
+        3
+      ]
+    },
+    {
+      "bone": "slide",
+      "center": [
+        1.95,
+        10.9,
+        -1
+      ],
+      "material": "gun_black_vent",
+      "name": "ejection_port",
+      "origin": [
+        2,
+        10.9,
+        -1
+      ],
+      "role": "detail_port",
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        0.4,
+        1.8,
+        5
+      ]
+    },
+    {
+      "bone": "frame",
+      "center": [
+        0,
+        6.1,
+        -3.5
+      ],
+      "material": "gun_black",
+      "name": "trigger_guard_front",
+      "origin": [
+        0,
+        6,
+        -3.5
+      ],
+      "role": "trigger_guard",
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        3,
+        1,
+        1.5
+      ]
+    },
+    {
+      "bone": "frame",
+      "center": [
+        0,
+        6.1,
+        -6.5
+      ],
+      "material": "gun_black",
+      "name": "trigger_guard_rear",
+      "origin": [
+        0,
+        6,
+        -6.5
+      ],
+      "role": "trigger_guard",
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        3,
+        1,
+        1.5
+      ]
+    },
+    {
+      "bone": "frame",
+      "center": [
+        0,
+        6.8,
+        -5
+      ],
+      "material": "gun_black",
+      "name": "trigger",
+      "origin": [
+        0,
+        7.4,
+        -5
+      ],
+      "role": "trigger",
+      "rotation": [
+        10,
+        0,
+        0
+      ],
+      "size": [
+        1,
+        1.8,
+        0.6
+      ]
+    },
+    {
+      "bone": "grip",
+      "center": [
+        0,
+        5.8,
+        -8
+      ],
+      "material": "grip_camo",
+      "name": "grip_upper",
+      "origin": [
+        0,
+        7.5,
+        -7
+      ],
+      "role": "grip_upper",
+      "rotation": [
+        20,
+        0,
+        0
+      ],
+      "size": [
+        3.2,
+        2.8,
+        3.4
+      ]
+    },
+    {
+      "bone": "grip",
+      "center": [
+        0,
+        2.8,
+        -9.2
+      ],
+      "material": "grip_camo",
+      "name": "grip_lower",
+      "origin": [
+        0,
+        7.5,
+        -7
+      ],
+      "role": "grip_lower",
+      "rotation": [
+        20,
+        0,
+        0
+      ],
+      "size": [
+        3.4,
+        3.2,
+        3.4
+      ]
+    },
+    {
+      "bone": "grip",
+      "center": [
+        0,
+        0.7,
+        -9.9
+      ],
+      "material": "gun_black",
+      "name": "grip_base",
+      "origin": [
+        0,
+        7.5,
+        -7
+      ],
+      "role": "grip_base",
+      "rotation": [
+        20,
+        0,
+        0
+      ],
+      "size": [
+        3.6,
+        1,
+        3.6
+      ]
+    },
+    {
+      "bone": "frame",
+      "center": [
+        0,
+        7.3,
+        -7
+      ],
+      "material": "gun_black",
+      "name": "grip_pivot_screw",
+      "origin": [
+        0,
+        7.3,
+        -7
+      ],
+      "role": "detail_screw",
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        3.8,
+        1.3,
+        1.3
+      ]
+    },
+    {
+      "bone": "magazine",
+      "center": [
+        0,
+        6.7,
+        3.5
+      ],
+      "material": "gun_black",
+      "name": "mag_well",
+      "origin": [
+        0,
+        8,
+        3.5
+      ],
+      "role": "mag_well",
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        3.6,
+        2,
+        4
+      ]
+    },
+    {
+      "bone": "magazine",
+      "center": [
+        0,
+        3.6,
+        5.2
+      ],
+      "faces": {
+        "east": {
+          "flip_x": true,
+          "material": "mag_navy_panel"
+        },
+        "west": {
+          "material": "mag_navy_panel"
+        }
+      },
+      "material": "mag_navy",
+      "name": "mag_body",
+      "origin": [
+        0,
+        7,
+        4
+      ],
+      "role": "magazine",
+      "rotation": [
+        -14,
+        0,
+        0
+      ],
+      "size": [
+        3.2,
+        5,
+        5
+      ]
+    },
+    {
+      "bone": "magazine",
+      "center": [
+        0,
+        0.4,
+        6.4
+      ],
+      "material": "mag_navy",
+      "name": "mag_lower",
+      "origin": [
+        0,
+        7,
+        4
+      ],
+      "role": "magazine_lower",
+      "rotation": [
+        -14,
+        0,
+        0
+      ],
+      "size": [
+        3.2,
+        3,
+        5
+      ]
+    },
+    {
+      "bone": "magazine",
+      "center": [
+        0,
+        -1.4,
+        6.9
+      ],
+      "material": "gun_black",
+      "name": "mag_floor",
+      "origin": [
+        0,
+        7,
+        4
+      ],
+      "role": "magazine_floor",
+      "rotation": [
+        -14,
+        0,
+        0
+      ],
+      "size": [
+        3.5,
+        1,
+        5.2
+      ]
+    }
+  ],
+  "id": "smg",
+  "landmarks": [
+    {
+      "center_color": "#5a7bd6",
+      "center_uv": [
+        0.5,
+        0.45
+      ],
+      "color": "#0e1428",
+      "cube": "mag_body",
+      "face": "west",
+      "name": "mag_screen",
+      "size": [
+        4,
+        3
+      ]
+    },
+    {
+      "center_color": "#d84a4a",
+      "center_uv": [
+        0.42,
+        0.68
+      ],
+      "color": "#8a3030",
+      "cube": "mag_body",
+      "face": "west",
+      "name": "mag_screen_dot",
+      "size": [
+        1,
+        1
+      ]
+    },
+    {
+      "center_color": "#e14b4b",
+      "center_uv": [
+        0.3,
+        0.5
+      ],
+      "color": "#7a2626",
+      "cube": "mag_body",
+      "face": "up",
+      "name": "mag_led_red",
+      "size": [
+        1,
+        1
+      ]
+    },
+    {
+      "center_color": "#4fd85a",
+      "center_uv": [
+        0.62,
+        0.5
+      ],
+      "color": "#256a2b",
+      "cube": "mag_body",
+      "face": "up",
+      "name": "mag_led_green",
+      "size": [
+        1,
+        1
+      ]
+    },
+    {
+      "center_color": "#4fd85a",
+      "center_uv": [
+        0.7,
+        0.35
+      ],
+      "color": "#256a2b",
+      "cube": "mag_lower",
+      "face": "west",
+      "name": "mag_led_green2",
+      "size": [
+        1,
+        1
+      ]
+    },
+    {
+      "center_color": "#141518",
+      "center_uv": [
+        0.4,
+        0.5
+      ],
+      "color": "#0a0b0d",
+      "cube": "slide_body",
+      "face": "up",
+      "name": "slide_vent_1",
+      "size": [
+        1,
+        6
+      ]
+    },
+    {
+      "center_color": "#141518",
+      "center_uv": [
+        0.58,
+        0.5
+      ],
+      "color": "#0a0b0d",
+      "cube": "slide_body",
+      "face": "up",
+      "name": "slide_vent_2",
+      "size": [
+        1,
+        6
+      ]
+    },
+    {
+      "center_color": "#0a0b0d",
+      "center_uv": [
+        0.5,
+        0.4
+      ],
+      "color": "#0a0b0d",
+      "cube": "lower_receiver",
+      "face": "west",
+      "name": "receiver_seam",
+      "size": [
+        8,
+        1
+      ]
+    }
+  ],
+  "materials": {
+    "grip_camo": {
+      "base": "#232629",
+      "highlight": "#3c4046",
+      "pattern": "dither",
+      "pattern_scale": 3,
+      "shade": "#0e0f11"
+    },
+    "gun_black": {
+      "base": "#1c1e22",
+      "highlight": "#2e3138",
+      "pattern": "solid",
+      "pattern_scale": 1,
+      "shade": "#101114"
+    },
+    "gun_black_vent": {
+      "base": "#191b1f",
+      "highlight": "#33373f",
+      "pattern": "stripes",
+      "pattern_scale": 2,
+      "shade": "#0c0d10"
+    },
+    "mag_navy": {
+      "base": "#232a44",
+      "highlight": "#33406a",
+      "pattern": "solid",
+      "pattern_scale": 1,
+      "shade": "#141830"
+    },
+    "mag_navy_panel": {
+      "base": "#2a3252",
+      "highlight": "#3a4874",
+      "pattern": "solid",
+      "pattern_scale": 1,
+      "shade": "#171b34"
+    }
+  },
+  "quality_contract": {
+    "complexity": "moderate",
+    "identity_features": [
+      "long slab-sided black slide with top rail vent slots",
+      "dark-navy forward extended magazine with screen icon and LED indicators",
+      "angled knurled digital-camo grip at the rear",
+      "small rear optic block",
+      "squared trigger guard with trigger"
+    ],
+    "required_views": [
+      "left",
+      "right",
+      "front",
+      "back",
+      "isometric"
+    ],
+    "review_targets": [
+      "silhouette",
+      "magazine",
+      "grip",
+      "texture"
+    ],
+    "target_cuboids": [
+      18,
+      30
+    ]
+  },
+  "reference": {
+    "height": 1104,
+    "image": "smg.reference.png",
+    "sha256": "50c2c80d625e321476e48b76707059f8ad1741eed072e4cc325b2eea871a6739",
+    "width": 2304
+  },
+  "schema_version": 1,
+  "subject": {
+    "description": "A compact cyberpunk pistol-style SMG: a long matte-black slab-sided slide/receiver with top rail vents and a small rear optic, a squared trigger guard, an angled knurled digital-camo grip at the rear, and a signature dark-navy extended magazine protruding forward-and-down beneath the barrel bearing a small display screen and colored indicator LEDs.",
+    "symmetry": "bilateral",
+    "type": "prop",
+    "uncertainties": [
+      "The far (right) side is inferred from the visible left/front views and mirrored",
+      "The underside of the magazine floorplate is not visible and is inferred flat"
+    ]
+  },
+  "texture": {
+    "atlas_size": 128,
+    "density": 2,
+    "gutter": 2,
+    "palette_size": 24
+  }
+}
