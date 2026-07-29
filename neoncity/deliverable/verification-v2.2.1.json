@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "release": "2.2.1",
+  "branch": "project-moon-megacity-arnis-rebuild",
+  "feature": {
+    "name": "district_entry_title",
+    "text_contract": "Now Entering District [A-Z]",
+    "eligible_zones": [
+      "NEST",
+      "BACKSTREETS"
+    ],
+    "excluded_zones": [
+      "OUTSKIRTS",
+      "BORDER_RIVER",
+      "BORDER_HILLS",
+      "WILDERNESS"
+    ],
+    "poll_interval_ticks": 10,
+    "fade_in_ticks": 10,
+    "stay_ticks": 50,
+    "fade_out_ticks": 15,
+    "repeat_suppression": true,
+    "wilderness_rearms_entry": true
+  },
+  "modernity": {
+    "sandbox_id": "project-moon-megacity-v6-arnis",
+    "compile": "passed",
+    "full_build": "passed",
+    "gametest": "passed",
+    "required_tests_passed": 15,
+    "boot": "passed",
+    "client_load": "passed",
+    "client_connectivity": "passed",
+    "visual_capture": "passed"
+  },
+  "artifact": {
+    "file": "neoncity-2.2.1.jar",
+    "sha256": "3e9b660ce1d5099d1a64c7c728512858cba5b69a7f58989472bc465ab65dd70d",
+    "source_snapshot_sha256": "cf415bebd4b0c87d130b1a3aa470d7abf8e5071368d5fce39c9c7e950eaa12d4"
+  },
+  "capture": {
+    "file": "v2.2.1/district_entry_title_a.png",
+    "position": [
+      8,
+      125,
+      -32
+    ],
+    "rendered_text": "Now Entering District A",
+    "sha256": "e1f1db105b1d2ace300921e290267e2ec9262cd990946ea4ef20dd7622a0d8d8"
+  }
+}

@@ -1,7 +1,10 @@
 package dev.modernity.neoncity;
 
 import com.mojang.logging.LogUtils;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 import java.util.function.Consumer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
@@ -73,8 +76,12 @@ public final class testmod {
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             ARNIS_PATCH_SELECTION = register(
                     "arnis_patch_selection", ExampleGameTests::arnisPatchSelection);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            DISTRICT_ENTRY_NOTIFICATION = register(
+                    "district_entry_notification", ExampleGameTests::districtEntryNotification);
 
     private volatile boolean generationEnabled;
+    private final DistrictEntryNotifier districtEntryNotifier = new DistrictEntryNotifier();
 
     public testmod(IEventBus modEventBus, ModContainer ignoredContainer) {
         TEST_FUNCTIONS.register(modEventBus);
@@ -90,6 +97,7 @@ public final class testmod {
     @SubscribeEvent
     public void onServerStarted(ServerStartedEvent event) {
         generationEnabled = false;
+        districtEntryNotifier.clear();
         ServerLevel overworld = event.getServer().overworld();
         if (overworld == null || !NeonCityGenerator.initialize(overworld)) {
             NeonCityGenerator.reset();
@@ -111,17 +119,23 @@ public final class testmod {
         ServerLevel overworld = event.getServer().overworld();
         if (overworld == null) return;
         if (event.getServer().getTickCount() % 10 == 0) {
+            Set<UUID> activePlayers = new HashSet<>();
             for (net.minecraft.server.level.ServerPlayer player : overworld.players()) {
+                activePlayers.add(player.getUUID());
                 NeonCityGenerator.enqueueAround(player.getBlockX(), player.getBlockZ());
-                if (NeonCityGenerator.districtAt(player.getBlockX(), player.getBlockZ())
-                        == District.Y_CORP
-                        && NeonCityGenerator.isInsideCity(player.getBlockX(), player.getBlockZ())) {
+                MegacityLayout.Location location = NeonCityGenerator.layout().locate(
+                        player.getBlockX(), player.getBlockZ());
+                District notificationDistrict = DistrictEntryNotifier.inhabitedDistrict(
+                        location.district(), location.zone());
+                districtEntryNotifier.updatePlayer(player, notificationDistrict);
+                if (location.district() == District.Y_CORP && location.insideCity()) {
                     overworld.sendParticles(
                             ParticleTypes.SNOWFLAKE,
                             player.getX(), player.getY() + 8.0, player.getZ(),
                             18, 9.0, 5.0, 9.0, 0.01);
                 }
             }
+            districtEntryNotifier.retainPlayers(activePlayers);
         }
         NeonCityGenerator.tick(overworld);
     }
@@ -153,6 +167,7 @@ public final class testmod {
     @SubscribeEvent
     public void onServerStopped(ServerStoppedEvent ignoredEvent) {
         generationEnabled = false;
+        districtEntryNotifier.clear();
         NeonCityGenerator.reset();
     }
 
@@ -190,6 +205,7 @@ public final class testmod {
         registerInstance(event, "connection_continuity", CONNECTION_CONTINUITY, data);
         registerInstance(event, "special_district_infrastructure", SPECIAL_DISTRICT_INFRASTRUCTURE, data);
         registerInstance(event, "arnis_patch_selection", ARNIS_PATCH_SELECTION, data);
+        registerInstance(event, "district_entry_notification", DISTRICT_ENTRY_NOTIFICATION, data);
     }
 
     private static void registerInstance(

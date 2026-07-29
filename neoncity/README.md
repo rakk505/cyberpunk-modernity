@@ -23,6 +23,10 @@ Each district has two generated urban zones:
 
 There is no third Arnis “Outskirts” zone. Leaving the finite city footprint reaches ordinary vanilla wilderness. Hills, rivers, green space, and sparse connection corridors soften district and city boundaries without extending urban generation forever.
 
+Crossing into a district displays a centered **“Now Entering District A–Z”** title once. Remaining inside the same district does not repeat it; entering another district or returning from wilderness displays the new title.
+
+The exact 2.2.1 JAR and a Modernity client-rendered [district-entry capture](deliverable/v2.2.1/district_entry_title_a.png) are accompanied by a [machine-readable verification record](deliverable/verification-v2.2.1.json).
+
 Roads are generated in district-local coordinates. Curved spokes, two uneven orbital boulevards, independently rotated parcel grids, coordinate warping, parks, and graph-scale connections keep the whole map from resolving into one global checkerboard. Every 96×96-block sector also contains a deterministic depth-first-search alley network with matching portals across sector and chunk boundaries.
 
 ## District cultures
@@ -166,7 +170,7 @@ From the `neoncity/` directory:
 # Fast compile and resource processing
 ./gradlew --no-daemon compileJava processResources
 
-# Build build/libs/neoncity-2.2.0.jar
+# Build build/libs/neoncity-2.2.1.jar
 ./gradlew --no-daemon build
 
 # Run the registered pure NeoForge GameTests

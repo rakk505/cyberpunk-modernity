@@ -7,6 +7,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import net.minecraft.gametest.framework.GameTestHelper;
 
 /** Pure regression tests for finite megacity topology, culture, and massing. */
@@ -38,6 +39,46 @@ public final class ExampleGameTests {
         assertPortalPair(helper, -2, 5, AlleyMaze.Side.EAST, -1, 5, AlleyMaze.Side.WEST);
         assertPortalPair(helper, -2, 5, AlleyMaze.Side.NORTH, -2, 4, AlleyMaze.Side.SOUTH);
         assertPortalPair(helper, 0, 0, AlleyMaze.Side.WEST, -1, 0, AlleyMaze.Side.EAST);
+        helper.succeed();
+    }
+
+    public static void districtEntryNotification(GameTestHelper helper) {
+        DistrictEntryNotifier notifier = new DistrictEntryNotifier();
+        UUID firstPlayer = UUID.fromString("00000000-0000-0000-0000-000000000001");
+        UUID secondPlayer = UUID.fromString("00000000-0000-0000-0000-000000000002");
+
+        helper.assertTrue(
+                DistrictEntryNotifier.title(District.A_CORP).getString()
+                        .equals("Now Entering District A"),
+                "district entry title text changed");
+        helper.assertTrue(notifier.transition(firstPlayer, District.A_CORP)
+                        .orElseThrow() == District.A_CORP,
+                "initial city entry did not announce A Corp");
+        helper.assertTrue(notifier.transition(firstPlayer, District.A_CORP).isEmpty(),
+                "remaining in one district repeated its notification");
+        helper.assertTrue(notifier.transition(firstPlayer, District.H_CORP)
+                        .orElseThrow() == District.H_CORP,
+                "crossing into a different district did not announce it");
+        helper.assertTrue(notifier.transition(firstPlayer, null).isEmpty(),
+                "wilderness should not display a district title");
+        helper.assertTrue(notifier.transition(firstPlayer, District.H_CORP)
+                        .orElseThrow() == District.H_CORP,
+                "leaving the city did not rearm the district notification");
+        helper.assertTrue(notifier.transition(secondPlayer, District.Z_CORP)
+                        .orElseThrow() == District.Z_CORP,
+                "district tracking leaked between players");
+        for (MegacityLayout.Zone zone : MegacityLayout.Zone.values()) {
+            District expected = zone == MegacityLayout.Zone.NEST
+                    || zone == MegacityLayout.Zone.BACKSTREETS
+                    ? District.A_CORP : null;
+            helper.assertTrue(
+                    DistrictEntryNotifier.inhabitedDistrict(District.A_CORP, zone) == expected,
+                    zone + " has the wrong district-entry notification contract");
+        }
+        helper.assertTrue(DistrictEntryNotifier.FADE_IN_TICKS > 0
+                        && DistrictEntryNotifier.STAY_TICKS >= 40
+                        && DistrictEntryNotifier.FADE_OUT_TICKS > 0,
+                "district title animation is too brief or invalid");
         helper.succeed();
     }
 
