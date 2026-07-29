@@ -59,7 +59,7 @@ public final class SmartTargeting {
 
         if (current.targetId() != candidate.getId() || !current.acquiring()) {
             SmartLockState.set(player,
-                    new SmartLockState(candidate.getId(), now, now + LOCK_TICKS));
+                    new SmartLockState(candidate.getId(), now, now + requiredLockTicks(player)));
             return;
         }
 
@@ -79,7 +79,13 @@ public final class SmartTargeting {
         ItemStack held = player.getMainHandItem();
         return held.getItem() instanceof GunItem gun
                 && gun.gun() == GunType.YUKIMURA
-                && CyberwareAttachments.get(player).has(Cyberware.SMART_LINK);
+                && CyberwareAttachments.get(player).findFlag("smart_targeting") != null;
+    }
+
+    private static int requiredLockTicks(ServerPlayer player) {
+        Cyberware smart = CyberwareAttachments.get(player).findFlag("smart_targeting");
+        double speed = smart == null ? 0.0 : smart.value("smart_lock_speed_percent") / 100.0;
+        return Math.max(4, (int) Math.round(LOCK_TICKS / (1.0 + speed)));
     }
 
     private static @Nullable Mob findTarget(ServerPlayer player, ServerLevel level) {

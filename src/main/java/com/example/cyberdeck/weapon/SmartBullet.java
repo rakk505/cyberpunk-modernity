@@ -1,5 +1,7 @@
 package com.example.cyberdeck.weapon;
 
+import com.example.cyberdeck.effect.SandevistanMechanics;
+
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
@@ -143,9 +145,14 @@ public final class SmartBullet extends Projectile {
         if (this.level() instanceof ServerLevel level
                 && hitResult.getEntity() instanceof LivingEntity target) {
             float damage = GunType.YUKIMURA.damageAtDistance(this.distanceTravelled);
-            target.hurtServer(level,
-                    this.damageSources().source(DamageTypes.ARROW, this, this.getOwner()), damage);
             Vec3 impact = hitResult.getLocation();
+            var source = this.damageSources().source(DamageTypes.ARROW, this, this.getOwner());
+            if (this.getOwner() instanceof ServerPlayer player) {
+                SandevistanMechanics.hurtWithGunModifiers(
+                        level, player, target, source, damage, impact);
+            } else {
+                target.hurtServer(level, source, damage);
+            }
             level.sendParticles(ParticleTypes.CRIT,
                     impact.x, impact.y, impact.z, 5, 0.08, 0.08, 0.08, 0.02);
         }

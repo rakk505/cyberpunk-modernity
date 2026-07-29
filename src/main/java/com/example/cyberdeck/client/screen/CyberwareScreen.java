@@ -1,17 +1,25 @@
 package com.example.cyberdeck.client.screen;
 
-import java.util.List;
-import java.util.Locale;
-
+import com.example.cyberdeck.cyberware.BodySlot;
+import com.example.cyberdeck.cyberware.Cyberware;
+import com.example.cyberdeck.cyberware.CyberwareAttachments;
+import com.example.cyberdeck.cyberware.CyberwareCapacity;
+import com.example.cyberdeck.cyberware.CyberwareData;
+import com.example.cyberdeck.cyberware.CyberwareFamily;
+import com.example.cyberdeck.cyberware.CyberwareItems;
+import com.example.cyberdeck.cyberware.SlotUnlock;
+import com.example.cyberdeck.network.EquipCyberwarePacket;
+import com.example.cyberdeck.network.RemoveCyberwarePacket;
+import com.example.cyberdeck.ram.RamAttachments;
 import com.mojang.blaze3d.platform.cursor.CursorTypes;
 
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.FormattedCharSequence;
@@ -20,23 +28,18 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 
-import com.example.cyberdeck.cyberware.BodySlot;
-import com.example.cyberdeck.cyberware.Cyberware;
-import com.example.cyberdeck.cyberware.CyberwareAttachments;
-import com.example.cyberdeck.cyberware.CyberwareData;
-import com.example.cyberdeck.cyberware.CyberwareItems;
-import com.example.cyberdeck.network.EquipCyberwarePacket;
-import com.example.cyberdeck.network.RemoveCyberwarePacket;
-import com.example.cyberdeck.ram.RamAttachments;
+import java.util.List;
+import java.util.Locale;
 
-/** Cyberpunk-style full-body cyberware overview with a secondary installation catalog. */
+/** Full-body ripperdoc UI with indexed sockets, family paging and tier-specific effects. */
 public final class CyberwareScreen extends Screen {
     private static final int DESIGN_WIDTH = 960;
     private static final int DESIGN_HEIGHT = 540;
-    private static final int SOCKET_WIDTH = 55;
-    private static final int SOCKET_HEIGHT = 50;
-    private static final int SOCKET_GAP = 1;
+    private static final int SOCKET_WIDTH = 46;
+    private static final int SOCKET_HEIGHT = 44;
+    private static final int SOCKET_GAP = 2;
     private static final int ACTION_LOCK_MS = 450;
+    private static final int FAMILIES_PER_PAGE = 8;
     private static final int ANATOMY_TEXTURE_WIDTH = 330;
     private static final int ANATOMY_TEXTURE_HEIGHT = 537;
     private static final Identifier ANATOMY_TEXTURE = Identifier.fromNamespaceAndPath(
@@ -44,7 +47,7 @@ public final class CyberwareScreen extends Screen {
 
     private static final int BACKGROUND_TOP = 0xFF14070B;
     private static final int BACKGROUND_BOTTOM = 0xFF02070A;
-    private static final int PANEL = 0xF20A0A0F;
+    private static final int PANEL = 0xF6080B10;
     private static final int PANEL_SOFT = 0xE0120C12;
     private static final int PANEL_HOVER = 0xEE241117;
     private static final int RED = 0xFFFF4A4F;
@@ -53,42 +56,37 @@ public final class CyberwareScreen extends Screen {
     private static final int RED_FAINT = 0x493D1820;
     private static final int CYAN = 0xFF36E7F2;
     private static final int CYAN_DIM = 0xFF4C9FA7;
-    private static final int CYAN_FAINT = 0x3736E7F2;
     private static final int GREEN = 0xFF35E781;
+    private static final int GOLD = 0xFFFFC857;
     private static final int TEXT = 0xFFE9EBEB;
     private static final int TEXT_DIM = 0xFF789096;
     private static final int TEXT_DISABLED = 0xFF46555A;
 
     private static final Rect BACK_BUTTON = new Rect(866, 505, 70, 20);
+    private static final Rect DETAIL_PANEL = new Rect(56, 48, 848, 438);
+    private static final Rect DETAIL_CLOSE = new Rect(878, 58, 16, 16);
+    private static final Rect FAMILY_PREV = new Rect(76, 418, 84, 20);
+    private static final Rect FAMILY_NEXT = new Rect(252, 418, 84, 20);
+    private static final Rect DETAIL_ACTION = new Rect(610, 447, 270, 24);
 
     private static final GroupSpec[] GROUPS = {
-            new GroupSpec("FRONTAL CORTEX", null, 193, 99, 3, Side.LEFT,
-                    Glyph.BRAIN, 459, 100),
-            new GroupSpec("OCULAR SYSTEM", null, 306, 150, 1, Side.LEFT,
-                    Glyph.EYE, 455, 119),
-            new GroupSpec("CIRCULATORY\nSYSTEM", null, 193, 238, 3, Side.LEFT,
-                    Glyph.HEART, 444, 204),
-            new GroupSpec("IMMUNE SYSTEM", null, 250, 306, 2, Side.LEFT,
-                    Glyph.SHIELD, 442, 230),
-            new GroupSpec("NERVOUS\nSYSTEM", BodySlot.NERVOUS_SYSTEM, 250, 357, 2, Side.LEFT,
-                    Glyph.CHIP, 454, 258),
-            new GroupSpec("INTEGUMENTARY\nSYSTEM", BodySlot.INTEGUMENTARY_SYSTEM, 193, 412, 3, Side.LEFT,
-                    Glyph.SKIN, 450, 320),
-
-            new GroupSpec("OPERATING\nSYSTEM", BodySlot.OPERATING_SYSTEM, 596, 152, 1, Side.RIGHT,
-                    Glyph.DRIVE, 524, 145),
-            new GroupSpec("SKELETON", null, 596, 261, 2, Side.RIGHT,
-                    Glyph.BONE, 523, 210),
-            new GroupSpec("HANDS", BodySlot.HANDS, 596, 312, 1, Side.RIGHT,
-                    Glyph.HAND, 558, 255),
-            new GroupSpec("ARMS", BodySlot.ARMS, 596, 362, 1, Side.RIGHT,
-                    Glyph.ARM, 553, 284),
-            new GroupSpec("LEGS", BodySlot.LEGS, 596, 412, 1, Side.RIGHT,
-                    Glyph.LEG, 530, 366)
+            new GroupSpec(BodySlot.FRONTAL_CORTEX, 190, 70, Side.LEFT, 456, 96),
+            new GroupSpec(BodySlot.FACE, 238, 155, Side.LEFT, 455, 120),
+            new GroupSpec(BodySlot.CIRCULATORY_SYSTEM, 190, 240, Side.LEFT, 444, 204),
+            new GroupSpec(BodySlot.NERVOUS_SYSTEM, 190, 325, Side.LEFT, 454, 258),
+            new GroupSpec(BodySlot.INTEGUMENTARY_SYSTEM, 190, 410, Side.LEFT, 450, 320),
+            new GroupSpec(BodySlot.OPERATING_SYSTEM, 630, 70, Side.RIGHT, 524, 145),
+            new GroupSpec(BodySlot.SKELETON, 630, 155, Side.RIGHT, 523, 210),
+            new GroupSpec(BodySlot.HANDS, 630, 240, Side.RIGHT, 558, 255),
+            new GroupSpec(BodySlot.ARMS, 630, 325, Side.RIGHT, 553, 284),
+            new GroupSpec(BodySlot.LEGS, 630, 410, Side.RIGHT, 530, 366)
     };
 
     private BodySlot selectedSlot = BodySlot.OPERATING_SYSTEM;
+    private int selectedSocket;
+    private String selectedFamilyId;
     private Cyberware selectedCyberware;
+    private int familyPage;
     private boolean detailsOpen;
     private long interactionLockedUntil;
 
@@ -98,11 +96,12 @@ public final class CyberwareScreen extends Screen {
 
     @Override
     protected void init() {
-        chooseCyberwareForSlot(selectedSlot);
+        chooseForSocket();
     }
 
     @Override
-    public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
+    public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY,
+                                  float partialTick) {
         graphics.fillGradient(0, 0, this.width, this.height, BACKGROUND_TOP, BACKGROUND_BOTTOM);
         for (int y = 2; y < this.height; y += 4) {
             graphics.fill(0, y, this.width, y + 1, 0x09000000);
@@ -110,34 +109,30 @@ public final class CyberwareScreen extends Screen {
     }
 
     @Override
-    public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
+    public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY,
+                                   float partialTick) {
         Viewport viewport = viewport();
         double designMouseX = viewport.toDesignX(mouseX);
         double designMouseY = viewport.toDesignY(mouseY);
-        ensureCyberwareSelection();
+        ensureSelection();
 
         graphics.pose().pushMatrix();
         graphics.pose().translate(viewport.offsetX(), viewport.offsetY());
         graphics.pose().scale(viewport.scale(), viewport.scale());
-
         renderFrame(graphics);
         renderHeader(graphics);
-        renderScannerBackdrop(graphics);
-        renderAnatomyModel(graphics);
+        renderAnatomy(graphics);
         for (GroupSpec group : GROUPS) {
             renderConnection(graphics, group);
         }
-        renderPlayerScanOverlay(graphics);
-        for (int index = 0; index < GROUPS.length; index++) {
-            renderGroup(graphics, GROUPS[index], index,
-                    designMouseX, designMouseY, mouseX, mouseY);
+        for (GroupSpec group : GROUPS) {
+            renderGroup(graphics, group, designMouseX, designMouseY);
         }
         if (detailsOpen) {
             graphics.nextStratum();
-            renderDetailOverlay(graphics, designMouseX, designMouseY, mouseX, mouseY);
+            renderCatalog(graphics, designMouseX, designMouseY);
         }
         renderFooter(graphics, designMouseX, designMouseY);
-
         graphics.pose().popMatrix();
         super.extractRenderState(graphics, mouseX, mouseY, partialTick);
     }
@@ -147,54 +142,74 @@ public final class CyberwareScreen extends Screen {
         if (event.button() != 0) {
             return super.mouseClicked(event, doubleClick);
         }
-
         Viewport viewport = viewport();
         double mouseX = viewport.toDesignX(event.x());
         double mouseY = viewport.toDesignY(event.y());
         if (!viewport.contains(event.x(), event.y())) {
             return true;
         }
-
         if (detailsOpen) {
-            Rect panel = detailPanel();
-            if (detailCloseRect().contains(mouseX, mouseY) || BACK_BUTTON.contains(mouseX, mouseY)) {
-                detailsOpen = false;
-                return true;
-            }
-
-            List<Cyberware> options = Cyberware.forSlot(selectedSlot);
-            for (int index = 0; index < options.size(); index++) {
-                if (optionRect(index, options.size()).contains(mouseX, mouseY)) {
-                    selectedCyberware = options.get(index);
-                    return true;
-                }
-            }
-
-            if (detailActionRect().contains(mouseX, mouseY)) {
-                performSelectedAction();
-                return true;
-            }
-            if (!panel.contains(mouseX, mouseY)) {
-                detailsOpen = false;
-            }
-            return true;
+            return clickCatalog(mouseX, mouseY);
         }
-
         if (BACK_BUTTON.contains(mouseX, mouseY)) {
             onClose();
             return true;
         }
         for (GroupSpec group : GROUPS) {
-            if (groupHitRect(group).contains(mouseX, mouseY)) {
-                if (group.slot() != null) {
-                    selectedSlot = group.slot();
-                    chooseCyberwareForSlot(selectedSlot);
-                    detailsOpen = true;
+            for (int socket = 0; socket < group.slot().maximumSockets(); socket++) {
+                if (socketRect(group, socket).contains(mouseX, mouseY)) {
+                    openCatalog(group.slot(), socket);
+                    return true;
                 }
+            }
+            if (groupHitRect(group).contains(mouseX, mouseY)) {
+                openCatalog(group.slot(), firstUsefulSocket(group.slot()));
                 return true;
             }
         }
         return super.mouseClicked(event, doubleClick);
+    }
+
+    private boolean clickCatalog(double mouseX, double mouseY) {
+        if (DETAIL_CLOSE.contains(mouseX, mouseY) || BACK_BUTTON.contains(mouseX, mouseY)) {
+            detailsOpen = false;
+            return true;
+        }
+        List<CyberwareFamily> families = families();
+        int pageCount = pageCount(families.size());
+        if (FAMILY_PREV.contains(mouseX, mouseY) && familyPage > 0) {
+            familyPage--;
+            return true;
+        }
+        if (FAMILY_NEXT.contains(mouseX, mouseY) && familyPage + 1 < pageCount) {
+            familyPage++;
+            return true;
+        }
+        int start = familyPage * FAMILIES_PER_PAGE;
+        int end = Math.min(families.size(), start + FAMILIES_PER_PAGE);
+        for (int index = start; index < end; index++) {
+            if (familyRect(index - start).contains(mouseX, mouseY)) {
+                selectFamily(families.get(index));
+                return true;
+            }
+        }
+        CyberwareFamily family = selectedFamily();
+        if (family != null) {
+            for (int index = 0; index < family.variants().size(); index++) {
+                if (tierRect(index).contains(mouseX, mouseY)) {
+                    selectedCyberware = family.variants().get(index);
+                    return true;
+                }
+            }
+        }
+        if (DETAIL_ACTION.contains(mouseX, mouseY)) {
+            performSelectedAction();
+            return true;
+        }
+        if (!DETAIL_PANEL.contains(mouseX, mouseY)) {
+            detailsOpen = false;
+        }
+        return true;
     }
 
     @Override
@@ -206,6 +221,23 @@ public final class CyberwareScreen extends Screen {
         return super.keyPressed(event);
     }
 
+    private void openCatalog(BodySlot slot, int socket) {
+        selectedSlot = slot;
+        selectedSocket = Math.max(0, Math.min(socket, slot.maximumSockets() - 1));
+        familyPage = 0;
+        chooseForSocket();
+        if (selectedFamilyId != null) {
+            List<CyberwareFamily> families = families();
+            for (int index = 0; index < families.size(); index++) {
+                if (families.get(index).id().equals(selectedFamilyId)) {
+                    familyPage = index / FAMILIES_PER_PAGE;
+                    break;
+                }
+            }
+        }
+        detailsOpen = true;
+    }
+
     private void renderFrame(GuiGraphicsExtractor graphics) {
         graphics.fill(0, 0, 9, DESIGN_HEIGHT, 0xB008070A);
         graphics.fill(DESIGN_WIDTH - 9, 0, DESIGN_WIDTH, DESIGN_HEIGHT, 0xB008070A);
@@ -215,392 +247,284 @@ public final class CyberwareScreen extends Screen {
             graphics.fill(5, y, 9, y + 2, RED_DIM);
             graphics.fill(DESIGN_WIDTH - 9, y, DESIGN_WIDTH - 5, y + 2, RED_DIM);
         }
-
-        graphics.text(this.font, "0110", 16, 42, RED_DIM, false);
-        graphics.text(this.font, "1001", DESIGN_WIDTH - 40, 42, RED_DIM, false);
         graphics.text(this.font, "NEURAL_LINK", 17, DESIGN_HEIGHT - 28, TEXT_DISABLED, false);
-        String version = "RIPPERDOC // MK.IV";
+        String version = "RIPPERDOC // CATALOG 2.0";
         graphics.text(this.font, version, DESIGN_WIDTH - 17 - this.font.width(version),
                 DESIGN_HEIGHT - 28, TEXT_DISABLED, false);
     }
 
     private void renderHeader(GuiGraphicsExtractor graphics) {
         Player player = Minecraft.getInstance().player;
+        CyberwareData data = currentData();
         int level = player == null ? 0 : player.experienceLevel;
         int ram = player == null ? 0 : RamAttachments.get(player);
-        int installed = installedCount(currentData());
+        int maxRam = player == null ? RamAttachments.BASE_MAX_RAM : RamAttachments.max(player);
+        int used = data == null ? 0 : data.capacityUsed();
+        int maximum = player == null || data == null ? 0 : CyberwareCapacity.maximum(player, data);
 
         graphics.text(this.font, level + " LEVEL", 38, 11, CYAN, false);
-        graphics.fill(38, 25, 96, 27, 0xFF26363A);
-        if (player != null) {
-            graphics.fill(38, 25, 38 + Math.round(58 * player.experienceProgress), 27, CYAN);
-        }
-        graphics.text(this.font, ram + " RAM", 118, 11, GREEN, false);
-
-        graphics.centeredText(this.font, "CYBERWARE", DESIGN_WIDTH / 2, 25, CYAN);
-
-        String capacity = "CAPACITY  " + installed + "/" + BodySlot.VALUES.length;
-        graphics.text(this.font, capacity, 905 - this.font.width(capacity), 11, RED, false);
+        graphics.text(this.font, ram + "/" + maxRam + " RAM", 118, 11, GREEN, false);
+        graphics.centeredText(this.font, "CYBERWARE", DESIGN_WIDTH / 2, 20, CYAN);
+        String capacity = "CAPACITY  " + used + "/" + maximum;
+        graphics.text(this.font, capacity, 922 - this.font.width(capacity), 11,
+                used > maximum ? RED_BRIGHT : GOLD, false);
         graphics.horizontalLine(26, DESIGN_WIDTH - 27, 36, RED);
         graphics.fill(26, 34, 97, 37, RED);
     }
 
-    private void renderScannerBackdrop(GuiGraphicsExtractor graphics) {
-        int centerX = 480;
-        int centerY = 286;
-        drawCircle(graphics, centerX, centerY, 124, RED_FAINT);
-        drawCircle(graphics, centerX, centerY, 103, 0x3836E7F2);
-        drawCircle(graphics, centerX, centerY, 82, 0x343D1820);
-        for (int angle = 0; angle < 360; angle += 30) {
-            double radians = Math.toRadians(angle);
-            int x = centerX + (int) Math.round(Math.cos(radians) * 124);
-            int y = centerY + (int) Math.round(Math.sin(radians) * 124);
-            graphics.fill(x - 1, y - 1, x + 2, y + 2, angle % 60 == 0 ? CYAN_DIM : RED_DIM);
-        }
-
-        graphics.verticalLine(centerX, 55, 466, RED_FAINT);
-        graphics.horizontalLine(366, 594, centerY, RED_FAINT);
-        graphics.text(this.font, "MODEL_V", 365, 53, RED_DIM, false);
-        graphics.text(this.font, "BIO_MONITOR", 548, 53, RED_DIM, false);
+    private void renderAnatomy(GuiGraphicsExtractor graphics) {
+        drawCircle(graphics, 480, 286, 124, RED_FAINT);
+        drawCircle(graphics, 480, 286, 103, 0x3836E7F2);
+        graphics.blit(RenderPipelines.GUI_TEXTURED, ANATOMY_TEXTURE,
+                362, 47, 0.0F, 0.0F, 236, 430,
+                ANATOMY_TEXTURE_WIDTH, ANATOMY_TEXTURE_HEIGHT,
+                ANATOMY_TEXTURE_WIDTH, ANATOMY_TEXTURE_HEIGHT);
+        int scanY = 88 + (int) ((Util.getMillis() / 28L) % 342L);
+        graphics.fill(397, scanY, 563, scanY + 1, 0x6E36E7F2);
+        graphics.text(this.font, "BIOMETRIC SCAN // LIVE", 392, 455, GREEN, false);
     }
 
     private void renderConnection(GuiGraphicsExtractor graphics, GroupSpec group) {
-        int socketsWidth = group.socketCount() * SOCKET_WIDTH
-                + Math.max(0, group.socketCount() - 1) * SOCKET_GAP;
+        int socketsWidth = group.slot().maximumSockets() * SOCKET_WIDTH
+                + (group.slot().maximumSockets() - 1) * SOCKET_GAP;
         int startX = group.side() == Side.LEFT ? group.x() + socketsWidth : group.x();
         int startY = group.y() + SOCKET_HEIGHT / 2;
-        int bendX = group.side() == Side.LEFT ? Math.min(410, startX + 54) : Math.max(550, startX - 44);
-        int color = group.slot() == selectedSlot && detailsOpen ? CYAN_DIM : RED_FAINT;
-
+        int bendX = group.side() == Side.LEFT ? Math.min(410, startX + 36) : Math.max(550, startX - 36);
+        int color = detailsOpen && group.slot() == selectedSlot ? CYAN_DIM : RED_FAINT;
         drawLine(graphics, startX, startY, bendX, startY, 1, color);
         drawLine(graphics, bendX, startY, group.targetX(), group.targetY(), 1, color);
         graphics.fill(group.targetX() - 2, group.targetY() - 2,
                 group.targetX() + 3, group.targetY() + 3, color);
-        graphics.fill(group.targetX() - 1, group.targetY() - 1,
-                group.targetX() + 2, group.targetY() + 2, BACKGROUND_BOTTOM);
     }
 
-    private void renderAnatomyModel(GuiGraphicsExtractor graphics) {
-        graphics.blit(
-                RenderPipelines.GUI_TEXTURED,
-                ANATOMY_TEXTURE,
-                362,
-                47,
-                0.0F,
-                0.0F,
-                236,
-                430,
-                ANATOMY_TEXTURE_WIDTH,
-                ANATOMY_TEXTURE_HEIGHT,
-                ANATOMY_TEXTURE_WIDTH,
-                ANATOMY_TEXTURE_HEIGHT);
-    }
-
-    private void renderPlayerScanOverlay(GuiGraphicsExtractor graphics) {
-        int anatomyRed = 0x68FF4A4F;
-        int anatomyCyan = 0x5836E7F2;
-        drawCircle(graphics, 480, 111, 21, anatomyRed);
-        drawLine(graphics, 480, 132, 480, 292, 1, anatomyCyan);
-        drawLine(graphics, 448, 158, 512, 158, 1, anatomyRed);
-        drawLine(graphics, 450, 160, 425, 258, 1, anatomyRed);
-        drawLine(graphics, 510, 160, 535, 258, 1, anatomyRed);
-        drawLine(graphics, 458, 292, 502, 292, 1, anatomyCyan);
-        drawLine(graphics, 464, 292, 452, 440, 1, anatomyRed);
-        drawLine(graphics, 496, 292, 508, 440, 1, anatomyRed);
-        for (int y = 154; y <= 292; y += 23) {
-            graphics.fill(478, y - 2, 483, y + 3, y % 46 == 0 ? CYAN_DIM : RED_DIM);
-        }
-
-        int scanY = 88 + (int) ((Util.getMillis() / 28L) % 342L);
-        graphics.fill(397, scanY, 563, scanY + 1, 0x6E36E7F2);
-        graphics.fill(420, scanY + 1, 540, scanY + 2, 0x3036E7F2);
-        graphics.text(this.font, "BIOMETRIC SCAN // LIVE", 392, 455, GREEN, false);
-        graphics.text(this.font, "NEURAL SYNC 100%", 445, 467, CYAN_DIM, false);
-    }
-
-    private void renderGroup(GuiGraphicsExtractor graphics, GroupSpec group, int groupIndex,
-                             double mouseX, double mouseY, int rawMouseX, int rawMouseY) {
-        boolean interactive = group.slot() != null;
-        boolean hovered = groupHitRect(group).contains(mouseX, mouseY);
-        boolean selected = interactive && detailsOpen && group.slot() == selectedSlot;
-        int edge = selected ? CYAN : hovered ? RED_BRIGHT : RED_DIM;
-
+    private void renderGroup(GuiGraphicsExtractor graphics, GroupSpec group,
+                             double mouseX, double mouseY) {
         CyberwareData data = currentData();
-        Cyberware installed = interactive && data != null ? data.get(group.slot()) : null;
-        for (int socketIndex = 0; socketIndex < group.socketCount(); socketIndex++) {
-            int socketX = group.x() + socketIndex * (SOCKET_WIDTH + SOCKET_GAP);
-            Rect socket = new Rect(socketX, group.y(), SOCKET_WIDTH, SOCKET_HEIGHT);
-            Cyberware cyberware = socketIndex == 0 ? installed : null;
-            Glyph glyph = !interactive && (socketIndex == 0 || group.glyph() == Glyph.BONE)
-                    ? group.glyph() : null;
-            renderSocket(graphics, socket, edge, hovered, cyberware, glyph, groupIndex);
-        }
-
-        renderGroupLabel(graphics, group, selected ? CYAN : RED, interactive);
-        if (hovered) {
-            graphics.requestCursor(interactive ? CursorTypes.POINTING_HAND : CursorTypes.NOT_ALLOWED);
-            Rect installedIcon = new Rect(group.x(), group.y(), SOCKET_WIDTH, SOCKET_HEIGHT);
-            if (!detailsOpen && installed != null && installedIcon.contains(mouseX, mouseY)) {
-                graphics.setTooltipForNextFrame(
-                        this.font, cyberwareItemStack(installed), rawMouseX, rawMouseY);
+        int unlocked = data == null ? group.slot().baseSockets() : data.unlockedSockets(group.slot());
+        boolean groupSelected = detailsOpen && group.slot() == selectedSlot;
+        for (int socket = 0; socket < group.slot().maximumSockets(); socket++) {
+            Rect rect = socketRect(group, socket);
+            boolean hovered = rect.contains(mouseX, mouseY);
+            boolean selected = groupSelected && socket == selectedSocket;
+            Cyberware installed = data == null ? null : data.get(group.slot(), socket);
+            boolean locked = socket >= unlocked;
+            int edge = locked ? TEXT_DISABLED : selected ? CYAN : hovered ? RED_BRIGHT : RED_DIM;
+            graphics.fill(rect.x(), rect.y(), rect.right(), rect.bottom(),
+                    locked ? 0xE1080A0D : installed != null ? 0xE20B242B
+                            : hovered ? PANEL_HOVER : PANEL_SOFT);
+            graphics.outline(rect.x(), rect.y(), rect.width(), rect.height(), RED_FAINT);
+            graphics.fill(rect.x(), rect.y(), rect.x() + 3, rect.bottom(),
+                    locked ? TEXT_DISABLED : installed == null ? RED_DIM : CYAN);
+            drawCornerBrackets(graphics, rect, edge, 6);
+            if (installed != null) {
+                renderCyberwareIcon(graphics, installed,
+                        new Rect(rect.x() + 7, rect.y() + 6, rect.width() - 13, rect.height() - 11));
+                graphics.text(this.font, installed.tier().id(), rect.x() + 4,
+                        rect.bottom() - 10, GREEN, false);
+            } else if (locked) {
+                graphics.text(this.font, "LOCK", rect.x() + 10, rect.y() + 17,
+                        TEXT_DISABLED, false);
+            } else {
+                graphics.centeredText(this.font, "+", rect.x() + rect.width() / 2,
+                        rect.y() + 16, RED_DIM);
+            }
+            if (hovered) {
+                graphics.requestCursor(CursorTypes.POINTING_HAND);
             }
         }
+        renderGroupLabel(graphics, group, unlocked);
     }
 
-    private void renderGroupLabel(GuiGraphicsExtractor graphics, GroupSpec group,
-                                  int titleColor, boolean interactive) {
-        int socketsWidth = group.socketCount() * SOCKET_WIDTH
-                + Math.max(0, group.socketCount() - 1) * SOCKET_GAP;
-        String[] labelLines = group.label().split("\\n");
-        int labelEdge = group.side() == Side.LEFT ? group.x() - 8 : group.x() + socketsWidth + 8;
-        for (int line = 0; line < labelLines.length; line++) {
-            String label = labelLines[line];
-            int labelX = group.side() == Side.LEFT ? labelEdge - this.font.width(label) : labelEdge;
-            graphics.text(this.font, label, labelX, group.y() + 3 + line * 10, titleColor, false);
-        }
-
-        int available = interactive ? availableOptions(group.slot()) : 0;
-        String status = available > 0 ? "AVAILABLE MODS" : "MODS UNAVAILABLE";
-        int statusY = group.y() + (labelLines.length > 1 ? 29 : 23);
+    private void renderGroupLabel(GuiGraphicsExtractor graphics, GroupSpec group, int unlocked) {
+        int width = group.slot().maximumSockets() * SOCKET_WIDTH
+                + (group.slot().maximumSockets() - 1) * SOCKET_GAP;
+        String name = group.slot().displayName().toUpperCase(Locale.ROOT);
+        String sockets = unlocked + "/" + group.slot().maximumSockets() + " SLOTS";
         if (group.side() == Side.LEFT) {
-            int statusRight = group.x() - 8;
-            if (available > 0) {
-                Rect badge = new Rect(statusRight - 11, statusY - 2, 11, 11);
-                renderCountBadge(graphics, badge, available);
-                statusRight = badge.x() - 4;
-            }
-            graphics.text(this.font, status, statusRight - this.font.width(status),
-                    statusY, available > 0 ? CYAN_DIM : TEXT_DISABLED, false);
+            int right = group.x() - 8;
+            graphics.text(this.font, name, right - this.font.width(name), group.y() + 7, RED, false);
+            graphics.text(this.font, sockets, right - this.font.width(sockets), group.y() + 22,
+                    unlocked == group.slot().maximumSockets() ? CYAN_DIM : GOLD, false);
         } else {
-            int statusX = group.x() + socketsWidth + 8;
-            graphics.text(this.font, status, statusX, statusY,
-                    available > 0 ? CYAN_DIM : TEXT_DISABLED, false);
-            if (available > 0) {
-                Rect badge = new Rect(statusX + this.font.width(status) + 4, statusY - 2, 11, 11);
-                renderCountBadge(graphics, badge, available);
-            }
+            int x = group.x() + width + 8;
+            graphics.text(this.font, name, x, group.y() + 7, RED, false);
+            graphics.text(this.font, sockets, x, group.y() + 22,
+                    unlocked == group.slot().maximumSockets() ? CYAN_DIM : GOLD, false);
         }
     }
 
-    private void renderCountBadge(GuiGraphicsExtractor graphics, Rect badge, int count) {
-        graphics.fill(badge.x(), badge.y(), badge.right(), badge.bottom(), CYAN_DIM);
-        String countText = Integer.toString(count);
-        graphics.centeredText(this.font, countText, badge.x() + badge.width() / 2,
-                badge.y() + 1, BACKGROUND_BOTTOM);
-    }
+    private void renderCatalog(GuiGraphicsExtractor graphics, double mouseX, double mouseY) {
+        graphics.fill(0, 0, DESIGN_WIDTH, DESIGN_HEIGHT, 0xA9050609);
+        graphics.fill(DETAIL_PANEL.x(), DETAIL_PANEL.y(), DETAIL_PANEL.right(), DETAIL_PANEL.bottom(), PANEL);
+        graphics.outline(DETAIL_PANEL.x(), DETAIL_PANEL.y(), DETAIL_PANEL.width(), DETAIL_PANEL.height(), RED);
+        drawCornerBrackets(graphics, DETAIL_PANEL, CYAN, 12);
+        graphics.text(this.font, "X", DETAIL_CLOSE.x() + 4, DETAIL_CLOSE.y() + 3, RED, false);
 
-    private void renderSocket(GuiGraphicsExtractor graphics, Rect socket, int edge, boolean hovered,
-                              Cyberware cyberware, Glyph glyph, int seed) {
-        graphics.fill(socket.x(), socket.y(), socket.right(), socket.bottom(),
-                cyberware != null ? 0xE20B242B : hovered ? PANEL_HOVER : PANEL_SOFT);
-        graphics.outline(socket.x(), socket.y(), socket.width(), socket.height(), RED_FAINT);
-        graphics.fill(socket.x(), socket.y(), socket.x() + 3, socket.bottom(),
-                cyberware == null ? RED_DIM : CYAN);
-        graphics.fill(socket.x() + 5, socket.y() + 4, socket.x() + 8, socket.y() + 7, CYAN_DIM);
-        graphics.fill(socket.x() + 10, socket.y() + 4, socket.x() + 13, socket.y() + 7, GREEN);
-        graphics.fill(socket.x() + 15, socket.y() + 4, socket.x() + 18, socket.y() + 7, RED);
-        drawCornerBrackets(graphics, socket, edge, 6);
-
-        if (cyberware != null) {
-            renderCyberwareItem(graphics, cyberware,
-                    new Rect(socket.x() + 8, socket.y() + 9,
-                            socket.width() - 16, socket.height() - 14));
-            drawLine(graphics, socket.right() - 10, socket.bottom() - 1,
-                    socket.right() - 1, socket.bottom() - 10, 2, CYAN);
-        } else if (glyph != null) {
-            renderGlyph(graphics, glyph, socket, seed);
-        } else {
-            int centerX = socket.x() + socket.width() / 2;
-            int centerY = socket.y() + socket.height() / 2 + 2;
-            graphics.horizontalLine(centerX - 6, centerX + 6, centerY, RED_DIM);
-            graphics.verticalLine(centerX, centerY - 6, centerY + 6, RED_DIM);
-        }
-    }
-
-    private void renderGlyph(GuiGraphicsExtractor graphics, Glyph glyph, Rect socket, int seed) {
-        graphics.pose().pushMatrix();
-        graphics.pose().translate(socket.x() + 9, socket.y() + 8);
-        graphics.pose().scale(1.55F, 1.55F);
-        int x = 0;
-        int y = 0;
-        int color = seed % 3 == 0 ? CYAN_DIM : TEXT_DIM;
-        switch (glyph) {
-            case BRAIN -> {
-                drawCircle(graphics, x + 11, y + 9, 8, color);
-                drawLine(graphics, x + 11, y + 2, x + 11, y + 17, 1, color);
-                drawLine(graphics, x + 4, y + 8, x + 18, y + 8, 1, color);
-            }
-            case EYE -> {
-                drawLine(graphics, x, y + 9, x + 11, y + 2, 1, color);
-                drawLine(graphics, x + 11, y + 2, x + 22, y + 9, 1, color);
-                drawLine(graphics, x + 22, y + 9, x + 11, y + 16, 1, color);
-                drawLine(graphics, x + 11, y + 16, x, y + 9, 1, color);
-                graphics.fill(x + 9, y + 7, x + 14, y + 12, CYAN);
-            }
-            case HEART -> {
-                drawLine(graphics, x + 1, y + 4, x + 11, y + 17, 2, color);
-                drawLine(graphics, x + 21, y + 4, x + 11, y + 17, 2, color);
-                drawLine(graphics, x + 1, y + 4, x + 7, y + 1, 2, color);
-                drawLine(graphics, x + 21, y + 4, x + 15, y + 1, 2, color);
-            }
-            case SHIELD -> {
-                graphics.outline(x + 3, y, 16, 17, color);
-                drawLine(graphics, x + 3, y + 12, x + 11, y + 20, 1, color);
-                drawLine(graphics, x + 19, y + 12, x + 11, y + 20, 1, color);
-            }
-            case BONE -> {
-                drawLine(graphics, x + 3, y + 17, x + 19, y + 1, 3, color);
-                graphics.fill(x, y + 15, x + 6, y + 20, color);
-                graphics.fill(x + 17, y, x + 22, y + 5, color);
-            }
-            case HAND -> {
-                graphics.outline(x + 6, y + 8, 12, 11, color);
-                for (int finger = 0; finger < 4; finger++) {
-                    graphics.fill(x + 6 + finger * 3, y + 1 + finger % 2,
-                            x + 8 + finger * 3, y + 10, color);
-                }
-            }
-            case SKIN -> {
-                for (int line = 0; line < 4; line++) {
-                    graphics.horizontalLine(x + line, x + 21 - line, y + 3 + line * 4, color);
-                }
-            }
-            case CHIP, DRIVE, ARM, LEG -> {
-                graphics.outline(x + 3, y + 2, 16, 16, color);
-                graphics.fill(x + 7, y + 6, x + 15, y + 14, CYAN_DIM);
-                for (int pin = 0; pin < 4; pin++) {
-                    graphics.fill(x, y + 3 + pin * 4, x + 4, y + 4 + pin * 4, color);
-                    graphics.fill(x + 18, y + 3 + pin * 4, x + 22, y + 4 + pin * 4, color);
-                }
-            }
-        }
-        graphics.pose().popMatrix();
-    }
-
-    private void renderDetailOverlay(GuiGraphicsExtractor graphics, double mouseX, double mouseY,
-                                     int rawMouseX, int rawMouseY) {
-        Rect panel = detailPanel();
-        Rect close = detailCloseRect();
-        graphics.fill(0, 0, DESIGN_WIDTH, DESIGN_HEIGHT, 0x72050609);
-        graphics.fill(panel.x(), panel.y(), panel.right(), panel.bottom(), PANEL);
-        graphics.outline(panel.x(), panel.y(), panel.width(), panel.height(), RED);
-        drawCornerBrackets(graphics, panel, CYAN, 12);
-
-        String slotName = selectedSlot.displayName().toUpperCase(Locale.ROOT);
-        graphics.text(this.font, ellipsize(slotName, panel.width() - 42),
-                panel.x() + 11, panel.y() + 11, RED, false);
-        graphics.text(this.font, "CYBERWARE CATALOG", panel.x() + 11,
-                panel.y() + 25, CYAN_DIM, false);
-        graphics.text(this.font, "X", close.x() + 4, close.y() + 3, RED, false);
-
-        List<Cyberware> options = Cyberware.forSlot(selectedSlot);
-        for (int index = 0; index < options.size(); index++) {
-            renderOptionCard(graphics, options.get(index), optionRect(index, options.size()),
-                    mouseX, mouseY, rawMouseX, rawMouseY);
-        }
-
-        renderDetailAction(graphics, mouseX, mouseY);
-        if (close.contains(mouseX, mouseY)) {
-            graphics.requestCursor(CursorTypes.POINTING_HAND);
-        }
-    }
-
-    private void renderOptionCard(GuiGraphicsExtractor graphics, Cyberware cyberware, Rect card,
-                                  double mouseX, double mouseY,
-                                  int rawMouseX, int rawMouseY) {
         CyberwareData data = currentData();
-        boolean installed = data != null && data.get(cyberware.slot()) == cyberware;
-        boolean selected = cyberware == selectedCyberware;
-        boolean hovered = card.contains(mouseX, mouseY);
-        int edge = installed ? GREEN : selected ? CYAN : hovered ? RED_BRIGHT : RED_DIM;
-
-        graphics.fill(card.x(), card.y(), card.right(), card.bottom(),
-                selected ? 0xF01A1015 : hovered ? PANEL_HOVER : PANEL_SOFT);
-        graphics.outline(card.x(), card.y(), card.width(), card.height(), RED_FAINT);
-        drawCornerBrackets(graphics, card, edge, 8);
-        if (installed) {
-            graphics.fill(card.x(), card.y(), card.x() + 3, card.bottom(), GREEN);
+        int unlocked = data == null ? selectedSlot.baseSockets() : data.unlockedSockets(selectedSlot);
+        boolean lockedSocket = selectedSocket >= unlocked;
+        String title = selectedSlot.displayName().toUpperCase(Locale.ROOT)
+                + "  //  SOCKET " + (selectedSocket + 1);
+        graphics.text(this.font, title, 74, 62, RED, false);
+        if (lockedSocket) {
+            SlotUnlock unlock = selectedSlot.unlockForSocket(selectedSocket);
+            String requirement = unlock == null ? "LOCKED" : "LOCKED — REQUIRES "
+                    + unlock.displayName().toUpperCase(Locale.ROOT);
+            graphics.text(this.font, requirement, 370, 62, GOLD, false);
+        } else {
+            graphics.text(this.font, "TIER-RESOLVED WIKI CATALOG", 370, 62, CYAN_DIM, false);
         }
 
-        Rect iconBox = new Rect(card.x() + 8, card.y() + 10, 46, 46);
-        graphics.fill(iconBox.x(), iconBox.y(), iconBox.right(), iconBox.bottom(), 0xE30A171C);
-        drawCornerBrackets(graphics, iconBox, edge, 6);
-        renderCyberwareItem(graphics, cyberware,
-                new Rect(iconBox.x() + 7, iconBox.y() + 7,
-                        iconBox.width() - 14, iconBox.height() - 14));
-
-        String name = cyberware.displayName().toUpperCase(Locale.ROOT);
-        int textX = card.x() + 62;
-        int textWidth = Math.max(1, card.right() - textX - 7);
-        graphics.text(this.font, ellipsize(name, textWidth),
-                textX, card.y() + 10, selected ? CYAN : TEXT, false);
-
-        int owned = inventoryCount(cyberware);
-        String status = installed ? "INSTALLED" : owned > 0 ? owned + " OWNED" : "ITEM REQUIRED";
-        int statusColor = installed ? GREEN : owned > 0 ? CYAN_DIM : TEXT_DISABLED;
-        graphics.text(this.font, ellipsize(status, textWidth),
-                textX, card.y() + 24, statusColor, false);
-
-        Component description = Component.translatable("tooltip.cyberdeck.cyberware." + cyberware.id());
-        List<FormattedCharSequence> lines = this.font.split(description, textWidth);
-        int maxLines = Math.max(1, (card.height() - 45) / 9);
-        for (int line = 0; line < lines.size() && line < maxLines; line++) {
-            graphics.text(this.font, lines.get(line), textX,
-                    card.y() + 39 + line * 9, TEXT_DIM, false);
-        }
-
-        if (hovered) {
+        renderFamilyList(graphics, mouseX, mouseY);
+        renderSelectedDetails(graphics, mouseX, mouseY, lockedSocket);
+        if (DETAIL_CLOSE.contains(mouseX, mouseY)) {
             graphics.requestCursor(CursorTypes.POINTING_HAND);
-            if (iconBox.contains(mouseX, mouseY)) {
-                graphics.setTooltipForNextFrame(
-                        this.font, cyberwareItemStack(cyberware), rawMouseX, rawMouseY);
-            }
         }
     }
 
-    private void renderDetailAction(GuiGraphicsExtractor graphics, double mouseX, double mouseY) {
+    private void renderFamilyList(GuiGraphicsExtractor graphics, double mouseX, double mouseY) {
+        List<CyberwareFamily> families = families();
+        int start = familyPage * FAMILIES_PER_PAGE;
+        int end = Math.min(families.size(), start + FAMILIES_PER_PAGE);
+        graphics.text(this.font, "IMPLANT FAMILIES", 76, 82, CYAN, false);
+        for (int index = start; index < end; index++) {
+            CyberwareFamily family = families.get(index);
+            Rect row = familyRect(index - start);
+            boolean selected = family.id().equals(selectedFamilyId);
+            boolean hovered = row.contains(mouseX, mouseY);
+            Cyberware representative = representative(family);
+            int owned = family.variants().stream().mapToInt(this::inventoryCount).sum();
+            boolean installed = currentData() != null
+                    && currentData().allInstalled().stream().anyMatch(cw -> cw.familyId().equals(family.id()));
+            graphics.fill(row.x(), row.y(), row.right(), row.bottom(),
+                    selected ? 0xEF16232A : hovered ? PANEL_HOVER : PANEL_SOFT);
+            graphics.outline(row.x(), row.y(), row.width(), row.height(), RED_FAINT);
+            graphics.fill(row.x(), row.y(), row.x() + 3, row.bottom(),
+                    installed ? GREEN : selected ? CYAN : RED_DIM);
+            renderCyberwareIcon(graphics, representative,
+                    new Rect(row.x() + 7, row.y() + 4, 28, 28));
+            graphics.text(this.font, ellipsize(family.displayName().toUpperCase(Locale.ROOT), 190),
+                    row.x() + 41, row.y() + 7, selected ? CYAN : TEXT, false);
+            String status = installed ? "INSTALLED" : owned > 0 ? owned + " OWNED" : "NOT OWNED";
+            graphics.text(this.font, status, row.x() + 41, row.y() + 21,
+                    installed ? GREEN : owned > 0 ? CYAN_DIM : TEXT_DISABLED, false);
+            if (hovered) {
+                graphics.requestCursor(CursorTypes.POINTING_HAND);
+            }
+        }
+        int pages = pageCount(families.size());
+        renderPageButton(graphics, FAMILY_PREV, "< PREV", familyPage > 0, mouseX, mouseY);
+        renderPageButton(graphics, FAMILY_NEXT, "NEXT >", familyPage + 1 < pages, mouseX, mouseY);
+        String page = (familyPage + 1) + " / " + pages;
+        graphics.centeredText(this.font, page, 206, 424, TEXT_DIM);
+    }
+
+    private void renderSelectedDetails(GuiGraphicsExtractor graphics, double mouseX, double mouseY,
+                                       boolean lockedSocket) {
         Cyberware cyberware = selectedCyberware;
         if (cyberware == null) {
+            graphics.text(this.font, "NO CATALOG ENTRY", 370, 104, TEXT_DISABLED, false);
             return;
         }
+        renderCyberwareIcon(graphics, cyberware, new Rect(370, 94, 64, 64));
+        graphics.text(this.font, ellipsize(cyberware.displayName().toUpperCase(Locale.ROOT), 430),
+                450, 98, TEXT, false);
+        graphics.text(this.font, cyberware.tier().displayName().toUpperCase(Locale.ROOT),
+                450, 114, tierColor(cyberware), false);
+        String stats = "CAPACITY " + cyberware.capacity();
+        if (cyberware.armor() > 0.0) {
+            stats += "  //  ARMOR " + format(cyberware.armor());
+        }
+        graphics.text(this.font, stats, 450, 132, GOLD, false);
+        graphics.text(this.font, "SOURCE EFFECT(S)", 370, 178, RED, false);
 
+        CyberwareFamily family = selectedFamily();
+        if (family != null) {
+            for (int index = 0; index < family.variants().size(); index++) {
+                Cyberware variant = family.variants().get(index);
+                Rect tier = tierRect(index);
+                boolean selected = variant == cyberware;
+                boolean owned = inventoryCount(variant) > 0;
+                boolean installed = currentData() != null
+                        && currentData().get(selectedSlot, selectedSocket) == variant;
+                int edge = installed ? GREEN : selected ? CYAN : owned ? GOLD : RED_DIM;
+                graphics.fill(tier.x(), tier.y(), tier.right(), tier.bottom(),
+                        selected ? 0xEE173B41 : PANEL_SOFT);
+                graphics.outline(tier.x(), tier.y(), tier.width(), tier.height(), edge);
+                graphics.centeredText(this.font, variant.tier().id(),
+                        tier.x() + tier.width() / 2, tier.y() + 5,
+                        installed ? GREEN : owned ? TEXT : TEXT_DIM);
+                if (tier.contains(mouseX, mouseY)) {
+                    graphics.requestCursor(CursorTypes.POINTING_HAND);
+                }
+            }
+        }
+
+        int effectY = 245;
+        List<FormattedCharSequence> lines = this.font.split(Component.literal(cyberware.effect()), 500);
+        int maxLines = 18;
+        for (int index = 0; index < lines.size() && index < maxLines; index++) {
+            graphics.text(this.font, lines.get(index), 370, effectY + index * 10, TEXT_DIM, false);
+        }
+        if (lines.size() > maxLines) {
+            graphics.text(this.font, "…", 370, effectY + maxLines * 10, TEXT_DIM, false);
+        }
+        renderAction(graphics, mouseX, mouseY, lockedSocket);
+    }
+
+    private void renderAction(GuiGraphicsExtractor graphics, double mouseX, double mouseY,
+                              boolean lockedSocket) {
+        Cyberware cyberware = selectedCyberware;
         CyberwareData data = currentData();
-        Cyberware active = data == null ? null : data.get(cyberware.slot());
-        boolean installed = active == cyberware;
-        boolean replacementBlocked = active != null && !installed;
-        int owned = inventoryCount(cyberware);
-        boolean locked = Util.getMillis() < interactionLockedUntil;
-        boolean enabled = !locked && (installed || owned > 0 && !replacementBlocked);
-        Rect panel = detailPanel();
-        Rect actionRect = detailActionRect();
-        boolean hovered = actionRect.contains(mouseX, mouseY);
-        int edge = enabled ? installed ? GREEN : CYAN : TEXT_DISABLED;
-
-        String status = installed ? "ACTIVE AUGMENT"
-                : replacementBlocked ? "ACTIVE: " + active.displayName().toUpperCase(Locale.ROOT)
-                : owned + " IN INVENTORY";
-        graphics.text(this.font, status, panel.x() + 12, actionRect.y() - 13,
-                installed ? GREEN : TEXT_DIM, false);
-        graphics.fill(actionRect.x(), actionRect.y(), actionRect.right(), actionRect.bottom(),
-                enabled && hovered ? 0xEE173B41 : 0xDB10171B);
-        graphics.outline(actionRect.x(), actionRect.y(), actionRect.width(), actionRect.height(), edge);
+        Player player = Minecraft.getInstance().player;
+        Cyberware installed = data == null ? null : data.get(selectedSlot, selectedSocket);
+        boolean exactInstalled = installed == cyberware;
+        boolean owned = cyberware != null && inventoryCount(cyberware) > 0;
+        boolean syncing = Util.getMillis() < interactionLockedUntil;
+        boolean capacity = player != null && data != null && cyberware != null
+                && CyberwareCapacity.canInstall(player, data, cyberware, selectedSocket);
+        boolean enabled = !syncing && !lockedSocket && cyberware != null
+                && (exactInstalled || owned && capacity);
+        boolean hovered = DETAIL_ACTION.contains(mouseX, mouseY);
+        int edge = enabled ? exactInstalled ? GREEN : CYAN : TEXT_DISABLED;
+        graphics.fill(DETAIL_ACTION.x(), DETAIL_ACTION.y(), DETAIL_ACTION.right(),
+                DETAIL_ACTION.bottom(), enabled && hovered ? 0xEE173B41 : 0xDB10171B);
+        graphics.outline(DETAIL_ACTION.x(), DETAIL_ACTION.y(), DETAIL_ACTION.width(),
+                DETAIL_ACTION.height(), edge);
 
         String action;
-        if (locked) {
+        if (syncing) {
             action = "SYNCING...";
-        } else if (installed) {
-            action = "REMOVE CYBERWARE";
-        } else if (replacementBlocked) {
-            action = "REMOVE ACTIVE FIRST";
-        } else if (owned > 0) {
-            action = "INSTALL CYBERWARE";
+        } else if (lockedSocket) {
+            action = "SOCKET LOCKED";
+        } else if (exactInstalled) {
+            action = "REMOVE " + cyberware.tier().id();
+        } else if (!owned) {
+            action = "TIER ITEM REQUIRED";
+        } else if (!capacity) {
+            action = "INSUFFICIENT CAPACITY";
+        } else if (installed != null) {
+            action = "REPLACE WITH " + cyberware.tier().id();
         } else {
-            action = "ITEM REQUIRED";
+            action = "INSTALL " + cyberware.tier().id();
         }
         graphics.centeredText(this.font, action,
-                actionRect.x() + actionRect.width() / 2, actionRect.y() + 7,
+                DETAIL_ACTION.x() + DETAIL_ACTION.width() / 2, DETAIL_ACTION.y() + 7,
                 enabled ? TEXT : TEXT_DISABLED);
+        if (hovered) {
+            graphics.requestCursor(enabled ? CursorTypes.POINTING_HAND : CursorTypes.NOT_ALLOWED);
+        }
+    }
 
+    private void renderPageButton(GuiGraphicsExtractor graphics, Rect rect, String label,
+                                  boolean enabled, double mouseX, double mouseY) {
+        boolean hovered = rect.contains(mouseX, mouseY);
+        graphics.fill(rect.x(), rect.y(), rect.right(), rect.bottom(),
+                enabled && hovered ? PANEL_HOVER : PANEL_SOFT);
+        graphics.outline(rect.x(), rect.y(), rect.width(), rect.height(),
+                enabled ? RED_DIM : TEXT_DISABLED);
+        graphics.centeredText(this.font, label, rect.x() + rect.width() / 2, rect.y() + 6,
+                enabled ? TEXT : TEXT_DISABLED);
         if (hovered) {
             graphics.requestCursor(enabled ? CursorTypes.POINTING_HAND : CursorTypes.NOT_ALLOWED);
         }
@@ -610,10 +534,10 @@ public final class CyberwareScreen extends Screen {
         graphics.horizontalLine(25, DESIGN_WIDTH - 26, 500, RED_DIM);
         KeyMapping mapping = KeyMapping.get("key.cyberdeck.open_cyberware");
         String key = mapping == null ? "G" : mapping.getTranslatedKeyMessage().getString();
-        graphics.text(this.font, "[" + key + "] CYBERWARE", 29, 510, CYAN_DIM, false);
-        String hint = detailsOpen ? "SELECT AUGMENT  //  INSTALL OR REMOVE" : "SELECT BODY SYSTEM";
+        graphics.text(this.font, "[" + key + "] RIPPERDOC", 29, 510, CYAN_DIM, false);
+        String hint = detailsOpen ? "FAMILY  //  TIER  //  EFFECTS  //  INSTALL"
+                : "SELECT A BODY SOCKET";
         graphics.centeredText(this.font, hint, DESIGN_WIDTH / 2, 510, TEXT_DISABLED);
-
         boolean hovered = BACK_BUTTON.contains(mouseX, mouseY);
         String label = detailsOpen ? "< OVERVIEW" : "< BACK";
         graphics.text(this.font, label, BACK_BUTTON.right() - this.font.width(label),
@@ -623,89 +547,112 @@ public final class CyberwareScreen extends Screen {
         }
     }
 
-    private Rect optionRect(int index, int count) {
-        Rect panel = detailPanel();
-        int gap = 5;
-        int startY = panel.y() + 48;
-        int availableHeight = detailActionRect().y() - startY - 10;
-        int maximumHeight = count == 1 ? 180 : count == 2 ? 145 : 106;
-        int cardHeight = Math.min(maximumHeight,
-                (availableHeight - gap * Math.max(0, count - 1)) / Math.max(1, count));
-        return new Rect(panel.x() + 10, startY + index * (cardHeight + gap),
-                panel.width() - 20, cardHeight);
-    }
-
-    private Rect detailPanel() {
-        return selectedGroupSide() == Side.LEFT
-                ? new Rect(716, 68, 222, 410)
-                : new Rect(22, 68, 222, 410);
-    }
-
-    private Rect detailCloseRect() {
-        Rect panel = detailPanel();
-        return new Rect(panel.right() - 23, panel.y() + 8, 15, 15);
-    }
-
-    private Rect detailActionRect() {
-        Rect panel = detailPanel();
-        return new Rect(panel.x() + 12, panel.bottom() - 34, panel.width() - 24, 22);
-    }
-
-    private Side selectedGroupSide() {
-        for (GroupSpec group : GROUPS) {
-            if (group.slot() == selectedSlot) {
-                return group.side();
-            }
-        }
-        return Side.RIGHT;
-    }
-
-    private Rect groupHitRect(GroupSpec group) {
-        int socketsWidth = group.socketCount() * SOCKET_WIDTH
-                + Math.max(0, group.socketCount() - 1) * SOCKET_GAP;
-        if (group.side() == Side.LEFT) {
-            return new Rect(group.x() - 145, group.y() - 4,
-                    socketsWidth + 145, SOCKET_HEIGHT + 8);
-        }
-        return new Rect(group.x(), group.y() - 4,
-                socketsWidth + 145, SOCKET_HEIGHT + 8);
-    }
-
     private void performSelectedAction() {
         if (selectedCyberware == null || Util.getMillis() < interactionLockedUntil) {
             return;
         }
-
         CyberwareData data = currentData();
-        Cyberware installed = data == null ? null : data.get(selectedCyberware.slot());
+        if (data == null || selectedSocket >= data.unlockedSockets(selectedSlot)) {
+            return;
+        }
+        Cyberware installed = data.get(selectedSlot, selectedSocket);
         if (installed == selectedCyberware) {
-            ClientPacketDistributor.sendToServer(new RemoveCyberwarePacket(selectedSlot.ordinal()));
+            ClientPacketDistributor.sendToServer(
+                    new RemoveCyberwarePacket(selectedSlot.ordinal(), selectedSocket));
             interactionLockedUntil = Util.getMillis() + ACTION_LOCK_MS;
-        } else if (installed == null && inventoryCount(selectedCyberware) > 0) {
-            ClientPacketDistributor.sendToServer(new EquipCyberwarePacket(selectedCyberware.id()));
+        } else if (inventoryCount(selectedCyberware) > 0) {
+            ClientPacketDistributor.sendToServer(
+                    new EquipCyberwarePacket(selectedCyberware.id(), selectedSocket));
             interactionLockedUntil = Util.getMillis() + ACTION_LOCK_MS;
         }
     }
 
-    private void chooseCyberwareForSlot(BodySlot slot) {
+    private void chooseForSocket() {
         CyberwareData data = currentData();
-        Cyberware installed = data == null ? null : data.get(slot);
+        Cyberware installed = data == null ? null : data.get(selectedSlot, selectedSocket);
         if (installed != null) {
+            selectedFamilyId = installed.familyId();
             selectedCyberware = installed;
             return;
         }
-
-        List<Cyberware> options = Cyberware.forSlot(slot);
-        selectedCyberware = options.stream()
-                .filter(option -> inventoryCount(option) > 0)
-                .findFirst()
-                .orElse(options.isEmpty() ? null : options.getFirst());
+        List<CyberwareFamily> families = families();
+        for (CyberwareFamily family : families) {
+            Cyberware owned = highestOwned(family);
+            if (owned != null) {
+                selectedFamilyId = family.id();
+                selectedCyberware = owned;
+                return;
+            }
+        }
+        if (families.isEmpty()) {
+            selectedFamilyId = null;
+            selectedCyberware = null;
+        } else {
+            selectedFamilyId = families.getFirst().id();
+            selectedCyberware = families.getFirst().lowestTier();
+        }
     }
 
-    private void ensureCyberwareSelection() {
-        if (selectedCyberware == null || selectedCyberware.slot() != selectedSlot) {
-            chooseCyberwareForSlot(selectedSlot);
+    private void selectFamily(CyberwareFamily family) {
+        selectedFamilyId = family.id();
+        Cyberware installed = currentData() == null ? null
+                : currentData().get(selectedSlot, selectedSocket);
+        if (installed != null && installed.familyId().equals(family.id())) {
+            selectedCyberware = installed;
+            return;
         }
+        Cyberware owned = highestOwned(family);
+        selectedCyberware = owned == null ? family.lowestTier() : owned;
+    }
+
+    private Cyberware highestOwned(CyberwareFamily family) {
+        for (int index = family.variants().size() - 1; index >= 0; index--) {
+            Cyberware cyberware = family.variants().get(index);
+            if (inventoryCount(cyberware) > 0) {
+                return cyberware;
+            }
+        }
+        return null;
+    }
+
+    private Cyberware representative(CyberwareFamily family) {
+        if (selectedCyberware != null && selectedCyberware.familyId().equals(family.id())) {
+            return selectedCyberware;
+        }
+        CyberwareData data = currentData();
+        if (data != null) {
+            Cyberware installed = data.findFamily(family.id());
+            if (installed != null) {
+                return installed;
+            }
+        }
+        Cyberware owned = highestOwned(family);
+        return owned == null ? family.lowestTier() : owned;
+    }
+
+    private void ensureSelection() {
+        if (selectedCyberware == null || selectedCyberware.slot() != selectedSlot
+                || selectedFamilyId == null
+                || !selectedCyberware.familyId().equals(selectedFamilyId)) {
+            chooseForSocket();
+        }
+    }
+
+    private int firstUsefulSocket(BodySlot slot) {
+        CyberwareData data = currentData();
+        if (data == null) {
+            return 0;
+        }
+        int empty = data.firstEmptySocket(slot, data.unlockedSockets(slot));
+        return empty >= 0 ? empty : 0;
+    }
+
+    private List<CyberwareFamily> families() {
+        return Cyberware.familiesForSlot(selectedSlot);
+    }
+
+    private CyberwareFamily selectedFamily() {
+        return selectedFamilyId == null ? null : Cyberware.family(selectedFamilyId);
     }
 
     private CyberwareData currentData() {
@@ -713,35 +660,11 @@ public final class CyberwareScreen extends Screen {
         return player == null ? null : CyberwareAttachments.get(player);
     }
 
-    private int installedCount(CyberwareData data) {
-        if (data == null) {
-            return 0;
-        }
-        int count = 0;
-        for (BodySlot slot : BodySlot.VALUES) {
-            if (data.get(slot) != null) {
-                count++;
-            }
-        }
-        return count;
-    }
-
-    private int availableOptions(BodySlot slot) {
-        int count = 0;
-        for (Cyberware cyberware : Cyberware.forSlot(slot)) {
-            if (inventoryCount(cyberware) > 0) {
-                count++;
-            }
-        }
-        return count;
-    }
-
     private int inventoryCount(Cyberware cyberware) {
         Player player = Minecraft.getInstance().player;
-        if (player == null) {
+        if (player == null || cyberware == null) {
             return 0;
         }
-
         int count = 0;
         for (int index = 0; index < player.getInventory().getContainerSize(); index++) {
             ItemStack stack = player.getInventory().getItem(index);
@@ -752,24 +675,70 @@ public final class CyberwareScreen extends Screen {
         return count;
     }
 
-    private ItemStack cyberwareItemStack(Cyberware cyberware) {
-        return new ItemStack(CyberwareItems.item(cyberware).get());
+    private void renderCyberwareIcon(GuiGraphicsExtractor graphics, Cyberware cyberware,
+                                     Rect bounds) {
+        ItemStack stack = CyberwareItems.item(cyberware).get().getDefaultInstance();
+        float scale = Math.min(bounds.width(), bounds.height()) / 16.0F;
+        float renderedSize = 16.0F * scale;
+        graphics.pose().pushMatrix();
+        graphics.pose().translate(bounds.x() + (bounds.width() - renderedSize) / 2.0F,
+                bounds.y() + (bounds.height() - renderedSize) / 2.0F);
+        graphics.pose().scale(scale, scale);
+        graphics.item(stack, 0, 0);
+        graphics.pose().popMatrix();
     }
 
-    /** Renders the same registered item model players see in their inventory. */
-    private void renderCyberwareItem(GuiGraphicsExtractor graphics, Cyberware cyberware,
-                                     Rect bounds) {
-        ItemStack stack = cyberwareItemStack(cyberware);
-        float itemSize = Math.min(32.0F, Math.min(bounds.width(), bounds.height()));
-        float scale = itemSize / 16.0F;
-        float x = bounds.x() + (bounds.width() - itemSize) * 0.5F;
-        float y = bounds.y() + (bounds.height() - itemSize) * 0.5F;
+    private Rect socketRect(GroupSpec group, int socket) {
+        return new Rect(group.x() + socket * (SOCKET_WIDTH + SOCKET_GAP), group.y(),
+                SOCKET_WIDTH, SOCKET_HEIGHT);
+    }
 
-        graphics.pose().pushMatrix();
-        graphics.pose().translate(x, y);
-        graphics.pose().scale(scale, scale);
-        graphics.item(stack, 0, 0, cyberware.ordinal());
-        graphics.pose().popMatrix();
+    private Rect groupHitRect(GroupSpec group) {
+        int width = group.slot().maximumSockets() * SOCKET_WIDTH
+                + (group.slot().maximumSockets() - 1) * SOCKET_GAP;
+        return group.side() == Side.LEFT
+                ? new Rect(group.x() - 170, group.y() - 4, width + 170, SOCKET_HEIGHT + 8)
+                : new Rect(group.x(), group.y() - 4, width + 170, SOCKET_HEIGHT + 8);
+    }
+
+    private Rect familyRect(int visibleIndex) {
+        return new Rect(76, 96 + visibleIndex * 39, 260, 35);
+    }
+
+    private Rect tierRect(int index) {
+        int column = index % 6;
+        int row = index / 6;
+        return new Rect(450 + column * 68, 174 + row * 29, 60, 22);
+    }
+
+    private static int pageCount(int size) {
+        return Math.max(1, (size + FAMILIES_PER_PAGE - 1) / FAMILIES_PER_PAGE);
+    }
+
+    private int tierColor(Cyberware cyberware) {
+        return switch (cyberware.tier()) {
+            case T1, T1_PLUS -> 0xFFB8C1C8;
+            case T2, T2_PLUS -> 0xFF54D66B;
+            case T3, T3_PLUS -> 0xFF40A9FF;
+            case T4, T4_PLUS -> 0xFFC66BFF;
+            case T5, T5_PLUS, T5_PLUS_PLUS -> GOLD;
+        };
+    }
+
+    private static String format(double value) {
+        return value == Math.rint(value) ? Integer.toString((int) value) : Double.toString(value);
+    }
+
+    private String ellipsize(String value, int maxWidth) {
+        if (maxWidth <= 0 || value == null) {
+            return "";
+        }
+        if (this.font.width(value) <= maxWidth) {
+            return value;
+        }
+        String suffix = "...";
+        return this.font.plainSubstrByWidth(value,
+                Math.max(0, maxWidth - this.font.width(suffix))) + suffix;
     }
 
     private void drawCircle(GuiGraphicsExtractor graphics, int centerX, int centerY,
@@ -810,24 +779,13 @@ public final class CyberwareScreen extends Screen {
         graphics.verticalLine(rect.right() - 1, rect.bottom() - actual - 1, rect.bottom() - 1, color);
     }
 
-    private String ellipsize(String value, int maxWidth) {
-        if (maxWidth <= 0) {
-            return "";
-        }
-        if (this.font.width(value) <= maxWidth) {
-            return value;
-        }
-        String suffix = "...";
-        int contentWidth = Math.max(0, maxWidth - this.font.width(suffix));
-        return this.font.plainSubstrByWidth(value, contentWidth) + suffix;
-    }
-
     private Viewport viewport() {
-        float scale = Math.min(this.width / (float) DESIGN_WIDTH, this.height / (float) DESIGN_HEIGHT);
+        float scale = Math.min(this.width / (float) DESIGN_WIDTH,
+                this.height / (float) DESIGN_HEIGHT);
         scale = Math.max(0.01F, scale);
-        float offsetX = (this.width - DESIGN_WIDTH * scale) / 2.0F;
-        float offsetY = (this.height - DESIGN_HEIGHT * scale) / 2.0F;
-        return new Viewport(scale, offsetX, offsetY);
+        return new Viewport(scale,
+                (this.width - DESIGN_WIDTH * scale) / 2.0F,
+                (this.height - DESIGN_HEIGHT * scale) / 2.0F);
     }
 
     @Override
@@ -840,28 +798,11 @@ public final class CyberwareScreen extends Screen {
         RIGHT
     }
 
-    private enum Glyph {
-        BRAIN,
-        EYE,
-        HEART,
-        SHIELD,
-        CHIP,
-        SKIN,
-        DRIVE,
-        BONE,
-        HAND,
-        ARM,
-        LEG
-    }
-
     private record GroupSpec(
-            String label,
             BodySlot slot,
             int x,
             int y,
-            int socketCount,
             Side side,
-            Glyph glyph,
             int targetX,
             int targetY) {
     }
@@ -873,14 +814,6 @@ public final class CyberwareScreen extends Screen {
 
         double toDesignY(double screenY) {
             return (screenY - offsetY) / scale;
-        }
-
-        int toScreenX(int designX) {
-            return Math.round(offsetX + designX * scale);
-        }
-
-        int toScreenY(int designY) {
-            return Math.round(offsetY + designY * scale);
         }
 
         boolean contains(double screenX, double screenY) {

@@ -40,7 +40,7 @@ public final class RamHudOverlay implements GuiLayer {
         }
 
         int ram = RamAttachments.get(player);
-        int max = RamAttachments.MAX_RAM;
+        int max = RamAttachments.max(player);
         Font font = mc.font;
 
         int screenW = mc.getWindow().getGuiScaledWidth();

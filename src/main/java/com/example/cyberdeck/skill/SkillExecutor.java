@@ -37,7 +37,7 @@ public final class SkillExecutor {
             case CONTAGION -> contagion(target, level, true);
             case WEAPON_GLITCH -> weaponGlitch(target, level);
             case CYBERPSYCHOSIS -> cyberpsychosis(target, level);
-            case DETONATE -> detonate(target, level);
+            case DETONATE -> detonate(caster, target, level);
             case STANDBY -> {
                 // no-op
             }
@@ -46,7 +46,9 @@ public final class SkillExecutor {
 
     // orange concrete (Overheat): small burn particles + fire damage of 35% of current health.
     private static void overheat(ServerPlayer caster, LivingEntity target, ServerLevel level) {
-        float damage = target.getHealth() * 0.35f;
+        float damage = target.getHealth() * 0.35f
+                * (float) com.example.cyberdeck.effect.CyberwareEffects
+                        .quickhackDamageMultiplier(caster);
         target.igniteForSeconds(4.0f);
         DamageSource source = level.damageSources().onFire();
         target.hurtServer(level, source, damage);
@@ -140,7 +142,7 @@ public final class SkillExecutor {
     }
 
     // yellow concrete (Detonate): explosion where the mob stands; creepers explode 2-3x larger.
-    private static void detonate(LivingEntity target, ServerLevel level) {
+    private static void detonate(ServerPlayer caster, LivingEntity target, ServerLevel level) {
         float radius = 3.0f;
         if (target instanceof Creeper) {
             // Creeper base explosion power is ~3; make it 2-3x larger.
@@ -151,7 +153,8 @@ public final class SkillExecutor {
         if (target.isAlive()) {
             target.hurtServer(level,
                     level.damageSources().explosion((net.minecraft.world.entity.Entity) null, null),
-                    radius * 2.0f);
+                    radius * 2.0f * (float) com.example.cyberdeck.effect.CyberwareEffects
+                            .quickhackDamageMultiplier(caster));
         }
     }
 

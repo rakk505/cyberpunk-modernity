@@ -48,6 +48,11 @@ public record ActivateSkillPacket(int slot, int targetId) implements CustomPacke
             if (!CyberdeckState.isActive(player)) {
                 return;
             }
+            if (!com.example.cyberdeck.effect.CyberwareEffects.canQuickhack(player)) {
+                player.sendSystemMessage(Component.translatable(
+                        "message.cyberdeck.cyberdeck_required"), true);
+                return;
+            }
             Skill skill = Skill.fromSlot(packet.slot());
             if (skill == null || skill == Skill.STANDBY) {
                 return;

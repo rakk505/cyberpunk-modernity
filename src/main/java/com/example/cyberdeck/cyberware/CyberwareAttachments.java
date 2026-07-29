@@ -1,6 +1,7 @@
 package com.example.cyberdeck.cyberware;
 
 import com.example.cyberdeck.Cyberdeck;
+import com.example.cyberdeck.effect.SandevistanState;
 
 import net.minecraft.world.entity.player.Player;
 import net.neoforged.neoforge.attachment.AttachmentType;
@@ -26,11 +27,22 @@ public final class CyberwareAttachments {
                     .copyOnDeath()
                     .build());
 
+    /** Persisted charge prevents relogging or dying from bypassing Sandevistan cooldowns. */
+    public static final Supplier<AttachmentType<SandevistanState>> SANDEVISTAN_STATE =
+            ATTACHMENT_TYPES.register("sandevistan_state", () -> AttachmentType
+                    .serializable(SandevistanState::new)
+                    .copyOnDeath()
+                    .build());
+
     private CyberwareAttachments() {
     }
 
     /** Convenience accessor for a player's cyberware data (creating a default if absent). */
     public static CyberwareData get(Player player) {
         return player.getData(CYBERWARE.get());
+    }
+
+    public static SandevistanState getSandevistanState(Player player) {
+        return player.getData(SANDEVISTAN_STATE.get());
     }
 }

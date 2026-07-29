@@ -103,7 +103,7 @@ public final class QuickhackUploads {
             }
         }
 
-        int cost = Math.max(0, skill.ramCost());
+        int cost = com.example.cyberdeck.effect.CyberwareEffects.quickhackRamCost(caster, skill);
         if (available < cost) {
             return new EnqueueResult(EnqueueStatus.INSUFFICIENT_RAM, 0, available);
         }
@@ -114,7 +114,7 @@ public final class QuickhackUploads {
         }
         queue.hacks.addLast(new ReservedHack(skill, cost));
         if (queue.hacks.size() == 1) {
-            beginHead(queue, level.getGameTime());
+            beginHead(queue, caster, level.getGameTime());
         }
         sync(caster, queue);
         return new EnqueueResult(EnqueueStatus.ACCEPTED, queue.hacks.size(), available - cost);
@@ -169,7 +169,7 @@ public final class QuickhackUploads {
             cancel(caster);
             return;
         }
-        beginHead(queue, level.getGameTime());
+        beginHead(queue, caster, level.getGameTime());
         sync(caster, queue);
     }
 
@@ -246,10 +246,12 @@ public final class QuickhackUploads {
         return living;
     }
 
-    private static void beginHead(UploadQueue queue, long now) {
+    private static void beginHead(UploadQueue queue, ServerPlayer caster, long now) {
         ReservedHack head = queue.hacks.peekFirst();
         queue.startTick = now;
-        queue.endTick = now + (head == null ? 0 : Math.max(0, head.skill().uploadTicks()));
+        queue.endTick = now + (head == null ? 0
+                : com.example.cyberdeck.effect.CyberwareEffects
+                        .quickhackUploadTicks(caster, head.skill()));
     }
 
     private static void sync(ServerPlayer caster, UploadQueue queue) {

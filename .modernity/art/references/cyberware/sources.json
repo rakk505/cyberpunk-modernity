@@ -1,0 +1,607 @@
+{
+  "axolotl": {
+    "name": "Axolotl",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Axolotl",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/9/90/SubdermalCoProcessor.png/revision/latest?cb=20210528115501"
+  },
+  "bioconductor": {
+    "name": "Bioconductor",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Bioconductor",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/4/42/BioConductors.png/revision/latest?cb=20230925192348"
+  },
+  "cox_2_cybersomatic_optimizer": {
+    "name": "COX-2 Cybersomatic Optimizer",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/COX-2_Cybersomatic_Optimizer",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/4/42/BioConductors.png/revision/latest?cb=20230925192348"
+  },
+  "camillo_ram_manager": {
+    "name": "Camillo RAM Manager",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Camillo_RAM_Manager",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/d/df/CamilloRamManager.png/revision/latest?cb=20230925174523"
+  },
+  "ex_disk": {
+    "name": "Ex-Disk",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Ex-Disk",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/0/05/ExDisk.png/revision/latest?cb=20230928104613"
+  },
+  "kerenzikov_boost_system": {
+    "name": "Kerenzikov Boost System",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Kerenzikov_Boost_System",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/d/dd/KerenziovBoostSystem.png/revision/latest?cb=20230927062938"
+  },
+  "mechatronic_core": {
+    "name": "Mechatronic Core",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Mechatronic_Core",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/a/ab/MechatronicCore.png/revision/latest?cb=20210618191028"
+  },
+  "memory_boost": {
+    "name": "Memory Boost",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Memory_Boost",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/b/b5/MemoryBoost.png/revision/latest?cb=20230925180303"
+  },
+  "newton_module": {
+    "name": "Newton Module",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Newton_Module",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/9/90/SubdermalCoProcessor.png/revision/latest?cb=20210528115501"
+  },
+  "quantum_tuner": {
+    "name": "Quantum Tuner",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Quantum_Tuner",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/e/e1/TimeBank.png/revision/latest?cb=20230925191101"
+  },
+  "ram_reallocator": {
+    "name": "RAM Reallocator",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/RAM_Reallocator",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/d/df/CamilloRamManager.png/revision/latest?cb=20230925174523"
+  },
+  "ram_upgrade": {
+    "name": "RAM Upgrade",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/RAM_Upgrade",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/7/71/RamUpgrade.png/revision/latest?cb=20230925182209"
+  },
+  "self_ice": {
+    "name": "Self-ICE",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Self-ICE",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/9/99/SelfIce.png/revision/latest?cb=20230928104725"
+  },
+  "arasaka_mk_1_5": {
+    "name": "Arasaka Mk.1-5",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Arasaka_Shadow",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/e/ef/ArasakaShadow.png/revision/latest?cb=20210605075722"
+  },
+  "biodyne_berserk": {
+    "name": "BioDyne Berserk",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/BioDyne_Berserk",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/c/c2/BerserkC2.png/revision/latest?cb=20230925065404"
+  },
+  "biotech_sigma_mk_1_4": {
+    "name": "Biotech Σ Mk.1-4",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Biotech_%CE%A3_(cyberdeck)",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/c/ce/BiotechSigma.png/revision/latest?cb=20230925092353"
+  },
+  "chrome_compressor": {
+    "name": "Chrome Compressor",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Chrome_Compressor",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/7/7c/CyberwareCapacityBooster.png/revision/latest?cb=20230930113934"
+  },
+  "dynalar_sandevistan": {
+    "name": "Dynalar Sandevistan",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Dynalar_Sandevistan",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/6/62/SandevistanC2.png/revision/latest?cb=20230925061549"
+  },
+  "militech_apogee": {
+    "name": "Apogee",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Militech_Apogee",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/b/bb/SandevistanApogee.png/revision/latest?cb=20230924192213"
+  },
+  "militech_berserk": {
+    "name": "Militech Berserk",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Militech_Berserk",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/5/56/BerserkC4.png/revision/latest?cb=20230925065430"
+  },
+  "canto_mk_6": {
+    "name": "Canto Mk.6",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Militech_Canto",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/9/9d/HauntedCyberdeck.png/revision/latest?cb=20230925103117"
+  },
+  "militech_falcon": {
+    "name": "Falcon",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Militech_Falcon",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/5/56/SandevistanC4.png/revision/latest?cb=20230925062810"
+  },
+  "paraline_mk_1_5": {
+    "name": "Paraline Mk.1-5",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Militech_Paraline",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/2/23/MilitechParaline.png/revision/latest?cb=20230925094313"
+  },
+  "moore_tech_berserk": {
+    "name": "Moore Tech Berserk",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Moore_Tech_Berserk",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/2/25/BerserkC1.png/revision/latest?cb=20230925065354"
+  },
+  "netdriver_mk_1": {
+    "name": "Netdriver Mk.1",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/NetWatch_Netdriver",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/d/d1/NetWatchNetdriver.png/revision/latest?cb=20230925101710"
+  },
+  "qiant_warp_dancer": {
+    "name": "Warp Dancer",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/QianT_Warp_Dancer",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/8/8d/SandevistanC3.png/revision/latest?cb=20230925062754"
+  },
+  "raven_microcyber_mk_1_3": {
+    "name": "Raven Microcyber Mk.1-3",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Raven_Microcyber",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/3/3b/RavenMicrocyber.png/revision/latest?cb=20230925101804"
+  },
+  "rippler_mk_1_5": {
+    "name": "Rippler Mk.1-5",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Tetratronic_Rippler",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/5/5d/TetratronicRippler.png/revision/latest?cb=20230925092254"
+  },
+  "zetatech_berserk": {
+    "name": "Zetatech Berserk",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Zetatech_Berserk",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/4/4f/BerserkC3.png/revision/latest?cb=20230925065418"
+  },
+  "zetatech_sandevistan": {
+    "name": "Zetatech Sandevistan",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Zetatech_Sandevistan",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/9/93/SandevistanC1.png/revision/latest?cb=20230925061532"
+  },
+  "electrifying_gorilla_arms": {
+    "name": "Electrifying Gorilla Arms",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Electrifying_Gorilla_Arms",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/3/35/StrongArms.png/revision/latest?cb=20230928072235"
+  },
+  "electrifying_mantis_blades": {
+    "name": "Electrifying Mantis Blades",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Electrifying_Mantis_Blades",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/8/89/MantisBlades.png/revision/latest?cb=20230928074951"
+  },
+  "electrifying_monowire": {
+    "name": "Electrifying Monowire",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Electrifying_Monowire",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/d/d6/NanoWires.png/revision/latest?cb=20230928080643"
+  },
+  "electrifying_projectile_launch_system": {
+    "name": "Electrifying Projectile Launch System",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Electrifying_Projectile_Launch_System",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/c/cf/ProjectileLauncher.png/revision/latest?cb=20230928080923"
+  },
+  "gorilla_arms": {
+    "name": "Gorilla Arms",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Gorilla_Arms",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/3/35/StrongArms.png/revision/latest?cb=20230928072235"
+  },
+  "mantis_blades": {
+    "name": "Mantis Blades",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Mantis_Blades",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/8/89/MantisBlades.png/revision/latest?cb=20230928074951"
+  },
+  "maxtac_mantis_blades": {
+    "name": "MaxTac Mantis Blades",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/MaxTac_Mantis_Blades",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/8/89/MantisBlades.png/revision/latest?cb=20230928074951"
+  },
+  "monowire": {
+    "name": "Monowire",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Monowire",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/d/d6/NanoWires.png/revision/latest?cb=20230928080643"
+  },
+  "projectile_launch_system": {
+    "name": "Projectile Launch System",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Projectile_Launch_System",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/c/cf/ProjectileLauncher.png/revision/latest?cb=20230928080923"
+  },
+  "thermal_gorilla_arms": {
+    "name": "Thermal Gorilla Arms",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Thermal_Gorilla_Arms",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/3/35/StrongArms.png/revision/latest?cb=20230928072235"
+  },
+  "thermal_mantis_blades": {
+    "name": "Thermal Mantis Blades",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Thermal_Mantis_Blades",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/8/89/MantisBlades.png/revision/latest?cb=20230928074951"
+  },
+  "thermal_monowire": {
+    "name": "Thermal Monowire",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Thermal_Monowire",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/d/d6/NanoWires.png/revision/latest?cb=20230928080643"
+  },
+  "thermal_projectile_launch_system": {
+    "name": "Thermal Projectile Launch System",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Thermal_Projectile_Launch_System",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/c/cf/ProjectileLauncher.png/revision/latest?cb=20230928080923"
+  },
+  "toxic_gorilla_arms": {
+    "name": "Toxic Gorilla Arms",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Toxic_Gorilla_Arms",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/3/35/StrongArms.png/revision/latest?cb=20230928072235"
+  },
+  "toxic_mantis_blades": {
+    "name": "Toxic Mantis Blades",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Toxic_Mantis_Blades",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/8/89/MantisBlades.png/revision/latest?cb=20230928074951"
+  },
+  "toxic_monowire": {
+    "name": "Toxic Monowire",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Toxic_Monowire",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/d/d6/NanoWires.png/revision/latest?cb=20230928080643"
+  },
+  "toxic_projectile_launch_system": {
+    "name": "Toxic Projectile Launch System",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Toxic_Projectile_Launch_System",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/c/cf/ProjectileLauncher.png/revision/latest?cb=20230928080923"
+  },
+  "basic_kiroshi_optics": {
+    "name": "Basic Kiroshi Optics",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Basic_Kiroshi_Optics",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/5/55/KiroshiOptics.png/revision/latest?cb=20230930115559"
+  },
+  "behavioral_imprint_synced_faceplate": {
+    "name": "Behavioral Imprint-synced Faceplate",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Behavioral_Imprint-synced_Faceplate",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/d/d8/MaskCW.png/revision/latest?cb=20230930114713"
+  },
+  "clairvoyant": {
+    "name": "Clairvoyant",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Kiroshi_Clairvoyant_Optics",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/5/57/KiroshiOpticsWallhack.png/revision/latest?cb=20230924112309"
+  },
+  "cockatrice": {
+    "name": "Cockatrice",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Kiroshi_Cockatrice_Optics",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/d/df/Iconic_KiroshiOpticsBare.png/revision/latest?cb=20230924132054"
+  },
+  "doomsayer": {
+    "name": "Doomsayer",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Kiroshi_Doomsayer_Optics",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/5/54/KiroshiOpticsHunter.png/revision/latest?cb=20230924113647"
+  },
+  "sentry": {
+    "name": "Sentry",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Kiroshi_Sentry_Optics",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/6/63/KiroshiOpticsSensor.png/revision/latest?cb=20230924114152"
+  },
+  "stalker": {
+    "name": "Stalker",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Kiroshi_Stalker_Optics",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/a/ac/KiroshiOpticsPiercing.png/revision/latest?cb=20230923130432"
+  },
+  "the_oracle": {
+    "name": "The Oracle",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Kiroshi_The_Oracle_Optics",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/d/d7/KiroshiOpticsCombined.png/revision/latest?cb=20230924113946"
+  },
+  "bionic_joints": {
+    "name": "Bionic Joints",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Bionic_Joints",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/f/fa/BionicJoints.png/revision/latest?cb=20230928123825"
+  },
+  "dense_marrow": {
+    "name": "Dense Marrow",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Dense_Marrow",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/c/c9/DenseMarrow.png/revision/latest?cb=20230928130629"
+  },
+  "epimorphic_skeleton": {
+    "name": "Epimorphic Skeleton",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Epimorphic_Skeleton",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/c/cb/Endoskeleton.png/revision/latest?cb=20230928115034"
+  },
+  "feen_x": {
+    "name": "Feen-X",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Feen-X",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/d/d3/NeuroMatrix.png/revision/latest?cb=20231206100722"
+  },
+  "kinetic_frame": {
+    "name": "Kinetic Frame",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Kinetic_Frame",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/3/34/BoneMarrowCells.png/revision/latest?cb=20230928112027"
+  },
+  "para_bellum": {
+    "name": "Para Bellum",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Para_Bellum",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/e/e8/T1000.png/revision/latest?cb=20230928110241"
+  },
+  "ram_recoup": {
+    "name": "RAM Recoup",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/RAM_Recoup",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/1/1d/CompilingSkeleton.png/revision/latest?cb=20230928120949"
+  },
+  "rara_avis": {
+    "name": "Rara Avis",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Rara_Avis",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/e/e8/T1000.png/revision/latest?cb=20230928110241"
+  },
+  "scar_coalescer": {
+    "name": "Scar Coalescer",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Scar_Coalescer",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/2/22/NoPainNoGain.png/revision/latest?cb=20230928103409"
+  },
+  "scarab": {
+    "name": "Scarab",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Scarab",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/5/59/RapidMuscleNurish.png/revision/latest?cb=20230928113956"
+  },
+  "spring_joints": {
+    "name": "Spring Joints",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Spring_Joints",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/2/25/AgileJoints.png/revision/latest?cb=20230928124128"
+  },
+  "titanium_bones": {
+    "name": "Titanium Bones",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Titanium_Bones",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/4/49/TitaniumInfusedBones.png/revision/latest?cb=20230928113307"
+  },
+  "universal_booster": {
+    "name": "Universal Booster",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Universal_Booster",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/b/bf/EnhancedBloodVessels.png/revision/latest?cb=20250121065009"
+  },
+  "ballistic_coprocessor": {
+    "name": "Ballistic Coprocessor",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Ballistic_Coprocessor",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/5/52/PowerGrip.png/revision/latest?cb=20230928134324"
+  },
+  "handle_wrap": {
+    "name": "Handle Wrap",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Handle_Wrap",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/f/fa/KnifeSharpener.png/revision/latest?cb=20230928152953"
+  },
+  "immovable_force": {
+    "name": "Immovable Force",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Immovable_Force",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/9/98/GunStabilizer.png/revision/latest?cb=20230928152648"
+  },
+  "microgenerator": {
+    "name": "Microgenerator",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Microgenerator",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/e/e0/MicroGenerator.png/revision/latest?cb=20230928151144"
+  },
+  "shock_absorber": {
+    "name": "Shock Absorber",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Shock_Absorber",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/b/b6/JointLock.png/revision/latest?cb=20230928151931"
+  },
+  "smart_link": {
+    "name": "Smart Link",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Smart_Link",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/8/87/SmartLink.png/revision/latest?cb=20210623161930"
+  },
+  "tattoo_johnnys_special": {
+    "name": "Tattoo: Johnny's Special",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Tattoo:_Johnny%27s_Special",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/f/f4/CasiusTattoo.png/revision/latest?cb=20230928142353"
+  },
+  "tattoo_together_forever": {
+    "name": "Tattoo: Together Forever",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Tattoo:_Together_Forever",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/e/e9/SilverhandTattoo.png/revision/latest?cb=20230928142401"
+  },
+  "tattoo_tyger_claws_dermal_imprint": {
+    "name": "Tattoo: Tyger Claws Dermal Imprint",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Tattoo:_Tyger_Claws_Dermal_Imprint",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/2/2c/YakuzaTattoo.png/revision/latest?cb=20230928142343"
+  },
+  "adrenaline_converter": {
+    "name": "Adrenaline Converter",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Adrenaline_Converter",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/0/03/DetectorRush.png/revision/latest?cb=20230929124054"
+  },
+  "adreno_trigger": {
+    "name": "Adreno-trigger",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Adreno-trigger",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/0/03/DetectorRush.png/revision/latest?cb=20230929124054"
+  },
+  "atomic_sensors": {
+    "name": "Atomic Sensors",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Atomic_Sensors",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/f/f0/TroubleFinder.png/revision/latest?cb=20230929125428"
+  },
+  "deep_field_visual_interface": {
+    "name": "Deep-field Visual Interface",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Deep-field_Visual_Interface",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/b/bb/VisualCortexSupport.png/revision/latest?cb=20230929130541"
+  },
+  "kerenzikov": {
+    "name": "Kerenzikov",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Kerenzikov",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/1/1d/Kerenzikov.png/revision/latest?cb=20230929133137"
+  },
+  "neofiber": {
+    "name": "NeoFiber",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/NeoFiber",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/e/e5/NeoFiber.png/revision/latest?cb=20230929133707"
+  },
+  "reflex_tuner": {
+    "name": "Reflex Tuner",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Reflex_Tuner",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/d/d4/ReflexRecorder.png/revision/latest?cb=20230929122745"
+  },
+  "revulsor": {
+    "name": "Revulsor",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Revulsor",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/d/d4/ReflexRecorder.png/revision/latest?cb=20230929122745"
+  },
+  "stabber": {
+    "name": "Stabber",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Stabber",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/a/ad/OilDispenser.png/revision/latest?cb=20230929133811"
+  },
+  "synaptic_accelerator": {
+    "name": "Synaptic Accelerator",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Synaptic_Accelerator",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/a/a4/SynapticAccelerator.png/revision/latest?cb=20230929133717"
+  },
+  "tyrosine_injector": {
+    "name": "Tyrosine Injector",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Tyrosine_Injector",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/b/bd/TyrosineInjector.png/revision/latest?cb=20230929132728"
+  },
+  "visual_cortex_support": {
+    "name": "Visual Cortex Support",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Visual_Cortex_Support",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/b/bb/VisualCortexSupport.png/revision/latest?cb=20230929130541"
+  },
+  "adrenaline_booster": {
+    "name": "Adrenaline Booster",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Adrenaline_Booster",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/c/c7/StaminaRegenBooster.png/revision/latest?cb=20230929165825"
+  },
+  "biomonitor": {
+    "name": "Biomonitor",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Biomonitor",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/5/53/Biomonitor.png/revision/latest?cb=20230929161644"
+  },
+  "black_mamba": {
+    "name": "Black Mamba",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Black_Mamba",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/1/17/ViralVenom.png/revision/latest?cb=20230929164104"
+  },
+  "blood_pump": {
+    "name": "Blood Pump",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Blood_Pump",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/d/d9/BloodPump.png/revision/latest?cb=20230929170919"
+  },
+  "clutch_padding": {
+    "name": "Clutch Padding",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Clutch_Padding",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/7/71/ShockAbsorber.png/revision/latest?cb=20230929162534"
+  },
+  "electromag_recycler": {
+    "name": "Electromag Recycler",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Electromag_Recycler",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/c/ca/DischargeConnector.png/revision/latest?cb=20230929163314"
+  },
+  "feedback_circuit": {
+    "name": "Feedback Circuit",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Feedback_Circuit",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/c/ca/DischargeConnector.png/revision/latest?cb=20230929163314"
+  },
+  "heal_on_kill": {
+    "name": "Heal-On-Kill",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Heal-On-Kill",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/5/56/HealOnKill.png/revision/latest?cb=20230929170735"
+  },
+  "isometric_stabilizer": {
+    "name": "Isometric Stabilizer",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Isometric_Stabilizer",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/7/71/ShockAbsorber.png/revision/latest?cb=20230929162534"
+  },
+  "microrotors": {
+    "name": "Microrotors",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Microrotors",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/b/b0/CyberRotors.png/revision/latest?cb=20230929155636"
+  },
+  "second_heart": {
+    "name": "Second Heart",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Second_Heart",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/1/1e/SecondHeart.png/revision/latest?cb=20230929160656"
+  },
+  "threat_evac": {
+    "name": "ThreatEvac",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/ThreatEvac",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/8/88/CatchMeIfYouCan.png/revision/latest?cb=20230929160404"
+  },
+  "carapace": {
+    "name": "Carapace",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Carapace",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/4/44/WeirdTankyPlating.png/revision/latest?cb=20230929174657"
+  },
+  "cellular_adapter": {
+    "name": "Cellular Adapter",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Cellular_Adapter",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/9/9f/PainDistributor.png/revision/latest?cb=20250121064620"
+  },
+  "chitin": {
+    "name": "Chitin",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Chitin",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/7/75/Chiton.png/revision/latest?cb=20230929180815"
+  },
+  "cogito_lattice": {
+    "name": "Cogito Lattice",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Cogito_Lattice",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/6/6c/CogitoFrame.png/revision/latest?cb=20231206100750"
+  },
+  "countershell": {
+    "name": "Countershell",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Countershell",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/c/c3/SuddenAid.png/revision/latest?cb=20230929195325"
+  },
+  "defenzikov": {
+    "name": "Defenzikov",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Defenzikov",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/e/ed/PlatingGlitch.png/revision/latest?cb=20230929192017"
+  },
+  "nano_plating": {
+    "name": "Nano-plating",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Nano-plating",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/a/ab/NanoTechPlates.png/revision/latest?cb=20230929180320"
+  },
+  "optical_camo": {
+    "name": "Optical Camo",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Optical_Camo",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/e/ec/OpticalCamo.png/revision/latest?cb=20230929181756"
+  },
+  "pain_editor": {
+    "name": "Pain Editor",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Pain_Editor",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/d/d2/PainReductor.png/revision/latest?cb=20230929200416"
+  },
+  "painducer": {
+    "name": "Painducer",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Painducer",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/e/eb/BloodDepleter.png/revision/latest?cb=20230929193057"
+  },
+  "peripheral_inverse": {
+    "name": "Peripheral Inverse",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Peripheral_Inverse",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/c/cd/ProximityReducer.png/revision/latest?cb=20230929173352"
+  },
+  "proxishield": {
+    "name": "ProxiShield",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/ProxiShield",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/c/cd/ProximityReducer.png/revision/latest?cb=20230929173352"
+  },
+  "rangeguard": {
+    "name": "RangeGuard",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/RangeGuard",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/e/e3/Cw_integumentary_extra.png/revision/latest?cb=20260212095538"
+  },
+  "shock_n_awe": {
+    "name": "Shock-n-Awe",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Shock-n-Awe",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/3/35/ElectroshockMechanism.png/revision/latest?cb=20230929194821"
+  },
+  "subdermal_armor": {
+    "name": "Subdermal Armor",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Subdermal_Armor",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/8/81/BoringPlating.png/revision/latest?cb=20230929180739"
+  },
+  "fortified_ankles": {
+    "name": "Fortified Ankles",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Fortified_Ankles",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/9/96/ReinforcedMuscles.png/revision/latest?cb=20230926075549"
+  },
+  "jenkins_tendons": {
+    "name": "Jenkins' Tendons",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Jenkins%27_Tendons",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/6/65/JenkinsTendons.png/revision/latest?cb=20230926081535"
+  },
+  "leeroy_ligament_system": {
+    "name": "Leeroy Ligament System",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Leeroy_Ligament_System",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/0/0a/IconicJenkinsTendons.png/revision/latest?cb=20230926075537"
+  },
+  "lynx_paws": {
+    "name": "Lynx Paws",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Lynx_Paws",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/0/09/CatPaws.png/revision/latest?cb=20230926075604"
+  },
+  "reinforced_tendons": {
+    "name": "Reinforced Tendons",
+    "wiki_page": "https://cyberpunk.fandom.com/wiki/Reinforced_Tendons",
+    "image_source": "https://static.wikia.nocookie.net/cyberpunk/images/5/55/BoostedTendons.png/revision/latest?cb=20230926075449"
+  }
+}

@@ -20,14 +20,16 @@ import java.util.function.Supplier;
  * it without extra packets.
  */
 public final class RamAttachments {
-    public static final int MAX_RAM = 12;
+    public static final int BASE_MAX_RAM = 12;
+    /** Compatibility constant; callers that have a player should use {@link #max(Player)}. */
+    public static final int MAX_RAM = BASE_MAX_RAM;
 
     public static final DeferredRegister<AttachmentType<?>> ATTACHMENT_TYPES =
             DeferredRegister.create(NeoForgeRegistries.ATTACHMENT_TYPES, Cyberdeck.MODID);
 
     public static final Supplier<AttachmentType<Integer>> RAM =
             ATTACHMENT_TYPES.register("ram", () -> AttachmentType
-                    .builder(() -> MAX_RAM)
+                    .builder(() -> BASE_MAX_RAM)
                     .serialize(Codec.INT.fieldOf("ram"))
                     .sync(ByteBufCodecs.VAR_INT)
                     .copyOnDeath()
@@ -38,12 +40,21 @@ public final class RamAttachments {
 
     /** Current RAM for a player, clamped to [0, MAX_RAM]. */
     public static int get(Player player) {
-        return Math.max(0, Math.min(MAX_RAM, player.getData(RAM.get())));
+        return Math.max(0, Math.min(max(player), player.getData(RAM.get())));
+    }
+
+    public static int max(Player player) {
+        double bonus = 0.0;
+        for (com.example.cyberdeck.cyberware.Cyberware cyberware
+                : com.example.cyberdeck.cyberware.CyberwareAttachments.get(player).allInstalled()) {
+            bonus += cyberware.value("max_ram");
+        }
+        return Math.max(1, BASE_MAX_RAM + (int) Math.round(bonus));
     }
 
     /** Overwrites the player's RAM, clamped to the valid range. */
     public static void set(Player player, int value) {
-        player.setData(RAM.get(), Math.max(0, Math.min(MAX_RAM, value)));
+        player.setData(RAM.get(), Math.max(0, Math.min(max(player), value)));
     }
 
     /** {@return true if the player has at least {@code cost} RAM available}. */
