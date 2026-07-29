@@ -29,6 +29,11 @@ public final class FactionHealthBar {
         if (!(event.getEntity() instanceof FactionEnemy enemy) || !enemy.isAlive()) {
             return;
         }
+        // The scanner's right-side intel panel owns enemy health while quickhacking.
+        if (QuickhackScannerClient.isActive()) {
+            event.setCanRender(TriState.FALSE);
+            return;
+        }
 
         float ratio = Math.max(0.0f, Math.min(1.0f, enemy.getHealth() / enemy.getMaxHealth()));
         int filled = Math.round(ratio * SEGMENTS);

@@ -39,7 +39,7 @@ public final class QuickhackUploadOverlay implements GuiLayer {
             return;
         }
         QuickhackUploadPacket p = QuickhackUploadClient.get();
-        Skill skill = Skill.fromSlot(p.skillOrdinal());
+        Skill skill = Skill.fromSlot(p.activeSkillOrdinal());
         if (skill == null) {
             return;
         }
