@@ -22,10 +22,16 @@ public final class QuickhackScannerClient {
     public static final double TARGET_RANGE = 48.0;
     private static final int FIRST_SKILL = 0;
     private static final int SKILL_COUNT = Skill.STANDBY.ordinal();
+    private static final int TARGET_CONFIRM_TICKS = 4;
+    private static final int TARGET_RELEASE_TICKS = 3;
 
     private static boolean active;
     private static int selectedSkill;
     private static int targetId = -1;
+    private static int directTargetId = -1;
+    private static int candidateTargetId = -1;
+    private static int candidateTicks;
+    private static int missedTargetTicks;
     private static @Nullable ClientLevel lastLevel;
 
     private QuickhackScannerClient() {
@@ -53,8 +59,7 @@ public final class QuickhackScannerClient {
         }
 
         active = true;
-        LivingEntity target = findTarget(player);
-        targetId = target == null ? -1 : target.getId();
+        updateTargetLock(findTarget(player));
     }
 
     public static boolean isActive() {
@@ -73,6 +78,10 @@ public final class QuickhackScannerClient {
         return targetId;
     }
 
+    public static int directTargetId() {
+        return directTargetId;
+    }
+
     public static @Nullable LivingEntity target(@Nullable ClientLevel level) {
         if (level == null || targetId < 0) {
             return null;
@@ -82,9 +91,19 @@ public final class QuickhackScannerClient {
                 : null;
     }
 
+    /** The entity directly under the reticle right now; stale display locks cannot queue hacks. */
+    public static @Nullable LivingEntity actionTarget(@Nullable ClientLevel level) {
+        if (level == null || directTargetId < 0 || directTargetId != targetId) {
+            return null;
+        }
+        return level.getEntity(directTargetId) instanceof LivingEntity living && living.isAlive()
+                ? living
+                : null;
+    }
+
     /** Wraps over the seven executable presets and repairs vanilla's number-key hotbar selection. */
     public static void cycle(Player player, int direction) {
-        if (!active || direction == 0) {
+        if (!active || targetId < 0 || direction == 0) {
             return;
         }
         selectedSkill = Math.floorMod(selectedSkill + Integer.signum(direction), SKILL_COUNT);
@@ -95,6 +114,52 @@ public final class QuickhackScannerClient {
         active = false;
         selectedSkill = FIRST_SKILL;
         targetId = -1;
+        directTargetId = -1;
+        candidateTargetId = -1;
+        candidateTicks = 0;
+        missedTargetTicks = 0;
+    }
+
+    /**
+     * Requires a brief, deliberate hold before exposing target actions and tolerates tiny aim
+     * jitter.
+     */
+    private static void updateTargetLock(@Nullable LivingEntity directTarget) {
+        directTargetId = directTarget == null ? -1 : directTarget.getId();
+
+        if (directTargetId == targetId && targetId >= 0) {
+            candidateTargetId = -1;
+            candidateTicks = 0;
+            missedTargetTicks = 0;
+            return;
+        }
+
+        if (directTargetId < 0) {
+            candidateTargetId = -1;
+            candidateTicks = 0;
+            if (targetId >= 0 && ++missedTargetTicks >= TARGET_RELEASE_TICKS) {
+                targetId = -1;
+                missedTargetTicks = 0;
+            }
+            return;
+        }
+
+        // Moving directly onto a different enemy drops the old details instead of showing stale
+        // intelligence while the new target earns a lock.
+        if (targetId >= 0) {
+            targetId = -1;
+        }
+        missedTargetTicks = 0;
+        if (candidateTargetId != directTargetId) {
+            candidateTargetId = directTargetId;
+            candidateTicks = 1;
+            return;
+        }
+        if (++candidateTicks >= TARGET_CONFIRM_TICKS) {
+            targetId = candidateTargetId;
+            candidateTargetId = -1;
+            candidateTicks = 0;
+        }
     }
 
     /** Block-clipped crosshair ray; the server independently validates the resulting target. */

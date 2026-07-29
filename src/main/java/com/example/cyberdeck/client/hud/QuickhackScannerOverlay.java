@@ -17,6 +17,7 @@ import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.client.gui.GuiLayer;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Locale;
 
@@ -44,9 +45,13 @@ public final class QuickhackScannerOverlay implements GuiLayer {
     private static final int EMPTY_RAM = 0xD00A262D;
     private static final int RESERVED_RAM = 0xFFE0633E;
 
+    private float panelVisibility;
+    private @Nullable LivingEntity animatedTarget;
+
     @Override
     public void render(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker) {
         if (!QuickhackScannerClient.isActive()) {
+            resetAnimation();
             return;
         }
         Minecraft minecraft = Minecraft.getInstance();
@@ -59,6 +64,8 @@ public final class QuickhackScannerOverlay implements GuiLayer {
         int screenHeight = minecraft.getWindow().getGuiScaledHeight();
         Font font = minecraft.font;
         long gameTime = minecraft.level.getGameTime();
+        LivingEntity lockedTarget = QuickhackScannerClient.target(minecraft.level);
+        float panelProgress = updatePanelVisibility(lockedTarget, deltaTracker);
 
         drawScannerBackdrop(graphics, font, screenWidth, screenHeight, gameTime);
         drawRamRail(graphics, font, player, screenWidth, screenHeight);
@@ -76,11 +83,61 @@ public final class QuickhackScannerOverlay implements GuiLayer {
         int rightX = screenWidth - rightInset - rightWidth;
         int rightY = compact ? 52 : Math.max(68, (int) (screenHeight * 0.22F));
 
-        drawQuickhackMenu(graphics, font, player, leftX, leftY, leftWidth, screenHeight);
         drawTargetReticle(graphics, font, screenWidth, screenHeight, leftX + leftWidth,
-                rightX, gameTime);
-        drawIntelPanel(graphics, font, player, rightX, rightY, rightWidth, screenHeight);
-        drawControls(graphics, font, screenWidth, screenHeight);
+                rightX, gameTime, lockedTarget, panelProgress);
+
+        if (animatedTarget != null && panelProgress > 0.01F) {
+            float eased = smoothstep(panelProgress);
+            int leftClipRight = Math.round((leftX + leftWidth + 12) * eased);
+            int leftOffset = -Math.round(14.0F * (1.0F - eased));
+            graphics.enableScissor(0, 0, leftClipRight, screenHeight);
+            graphics.pose().pushMatrix();
+            graphics.pose().translate(leftOffset, 0.0F);
+            drawQuickhackMenu(graphics, font, player, leftX, leftY, leftWidth, screenHeight);
+            graphics.pose().popMatrix();
+            graphics.disableScissor();
+
+            int rightClipLeft = Math.round(screenWidth
+                    - (screenWidth - rightX + 12) * eased);
+            int rightOffset = Math.round(14.0F * (1.0F - eased));
+            graphics.enableScissor(rightClipLeft, 0, screenWidth, screenHeight);
+            graphics.pose().pushMatrix();
+            graphics.pose().translate(rightOffset, 0.0F);
+            drawIntelPanel(graphics, font, player, animatedTarget,
+                    rightX, rightY, rightWidth, screenHeight);
+            graphics.pose().popMatrix();
+            graphics.disableScissor();
+
+            graphics.pose().pushMatrix();
+            graphics.pose().translate(0.0F, Math.round(28.0F * (1.0F - eased)));
+            drawControls(graphics, font, screenWidth, screenHeight);
+            graphics.pose().popMatrix();
+        }
+    }
+
+    private float updatePanelVisibility(@Nullable LivingEntity lockedTarget,
+                                        DeltaTracker deltaTracker) {
+        float realtimeTicks = Mth.clamp(deltaTracker.getRealtimeDeltaTicks(), 0.0F, 2.0F);
+        if (lockedTarget != null) {
+            animatedTarget = lockedTarget;
+            panelVisibility = Mth.approach(panelVisibility, 1.0F, realtimeTicks * 0.22F);
+        } else {
+            panelVisibility = Mth.approach(panelVisibility, 0.0F, realtimeTicks * 0.30F);
+            if (panelVisibility == 0.0F) {
+                animatedTarget = null;
+            }
+        }
+        return panelVisibility;
+    }
+
+    private void resetAnimation() {
+        panelVisibility = 0.0F;
+        animatedTarget = null;
+    }
+
+    private static float smoothstep(float value) {
+        float clamped = Mth.clamp(value, 0.0F, 1.0F);
+        return clamped * clamped * (3.0F - 2.0F * clamped);
     }
 
     private static void drawScannerBackdrop(GuiGraphicsExtractor graphics, Font font, int width,
@@ -229,8 +286,8 @@ public final class QuickhackScannerOverlay implements GuiLayer {
     }
 
     private static void drawTargetReticle(GuiGraphicsExtractor graphics, Font font, int width,
-                                          int height, int leftEdge, int rightEdge, long gameTime) {
-        LivingEntity target = QuickhackScannerClient.target(Minecraft.getInstance().level);
+                                          int height, int leftEdge, int rightEdge, long gameTime,
+                                          @Nullable LivingEntity target, float panelProgress) {
         int centerX = width / 2;
         int centerY = height / 2 + 5;
         boolean compact = width < 520 || height < 300;
@@ -240,8 +297,13 @@ public final class QuickhackScannerOverlay implements GuiLayer {
         int color = target == null ? CYAN_DIM : ORANGE;
         int faint = target == null ? 0x6050C9C6 : ORANGE_DIM;
 
-        graphics.horizontalLine(leftEdge + 8, centerX - radius - 15, centerY, AXIS);
-        graphics.horizontalLine(centerX + radius + 15, rightEdge - 8, centerY, AXIS);
+        float railProgress = smoothstep(panelProgress);
+        int idleLeft = centerX - radius - 55;
+        int idleRight = centerX + radius + 55;
+        int railLeft = Math.round(idleLeft + (leftEdge + 8 - idleLeft) * railProgress);
+        int railRight = Math.round(idleRight + (rightEdge - 8 - idleRight) * railProgress);
+        graphics.horizontalLine(railLeft, centerX - radius - 15, centerY, AXIS);
+        graphics.horizontalLine(centerX + radius + 15, railRight, centerY, AXIS);
         graphics.verticalLine(centerX, 56, centerY - radius - 14, AXIS);
         graphics.verticalLine(centerX, centerY + radius + 14, height - 34, AXIS);
 
@@ -265,7 +327,7 @@ public final class QuickhackScannerOverlay implements GuiLayer {
         graphics.fill(centerX - 1, centerY - 1, centerX + 2, centerY + 2, color);
 
         int nameY = centerY - radius - 29;
-        String targetName = target == null ? "NO TARGET"
+        String targetName = target == null ? "SCANNING // ACQUIRE HOSTILE"
                 : target.getName().getString().toUpperCase(Locale.ROOT);
         String shownTargetName = trim(font, targetName, 150);
         int targetNameWidth = font.width(shownTargetName);
@@ -274,8 +336,9 @@ public final class QuickhackScannerOverlay implements GuiLayer {
         graphics.fill(centerX - targetNameWidth / 2 - 5, nameY + 10,
                 centerX + targetNameWidth / 2 + 5, nameY + 11, color);
         graphics.centeredText(font, shownTargetName, centerX, nameY, color);
-        graphics.centeredText(font, target == null ? "SCANNING" : "TARGET LOCKED",
-                centerX, nameY + 13, target == null ? CYAN_DIM : ORANGE_DIM);
+        if (target != null) {
+            graphics.centeredText(font, "TARGET LOCKED", centerX, nameY + 13, ORANGE_DIM);
+        }
 
         if (QuickhackUploadClient.isUploading()) {
             Skill active = Skill.fromSlot(QuickhackUploadClient.activeSkillOrdinal());
@@ -294,7 +357,8 @@ public final class QuickhackScannerOverlay implements GuiLayer {
     }
 
     private static void drawIntelPanel(GuiGraphicsExtractor graphics, Font font, Player player,
-                                       int x, int y, int width, int screenHeight) {
+                                       LivingEntity target, int x, int y, int width,
+                                       int screenHeight) {
         boolean compact = screenHeight < 300;
         int panelY = y + 10;
         int panelHeight = compact
@@ -311,43 +375,36 @@ public final class QuickhackScannerOverlay implements GuiLayer {
         drawCutBorder(graphics, x + 53, y, 64, 15, CYAN);
         graphics.text(font, "HACKING", x + 61, y + 3, CYAN_BRIGHT, false);
 
-        LivingEntity target = QuickhackScannerClient.target(Minecraft.getInstance().level);
         int lineY = panelY + 8;
-        if (target == null) {
-            graphics.text(font, "NO TARGET DATA", x + 7, lineY, RED, false);
-            graphics.text(font, "ALIGN RETICLE WITH", x + 7, lineY + 14, CYAN_DIM, false);
-            graphics.text(font, "A HOSTILE TARGET", x + 7, lineY + 24, CYAN_DIM, false);
-        } else {
-            String name = trim(font, target.getName().getString().toUpperCase(Locale.ROOT), width - 14);
-            graphics.text(font, name, x + 7, lineY, CYAN_BRIGHT, false);
-            String type = trim(font, target.getType().getDescription().getString().toUpperCase(Locale.ROOT),
-                    width - 14);
-            graphics.text(font, type, x + 7, lineY + 11, CYAN_DIM, false);
+        String name = trim(font, target.getName().getString().toUpperCase(Locale.ROOT), width - 14);
+        graphics.text(font, name, x + 7, lineY, CYAN_BRIGHT, false);
+        String type = trim(font, target.getType().getDescription().getString().toUpperCase(Locale.ROOT),
+                width - 14);
+        graphics.text(font, type, x + 7, lineY + 11, CYAN_DIM, false);
 
-            lineY += 27;
-            String health = String.format(Locale.ROOT, "%.0f / %.0f",
-                    target.getHealth(), target.getMaxHealth());
-            labeledValue(graphics, font, x, width, lineY, "HEALTH", health, healthColor(target));
-            int healthWidth = width - 14;
-            float healthRatio = target.getMaxHealth() <= 0.0F ? 0.0F
-                    : Mth.clamp(target.getHealth() / target.getMaxHealth(), 0.0F, 1.0F);
-            graphics.fill(x + 7, lineY + 10, x + 7 + healthWidth, lineY + 13, CYAN_DARK);
-            graphics.fill(x + 7, lineY + 10,
-                    x + 7 + Math.round(healthWidth * healthRatio), lineY + 13, healthColor(target));
+        lineY += 27;
+        String health = String.format(Locale.ROOT, "%.0f / %.0f",
+                target.getHealth(), target.getMaxHealth());
+        labeledValue(graphics, font, x, width, lineY, "HEALTH", health, healthColor(target));
+        int healthWidth = width - 14;
+        float healthRatio = target.getMaxHealth() <= 0.0F ? 0.0F
+                : Mth.clamp(target.getHealth() / target.getMaxHealth(), 0.0F, 1.0F);
+        graphics.fill(x + 7, lineY + 10, x + 7 + healthWidth, lineY + 13, CYAN_DARK);
+        graphics.fill(x + 7, lineY + 10,
+                x + 7 + Math.round(healthWidth * healthRatio), lineY + 13, healthColor(target));
 
-            lineY += 19;
-            String faction = target instanceof FactionEnemy enemy
-                    ? formatId(enemy.getFaction().id()) : "UNAFFILIATED";
-            labeledValue(graphics, font, x, width, lineY, "FACTION", faction, AMBER);
-            labeledValue(graphics, font, x, width, lineY + 11, "WEAPON", weaponName(target), WHITE);
-            labeledValue(graphics, font, x, width, lineY + 22, "ARMOR",
-                    Integer.toString(target.getArmorValue()), WHITE);
-            labeledValue(graphics, font, x, width, lineY + 33, "DISTANCE",
-                    String.format(Locale.ROOT, "%.1f M", player.distanceTo(target)), WHITE);
-            labeledValue(graphics, font, x, width, lineY + 44, "STATUS",
-                    targetStatus(target), RED);
-            lineY += 58;
-        }
+        lineY += 19;
+        String faction = target instanceof FactionEnemy enemy
+                ? formatId(enemy.getFaction().id()) : "UNAFFILIATED";
+        labeledValue(graphics, font, x, width, lineY, "FACTION", faction, AMBER);
+        labeledValue(graphics, font, x, width, lineY + 11, "WEAPON", weaponName(target), WHITE);
+        labeledValue(graphics, font, x, width, lineY + 22, "ARMOR",
+                Integer.toString(target.getArmorValue()), WHITE);
+        labeledValue(graphics, font, x, width, lineY + 33, "DISTANCE",
+                String.format(Locale.ROOT, "%.1f M", player.distanceTo(target)), WHITE);
+        labeledValue(graphics, font, x, width, lineY + 44, "STATUS",
+                targetStatus(target), RED);
+        lineY += 58;
 
         int separatorY = Math.max(lineY + 5, panelY + 116);
         separatorY = Math.min(separatorY, panelY + panelHeight - 63);
