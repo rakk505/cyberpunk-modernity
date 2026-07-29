@@ -11,8 +11,9 @@
   },
   "artifact": {
     "path": "deliverable/neoncity-1.0.1.jar",
-    "sha256": "4272ce572f86b5b71e31514717066fe492ce2df7a7267270c6e99452d866c36f",
-    "source_snapshot_sha256": "d31236251c400e3d7f514709be1cd2e7ca63a1334f15de146394339c42580931",
+    "sha256": "62bec68b59f9cae2f34ab4da222e7c705b8467e68532108c83153572ff729531",
+    "source_snapshot_sha256": "0af210dc1310379d83ad03bb5aa2ca56de480800c29fd9f6cea1e669d022ff0c",
+    "privacy_scan": "pass: rebuilt artifact contains no /Users/derekwang1 path",
     "installed_path": "minecraft/mods/neoncity-1.0.1.jar"
   },
   "modernity": {

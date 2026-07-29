@@ -107,7 +107,10 @@ From this directory:
 ./gradlew --no-daemon runClient
 ```
 
-The six GameTests cover DFS edge count and alley width, cross-sector alley portals, all-district coverage, warped road and transit classes, skyline hierarchy, and deterministic sampling at negative/global coordinates.
+The six Neon City regression tests cover DFS edge count and alley width, cross-sector alley portals,
+all-district coverage, warped road and transit classes, skyline hierarchy, and deterministic sampling
+at negative/global coordinates. Together with NeoForge's default harness test, the verification run
+contains seven required tests.
 
 Version 1.0.1 moves all Java classes into the unique `dev.modernity.neoncity` package. This prevents the Java module split-package crash that occurred when 1.0.0 was installed beside Infinite Taiwan Atlas (`city17`), whose template-era classes use `com.example.examplemod`.
 
