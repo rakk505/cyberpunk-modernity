@@ -16,6 +16,7 @@ import com.example.cyberdeck.faction.FactionEntities;
 import com.example.cyberdeck.faction.FactionSpawns;
 import com.example.cyberdeck.npc.CityNpc;
 import com.example.cyberdeck.npc.CityNpcEntities;
+import com.example.cyberdeck.npc.CityNpcSpawns;
 import com.example.cyberdeck.npc.GunshotAlerts;
 import com.example.cyberdeck.movement.TacticalAction;
 import com.example.cyberdeck.movement.TacticalMovement;
@@ -66,6 +67,9 @@ public final class CyberdeckGameTests {
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             CIVILIAN_NONCOMBAT = register(
                     "civilian_noncombat", CyberdeckGameTests::civilianNoncombat);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            CIVILIAN_POPULATION = register(
+                    "civilian_population", CyberdeckGameTests::civilianPopulation);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             CITY_ACTOR_JOIN_COMPATIBILITY = register(
                     "city_actor_join_compatibility",
@@ -218,6 +222,21 @@ public final class CyberdeckGameTests {
         enemy.trigger(level, civilian);
         helper.assertTrue(!enemy.isTriggered() && enemy.getTarget() == null,
                 "a faction enemy must not become triggered by or target a civilian");
+        helper.succeed();
+    }
+
+    private static void civilianPopulation(GameTestHelper helper) {
+        helper.assertTrue(CityNpcSpawns.targetNearby() == 36,
+                "city districts must sustain a visibly dense civilian population");
+        helper.assertTrue(CityNpcSpawns.spawnBatch() == 8
+                        && CityNpcSpawns.spawnInterval() == 20,
+                "new districts must populate eight civilians per second");
+        helper.assertTrue(CityNpcSpawns.nearbyRadius() == 72.0,
+                "the pedestrian population must fill the player's visible city radius");
+        helper.assertTrue(CityNpcSpawns.desiredSpawnCount(0) == 8
+                        && CityNpcSpawns.desiredSpawnCount(34) == 2
+                        && CityNpcSpawns.desiredSpawnCount(36) == 0,
+                "civilian replenishment must fill quickly without exceeding its local target");
         helper.succeed();
     }
 
@@ -481,6 +500,7 @@ public final class CyberdeckGameTests {
         registerInstance(event, "cluster_plan", CLUSTER_PLAN, data);
         registerInstance(event, "gunshot_radius", GUNSHOT_RADIUS, data);
         registerInstance(event, "civilian_noncombat", CIVILIAN_NONCOMBAT, data);
+        registerInstance(event, "civilian_population", CIVILIAN_POPULATION, data);
         registerInstance(event, "city_actor_join_compatibility",
                 CITY_ACTOR_JOIN_COMPATIBILITY, data);
         registerInstance(event, "sandevistan_profile_balance", SANDEVISTAN_PROFILE_BALANCE, data);
