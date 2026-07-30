@@ -1,5 +1,6 @@
 package com.example.cyberdeck;
 
+import com.mojang.authlib.GameProfile;
 import com.example.cyberdeck.city.CityWorlds;
 import com.example.cyberdeck.city.CityActorJoinCompatibility;
 import com.example.cyberdeck.cyberware.BodySlot;
@@ -14,6 +15,9 @@ import com.example.cyberdeck.effect.CyberwareEffects;
 import com.example.cyberdeck.faction.FactionEnemy;
 import com.example.cyberdeck.faction.FactionEntities;
 import com.example.cyberdeck.faction.FactionSpawns;
+import com.example.cyberdeck.healing.HealingConsumable;
+import com.example.cyberdeck.healing.HealingState;
+import com.example.cyberdeck.healing.HealingSystem;
 import com.example.cyberdeck.npc.CityNpc;
 import com.example.cyberdeck.npc.CityNpcEntities;
 import com.example.cyberdeck.npc.CityNpcSpawns;
@@ -24,6 +28,7 @@ import com.example.cyberdeck.movement.TacticalMovementState;
 import com.example.cyberdeck.weapon.GunType;
 import java.util.HashSet;
 import java.util.List;
+import java.util.UUID;
 import java.util.function.Consumer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
@@ -38,6 +43,8 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.player.Input;
+import net.minecraft.world.level.pathfinder.PathType;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.block.Blocks;
@@ -49,6 +56,7 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.RegisterGameTestsEvent;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
+import net.neoforged.neoforge.common.util.FakePlayer;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
@@ -89,6 +97,12 @@ public final class CyberdeckGameTests {
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             TACTICAL_MOVEMENT_STATE = register(
                     "tactical_movement_state", CyberdeckGameTests::tacticalMovementState);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            TACTICAL_SLIDE_ACTIVATION = register(
+                    "tactical_slide_activation", CyberdeckGameTests::tacticalSlideActivation);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            HEALING_CONSUMABLE_STATE = register(
+                    "healing_consumable_state", CyberdeckGameTests::healingConsumableState);
 
     private CyberdeckGameTests() {
     }
@@ -226,17 +240,62 @@ public final class CyberdeckGameTests {
     }
 
     private static void civilianPopulation(GameTestHelper helper) {
-        helper.assertTrue(CityNpcSpawns.targetNearby() == 36,
-                "city districts must sustain a visibly dense civilian population");
-        helper.assertTrue(CityNpcSpawns.spawnBatch() == 8
-                        && CityNpcSpawns.spawnInterval() == 20,
-                "new districts must populate eight civilians per second");
+        helper.assertTrue(CityNpcSpawns.targetNearby() <= 12,
+                "civilian target regressed to the old high-density crowd level");
+        helper.assertTrue(CityNpcSpawns.spawnBatch() <= 2
+                        && CityNpcSpawns.spawnInterval() >= 100,
+                "civilian generation must use small, low-frequency batches");
         helper.assertTrue(CityNpcSpawns.nearbyRadius() == 72.0,
                 "the pedestrian population must fill the player's visible city radius");
-        helper.assertTrue(CityNpcSpawns.desiredSpawnCount(0) == 8
-                        && CityNpcSpawns.desiredSpawnCount(34) == 2
-                        && CityNpcSpawns.desiredSpawnCount(36) == 0,
-                "civilian replenishment must fill quickly without exceeding its local target");
+        helper.assertTrue(CityNpcSpawns.desiredSpawnCount(0, 0, 0) == 2
+                        && CityNpcSpawns.desiredSpawnCount(
+                                0, CityNpcSpawns.maxPerCell() - 1, 0) == 1
+                        && CityNpcSpawns.desiredSpawnCount(
+                                0, CityNpcSpawns.maxPerCell(), 0) == 0
+                        && CityNpcSpawns.desiredSpawnCount(
+                                0, 0, CityNpcSpawns.maxLoadedPopulation()) == 0,
+                "civilian replenishment crossed a local, cell, or loaded-world cap");
+
+        int nearby = 0;
+        int residents = 0;
+        int loaded = 0;
+        for (int cycle = 0; cycle < 100; cycle++) {
+            int spawned = CityNpcSpawns.desiredSpawnCount(nearby, residents, loaded);
+            nearby += spawned;
+            residents += spawned;
+            loaded += spawned;
+        }
+        helper.assertTrue(residents == CityNpcSpawns.maxPerCell()
+                        && loaded <= CityNpcSpawns.maxLoadedPopulation(),
+                "repeated civilian replenishment did not converge to a fixed bound");
+        helper.assertTrue(!CityNpcSpawns.shouldRetire(599, false)
+                        && CityNpcSpawns.shouldRetire(600, false)
+                        && !CityNpcSpawns.shouldRetire(600, true),
+                "civilian retirement ignored its grace period or nearby players");
+
+        ServerLevel level = helper.getLevel();
+        CityNpc civilian = CityNpcEntities.CITY_NPC.get().create(
+                level, EntitySpawnReason.COMMAND);
+        helper.assertTrue(civilian != null, "civilian factory failed during density regression");
+        if (civilian == null) {
+            return;
+        }
+        BlockPos position = helper.absolutePos(new BlockPos(1, 2, 1));
+        civilian.snapTo(position.getX() + 0.5, position.getY(), position.getZ() + 0.5,
+                0.0F, 0.0F);
+        helper.assertTrue(level.addFreshEntity(civilian),
+                "density regression could not add a civilian");
+        helper.assertFalse(CityNpcSpawns.hasSpawnSeparation(level, position.offset(3, 0, 0)),
+                "civilian placement accepted a crowded spawn point");
+        helper.assertTrue(CityNpcSpawns.hasSpawnSeparation(level, position.offset(24, 0, 0)),
+                "civilian placement rejected a safely separated spawn point");
+        helper.assertTrue(civilian.getPathfindingMalus(PathType.DAMAGE_CAUTIOUS)
+                        == CityNpc.highwayPathMalus(),
+                "civilian navigation lost its highway avoidance cost");
+        civilian.markPopulationManaged(position);
+        helper.assertFalse(civilian.shouldBeSaved(),
+                "ambient civilians must not accumulate in saved chunks");
+        civilian.discard();
         helper.succeed();
     }
 
@@ -480,6 +539,75 @@ public final class CyberdeckGameTests {
         helper.succeed();
     }
 
+    /** Reproduces the network-player velocity split that previously rejected every real slide. */
+    private static void tacticalSlideActivation(GameTestHelper helper) {
+        FakePlayer player = new FakePlayer(
+                helper.getLevel(),
+                new GameProfile(UUID.randomUUID(), "slide_test"));
+        player.setYRot(0.0F);
+        player.setOnGround(true);
+        player.setSprinting(true);
+        player.setLastClientInput(new Input(true, false, false, false, false, false, true));
+
+        // Ordinary walking is tracked here by ServerPlayer's network handler. deltaMovement stays
+        // zero until the server accepts and applies the tactical slide impulse.
+        player.setKnownMovement(new Vec3(0.0, 0.0, 0.30));
+        player.setDeltaMovement(Vec3.ZERO);
+
+        helper.assertTrue(TacticalMovement.request(
+                        player, TacticalAction.SLIDE, 1.0F, 0.0F),
+                "a sprinting network player with accepted forward speed must start sliding");
+        TacticalMovementState state = TacticalMovement.get(player);
+        helper.assertTrue(state.action() == TacticalAction.SLIDE,
+                "an accepted request must synchronize the slide action");
+        helper.assertTrue(player.getForcedPose() == net.minecraft.world.entity.Pose.SWIMMING,
+                "an accepted slide must use the low collision pose");
+        helper.assertTrue(Math.abs(player.getDeltaMovement().z - 0.78) < 1.0E-8,
+                "an accepted slide must apply its initial server-owned impulse");
+        helper.assertTrue(!player.isSprinting(),
+                "the slide must consume the vanilla sprint state");
+        helper.succeed();
+    }
+
+    private static void healingConsumableState(GameTestHelper helper) {
+        long useTick = 100L;
+        HealingState bounceBack = HealingState.NONE.afterUse(
+                HealingConsumable.BOUNCE_BACK, useTick);
+        helper.assertFalse(bounceBack.ready(HealingConsumable.BOUNCE_BACK, useTick),
+                "Bounce Back must enter cooldown immediately after use");
+        helper.assertTrue(bounceBack.ready(HealingConsumable.MAXDOC, useTick),
+                "the two healing consumables must retain independent cooldowns");
+        helper.assertTrue(bounceBack.regenerationPulseDue(useTick + 20L),
+                "Bounce Back must schedule its first regeneration pulse after one second");
+
+        HealingState advanced = bounceBack;
+        int pulses = 0;
+        while (advanced.nextRegenerationTick() > 0L) {
+            advanced = advanced.afterRegenerationPulse();
+            pulses++;
+        }
+        helper.assertTrue(pulses == 10,
+                "Bounce Back must emit exactly ten one-second regeneration pulses");
+        helper.assertTrue(HealingConsumable.BOUNCE_BACK.totalHealing()
+                        > HealingConsumable.MAXDOC.totalHealing(),
+                "Bounce Back's delayed profile must trade speed for higher total healing");
+        helper.assertTrue(HealingConsumable.fromNetworkId(-1).isEmpty()
+                        && HealingConsumable.fromNetworkId(HealingConsumable.VALUES.length).isEmpty(),
+                "invalid healing packet ids must be rejected");
+
+        FakePlayer player = new FakePlayer(
+                helper.getLevel(), new GameProfile(UUID.randomUUID(), "healing_test"));
+        player.setHealth(player.getMaxHealth());
+        helper.assertTrue(HealingSystem.use(player, HealingConsumable.BOUNCE_BACK),
+                "using a healing consumable at full health must still start its cooldown");
+        helper.assertFalse(HealingSystem.use(player, HealingConsumable.BOUNCE_BACK),
+                "a healing consumable must not be reusable during its cooldown");
+        helper.assertTrue(HealingState.get(player).cooldownRemaining(
+                        HealingConsumable.BOUNCE_BACK, player.level().getGameTime()) > 0L,
+                "an accepted healing use must publish a visible cooldown");
+        helper.succeed();
+    }
+
     private static void registerGameTests(RegisterGameTestsEvent event) {
         Holder<TestEnvironmentDefinition<?>> environment = event.registerEnvironment(
                 Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "pure"),
@@ -508,6 +636,8 @@ public final class CyberdeckGameTests {
         registerInstance(event, "cyberware_variant_mappings", CYBERWARE_VARIANT_MAPPINGS, data);
         registerInstance(event, "tactical_movement_math", TACTICAL_MOVEMENT_MATH, data);
         registerInstance(event, "tactical_movement_state", TACTICAL_MOVEMENT_STATE, data);
+        registerInstance(event, "tactical_slide_activation", TACTICAL_SLIDE_ACTIVATION, data);
+        registerInstance(event, "healing_consumable_state", HEALING_CONSUMABLE_STATE, data);
     }
 
     private static void registerInstance(

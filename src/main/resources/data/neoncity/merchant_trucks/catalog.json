@@ -1,0 +1,24 @@
+{
+  "source": {
+    "name": "spudtruck.schem",
+    "sha256": "09b20c8480aaa9f84e5a04af483ce08e65bff1aa0d2b1639d2735a723519d58a",
+    "format": "Sponge schematic v3 / WorldEdit 7.3.10",
+    "policy": "user-provided; stale wall signs, obstructing counter shutters, and block-entity data omitted"
+  },
+  "truck": {
+    "id": "spudtruck",
+    "template": "neoncity:merchant_trucks/spudtruck",
+    "size": [
+      14,
+      8,
+      7
+    ],
+    "blocks": 298,
+    "body_source_blocks": [
+      "minecraft:gray_concrete",
+      "minecraft:gray_concrete_powder",
+      "minecraft:gray_glazed_terracotta"
+    ],
+    "sha256": "ea10a1bdb1d486c927970eefe8f3794185596d0431cd59d5aff64cc242faf37b"
+  }
+}

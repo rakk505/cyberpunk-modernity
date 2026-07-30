@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
+import dev.modernity.neoncity.NeonCityGenerator;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
@@ -71,10 +72,9 @@ public final class CityWorlds {
      * {@link Kind#NONE}; Project Moon's marked noise world is an explicit supported exception.
      */
     public static Kind kind(ServerLevel level) {
-        // Neon City 2.0 keeps vanilla noise terrain but identifies its generated overworld with a
-        // custom dimension type. Detect that marker before applying the legacy flat-world checks.
-        if (ModList.get().isLoaded("neoncity")
-                && level.dimensionTypeRegistration().is(NEON_MEGACITY_DIMENSION_TYPE)) {
+        // Project Moon keeps vanilla noise terrain but identifies its generated overworld with a
+        // custom dimension type bundled directly in Cyberdeck.
+        if (level.dimensionTypeRegistration().is(NEON_MEGACITY_DIMENSION_TYPE)) {
             return Kind.NEON_MEGACITY;
         }
 
@@ -190,6 +190,17 @@ public final class CityWorlds {
         return isWalkableStreet(level, candidate) ? candidate : null;
     }
 
+    /** Resolves civilian space, restricted to Arnis neighborhoods and parks in Project Moon. */
+    public static BlockPos resolvePedestrianFeet(ServerLevel level, int x, int z, int preferredY) {
+        BlockPos candidate = resolveStreetFeet(level, x, z, preferredY);
+        if (candidate == null) {
+            return null;
+        }
+        return kind(level) != Kind.NEON_MEGACITY
+                || NeonCityGenerator.isCivilianPedestrianArea(level, x, z)
+                ? candidate : null;
+    }
+
     private static boolean hasLegacyNeonLedger(ServerLevel level) {
         if (Boolean.TRUE.equals(LEGACY_NEON_LEDGER_CACHE.get(level))) {
             return true;
@@ -228,6 +239,20 @@ public final class CityWorlds {
     public static BlockPos findStreetNear(ServerLevel level, BlockPos origin,
                                           int minDistance, int maxDistance,
                                           int attempts, RandomSource random) {
+        return findNear(level, origin, minDistance, maxDistance, attempts, random, false);
+    }
+
+    /** Finds a loaded civilian destination without selecting Project Moon highways. */
+    public static BlockPos findPedestrianAreaNear(ServerLevel level, BlockPos origin,
+                                                   int minDistance, int maxDistance,
+                                                   int attempts, RandomSource random) {
+        return findNear(level, origin, minDistance, maxDistance, attempts, random, true);
+    }
+
+    private static BlockPos findNear(ServerLevel level, BlockPos origin,
+                                     int minDistance, int maxDistance,
+                                     int attempts, RandomSource random,
+                                     boolean pedestriansOnly) {
         Kind kind = kind(level);
         if (kind == Kind.NONE) {
             return null;
@@ -237,7 +262,8 @@ public final class CityWorlds {
             int distance = minDistance + random.nextInt(maxDistance - minDistance + 1);
             int x = origin.getX() + (int) Math.round(Math.cos(angle) * distance);
             int z = origin.getZ() + (int) Math.round(Math.sin(angle) * distance);
-            BlockPos candidate = resolveStreetFeet(level, x, z, origin.getY());
+            BlockPos candidate = resolveFeet(
+                    level, x, z, origin.getY(), pedestriansOnly);
             if (candidate != null) {
                 return candidate;
             }
@@ -247,23 +273,27 @@ public final class CityWorlds {
         // guarantees that random misses do not suppress an entire civilian population cycle.
         for (int radius = minDistance; radius <= maxDistance; radius += 2) {
             for (int offset = -radius; offset <= radius; offset += 2) {
-                BlockPos north = resolveStreetFeet(level,
-                        origin.getX() + offset, origin.getZ() - radius, origin.getY());
+                BlockPos north = resolveFeet(level,
+                        origin.getX() + offset, origin.getZ() - radius, origin.getY(),
+                        pedestriansOnly);
                 if (north != null) {
                     return north;
                 }
-                BlockPos south = resolveStreetFeet(level,
-                        origin.getX() + offset, origin.getZ() + radius, origin.getY());
+                BlockPos south = resolveFeet(level,
+                        origin.getX() + offset, origin.getZ() + radius, origin.getY(),
+                        pedestriansOnly);
                 if (south != null) {
                     return south;
                 }
-                BlockPos west = resolveStreetFeet(level,
-                        origin.getX() - radius, origin.getZ() + offset, origin.getY());
+                BlockPos west = resolveFeet(level,
+                        origin.getX() - radius, origin.getZ() + offset, origin.getY(),
+                        pedestriansOnly);
                 if (west != null) {
                     return west;
                 }
-                BlockPos east = resolveStreetFeet(level,
-                        origin.getX() + radius, origin.getZ() + offset, origin.getY());
+                BlockPos east = resolveFeet(level,
+                        origin.getX() + radius, origin.getZ() + offset, origin.getY(),
+                        pedestriansOnly);
                 if (east != null) {
                     return east;
                 }
@@ -272,10 +302,31 @@ public final class CityWorlds {
         return null;
     }
 
+    private static BlockPos resolveFeet(ServerLevel level, int x, int z, int preferredY,
+                                        boolean pedestriansOnly) {
+        return pedestriansOnly
+                ? resolvePedestrianFeet(level, x, z, preferredY)
+                : resolveStreetFeet(level, x, z, preferredY);
+    }
+
     /** Finds the farthest sampled street point away from a gunshot. */
     public static BlockPos findStreetAway(ServerLevel level, BlockPos origin, Vec3 threat,
                                           int minDistance, int maxDistance,
                                           int attempts, RandomSource random) {
+        return findAway(level, origin, threat, minDistance, maxDistance, attempts, random, false);
+    }
+
+    /** Finds a civilian escape destination without choosing a Project Moon highway. */
+    public static BlockPos findPedestrianAreaAway(ServerLevel level, BlockPos origin, Vec3 threat,
+                                                   int minDistance, int maxDistance,
+                                                   int attempts, RandomSource random) {
+        return findAway(level, origin, threat, minDistance, maxDistance, attempts, random, true);
+    }
+
+    private static BlockPos findAway(ServerLevel level, BlockPos origin, Vec3 threat,
+                                     int minDistance, int maxDistance,
+                                     int attempts, RandomSource random,
+                                     boolean pedestriansOnly) {
         Kind kind = kind(level);
         if (kind == Kind.NONE) {
             return null;
@@ -287,11 +338,11 @@ public final class CityWorlds {
         for (int attempt = 0; attempt < attempts; attempt++) {
             double angle = awayAngle + (random.nextDouble() - 0.5) * Math.PI * 0.9;
             int distance = minDistance + random.nextInt(maxDistance - minDistance + 1);
-            BlockPos candidate = resolveStreetFeet(
+            BlockPos candidate = resolveFeet(
                     level,
                     origin.getX() + (int) Math.round(Math.cos(angle) * distance),
                     origin.getZ() + (int) Math.round(Math.sin(angle) * distance),
-                    origin.getY());
+                    origin.getY(), pedestriansOnly);
             if (candidate == null) {
                 continue;
             }

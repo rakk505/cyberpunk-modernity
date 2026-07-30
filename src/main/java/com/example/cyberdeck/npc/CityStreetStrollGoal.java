@@ -5,12 +5,15 @@ import java.util.EnumSet;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.goal.Goal;
+import net.minecraft.world.level.pathfinder.Path;
+import net.minecraft.world.phys.AABB;
 
 /** Low-frequency, street-constrained wandering instead of unrestricted random roaming. */
 final class CityStreetStrollGoal extends Goal {
     private final CityNpc npc;
     private final double speed;
     private BlockPos destination;
+    private Path route;
 
     CityStreetStrollGoal(CityNpc npc, double speed) {
         this.npc = npc;
@@ -26,12 +29,17 @@ final class CityStreetStrollGoal extends Goal {
             return false;
         }
         for (int attempt = 0; attempt < 3; attempt++) {
-            BlockPos candidate = CityWorlds.findStreetNear(
-                    level, npc.blockPosition(), 6, 20, 12, npc.getRandom());
+            BlockPos candidate = CityWorlds.findPedestrianAreaNear(
+                    level, npc.blockPosition(), 6, 24, 16, npc.getRandom());
             if (candidate != null && (!npc.hasHome()
-                    || candidate.distSqr(npc.getHomePosition()) <= 48.0 * 48.0)) {
-                destination = candidate;
-                return true;
+                    || candidate.distSqr(npc.getHomePosition()) <= 28.0 * 28.0)
+                    && destinationIsClear(level, candidate)) {
+                Path candidateRoute = npc.getNavigation().createPath(candidate, 0);
+                if (candidateRoute != null && candidateRoute.canReach()) {
+                    destination = candidate;
+                    route = candidateRoute;
+                    return true;
+                }
             }
         }
         return false;
@@ -44,17 +52,21 @@ final class CityStreetStrollGoal extends Goal {
 
     @Override
     public void start() {
-        if (destination != null) {
-            npc.getNavigation().moveTo(
-                    destination.getX() + 0.5,
-                    destination.getY(),
-                    destination.getZ() + 0.5,
-                    speed);
+        if (route != null && !npc.getNavigation().moveTo(route, speed)) {
+            destination = null;
+            route = null;
         }
     }
 
     @Override
     public void stop() {
         destination = null;
+        route = null;
+    }
+
+    private boolean destinationIsClear(ServerLevel level, BlockPos candidate) {
+        AABB area = new AABB(candidate).inflate(5.0, 2.0, 5.0);
+        return level.getEntitiesOfClass(
+                CityNpc.class, area, other -> other != npc && other.isAlive()).isEmpty();
     }
 }

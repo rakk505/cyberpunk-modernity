@@ -24,6 +24,26 @@ sourceSets.main.resources {
     // Exclude common development only resources from finalized outputs
     exclude("**/*.bbmodel") // BlockBench project files
     exclude("src/generated/**/.cache") // datagen cache files
+    // Keep auditable Arnis NBTs beside their catalogs in source control. They are remapped to
+    // Minecraft's canonical structure-template path by processResources below.
+    exclude("data/neoncity/arnis/structures/**/*.nbt")
+    exclude("data/neoncity/arnis_districts/structures/**/*.nbt")
+    exclude("data/neoncity/park_trees/structures/**/*.nbt")
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    from('src/main/resources/data/neoncity/arnis/structures') {
+        include '**/*.nbt'
+        into 'data/neoncity/structure/arnis'
+    }
+    from('src/main/resources/data/neoncity/arnis_districts/structures') {
+        include '**/*.nbt'
+        into 'data/neoncity/structure/arnis_districts'
+    }
+    from('src/main/resources/data/neoncity/park_trees/structures') {
+        include '**/*.nbt'
+        into 'data/neoncity/structure/park_trees'
+    }
 }
 
 repositories {

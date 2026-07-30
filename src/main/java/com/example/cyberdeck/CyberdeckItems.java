@@ -1,10 +1,12 @@
 package com.example.cyberdeck;
 
+import dev.modernity.neoncity.QuicktimeBlocks;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.equipment.ArmorMaterials;
 import net.minecraft.world.item.equipment.ArmorType;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
@@ -23,6 +25,13 @@ public final class CyberdeckItems {
                     .humanoidArmor(ArmorMaterials.IRON, ArmorType.HELMET)
                     .stacksTo(1)));
 
+    public static final DeferredItem<Item> SLOP = ITEMS.registerItem("slop",
+            props -> new SlopItem(props.food(new FoodProperties.Builder()
+                    .nutrition(6)
+                    .saturationModifier(0.5F)
+                    .alwaysEdible()
+                    .build())));
+
     public static final DeferredHolder<CreativeModeTab, CreativeModeTab> CYBERDECK_TAB =
             CREATIVE_MODE_TABS.register("cyberdeck_tab", () -> CreativeModeTab.builder()
                     .title(Component.translatable("itemGroup.cyberdeck"))
@@ -30,6 +39,8 @@ public final class CyberdeckItems {
                     .icon(() -> QuickhackItems.QUICKHACK_HEAD.get().getDefaultInstance())
                     .displayItems((parameters, output) -> {
                         output.accept(CYBERDECK.get());
+                        output.accept(SLOP.get());
+                        output.accept(QuicktimeBlocks.QUICKTIME_STATION_ITEM.get());
                         output.accept(QuickhackItems.QUICKHACK_HEAD.get());
                         for (com.example.cyberdeck.skill.Skill skill
                                 : com.example.cyberdeck.skill.Skill.VALUES) {

@@ -10,7 +10,7 @@ public final class CyberdeckNetwork {
     }
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        PayloadRegistrar registrar = event.registrar(Cyberdeck.MODID).versioned("3");
+        PayloadRegistrar registrar = event.registrar(Cyberdeck.MODID).versioned("8");
         registrar.playToServer(
                 ToggleInterfacePacket.TYPE,
                 ToggleInterfacePacket.STREAM_CODEC,
@@ -28,6 +28,10 @@ public final class CyberdeckNetwork {
                 ReloadPacket.STREAM_CODEC,
                 ReloadPacket::handle);
         registrar.playToServer(
+                UseHealingConsumablePacket.TYPE,
+                UseHealingConsumablePacket.STREAM_CODEC,
+                UseHealingConsumablePacket::handle);
+        registrar.playToServer(
                 TacticalMovementPacket.TYPE,
                 TacticalMovementPacket.STREAM_CODEC,
                 TacticalMovementPacket::handle);
@@ -43,5 +47,41 @@ public final class CyberdeckNetwork {
                 QuickhackUploadPacket.TYPE,
                 QuickhackUploadPacket.STREAM_CODEC,
                 QuickhackUploadPacket::handle);
+        registrar.playToClient(
+                OpenQuicktimeStationPacket.TYPE,
+                OpenQuicktimeStationPacket.STREAM_CODEC,
+                OpenQuicktimeStationPacket::handle);
+        registrar.playToClient(
+                DistrictAtmospherePacket.TYPE,
+                DistrictAtmospherePacket.STREAM_CODEC,
+                DistrictAtmospherePacket::handle);
+        registrar.playToServer(
+                RequestCityMapPacket.TYPE,
+                RequestCityMapPacket.STREAM_CODEC,
+                RequestCityMapPacket::handle);
+        registrar.playToClient(
+                OpenCityMapPacket.TYPE,
+                OpenCityMapPacket.STREAM_CODEC,
+                OpenCityMapPacket::handle);
+        registrar.playToClient(
+                SetCityWaypointPacket.TYPE,
+                SetCityWaypointPacket.STREAM_CODEC,
+                SetCityWaypointPacket::handle);
+        registrar.playToClient(
+                ClearCityWaypointPacket.TYPE,
+                ClearCityWaypointPacket.STREAM_CODEC,
+                ClearCityWaypointPacket::handle);
+        registrar.playToClient(
+                OpenMerchantQuestPacket.TYPE,
+                OpenMerchantQuestPacket.STREAM_CODEC,
+                OpenMerchantQuestPacket::handle);
+        registrar.playToServer(
+                AcceptMerchantQuestPacket.TYPE,
+                AcceptMerchantQuestPacket.STREAM_CODEC,
+                AcceptMerchantQuestPacket::handle);
+        registrar.playToServer(
+                TravelQuicktimePacket.TYPE,
+                TravelQuicktimePacket.STREAM_CODEC,
+                TravelQuicktimePacket::handle);
     }
 }

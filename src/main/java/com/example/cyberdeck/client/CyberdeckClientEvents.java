@@ -1,11 +1,15 @@
 package com.example.cyberdeck.client;
 
 import com.example.cyberdeck.Cyberdeck;
+import com.example.cyberdeck.client.map.CityMapNavigationClient;
 import com.example.cyberdeck.cyberware.CyberwareAttachments;
 import com.example.cyberdeck.effect.CyberwareEffects;
+import com.example.cyberdeck.healing.HealingConsumable;
+import com.example.cyberdeck.healing.HealingState;
 import com.example.cyberdeck.network.ActivateSkillPacket;
 import com.example.cyberdeck.network.CyberwareActionPacket;
 import com.example.cyberdeck.network.ToggleInterfacePacket;
+import com.example.cyberdeck.network.UseHealingConsumablePacket;
 import com.example.cyberdeck.movement.TacticalAction;
 import com.example.cyberdeck.movement.TacticalMovement;
 import com.example.cyberdeck.movement.TacticalMovementPacket;
@@ -57,9 +61,17 @@ public final class CyberdeckClientEvents {
     @SubscribeEvent
     public static void onClientTick(ClientTickEvent.Post event) {
         Minecraft mc = Minecraft.getInstance();
+        CityMapNavigationClient.tick(mc);
         if (mc.player == null) {
             QuickhackScannerClient.reset();
             return;
+        }
+        HealingConsumableClient.migrateLegacyUseBinding(mc);
+
+        while (CyberdeckClient.OPEN_CITY_MAP_KEY.consumeClick()) {
+            if (mc.gui.screen() == null) {
+                CityMapNavigationClient.requestOpen();
+            }
         }
 
         // Open the cyberware screen regardless of the currently installed operating system.
@@ -70,6 +82,7 @@ public final class CyberdeckClientEvents {
         }
 
         QuickhackScannerClient.tick(mc);
+        boolean physicalHealingClick = HealingConsumableClient.pollPhysicalUseKey(mc);
 
         // The remaining inputs are only meaningful when a screen is not open.
         if (mc.gui.screen() != null) {
@@ -106,6 +119,26 @@ public final class CyberdeckClientEvents {
         }
         while (CyberdeckClient.OPTICAL_CAMO_KEY.consumeClick()) {
             ClientPacketDistributor.sendToServer(new CyberwareActionPacket(CyberwareActionPacket.Action.OPTICAL_CAMO));
+        }
+
+        while (CyberdeckClient.SELECT_HEALING_KEY.consumeClick()) {
+            HealingConsumableClient.cycle();
+        }
+        boolean mappedHealingClick = false;
+        while (CyberdeckClient.USE_HEALING_KEY.consumeClick()) {
+            mappedHealingClick = true;
+        }
+        if (mappedHealingClick || physicalHealingClick) {
+            HealingConsumable selected = HealingConsumableClient.selected();
+            long gameTick = mc.level.getGameTime();
+            HealingState state = HealingState.get(mc.player);
+            if (mc.player.isAlive()
+                    && !mc.player.isSpectator()
+                    && HealingConsumableClient.cooldownRemaining(
+                            state, selected, gameTick) == 0L) {
+                HealingConsumableClient.predictUse(selected, gameTick);
+                ClientPacketDistributor.sendToServer(new UseHealingConsumablePacket(selected));
+            }
         }
 
         // Manual reload: only meaningful while holding a gun. The server validates reserve ammo and
@@ -216,6 +249,8 @@ public final class CyberdeckClientEvents {
         quickhackUseLatched = false;
         QuickhackScannerClient.reset();
         QuickhackUploadClient.set(com.example.cyberdeck.network.QuickhackUploadPacket.NONE);
+        HealingConsumableClient.reset();
+        CityMapNavigationClient.reset();
     }
 
     private static boolean queueSelectedQuickhack(Minecraft minecraft) {

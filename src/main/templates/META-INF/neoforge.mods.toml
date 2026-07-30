@@ -42,7 +42,8 @@ displayName="${mod_name}" #mandatory
 description='''
 Cyberpunk combat, quickhacking, firearms, faction soldiers, city civilians, and a complete
 wiki-sourced cyberware catalog with tiered implants, capacity, physical sockets, and active
-abilities. Includes synchronized tactical dashing, sliding, recoil, reload, and enemy movement.
+abilities. Includes synchronized tactical dashing, sliding, recoil, reload, enemy movement, and
+the finite 26-district Project Moon Megacity world generator.
 '''
 
 # The tactical player animator injects after vanilla humanoid setup so base skin, sleeves and

@@ -13,7 +13,7 @@ import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.client.gui.GuiLayer;
 
 /**
- * Bottom-left HUD showing the held gun's ammo as "loaded / magazine". While a reload is in progress
+ * Bottom-right HUD showing the held gun's ammo as "loaded / magazine". While a reload is in progress
  * a short timer bar fills up over the reload duration. Only rendered while a gun is in the main hand.
  */
 public final class AmmoHudOverlay implements GuiLayer {
@@ -41,8 +41,10 @@ public final class AmmoHudOverlay implements GuiLayer {
         }
 
         Font font = mc.font;
+        int screenW = mc.getWindow().getGuiScaledWidth();
         int screenH = mc.getWindow().getGuiScaledHeight();
-        int x = 8;
+        int right = screenW - 8;
+        int x = right - BAR_W;
         int y = screenH - 34;
 
         int loaded = gun.magazine(held);
@@ -51,7 +53,8 @@ public final class AmmoHudOverlay implements GuiLayer {
         ReloadState reload = ReloadState.get(player);
         if (reload.active()) {
             // Reloading: label + progress bar.
-            graphics.text(font, Component.literal("RELOADING"), x, y - 10, RELOAD_TEXT, true);
+            Component label = Component.literal("RELOADING");
+            graphics.text(font, label, right - font.width(label), y - 10, RELOAD_TEXT, true);
 
             long total = reload.endTick() - reload.startTick();
             long elapsed = Math.max(0, mc.level == null ? 0 : mc.level.getGameTime() - reload.startTick());
@@ -67,8 +70,10 @@ public final class AmmoHudOverlay implements GuiLayer {
         } else {
             // Ready: ammo count.
             int color = loaded == 0 ? TEXT_LOW : TEXT_COLOR;
-            graphics.text(font, Component.literal("AMMO"), x, y - 10, LABEL_COLOR, true);
-            graphics.text(font, Component.literal(loaded + " / " + max), x, y, color, true);
+            Component label = Component.literal("AMMO");
+            Component count = Component.literal(loaded + " / " + max);
+            graphics.text(font, label, right - font.width(label), y - 10, LABEL_COLOR, true);
+            graphics.text(font, count, right - font.width(count), y, color, true);
         }
     }
 }

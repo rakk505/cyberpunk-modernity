@@ -24,7 +24,15 @@ grenades, cyberware, faction soldiers, and a procedurally generated neon city.
 - **Cyberware** — 121 wiki-sourced implant families across all ten body systems, represented by
   1,025 distinct Tier 1 through Tier 5++ variants. The ripperdoc screen selects a physical socket,
   implant family, and exact tier while showing that tier's capacity, armor, and source effect text.
-- **Neon city** — a procedurally generated city to explore.
+- **Project Moon Megacity** — a finite, irregular A-Z city with separate Nest and Backstreets
+  zones, wilderness outside the city, district roads/bridges/rail, and 52 coherent Arnis atlases
+  containing 3,328 literal source chunks in their original materials. Each district adds its own
+  three-color emblem banners without recoloring the source buildings. Parks use 68 curated Exsilit
+  tree structures with district-appropriate foliage plus bounded merchant-truck clusters. Gray,
+  yellow, cyan, brown, and black trucks provide weapons, sub-Tier-4 cyberware, armor, food/Slop,
+  and waypoint-driven fixer deliveries respectively. All buildings come from the Arnis atlases;
+  procedural chunks add infrastructure and open space but never synthesize towers. It is built
+  directly into the Cyberdeck JAR.
 - **City civilians** — eight corporate-worker variants populate only the Cyberpunk City and Neon
   City presets. They follow street-level paths, never fight back, and scatter away from gunshots.
 - **Coherent enemy squads** — faction soldiers arrive as deterministic four-person formations with
@@ -38,12 +46,28 @@ grenades, cyberware, faction soldiers, and a procedurally generated neon city.
 
 The built mod jar is written to `build/libs/`.
 
-## Neon City Worldgen v1
+## Project Moon Megacity
 
-This branch also contains the standalone [Neon City world generator](neoncity/README.md).
-It installs alongside Cyberdeck and provides the `neoncity:megacity` world preset,
-infinite cultural districts, organic roads, elevated transit, and DFS service alleys.
-Its verified release JAR is available under `neoncity/deliverable/`.
+The Project Moon generator is part of the root Cyberdeck mod. Install only the Cyberdeck JAR,
+create a fresh world, and select **Project Moon Megacity**. The data namespace remains
+`neoncity:` for compatibility with the original world preset and saved generator state, but there
+is no separate runtime mod dependency.
+
+The city contains 26 seeded A-Z district blobs connected by roads, bridges, and rail. Each district
+has a Nest and Backstreets atlas sourced from its own Arnis city study; leaving the city reaches
+ordinary wilderness. Entering an inhabited district displays its letter once. Operators can use
+`/neoncity teleport <A-Z>` to jump to any district's central plaza.
+
+## City map controls
+
+- Press `M` to open or close the full Project Moon city map.
+- Drag to pan and use the mouse wheel to zoom between the city overview and building detail.
+- Left-click the map or a signal marker to set a waypoint. The city network calculates the shortest
+  route across district roads and displays it on both the full map and the live top-left minimap.
+- Right-click, press `Delete`, or use the `X` map tool to clear the waypoint. The target button
+  recenters on the player.
+- `/cyberdeck map <x> <z>` opens the same map with a coordinate waypoint;
+  `/cyberdeck waypoint <x> <z>` updates navigation without opening it.
 
 ## Tactical movement controls
 

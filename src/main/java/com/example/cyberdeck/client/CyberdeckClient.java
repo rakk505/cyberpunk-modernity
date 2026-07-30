@@ -2,6 +2,8 @@ package com.example.cyberdeck.client;
 
 import com.example.cyberdeck.Cyberdeck;
 import com.example.cyberdeck.client.hud.AmmoHudOverlay;
+import com.example.cyberdeck.client.hud.HealingHudOverlay;
+import com.example.cyberdeck.client.hud.CityMinimapOverlay;
 import com.example.cyberdeck.client.hud.QuickhackScannerOverlay;
 import com.example.cyberdeck.client.hud.SmartLockOverlay;
 import com.example.cyberdeck.client.gun.GenericGunClientExtension;
@@ -35,6 +37,7 @@ import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.extensions.common.RegisterClientExtensionsEvent;
 import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
 import net.neoforged.neoforge.client.renderstate.RegisterRenderStateModifiersEvent;
+import net.neoforged.neoforge.client.settings.KeyConflictContext;
 import org.lwjgl.glfw.GLFW;
 
 @Mod(value = Cyberdeck.MODID, dist = Dist.CLIENT)
@@ -54,6 +57,14 @@ public final class CyberdeckClient {
             "key.cyberdeck.open_cyberware",
             InputConstants.Type.KEYSYM,
             GLFW.GLFW_KEY_G,
+            CATEGORY);
+
+    // Opens the full Project Moon city map (default M).
+    public static final KeyMapping OPEN_CITY_MAP_KEY = new KeyMapping(
+            "key.cyberdeck.open_city_map",
+            KeyConflictContext.IN_GAME,
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_M,
             CATEGORY);
 
     // Sandevistan (default T).
@@ -89,6 +100,21 @@ public final class CyberdeckClient {
             "key.cyberdeck.reload",
             InputConstants.Type.KEYSYM,
             GLFW.GLFW_KEY_R,
+            CATEGORY);
+
+    // Infinite healing quick slot: X uses the selection and Z switches consumables.
+    public static final KeyMapping USE_HEALING_KEY = new KeyMapping(
+            "key.cyberdeck.use_healing",
+            KeyConflictContext.IN_GAME,
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_X,
+            CATEGORY);
+
+    public static final KeyMapping SELECT_HEALING_KEY = new KeyMapping(
+            "key.cyberdeck.select_healing",
+            KeyConflictContext.IN_GAME,
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_Z,
             CATEGORY);
 
     // Scanner navigation mirrors Cyberpunk's keyboard layout.
@@ -148,9 +174,15 @@ public final class CyberdeckClient {
     }
 
     private void registerGuiLayers(RegisterGuiLayersEvent event) {
+        event.registerAbove(VanillaGuiLayers.EFFECTS,
+                Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "city_minimap"),
+                new CityMinimapOverlay());
         event.registerAbove(VanillaGuiLayers.HOTBAR,
                 Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "ammo_hud"),
                 new AmmoHudOverlay());
+        event.registerAbove(VanillaGuiLayers.HOTBAR,
+                Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "healing_hud"),
+                new HealingHudOverlay());
         event.registerAbove(VanillaGuiLayers.CROSSHAIR,
                 Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "smart_lock"),
                 new SmartLockOverlay());
@@ -185,11 +217,14 @@ public final class CyberdeckClient {
         event.registerCategory(CATEGORY);
         event.register(TOGGLE_KEY);
         event.register(OPEN_CYBERWARE_KEY);
+        event.register(OPEN_CITY_MAP_KEY);
         event.register(SANDEVISTAN_KEY);
         event.register(ARM_CANNON_KEY);
         event.register(THRETEVAC_KEY);
         event.register(OPTICAL_CAMO_KEY);
         event.register(RELOAD_KEY);
+        event.register(USE_HEALING_KEY);
+        event.register(SELECT_HEALING_KEY);
         event.register(PREVIOUS_QUICKHACK_KEY);
         event.register(NEXT_QUICKHACK_KEY);
         event.register(QUEUE_QUICKHACK_KEY);
