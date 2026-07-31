@@ -20,10 +20,11 @@ from anvil import parse_nbt  # noqa: E402
 CATALOG = ROOT / "src/main/resources/data/neoncity/arnis_districts/catalog.json"
 STRUCTURES = CATALOG.parent
 OUTPUT = ROOT / "src/main/resources/assets/cyberdeck/textures/gui/project_moon_map_atlas.png"
-ATLAS_AXIS_BLOCKS = 8 * 16
+ATLAS_AXIS_CHUNKS = 16
+ATLAS_AXIS_BLOCKS = ATLAS_AXIS_CHUNKS * 16
 WIDTH = 26 * ATLAS_AXIS_BLOCKS
 HEIGHT = 2 * ATLAS_AXIS_BLOCKS
-TILE_ID = re.compile(r"^([a-z])/((?:nest|backstreets))_([0-7])_([0-7])$")
+TILE_ID = re.compile(r"^([a-z])/((?:nest|backstreets))_([0-9]+)_([0-9]+)$")
 
 EMPTY = 0
 SURFACE = 1
@@ -115,6 +116,11 @@ def main() -> None:
         district_code, zone, tile_x_text, tile_z_text = match.groups()
         tile_x = int(tile_x_text)
         tile_z = int(tile_z_text)
+        if tile_x >= ATLAS_AXIS_CHUNKS or tile_z >= ATLAS_AXIS_CHUNKS:
+            raise ValueError(
+                f"atlas tile is outside {ATLAS_AXIS_CHUNKS}x{ATLAS_AXIS_CHUNKS}: "
+                f"{patch['id']}"
+            )
         district = ord(district_code) - ord("a")
         zone_row = 0 if zone == "nest" else 1
         anchor = patch["footprint"]["anchor"]

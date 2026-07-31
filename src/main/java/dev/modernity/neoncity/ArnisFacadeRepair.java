@@ -31,6 +31,115 @@ final class ArnisFacadeRepair {
         return changed;
     }
 
+    static int sealInfrastructureCuts(
+            ServerLevel level,
+            ChunkPos chunk,
+            NeonCityGenerator.UrbanSample[][] samples,
+            District selectedDistrict) {
+        int changed = 0;
+        int[][] directions = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
+        for (int localZ = 0; localZ < 16; localZ++) {
+            for (int localX = 0; localX < 16; localX++) {
+                NeonCityGenerator.UrbanSample sample = samples[localZ + 1][localX + 1];
+                if (!NeonCityGenerator.keepsArnisColumn(sample, selectedDistrict)
+                        || NeonCityGenerator.overridesArnis(sample.roadClass())) {
+                    continue;
+                }
+                for (int[] direction : directions) {
+                    NeonCityGenerator.UrbanSample neighbour = samples[
+                            localZ + 1 + direction[1]][localX + 1 + direction[0]];
+                    if (NeonCityGenerator.keepsArnisColumn(neighbour, selectedDistrict)
+                            && !NeonCityGenerator.overridesArnis(neighbour.roadClass())) {
+                        continue;
+                    }
+                    changed += sealCutFace(
+                            level,
+                            chunk,
+                            chunk.getMinBlockX() + localX,
+                            chunk.getMinBlockZ() + localZ,
+                            -direction[0],
+                            -direction[1]);
+                }
+            }
+        }
+        return changed;
+    }
+
+    private static int sealCutFace(
+            ServerLevel level,
+            ChunkPos chunk,
+            int boundaryX,
+            int boundaryZ,
+            int inwardX,
+            int inwardZ) {
+        int minY = NeonCityGenerator.CITY_GROUND_Y + 1;
+        int height = NeonCityGenerator.MAX_BUILD_Y - minY + 1;
+        boolean[] evidence = new boolean[height];
+        BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
+        for (int yIndex = 0; yIndex < height; yIndex++) {
+            int structuralDepth = 0;
+            for (int depth = 0; depth < INWARD_SCAN_DEPTH; depth++) {
+                int x = boundaryX + inwardX * depth;
+                int z = boundaryZ + inwardZ * depth;
+                if (!insideChunk(chunk, x, z)) break;
+                if (isStructuralEvidence(level.getBlockState(cursor.set(x, minY + yIndex, z)))) {
+                    structuralDepth++;
+                }
+            }
+            evidence[yIndex] = structuralDepth >= 2;
+        }
+        if (!isBuildingCrossSection(evidence)) return 0;
+
+        int changed = 0;
+        boolean[] completion = completionMask(evidence);
+        for (int yIndex = 0; yIndex < completion.length; yIndex++) {
+            if (!completion[yIndex]) continue;
+            int y = minY + yIndex;
+            cursor.set(boundaryX, y, boundaryZ);
+            if (!level.isEmptyBlock(cursor)) continue;
+            BlockState source = findCutSourceState(
+                    level, chunk, boundaryX, boundaryZ, inwardX, inwardZ, y);
+            if (source == null) continue;
+            level.setBlock(cursor, source, PLACE_FLAGS);
+            changed++;
+        }
+        return changed;
+    }
+
+    private static BlockState findCutSourceState(
+            ServerLevel level,
+            ChunkPos chunk,
+            int boundaryX,
+            int boundaryZ,
+            int inwardX,
+            int inwardZ,
+            int y) {
+        BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
+        for (int verticalDistance = 0;
+             verticalDistance <= MAX_STORY_GAP;
+             verticalDistance++) {
+            int variants = verticalDistance == 0 ? 1 : 2;
+            for (int variant = 0; variant < variants; variant++) {
+                int candidateY = y + (variant == 0 ? -verticalDistance : verticalDistance);
+                for (int depth = 1; depth < INWARD_SCAN_DEPTH; depth++) {
+                    int x = boundaryX + inwardX * depth;
+                    int z = boundaryZ + inwardZ * depth;
+                    if (!insideChunk(chunk, x, z)) break;
+                    BlockState state = level.getBlockState(cursor.set(x, candidateY, z));
+                    if (isStructuralEvidence(state) && !state.hasBlockEntity()) {
+                        return state;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private static boolean insideChunk(ChunkPos chunk, int x, int z) {
+        return x >= chunk.getMinBlockX() && x <= chunk.getMaxBlockX()
+                && z >= chunk.getMinBlockZ() && z <= chunk.getMaxBlockZ();
+    }
+
     private static int sealEdge(
             ServerLevel level,
             ChunkPos chunk,

@@ -40,6 +40,8 @@ public final class NeonCityCommand {
                                                         context.getSource(),
                                                         IntegerArgumentType.getInteger(context, "x"),
                                                         IntegerArgumentType.getInteger(context, "z"))))))
+                        .then(Commands.literal("port")
+                                .executes(context -> port(context.getSource())))
                         .then(Commands.literal("atlas")
                                 .then(Commands.argument("district", StringArgumentType.word())
                                         .suggests((context, builder) ->
@@ -128,6 +130,33 @@ public final class NeonCityCommand {
                 sample.location().primary().x(), sample.location().primary().z(),
                 sample.location().normalizedDistance())), false);
         return sample.district().ordinal() + 1;
+    }
+
+    private static int port(CommandSourceStack source) {
+        UCorpPortGeneration.Plan plan = UCorpPortGeneration.plan(NeonCityGenerator.layout());
+        BlockPos port = new BlockPos(
+                plan.worldX(plan.portStart(), 0),
+                NeonCityGenerator.CITY_GROUND_Y + 1,
+                plan.worldZ(plan.portStart(), 0));
+        BlockPos shore = new BlockPos(
+                plan.worldX(plan.shoreline(), 0),
+                NeonCityGenerator.WATER_Y,
+                plan.worldZ(plan.shoreline(), 0));
+        source.sendSuccess(() -> Component.literal(String.format(
+                "U Corp port: origin=(%d,%d), outward=(%d,%d), terminal=(%d,%d), "
+                        + "shore=(%d,%d), forward=%d..%d, halfWidth=%d, Portships=%d",
+                plan.originX(), plan.originZ(), plan.forwardX(), plan.forwardZ(),
+                port.getX(), port.getZ(), shore.getX(), shore.getZ(),
+                plan.portStart(), plan.oceanEnd(), plan.oceanHalfWidth(),
+                plan.portships().size())), false);
+        for (UCorpPortGeneration.Portship ship : plan.portships()) {
+            source.sendSuccess(() -> Component.literal(String.format(
+                    "Portship %d: center=(%d,%d), chunk=(%d,%d), bounds=[%d..%d, %d..%d]",
+                    ship.index() + 1, ship.centerX(), ship.centerZ(),
+                    Math.floorDiv(ship.centerX(), 16), Math.floorDiv(ship.centerZ(), 16),
+                    ship.minX(), ship.maxX(), ship.minZ(), ship.maxZ())), false);
+        }
+        return plan.portships().size();
     }
 
     private static int enqueue(CommandSourceStack source, int chunkX, int chunkZ, int radius) {

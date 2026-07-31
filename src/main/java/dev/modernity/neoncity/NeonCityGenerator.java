@@ -1,14 +1,18 @@
 package dev.modernity.neoncity;
 
 import com.mojang.logging.LogUtils;
+import com.mojang.serialization.MapCodec;
 import java.util.ArrayDeque;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Holder;
+import net.minecraft.core.QuartPos;
 import net.minecraft.core.SectionPos;
 import net.minecraft.core.Vec3i;
 import net.minecraft.core.registries.Registries;
@@ -18,6 +22,9 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.LevelReader;
+import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.PoweredRailBlock;
@@ -26,12 +33,15 @@ import net.minecraft.world.level.block.WeatheringCopper;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.RailShape;
 import net.minecraft.world.level.dimension.DimensionType;
+import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.templatesystem.LiquidSettings;
 import net.minecraft.world.level.storage.LevelData;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureProcessor;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
 /**
@@ -48,7 +58,7 @@ public final class NeonCityGenerator {
 
     public static final String NAMESPACE = "neoncity";
     public static final String GENERATOR_FINGERPRINT =
-            "project-moon-megacity-v13-accessible-park-merchants-20260730";
+            "project-moon-megacity-v16-u-corp-ocean-arnis-mask-20260731";
     public static final int CITY_GROUND_Y = 72;
     public static final int WATER_Y = 67;
     public static final int ENQUEUE_RADIUS_CHUNKS = 7;
@@ -57,6 +67,7 @@ public final class NeonCityGenerator {
 
     private static final int PLACE_FLAGS = Block.UPDATE_SKIP_ALL_SIDEEFFECTS | Block.UPDATE_CLIENTS;
     private static final int MAX_ARNIS_PLAN_CACHE = 32_768;
+    private static final int MIN_ARNIS_COLUMNS = 32;
     static final int MAX_BUILD_Y = 318;
     private static final BlockPos DEFAULT_SPAWN = new BlockPos(0, CITY_GROUND_Y + 2, 0);
     private static final ResourceKey<DimensionType> MEGACITY_DIMENSION_TYPE = ResourceKey.create(
@@ -88,6 +99,9 @@ public final class NeonCityGenerator {
         CANAL,
         PARK,
         HARBOR,
+        CONTAINER_PORT,
+        OCEAN,
+        PORTSHIP,
         FARM,
         EXTRACTION_SITE,
         BORDER_RIVER,
@@ -163,6 +177,7 @@ public final class NeonCityGenerator {
         USABLE_ARNIS_PLACEMENTS.clear();
         ArnisPatchLibrary.clearSelectionCache();
         MerchantTruckLibrary.clearCaches();
+        UCorpPortGeneration.clearCache();
         enabled = false;
     }
 
@@ -203,6 +218,9 @@ public final class NeonCityGenerator {
     }
 
     public static boolean chunkTouchesCity(int chunkX, int chunkZ) {
+        if (UCorpPortGeneration.plan(layout).chunkIntersectsManagedArea(chunkX, chunkZ)) {
+            return true;
+        }
         int minX = chunkX << 4;
         int minZ = chunkZ << 4;
         int[] offsets = {0, 8, 15};
@@ -316,6 +334,9 @@ public final class NeonCityGenerator {
             UrbanSample[][] samples = sampleChunk(minX, minZ);
             Optional<ArnisPatchLibrary.Placement> patchPlacement =
                     usableArnisPlacement(chunk.x(), chunk.z(), samples);
+            District patchDistrict = patchPlacement
+                    .map(placement -> placement.patch().district())
+                    .orElse(null);
 
             // Buildings come only from Arnis. Graph crossings, district borders, and special
             // infrastructure use a non-building procedural pass that can cross chunks safely.
@@ -341,16 +362,17 @@ public final class NeonCityGenerator {
                     int x = minX + localX;
                     int z = minZ + localZ;
                     UrbanSample sample = samples[localZ + 1][localX + 1];
-                    if (sample.zone() == MegacityLayout.Zone.WILDERNESS) continue;
-                    if (patchTemplate != null) {
+                    if (patchTemplate != null && keepsArnisColumn(sample, patchDistrict)) {
                         prepareArnisColumn(level, pos, x, z);
                         continue;
                     }
+                    if (sample.zone() == MegacityLayout.Zone.WILDERNESS) continue;
                     buildColumn(level, pos, x, z, sample);
                 }
             }
             if (patchTemplate != null && patchPlacement.isPresent()) {
-                if (!placeArnisPatch(level, chunk, patchPlacement.get(), patchTemplate)) {
+                if (!placeArnisPatch(
+                        level, chunk, patchPlacement.get(), patchTemplate, samples)) {
                     return false;
                 }
                 EnumSet<ArnisPatchLibrary.Connector.Edge> interruptedEdges =
@@ -366,6 +388,8 @@ public final class NeonCityGenerator {
                             chunk,
                             interruptedEdges);
                 }
+                ArnisFacadeRepair.sealInfrastructureCuts(
+                        level, chunk, samples, patchPlacement.get().patch().district());
             }
             DistrictWorldFeatures.decorateChunk(level, chunk, samples);
             QuicktimeTravelService.installCanonicalStations(level, chunk);
@@ -377,11 +401,43 @@ public final class NeonCityGenerator {
                         placement.patch().district(),
                         placement.selectionHash());
             }
+            applyUCorpOceanBiomes(level, chunk);
             return true;
         } catch (RuntimeException exception) {
             LOGGER.error("[NeonCity] failed generating chunk {}", chunk, exception);
             return false;
         }
+    }
+
+    private static void applyUCorpOceanBiomes(ServerLevel level, ChunkPos chunkPos) {
+        UCorpPortGeneration.Plan portPlan = UCorpPortGeneration.plan(layout);
+        boolean containsOcean = false;
+        for (int z = chunkPos.getMinBlockZ() + 2; z <= chunkPos.getMaxBlockZ(); z += 4) {
+            for (int x = chunkPos.getMinBlockX() + 2; x <= chunkPos.getMaxBlockX(); x += 4) {
+                if (portPlan.isOceanBiomeAt(x, z)) {
+                    containsOcean = true;
+                    break;
+                }
+            }
+            if (containsOcean) break;
+        }
+        if (!containsOcean) return;
+
+        LevelChunk chunk = level.getChunkSource().getChunkNow(chunkPos.x(), chunkPos.z());
+        if (chunk == null) return;
+        Holder<Biome> deepOcean = level.registryAccess()
+                .lookupOrThrow(Registries.BIOME)
+                .getOrThrow(Biomes.DEEP_OCEAN);
+        var sampler = level.getChunkSource().randomState().sampler();
+        chunk.fillBiomesFromNoise((quartX, quartY, quartZ, climateSampler) -> {
+            int blockX = QuartPos.toBlock(quartX) + 2;
+            int blockZ = QuartPos.toBlock(quartZ) + 2;
+            return portPlan.isOceanBiomeAt(blockX, blockZ)
+                    ? deepOcean
+                    : chunk.getNoiseBiome(quartX, quartY, quartZ);
+        }, sampler);
+        chunk.markUnsaved();
+        level.getChunkSource().chunkMap.resendBiomesForChunks(List.of(chunk));
     }
 
     static UrbanSample[][] sampleChunk(int minX, int minZ) {
@@ -405,7 +461,7 @@ public final class NeonCityGenerator {
         }
         Optional<ArnisPatchLibrary.Placement> placement =
                 ArnisPatchLibrary.select(layout, chunkX, chunkZ)
-                        .filter(value -> isOrdinaryArnisChunk(
+                        .filter(value -> isArnisCompatibleChunk(
                                 samples, value.patch().district()));
         if (USABLE_ARNIS_PLACEMENTS.size() >= MAX_ARNIS_PLAN_CACHE) {
             USABLE_ARNIS_PLACEMENTS.clear();
@@ -452,29 +508,27 @@ public final class NeonCityGenerator {
         return interrupted;
     }
 
-    private static boolean isOrdinaryArnisChunk(
+    static boolean isArnisCompatibleChunk(
             UrbanSample[][] samples, District selectedDistrict) {
-        for (UrbanSample[] row : samples) {
-            for (UrbanSample sample : row) {
-                if (requiresProceduralInfrastructure(sample.roadClass())) return false;
-            }
-        }
-        // A center-selected atlas cell may touch an irregular district edge. Do not stamp its
-        // square footprint over wilderness or into another Corp; use the procedural edge pass.
+        int retainedColumns = 0;
         for (int z = 1; z <= 16; z++) {
             for (int x = 1; x <= 16; x++) {
-                UrbanSample sample = samples[z][x];
-                if (sample.district() != selectedDistrict
-                        || (sample.zone() != MegacityLayout.Zone.NEST
-                        && sample.zone() != MegacityLayout.Zone.BACKSTREETS)) {
-                    return false;
+                if (keepsArnisColumn(samples[z][x], selectedDistrict)) {
+                    retainedColumns++;
                 }
             }
         }
-        return true;
+        return retainedColumns >= MIN_ARNIS_COLUMNS;
     }
 
-    private static boolean requiresProceduralInfrastructure(RoadClass roadClass) {
+    static boolean keepsArnisColumn(UrbanSample sample, District selectedDistrict) {
+        return sample.district() == selectedDistrict
+                && (sample.zone() == MegacityLayout.Zone.NEST
+                || sample.zone() == MegacityLayout.Zone.BACKSTREETS)
+                && !overridesArnis(sample.roadClass());
+    }
+
+    static boolean overridesArnis(RoadClass roadClass) {
         return switch (roadClass) {
             case INTERDISTRICT_ROAD,
                     BRIDGE,
@@ -484,6 +538,9 @@ public final class NeonCityGenerator {
                     CANAL,
                     PARK,
                     HARBOR,
+                    CONTAINER_PORT,
+                    OCEAN,
+                    PORTSHIP,
                     FARM,
                     EXTRACTION_SITE -> true;
             default -> false;
@@ -512,7 +569,8 @@ public final class NeonCityGenerator {
 
     private static boolean placeArnisPatch(ServerLevel level, ChunkPos chunk,
                                            ArnisPatchLibrary.Placement placement,
-                                           StructureTemplate template) {
+                                           StructureTemplate template,
+                                           UrbanSample[][] samples) {
         ArnisPatchLibrary.Patch patch = placement.patch();
         int minX = chunk.getMinBlockX();
         int minY = CITY_GROUND_Y - patch.surfaceOffset();
@@ -523,7 +581,9 @@ public final class NeonCityGenerator {
         BoundingBox destinationBounds = new BoundingBox(
                 minX, minY, minZ,
                 chunk.getMaxBlockX(), minY + patch.sizeY() - 1, chunk.getMaxBlockZ());
-        StructurePlaceSettings settings = arnisPlaceSettings(placement, destinationBounds);
+        StructurePlaceSettings settings = arnisPlaceSettings(placement, destinationBounds)
+                .addProcessor(new ArnisColumnMaskProcessor(
+                        minX, minZ, samples, placement.patch().district()));
         BoundingBox transformedBounds = template.getBoundingBox(settings, anchor);
         if (!sameBounds(destinationBounds, transformedBounds)) {
             LOGGER.error("[NeonCity] transformed Arnis template {} escaped chunk {}: expected {}, got {}",
@@ -551,6 +611,49 @@ public final class NeonCityGenerator {
                 .setBoundingBox(destinationBounds);
     }
 
+    private static final class ArnisColumnMaskProcessor implements StructureProcessor {
+        private final int minX;
+        private final int minZ;
+        private final boolean[] retained = new boolean[16 * 16];
+
+        private ArnisColumnMaskProcessor(
+                int minX,
+                int minZ,
+                UrbanSample[][] samples,
+                District selectedDistrict) {
+            this.minX = minX;
+            this.minZ = minZ;
+            for (int z = 0; z < 16; z++) {
+                for (int x = 0; x < 16; x++) {
+                    retained[z * 16 + x] = keepsArnisColumn(
+                            samples[z + 1][x + 1], selectedDistrict);
+                }
+            }
+        }
+
+        @Override
+        public MapCodec<? extends StructureProcessor> codec() {
+            return MapCodec.unit(this);
+        }
+
+        @Override
+        public StructureTemplate.@Nullable StructureBlockInfo processBlock(
+                LevelReader level,
+                BlockPos targetPosition,
+                BlockPos referencePos,
+                BlockPos placementPosition,
+                StructureTemplate.StructureBlockInfo processedBlockInfo,
+                StructurePlaceSettings settings) {
+            BlockPos worldPosition = processedBlockInfo.pos();
+            int localX = worldPosition.getX() - minX;
+            int localZ = worldPosition.getZ() - minZ;
+            if (localX < 0 || localX >= 16 || localZ < 0 || localZ >= 16) {
+                return null;
+            }
+            return retained[localZ * 16 + localX] ? processedBlockInfo : null;
+        }
+    }
+
     private static boolean sameBounds(BoundingBox left, BoundingBox right) {
         return left.minX() == right.minX()
                 && left.minY() == right.minY()
@@ -564,16 +667,16 @@ public final class NeonCityGenerator {
                             int x, int z, UrbanSample sample) {
         int naturalTop = level.getHeight(Heightmap.Types.WORLD_SURFACE, x, z);
         int ground = sample.groundY();
-        int clearFrom = sample.roadClass() == RoadClass.BORDER_RIVER
-                || sample.roadClass() == RoadClass.BRIDGE ? WATER_Y + 1 : ground + 1;
+        int clearFrom = sample.roadClass() == RoadClass.BRIDGE
+                ? WATER_Y + 1
+                : ground + 1;
         for (int y = clearFrom; y <= Math.min(MAX_BUILD_Y, naturalTop + 2); y++) {
             set(level, pos, x, y, z, Blocks.AIR.defaultBlockState());
         }
 
-        int foundationTop = sample.roadClass() == RoadClass.BORDER_RIVER
-                || sample.roadClass() == RoadClass.CANAL
-                || sample.roadClass() == RoadClass.HARBOR
-                || sample.roadClass() == RoadClass.BRIDGE ? WATER_Y - 1 : ground;
+        int foundationTop = sample.roadClass() == RoadClass.BRIDGE
+                ? WATER_Y - 1
+                : ground;
         for (int y = Math.min(naturalTop, foundationTop - 5); y <= foundationTop; y++) {
             if (y < level.getMinY()) continue;
             BlockState state = y == foundationTop
@@ -595,7 +698,11 @@ public final class NeonCityGenerator {
     }
 
     private static boolean isWater(RoadClass road) {
-        return road == RoadClass.BORDER_RIVER || road == RoadClass.CANAL || road == RoadClass.HARBOR;
+        return road == RoadClass.BORDER_RIVER
+                || road == RoadClass.CANAL
+                || road == RoadClass.HARBOR
+                || road == RoadClass.OCEAN
+                || road == RoadClass.PORTSHIP;
     }
 
     private static BlockState foundation(UrbanSample sample) {
@@ -621,6 +728,14 @@ public final class NeonCityGenerator {
             case SERVICE_ALLEY -> Blocks.DEEPSLATE_TILES.defaultBlockState();
             case BRIDGE, ELEVATED_RAIL -> Blocks.SMOOTH_STONE.defaultBlockState();
             case CANAL, HARBOR, BORDER_RIVER -> Blocks.CLAY.defaultBlockState();
+            case OCEAN, PORTSHIP -> floorMod(x * 5 + z * 7, 9) <= 2
+                    ? Blocks.CLAY.defaultBlockState()
+                    : Blocks.GRAVEL.defaultBlockState();
+            case CONTAINER_PORT -> floorMod(x * 7 + z * 11, 19) <= 1
+                    ? concrete(DyeColor.YELLOW)
+                    : floorMod(x - z, 13) == 0
+                            ? concrete(DyeColor.LIGHT_GRAY)
+                            : concrete(DyeColor.GRAY);
             case PARK -> floorMod(x + z, 7) == 0
                     ? Blocks.MOSS_BLOCK.defaultBlockState() : Blocks.GRASS_BLOCK.defaultBlockState();
             case FARM -> DistrictWorldFeatures.farmSurface(sample);
@@ -710,6 +825,10 @@ public final class NeonCityGenerator {
         int y = sample.groundY() + 1;
         long hash = mix(layout.seed() ^ 0x4445434F52415445L, x, z);
         if (sample.zone() == MegacityLayout.Zone.OUTSKIRTS
+                && sample.roadClass() != RoadClass.CONTAINER_PORT
+                && sample.roadClass() != RoadClass.HARBOR
+                && sample.roadClass() != RoadClass.OCEAN
+                && sample.roadClass() != RoadClass.PORTSHIP
                 && unit(hash) < sample.district().vegetation() * 0.018) {
             TreePalette trees = treePalette(sample.district());
             int height = 4 + floorMod((int) hash, 3);
@@ -725,6 +844,18 @@ public final class NeonCityGenerator {
             if (floorMod(x * 11 + z * 3, 43) == 0) {
                 for (int dy = 1; dy <= 4; dy++) {
                     set(level, pos, x, dock + dy, z, concrete(DyeColor.values()[floorMod((int) hash, 16)]));
+                }
+            }
+        }
+        if (sample.roadClass() == RoadClass.CONTAINER_PORT
+                || sample.roadClass() == RoadClass.PORTSHIP) {
+            UCorpPortGeneration.Plan portPlan = UCorpPortGeneration.plan(layout);
+            for (int overlayY = UCorpPortGeneration.OVERLAY_MIN_Y;
+                 overlayY <= UCorpPortGeneration.OVERLAY_MAX_Y;
+                 overlayY++) {
+                BlockState overlay = UCorpPortGeneration.overlayAt(portPlan, x, overlayY, z);
+                if (overlay != null) {
+                    set(level, pos, x, overlayY, z, overlay);
                 }
             }
         }
@@ -872,23 +1003,41 @@ public final class NeonCityGenerator {
         MegacityLayout.Location location = detailedRuntimeSample
                 ? activeLayout.locate(worldX, worldZ)
                 : activeLayout.locateDistrict(worldX, worldZ);
-        District district = location.district();
-        MegacityLayout.Zone zone = location.zone();
-        if (zone == MegacityLayout.Zone.WILDERNESS) {
+        UCorpPortGeneration.Feature marineFeature = UCorpPortGeneration.plan(activeLayout)
+                .featureAt(worldX, worldZ);
+        boolean marine = marineFeature != UCorpPortGeneration.Feature.NONE;
+        District district = marine ? District.U_CORP : location.district();
+        MegacityLayout.Zone zone = marine
+                ? location.district() == District.U_CORP
+                        && location.zone() != MegacityLayout.Zone.WILDERNESS
+                                ? location.zone()
+                                : MegacityLayout.Zone.OUTSKIRTS
+                : location.zone();
+        if (zone == MegacityLayout.Zone.WILDERNESS && !marine) {
             return new UrbanSample(location, district, zone, RoadClass.WILDERNESS,
                     CITY_GROUND_Y, 0, district.parcelSize(), false,
                     0, 0, 0.0, 0.0, 0L);
         }
 
-        LocalCoordinates local = parcelCoordinates(location.primary(), worldX, worldZ);
+        MegacityLayout.Node parcelNode = marine
+                ? activeLayout.node(District.U_CORP)
+                : location.primary();
+        LocalCoordinates local = parcelCoordinates(parcelNode, worldX, worldZ);
         int parcelSize = district.parcelSize();
         int parcelX = floorDiv(local.u(), parcelSize);
         int parcelZ = floorDiv(local.v(), parcelSize);
         double localU = floorMod(local.u(), parcelSize);
         double localV = floorMod(local.v(), parcelSize);
-        long parcelHash = mix(activeLayout.seed() ^ location.primary().identity(), parcelX, parcelZ);
+        long parcelHash = mix(activeLayout.seed() ^ parcelNode.identity(), parcelX, parcelZ);
         RoadClass road = roadClass(
-                activeLayout, location, local, worldX, worldZ, parcelHash, detailedRuntimeSample);
+                activeLayout,
+                location,
+                marineFeature,
+                local,
+                worldX,
+                worldZ,
+                parcelHash,
+                detailedRuntimeSample);
         int groundY = terrainHeight(activeLayout, location, worldX, worldZ, road);
         if (detailedRuntimeSample && road == RoadClass.NONE
                 && zone == MegacityLayout.Zone.BACKSTREETS
@@ -903,12 +1052,15 @@ public final class NeonCityGenerator {
     private static RoadClass roadClass(
             MegacityLayout activeLayout,
             MegacityLayout.Location location,
+            UCorpPortGeneration.Feature marineFeature,
             LocalCoordinates local,
             int worldX,
             int worldZ,
             long hash,
             boolean includeAtlasConnectors) {
-        MegacityLayout.Node node = location.primary();
+        MegacityLayout.Node node = marineFeature == UCorpPortGeneration.Feature.NONE
+                ? location.primary()
+                : activeLayout.node(District.U_CORP);
         double dx = worldX - node.x();
         double dz = worldZ - node.z();
         double radius = Math.hypot(dx, dz);
@@ -925,6 +1077,14 @@ public final class NeonCityGenerator {
             }
             return RoadClass.INTERDISTRICT_ROAD;
         }
+        RoadClass marineRoad = switch (marineFeature) {
+            case NONE -> null;
+            case CONTAINER_PORT -> RoadClass.CONTAINER_PORT;
+            case HARBOR_WATER -> RoadClass.HARBOR;
+            case OCEAN -> RoadClass.OCEAN;
+            case PORTSHIP -> RoadClass.PORTSHIP;
+        };
+        if (marineRoad != null) return marineRoad;
         if (location.zone() == MegacityLayout.Zone.BORDER_RIVER) return RoadClass.BORDER_RIVER;
         if (location.zone() == MegacityLayout.Zone.BORDER_HILLS) return RoadClass.BORDER_HILLS;
         if (location.district() == District.S_CORP
@@ -960,10 +1120,6 @@ public final class NeonCityGenerator {
                 return RoadClass.CANAL;
             }
             if (crossing && canalDistance < 24.0) return RoadClass.LOCAL_STREET;
-        }
-        if (district == District.U_CORP && location.normalizedDistance() > 0.52) {
-            double quay = local.v() - 55.0 * Math.sin(local.u() / 137.0);
-            if (Math.abs(foldLine(quay, 180.0)) < 18.0) return RoadClass.HARBOR;
         }
         if (district == District.X_CORP && location.normalizedDistance() > 0.68
                 && floorMod((int) hash, 4) <= 2) return RoadClass.EXTRACTION_SITE;
@@ -1079,6 +1235,10 @@ public final class NeonCityGenerator {
             int x,
             int z,
             RoadClass road) {
+        if (road == RoadClass.OCEAN || road == RoadClass.PORTSHIP) {
+            return UCorpPortGeneration.OCEAN_FLOOR_MIN_Y
+                    + floorMod((int) mix(activeLayout.seed() ^ 0x554F4345414E464CL, x, z), 6);
+        }
         if (road == RoadClass.BORDER_RIVER || road == RoadClass.CANAL || road == RoadClass.HARBOR) {
             return WATER_Y - 1;
         }
@@ -1170,7 +1330,32 @@ public final class NeonCityGenerator {
     }
 
     public static MegacityLayout layout() { return layout; }
-    public static District districtAt(int worldX, int worldZ) { return layout.locate(worldX, worldZ).district(); }
+    public static District districtAt(int worldX, int worldZ) {
+        return UCorpPortGeneration.plan(layout).isManagedAt(worldX, worldZ)
+                ? District.U_CORP
+                : layout.locate(worldX, worldZ).district();
+    }
+    static MegacityLayout.Location effectiveLocation(UrbanSample sample) {
+        MegacityLayout.Location raw = sample.location();
+        if (raw.district() == sample.district() && raw.zone() == sample.zone()) {
+            return raw;
+        }
+        MegacityLayout.Node primary = layout.node(sample.district());
+        MegacityLayout.Node secondary = raw.primary().district() == sample.district()
+                ? raw.secondary()
+                : raw.primary();
+        return new MegacityLayout.Location(
+                primary,
+                secondary,
+                sample.zone(),
+                raw.normalizedDistance(),
+                raw.boundaryGap(),
+                raw.nearestConnection(),
+                raw.connectionDistance());
+    }
+    public static MegacityLayout.Location effectiveLocationAt(int worldX, int worldZ) {
+        return effectiveLocation(sample(worldX, worldZ));
+    }
     public static RoadClass roadAt(int worldX, int worldZ) { return sample(worldX, worldZ).roadClass(); }
     public static boolean isUsableArnisChunk(ServerLevel level, int worldX, int worldZ) {
         return isMegacityWorld(level)
@@ -1207,12 +1392,16 @@ public final class NeonCityGenerator {
     public static boolean isHighwayAt(MegacityLayout activeLayout, int worldX, int worldZ) {
         return activeLayout.locate(worldX, worldZ).onConnection();
     }
-    public static boolean isInsideCity(int worldX, int worldZ) { return layout.locate(worldX, worldZ).insideCity(); }
+    public static boolean isInsideCity(int worldX, int worldZ) {
+        return layout.locate(worldX, worldZ).insideCity()
+                || UCorpPortGeneration.plan(layout).isManagedAt(worldX, worldZ);
+    }
     public static boolean isInsideCity(ServerLevel level, int worldX, int worldZ) {
         if (!isMegacityWorld(level)) return false;
         MegacityLayout activeLayout = layoutWorldSeed == level.getSeed()
                 ? layout : MegacityLayout.create(level.getSeed());
-        return activeLayout.locate(worldX, worldZ).insideCity();
+        return activeLayout.locate(worldX, worldZ).insideCity()
+                || UCorpPortGeneration.plan(activeLayout).isManagedAt(worldX, worldZ);
     }
     public static boolean isEnabled() { return enabled; }
     static boolean isGenerated(ChunkPos chunk) { return GENERATED.contains(chunk.pack()); }

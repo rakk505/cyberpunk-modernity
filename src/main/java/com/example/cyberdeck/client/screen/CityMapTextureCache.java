@@ -6,6 +6,7 @@ import com.mojang.blaze3d.platform.NativeImage;
 import dev.modernity.neoncity.CityMapProjection;
 import dev.modernity.neoncity.District;
 import dev.modernity.neoncity.MegacityLayout;
+import dev.modernity.neoncity.UCorpPortGeneration;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
@@ -25,8 +26,9 @@ public final class CityMapTextureCache {
 
     private static final String ATLAS_RESOURCE =
             "/assets/cyberdeck/textures/gui/project_moon_map_atlas.png";
-    private static final int ATLAS_DISTRICT_SIZE = 128;
-    private static final int ATLAS_ZONE_HEIGHT = 128;
+    private static final int ATLAS_AXIS_CHUNKS = 16;
+    private static final int ATLAS_DISTRICT_SIZE = ATLAS_AXIS_CHUNKS * 16;
+    private static final int ATLAS_ZONE_HEIGHT = ATLAS_AXIS_CHUNKS * 16;
     private static final double DISTRICT_ENVELOPE = 1.32;
 
     private static volatile Status status = Status.EMPTY;
@@ -226,6 +228,7 @@ public final class CityMapTextureCache {
             byte[] secondDistrict,
             long requestGeneration) {
         District[] districts = District.values();
+        UCorpPortGeneration.Plan port = UCorpPortGeneration.plan(layout);
         for (int pixelZ = 0; pixelZ < TEXTURE_SIZE; pixelZ++) {
             if ((pixelZ & 15) == 0) ensureCurrent(requestGeneration);
             int worldZ = worldCoordinates[pixelZ];
@@ -233,6 +236,12 @@ public final class CityMapTextureCache {
             for (int pixelX = 0; pixelX < TEXTURE_SIZE; pixelX++) {
                 int worldX = worldCoordinates[pixelX];
                 int index = row + pixelX;
+                UCorpPortGeneration.Feature marineFeature = port.featureAt(worldX, worldZ);
+                if (marineFeature != UCorpPortGeneration.Feature.NONE) {
+                    output.setPixel(pixelX, pixelZ,
+                            marineColor(marineFeature, worldX, worldZ));
+                    continue;
+                }
                 double distance = nearestDistance[index];
                 if (distance > 1.08 || nearestDistrict[index] < 0) {
                     output.setPixel(pixelX, pixelZ,
@@ -259,6 +268,25 @@ public final class CityMapTextureCache {
             updateProgress(requestGeneration,
                     0.58 + 0.36 * (pixelZ + 1.0) / TEXTURE_SIZE);
         }
+    }
+
+    private static int marineColor(
+            UCorpPortGeneration.Feature feature, int worldX, int worldZ) {
+        return switch (feature) {
+            case CONTAINER_PORT -> switch (Math.floorMod(
+                    Math.floorDiv(worldX, 12) * 31 + Math.floorDiv(worldZ, 12) * 17, 6)) {
+                case 0 -> 0xFF9D3C32;
+                case 1 -> 0xFFD0782B;
+                case 2 -> 0xFF2C7884;
+                case 3 -> 0xFF35634A;
+                case 4 -> 0xFFB59A35;
+                default -> 0xFF4D5961;
+            };
+            case HARBOR_WATER -> checker(worldX, worldZ, 0xFF08647A, 0xFF0A7182);
+            case OCEAN -> checker(worldX, worldZ, 0xFF06384D, 0xFF07475C);
+            case PORTSHIP -> checker(worldX, worldZ, 0xFF87542D, 0xFFB46D32);
+            case NONE -> checker(worldX, worldZ, 0xFF02060B, 0xFF03080E);
+        };
     }
 
     private static void ensureCurrent(long requestGeneration) {
@@ -313,11 +341,11 @@ public final class CityMapTextureCache {
     }
 
     private static AxisMapping mapAxis(int destinationRelative) {
-        int centered = destinationRelative + 4;
-        int copy = Math.floorDiv(centered, 8);
-        int local = Math.floorMod(centered, 8);
+        int centered = destinationRelative + ATLAS_AXIS_CHUNKS / 2;
+        int copy = Math.floorDiv(centered, ATLAS_AXIS_CHUNKS);
+        int local = Math.floorMod(centered, ATLAS_AXIS_CHUNKS);
         boolean flipped = Math.floorMod(copy, 2) == 1;
-        return new AxisMapping(flipped ? 7 - local : local, flipped);
+        return new AxisMapping(flipped ? ATLAS_AXIS_CHUNKS - 1 - local : local, flipped);
     }
 
     private static int color(

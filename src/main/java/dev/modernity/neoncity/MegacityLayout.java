@@ -96,9 +96,12 @@ public final class MegacityLayout {
     public static MegacityLayout createFromLayoutSeed(long layoutSeed) {
         long seed = layoutSeed;
         ArrayList<District> assignment = new ArrayList<>(List.of(District.values()));
-        // A Corp is the monumental origin; every other culture changes place
-        // with the world seed while preserving the same balanced point set.
-        for (int index = assignment.size() - 1; index > 1; index--) {
+        // A Corp is the monumental origin. U Corp is reserved for the outermost point so its
+        // seeded port can always open toward wilderness and a real ocean biome. Every other
+        // culture changes place with the world seed while preserving the balanced point set.
+        int outermostIndex = assignment.size() - 1;
+        Collections.swap(assignment, assignment.indexOf(District.U_CORP), outermostIndex);
+        for (int index = outermostIndex - 1; index > 1; index--) {
             int swap = 1 + floorMod((int) mix(seed ^ NODE_SALT, index, 17), index);
             Collections.swap(assignment, index, swap);
         }
@@ -112,8 +115,10 @@ public final class MegacityLayout {
                 nodes.add(new Node(district, 0, 0, 990, 900, phase, identity));
                 continue;
             }
-            double radial = 735.0 * Math.sqrt(index)
-                    + signedUnit(Long.rotateRight(identity, 9)) * 95.0;
+            double radial = district == District.U_CORP
+                    ? 3_820.0 + signedUnit(Long.rotateRight(identity, 9)) * 35.0
+                    : 735.0 * Math.sqrt(index)
+                            + signedUnit(Long.rotateRight(identity, 9)) * 95.0;
             double angle = phase + index * GOLDEN_ANGLE
                     + signedUnit(Long.rotateRight(identity, 23)) * 0.13;
             int x = (int) Math.round(Math.cos(angle) * radial);

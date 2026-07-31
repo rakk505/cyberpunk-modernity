@@ -88,6 +88,9 @@ public final class ProjectMoonCityModule {
                     "special_district_infrastructure",
                     ExampleGameTests::specialDistrictInfrastructure);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            U_CORP_PORT_GENERATION = register(
+                    "u_corp_port_generation", ExampleGameTests::uCorpPortGeneration);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             DISTRICT_ENVIRONMENT = register(
                     "district_environment", ExampleGameTests::districtEnvironment);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
@@ -173,14 +176,19 @@ public final class ProjectMoonCityModule {
                 if (NeonCityGenerator.isGenerated(playerChunk)) {
                     QuicktimeTravelService.installCanonicalStations(overworld, playerChunk);
                 }
-                MegacityLayout.Location location = NeonCityGenerator.layout().locate(
+                NeonCityGenerator.UrbanSample sample = NeonCityGenerator.sample(
                         player.getBlockX(), player.getBlockZ());
+                MegacityLayout.Location location = NeonCityGenerator.effectiveLocation(sample);
                 MissionService.tickPlayer(player, location);
-                District notificationDistrict = DistrictEntryNotifier.inhabitedDistrict(
-                        location.district(), location.zone());
+                boolean uCorpMarine = UCorpPortGeneration.plan(NeonCityGenerator.layout())
+                        .isManagedAt(player.getBlockX(), player.getBlockZ());
+                District notificationDistrict = uCorpMarine
+                        ? District.U_CORP
+                        : DistrictEntryNotifier.inhabitedDistrict(
+                                sample.district(), sample.zone());
                 districtEntryNotifier.updatePlayer(player, notificationDistrict);
-                District atmosphereDistrict = location.insideCity()
-                        ? location.district()
+                District atmosphereDistrict = sample.zone() != MegacityLayout.Zone.WILDERNESS
+                        ? sample.district()
                         : null;
                 updateAtmosphere(overworld, player, atmosphereDistrict);
             }
@@ -313,6 +321,7 @@ public final class ProjectMoonCityModule {
                 "special_district_infrastructure",
                 SPECIAL_DISTRICT_INFRASTRUCTURE,
                 data);
+        registerInstance(event, "u_corp_port_generation", U_CORP_PORT_GENERATION, data);
         registerInstance(event, "district_environment", DISTRICT_ENVIRONMENT, data);
         registerInstance(event, "arnis_patch_selection", ARNIS_PATCH_SELECTION, data);
         registerInstance(event, "arnis_facade_repair", ARNIS_FACADE_REPAIR, data);

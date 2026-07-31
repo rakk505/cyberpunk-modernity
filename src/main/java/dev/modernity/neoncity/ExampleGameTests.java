@@ -35,7 +35,9 @@ import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.FarmlandBlock;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.entity.BannerBlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
+import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.entity.npc.villager.VillagerProfession;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.phys.AABB;
@@ -45,7 +47,7 @@ public final class ExampleGameTests {
     private static final long TEST_SEED = 0x4E454F4E43495459L;
     private static final int RADIAL_STEPS = 72;
     private static final long[] ZONE_SEED_OFFSETS = {0L, 20L, 85L, 127L};
-    private static final int ARNIS_ATLAS_AXIS = 8;
+    private static final int ARNIS_ATLAS_AXIS = 16;
     private static final int ARNIS_TILES_PER_ATLAS = ARNIS_ATLAS_AXIS * ARNIS_ATLAS_AXIS;
     private static final EnumSet<MegacityLayout.Zone> ARNIS_ZONES =
             EnumSet.of(MegacityLayout.Zone.NEST, MegacityLayout.Zone.BACKSTREETS);
@@ -1060,6 +1062,303 @@ public final class ExampleGameTests {
         helper.succeed();
     }
 
+    public static void uCorpPortGeneration(GameTestHelper helper) {
+        UCorpPortGeneration.clearCache();
+        UCorpPortGeneration.Plan detailedPlan = null;
+        for (long seedOffset : ZONE_SEED_OFFSETS) {
+            MegacityLayout layout = MegacityLayout.create(TEST_SEED + seedOffset);
+            MegacityLayout.Node uCorp = layout.node(District.U_CORP);
+            long uDistance = squaredDistanceFromOrigin(uCorp);
+            helper.assertTrue(layout.nodes().getLast().district() == District.U_CORP,
+                    "U Corp is not reserved for the outermost layout slot");
+            for (MegacityLayout.Node other : layout.nodes()) {
+                if (other.district() == District.U_CORP) continue;
+                helper.assertTrue(uDistance > squaredDistanceFromOrigin(other),
+                        "U Corp is not the outermost district at seed offset " + seedOffset
+                                + ": " + other.district() + " is at least as distant");
+            }
+
+            UCorpPortGeneration.Plan plan = UCorpPortGeneration.plan(layout);
+            UCorpPortGeneration.clearCache();
+            UCorpPortGeneration.Plan recreated = UCorpPortGeneration.plan(
+                    MegacityLayout.createFromLayoutSeed(layout.seed()));
+            helper.assertTrue(plan.equals(recreated),
+                    "U Corp marine plan changed when recreated from its public layout seed");
+            helper.assertTrue(plan.portships().size() >= UCorpPortGeneration.MIN_PORTSHIPS
+                            && plan.portships().size() <= UCorpPortGeneration.MAX_PORTSHIPS,
+                    "U Corp must generate two or three Portships, found "
+                            + plan.portships().size());
+            helper.assertTrue(Math.abs(plan.forwardX()) + Math.abs(plan.forwardZ()) == 1
+                            && Math.abs(plan.rightX()) + Math.abs(plan.rightZ()) == 1
+                            && plan.forwardX() * plan.rightX()
+                                    + plan.forwardZ() * plan.rightZ() == 0,
+                    "U Corp coast frame is not cardinal and orthogonal");
+
+            for (int index = 0; index < plan.portships().size(); index++) {
+                UCorpPortGeneration.Portship ship = plan.portships().get(index);
+                helper.assertTrue(ship.maxX() - ship.minX() + 1
+                                        == UCorpPortGeneration.PORTSHIP_SIZE
+                                && ship.maxZ() - ship.minZ() + 1
+                                        == UCorpPortGeneration.PORTSHIP_SIZE,
+                        "Portship " + index + " does not occupy a 75x75 bounding square");
+                helper.assertTrue(plan.featureAt(ship.centerX(), ship.centerZ())
+                                        == UCorpPortGeneration.Feature.PORTSHIP
+                                && plan.isOceanBiomeAt(ship.centerX(), ship.centerZ()),
+                        "Portship " + index + " is not centered in U Corp ocean");
+                for (int otherIndex = index + 1;
+                     otherIndex < plan.portships().size(); otherIndex++) {
+                    helper.assertTrue(!portshipsOverlap(
+                                    ship, plan.portships().get(otherIndex)),
+                            "U Corp Portships overlap at seed offset " + seedOffset);
+                }
+            }
+            assertOceanContinuity(helper, plan, seedOffset);
+            if (seedOffset == ZONE_SEED_OFFSETS[0]) {
+                detailedPlan = plan;
+            }
+        }
+
+        helper.assertTrue(detailedPlan != null, "U Corp detailed marine plan was not selected");
+        assertPortshipFootprints(helper, detailedPlan);
+        assertPortArchitecture(helper, detailedPlan);
+
+        NeonCityGenerator.reset();
+        UCorpPortGeneration.Plan runtimePlan = UCorpPortGeneration.plan(
+                NeonCityGenerator.layout());
+        UCorpPortGeneration.Portship runtimeShip = runtimePlan.portships().getFirst();
+        NeonCityGenerator.UrbanSample runtimeSample = NeonCityGenerator.sample(
+                runtimeShip.centerX(), runtimeShip.centerZ());
+        MegacityLayout.Location effectiveLocation = NeonCityGenerator.effectiveLocation(
+                runtimeSample);
+        helper.assertTrue(runtimeSample.district() == District.U_CORP
+                        && runtimeSample.roadClass() == NeonCityGenerator.RoadClass.PORTSHIP
+                        && effectiveLocation.district() == District.U_CORP
+                        && effectiveLocation.insideCity(),
+                "offshore Portships are not exposed to U Corp player services");
+        UCorpPortGeneration.clearCache();
+        helper.succeed();
+    }
+
+    private static void assertOceanContinuity(
+            GameTestHelper helper,
+            UCorpPortGeneration.Plan plan,
+            long seedOffset) {
+        EnumSet<UCorpPortGeneration.Feature> features =
+                EnumSet.noneOf(UCorpPortGeneration.Feature.class);
+        features.add(plan.featureAt(
+                plan.worldX(plan.portStart() - 1, 0),
+                plan.worldZ(plan.portStart() - 1, 0)));
+        features.add(plan.featureAt(
+                plan.worldX(plan.portStart(), 0),
+                plan.worldZ(plan.portStart(), 0)));
+
+        int harborForward = plan.portStart() + 24;
+        for (int lateral = -plan.oceanHalfWidth();
+             lateral <= plan.oceanHalfWidth(); lateral++) {
+            features.add(plan.featureAt(
+                    plan.worldX(harborForward, lateral),
+                    plan.worldZ(harborForward, lateral)));
+        }
+
+        int lateralStep = Math.max(8, plan.oceanHalfWidth() / 24);
+        for (int lateral = -plan.oceanHalfWidth();
+             lateral <= plan.oceanHalfWidth(); lateral += lateralStep) {
+            int shoreline = plan.shorelineAt(lateral);
+            UCorpPortGeneration.Feature portEdge = plan.featureAt(
+                    plan.worldX(shoreline - 1, lateral),
+                    plan.worldZ(shoreline - 1, lateral));
+            helper.assertTrue(portEdge == UCorpPortGeneration.Feature.CONTAINER_PORT
+                            || portEdge == UCorpPortGeneration.Feature.HARBOR_WATER,
+                    "U Corp ocean is detached from its port at lateral " + lateral
+                            + " and seed offset " + seedOffset);
+            for (int forward = shoreline; forward <= plan.oceanEnd(); forward++) {
+                int worldX = plan.worldX(forward, lateral);
+                int worldZ = plan.worldZ(forward, lateral);
+                helper.assertTrue(plan.isOceanBiomeAt(worldX, worldZ),
+                        "U Corp ocean has a dry gap at " + worldX + "," + worldZ
+                                + " and seed offset " + seedOffset);
+                features.add(plan.featureAt(worldX, worldZ));
+            }
+        }
+        for (int lateral = -plan.oceanHalfWidth();
+             lateral < plan.oceanHalfWidth(); lateral++) {
+            helper.assertTrue(Math.abs(
+                            plan.shorelineAt(lateral + 1) - plan.shorelineAt(lateral)) <= 2,
+                    "U Corp shoreline tears between adjacent columns at lateral " + lateral);
+        }
+        for (UCorpPortGeneration.Portship ship : plan.portships()) {
+            features.add(plan.featureAt(ship.centerX(), ship.centerZ()));
+        }
+        helper.assertTrue(features.equals(EnumSet.allOf(UCorpPortGeneration.Feature.class)),
+                "U Corp marine plan omitted a required feature: " + features);
+    }
+
+    private static void assertPortshipFootprints(
+            GameTestHelper helper, UCorpPortGeneration.Plan plan) {
+        for (UCorpPortGeneration.Portship ship : plan.portships()) {
+            for (int localForward = -UCorpPortGeneration.PORTSHIP_HALF;
+                 localForward <= UCorpPortGeneration.PORTSHIP_HALF; localForward++) {
+                for (int localLateral = -UCorpPortGeneration.PORTSHIP_HALF;
+                     localLateral <= UCorpPortGeneration.PORTSHIP_HALF; localLateral++) {
+                    if (!UCorpPortGeneration.portshipContains(localForward, localLateral)) {
+                        continue;
+                    }
+                    int worldX = ship.centerX()
+                            + localForward * plan.forwardX()
+                            + localLateral * plan.rightX();
+                    int worldZ = ship.centerZ()
+                            + localForward * plan.forwardZ()
+                            + localLateral * plan.rightZ();
+                    helper.assertTrue(plan.portshipAt(worldX, worldZ) == ship
+                                    && plan.isOceanBiomeAt(worldX, worldZ),
+                            "Portship footprint escaped its deterministic ocean plan at "
+                                    + worldX + "," + worldZ);
+                }
+            }
+        }
+    }
+
+    private static void assertPortArchitecture(
+            GameTestHelper helper, UCorpPortGeneration.Plan plan) {
+        Set<Block> referenceColors = Set.of(
+                Blocks.CONCRETE.pick(DyeColor.BLUE),
+                Blocks.CONCRETE.pick(DyeColor.LIGHT_BLUE),
+                Blocks.CONCRETE.pick(DyeColor.CYAN),
+                Blocks.CONCRETE.pick(DyeColor.GREEN),
+                Blocks.CONCRETE.pick(DyeColor.ORANGE),
+                Blocks.CONCRETE.pick(DyeColor.YELLOW),
+                Blocks.CONCRETE.pick(DyeColor.RED),
+                Blocks.CONCRETE.pick(DyeColor.GRAY));
+
+        Set<Block> portBlocks = samplePortContainers(plan);
+        long portColors = referenceColors.stream().filter(portBlocks::contains).count();
+        helper.assertTrue(portColors >= 4
+                        && portBlocks.contains(Blocks.CONCRETE.pick(DyeColor.LIGHT_GRAY)),
+                "U Corp terminal lacks varied reference containers: colors=" + portColors
+                        + ", blocks=" + portBlocks);
+
+        Set<Block> craneBlocks = samplePortCranes(plan);
+        helper.assertTrue(craneBlocks.contains(Blocks.CONCRETE.pick(DyeColor.YELLOW))
+                        && craneBlocks.contains(Blocks.CONCRETE.pick(DyeColor.ORANGE))
+                        && craneBlocks.contains(Blocks.IRON_BLOCK),
+                "U Corp port cranes lack their mast, boom, or steel frame: " + craneBlocks);
+
+        UCorpPortGeneration.Portship capital = plan.portships().getFirst();
+        Set<Block> towerBlocks = new HashSet<>();
+        for (int forward = -6; forward <= 6; forward++) {
+            for (int lateral = -6; lateral <= 6; lateral++) {
+                for (int y = NeonCityGenerator.WATER_Y + 3;
+                     y <= NeonCityGenerator.WATER_Y + 38; y++) {
+                    addOverlayBlock(towerBlocks, plan, capital, forward, lateral, y);
+                }
+            }
+        }
+        helper.assertTrue(towerBlocks.contains(Blocks.CONCRETE.pick(DyeColor.WHITE))
+                        && towerBlocks.contains(Blocks.STAINED_GLASS.pick(DyeColor.LIGHT_BLUE))
+                        && towerBlocks.contains(Blocks.SEA_LANTERN),
+                "lead Portship lost its central arcology tower palette: " + towerBlocks);
+
+        Set<Block> shipBlocks = new HashSet<>();
+        for (UCorpPortGeneration.Portship ship : plan.portships()) {
+            for (int forward = -32; forward <= 32; forward++) {
+                for (int lateral = -32; lateral <= 32; lateral++) {
+                    for (int y = NeonCityGenerator.WATER_Y + 3;
+                         y <= NeonCityGenerator.WATER_Y + 32; y++) {
+                        addOverlayBlock(shipBlocks, plan, ship, forward, lateral, y);
+                    }
+                }
+            }
+        }
+        long shipColors = referenceColors.stream().filter(shipBlocks::contains).count();
+        helper.assertTrue(shipColors >= 5
+                        && shipBlocks.contains(Blocks.CONCRETE.pick(DyeColor.LIGHT_GRAY))
+                        && shipBlocks.contains(Blocks.TINTED_GLASS),
+                "Portships lack haphazard multicolor container housing: colors="
+                        + shipColors + ", blocks=" + shipBlocks);
+    }
+
+    private static Set<Block> samplePortContainers(UCorpPortGeneration.Plan plan) {
+        Set<Block> result = new HashSet<>();
+        int rows = Math.min(28, Math.ceilDiv(plan.shoreline() - plan.portStart() + 20, 10));
+        int aisles = Math.ceilDiv(plan.oceanHalfWidth() * 2 + 1, 32);
+        int[] widths = {0, 1, 3, 6};
+        int[] lengths = {0, 1, 5, 13, 27};
+        for (int row = 0; row < rows; row++) {
+            for (int aisle = 0; aisle < aisles; aisle++) {
+                for (int localWidth : widths) {
+                    int forward = plan.portStart() + row * 10 + localWidth;
+                    for (int localLength : lengths) {
+                        int lateral = -plan.oceanHalfWidth() + aisle * 32 + localLength;
+                        if (lateral > plan.oceanHalfWidth()
+                                || forward >= plan.shorelineAt(lateral)) {
+                            continue;
+                        }
+                        int worldX = plan.worldX(forward, lateral);
+                        int worldZ = plan.worldZ(forward, lateral);
+                        for (int y = NeonCityGenerator.CITY_GROUND_Y + 1;
+                             y <= NeonCityGenerator.CITY_GROUND_Y + 21; y++) {
+                            BlockState state = UCorpPortGeneration.overlayAt(
+                                    plan, worldX, y, worldZ);
+                            if (state != null) result.add(state.getBlock());
+                        }
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    private static Set<Block> samplePortCranes(UCorpPortGeneration.Plan plan) {
+        Set<Block> result = new HashSet<>();
+        int craneForward = UCorpPortGeneration.portCraneForward(plan);
+        for (int index = 0; index < 3; index++) {
+            int anchor = UCorpPortGeneration.portCraneLateral(plan, index);
+            for (int relativeForward = -10; relativeForward <= 34; relativeForward++) {
+                for (int relativeLateral = -1; relativeLateral <= 1; relativeLateral++) {
+                    int worldX = plan.worldX(
+                            craneForward + relativeForward,
+                            anchor + relativeLateral);
+                    int worldZ = plan.worldZ(
+                            craneForward + relativeForward,
+                            anchor + relativeLateral);
+                    for (int y = NeonCityGenerator.CITY_GROUND_Y + 1;
+                         y <= NeonCityGenerator.CITY_GROUND_Y + 31; y++) {
+                        BlockState state = UCorpPortGeneration.overlayAt(
+                                plan, worldX, y, worldZ);
+                        if (state != null) result.add(state.getBlock());
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    private static void addOverlayBlock(
+            Set<Block> result,
+            UCorpPortGeneration.Plan plan,
+            UCorpPortGeneration.Portship ship,
+            int forward,
+            int lateral,
+            int y) {
+        int worldX = ship.centerX()
+                + forward * plan.forwardX() + lateral * plan.rightX();
+        int worldZ = ship.centerZ()
+                + forward * plan.forwardZ() + lateral * plan.rightZ();
+        BlockState state = UCorpPortGeneration.overlayAt(plan, worldX, y, worldZ);
+        if (state != null) result.add(state.getBlock());
+    }
+
+    private static boolean portshipsOverlap(
+            UCorpPortGeneration.Portship first,
+            UCorpPortGeneration.Portship second) {
+        return first.minX() <= second.maxX() && first.maxX() >= second.minX()
+                && first.minZ() <= second.maxZ() && first.maxZ() >= second.minZ();
+    }
+
+    private static long squaredDistanceFromOrigin(MegacityLayout.Node node) {
+        return (long) node.x() * node.x() + (long) node.z() * node.z();
+    }
+
     public static void districtEnvironment(GameTestHelper helper) {
         NeonCityGenerator.reset();
         MegacityLayout layout = NeonCityGenerator.layout();
@@ -1224,10 +1523,10 @@ public final class ExampleGameTests {
         int expectedAtlasCount = District.values().length * ARNIS_ZONES.size();
         int expectedPatchCount = expectedAtlasCount * ARNIS_TILES_PER_ATLAS;
         helper.assertTrue(District.values().length == 26
-                        && expectedAtlasCount == 52 && expectedPatchCount == 3_328,
-                "Arnis coverage contract must remain 26 districts × 2 zones × 64 tiles");
+                        && expectedAtlasCount == 52 && expectedPatchCount == 13_312,
+                "Arnis coverage contract must remain 26 districts × 2 zones × 256 tiles");
         helper.assertTrue(ArnisPatchLibrary.PATCHES.size() == expectedPatchCount,
-                "runtime index must contain 3,328 audited A-Z Arnis tiles, found "
+                "runtime index must contain 13,312 audited A-Z Arnis tiles, found "
                         + ArnisPatchLibrary.PATCHES.size());
         helper.assertTrue(ArnisPatchLibrary.atlasCount() == expectedAtlasCount,
                 "runtime index must contain exactly 52 district-zone atlases, found "
@@ -1242,7 +1541,7 @@ public final class ExampleGameTests {
             long districtPatches = ArnisPatchLibrary.PATCHES.stream()
                     .filter(patch -> patch.district() == district).count();
             helper.assertTrue(districtPatches == ARNIS_TILES_PER_ATLAS * ARNIS_ZONES.size(),
-                    district + " must own exactly 128 Arnis tiles, found " + districtPatches);
+                    district + " must own exactly 512 Arnis tiles, found " + districtPatches);
             helper.assertTrue(ArnisPatchLibrary.districtAtlasCount(district) == ARNIS_ZONES.size(),
                     district + " must own one Nest and one Backstreets atlas");
             helper.assertTrue(
@@ -1264,7 +1563,7 @@ public final class ExampleGameTests {
                 helper.assertTrue(ArnisPatchLibrary.zoneAtlasCount(district, zone) == 1,
                         district + " " + zone + " must resolve to exactly one coherent atlas");
                 helper.assertTrue(catalogIds.size() == ARNIS_TILES_PER_ATLAS,
-                        district + " " + zone + " is not a complete 8x8 atlas");
+                        district + " " + zone + " is not a complete 16x16 atlas");
                 for (int tileZ = 0; tileZ < ARNIS_ATLAS_AXIS; tileZ++) {
                     for (int tileX = 0; tileX < ARNIS_ATLAS_AXIS; tileX++) {
                         String expected = prefix + tileX + "_" + tileZ;
@@ -1335,6 +1634,7 @@ public final class ExampleGameTests {
         }
         helper.assertTrue(checkedRealConnector,
                 "no selected A-Z Arnis tile exposed an inferred road connector");
+        assertColumnLevelInfrastructureComposition(helper, layout);
 
         int far = MegacityLayout.NOMINAL_CITY_RADIUS * 3;
         int[][] wildernessChunks = {
@@ -1348,6 +1648,85 @@ public final class ExampleGameTests {
                             + chunk[0] + "," + chunk[1]);
         }
         helper.succeed();
+    }
+
+    private static void assertColumnLevelInfrastructureComposition(
+            GameTestHelper helper, MegacityLayout layout) {
+        MegacityLayout.Node node = layout.node(District.A_CORP);
+        int centerChunkX = Math.floorDiv(node.x(), 16);
+        int centerChunkZ = Math.floorDiv(node.z(), 16);
+        boolean foundMixedChunk = false;
+        for (int ring = 0; ring <= 12 && !foundMixedChunk; ring++) {
+            for (int dz = -ring; dz <= ring && !foundMixedChunk; dz++) {
+                for (int dx = -ring; dx <= ring; dx++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != ring) continue;
+                    int chunkX = centerChunkX + dx;
+                    int chunkZ = centerChunkZ + dz;
+                    ArnisPatchLibrary.Placement placement = ArnisPatchLibrary.select(
+                            layout, chunkX, chunkZ).orElse(null);
+                    if (placement == null || placement.patch().district() != District.A_CORP) {
+                        continue;
+                    }
+                    NeonCityGenerator.UrbanSample[][] samples = NeonCityGenerator.sampleChunk(
+                            chunkX << 4, chunkZ << 4);
+                    if (!NeonCityGenerator.isArnisCompatibleChunk(
+                            samples, placement.patch().district())) {
+                        continue;
+                    }
+                    int overrides = 0;
+                    for (int z = 1; z <= 16; z++) {
+                        for (int x = 1; x <= 16; x++) {
+                            if (NeonCityGenerator.overridesArnis(samples[z][x].roadClass())) {
+                                overrides++;
+                            }
+                        }
+                    }
+                    if (overrides > 0 && overrides < 256) {
+                        foundMixedChunk = true;
+                        break;
+                    }
+                }
+            }
+        }
+        helper.assertTrue(foundMixedChunk,
+                "no same-zone Arnis chunk retained buildings beside column-level infrastructure");
+
+        boolean foundMaskedEdge = false;
+        Set<Long> visitedChunks = new HashSet<>();
+        for (District district : District.values()) {
+            MegacityLayout.Node districtNode = layout.node(district);
+            for (double radius = 0.96; radius <= 1.08 && !foundMaskedEdge; radius += 0.01) {
+                for (int angle = 0; angle < 256; angle++) {
+                    int[] point = ellipsePoint(districtNode, radius, angle, 256);
+                    int chunkX = Math.floorDiv(point[0], 16);
+                    int chunkZ = Math.floorDiv(point[1], 16);
+                    if (!visitedChunks.add(ChunkPos.pack(chunkX, chunkZ))) continue;
+                    ArnisPatchLibrary.Placement placement = ArnisPatchLibrary.select(
+                            layout, chunkX, chunkZ).orElse(null);
+                    if (placement == null || placement.patch().district() != district) continue;
+                    NeonCityGenerator.UrbanSample[][] samples = NeonCityGenerator.sampleChunk(
+                            chunkX << 4, chunkZ << 4);
+                    int retained = 0;
+                    for (int z = 1; z <= 16; z++) {
+                        for (int x = 1; x <= 16; x++) {
+                            if (NeonCityGenerator.keepsArnisColumn(
+                                    samples[z][x], placement.patch().district())) {
+                                retained++;
+                            }
+                        }
+                    }
+                    if (retained >= 32 && retained < 256
+                            && NeonCityGenerator.isArnisCompatibleChunk(
+                                    samples, placement.patch().district())) {
+                        foundMaskedEdge = true;
+                        break;
+                    }
+                }
+            }
+            if (foundMaskedEdge) break;
+        }
+        helper.assertTrue(foundMaskedEdge,
+                "no boundary Arnis chunk retained a masked partial atlas footprint");
     }
 
     public static void arnisFacadeRepair(GameTestHelper helper) {

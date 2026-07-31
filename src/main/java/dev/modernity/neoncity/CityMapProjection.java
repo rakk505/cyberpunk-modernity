@@ -14,6 +14,9 @@ public final class CityMapProjection {
             required = Math.max(required, Math.abs(node.x()) + node.radiusX());
             required = Math.max(required, Math.abs(node.z()) + node.radiusZ());
         }
+        required = Math.max(
+                required,
+                UCorpPortGeneration.plan(layout).maximumAbsoluteCoordinate());
         return Math.ceilDiv(required + MARGIN, EXTENT_STEP) * EXTENT_STEP;
     }
 

@@ -38,7 +38,7 @@ import net.minecraft.world.level.block.Rotation;
 public final class ArnisPatchLibrary {
     private static final long SELECTION_SALT = 0x41524E49535A4F4EL;
     private static final int MAX_SELECTION_CACHE = 131_072;
-    private static final int EXPECTED_ATLAS_AXIS = 8;
+    private static final int EXPECTED_ATLAS_AXIS = 16;
     private static final String CATALOG_RESOURCE =
             "/data/neoncity/arnis_districts/catalog.json";
     private static final Pattern ATLAS_TILE =
@@ -400,7 +400,7 @@ public final class ArnisPatchLibrary {
             int depth = indexed.stream().mapToInt(value -> value.tileZ() + 1).max().orElseThrow();
             if (width != EXPECTED_ATLAS_AXIS || depth != EXPECTED_ATLAS_AXIS) {
                 throw new IllegalStateException(
-                        "Arnis district atlas must be exactly 8x8: " + entry.getKey());
+                        "Arnis district atlas must be exactly 16x16: " + entry.getKey());
             }
             ArrayList<Patch> tiles = new ArrayList<>(Collections.nCopies(width * depth, null));
             for (IndexedPatch value : indexed) {
