@@ -28,6 +28,10 @@ public final class CyberdeckNetwork {
                 ReloadPacket.STREAM_CODEC,
                 ReloadPacket::handle);
         registrar.playToServer(
+                StealthTakedownPacket.TYPE,
+                StealthTakedownPacket.STREAM_CODEC,
+                StealthTakedownPacket::handle);
+        registrar.playToServer(
                 UseHealingConsumablePacket.TYPE,
                 UseHealingConsumablePacket.STREAM_CODEC,
                 UseHealingConsumablePacket::handle);
