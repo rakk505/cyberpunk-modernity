@@ -238,7 +238,7 @@ public final class CyberdeckClient {
                 new TypeToken<LivingEntityRenderer<LivingEntity, LivingEntityRenderState, ?>>() {},
                 (entity, state) -> {
                     if (QuickhackScannerClient.isActive()
-                            && entity.getId() == QuickhackScannerClient.targetId()) {
+                            && entity.getId() == QuickhackScannerClient.directTargetId()) {
                         state.outlineColor = 0xFFFF653C;
                         state.hasRedOverlay = true;
                     }

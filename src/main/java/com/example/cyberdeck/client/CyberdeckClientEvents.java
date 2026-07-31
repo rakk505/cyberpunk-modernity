@@ -279,7 +279,7 @@ public final class CyberdeckClientEvents {
     }
 
     private static boolean queueSelectedQuickhack(Minecraft minecraft) {
-        LivingEntity target = QuickhackScannerClient.target(minecraft.level);
+        LivingEntity target = QuickhackScannerClient.actionTarget(minecraft.level);
         if (target == null) {
             return false;
         }
