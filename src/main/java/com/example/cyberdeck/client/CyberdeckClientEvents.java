@@ -1,6 +1,7 @@
 package com.example.cyberdeck.client;
 
 import com.example.cyberdeck.Cyberdeck;
+import com.example.cyberdeck.client.hud.MinimapClientState;
 import com.example.cyberdeck.client.map.CityMapNavigationClient;
 import com.example.cyberdeck.client.mission.MissionTrackerClient;
 import com.example.cyberdeck.cyberware.CyberwareAttachments;
@@ -80,6 +81,14 @@ public final class CyberdeckClientEvents {
             if (mc.gui.screen() == null) {
                 mc.setScreenAndShow(new com.example.cyberdeck.client.screen.CyberwareScreen());
             }
+        }
+
+        // Minimap and merchant-marker visibility toggles persist for the client session.
+        while (CyberdeckClient.TOGGLE_MINIMAP_KEY.consumeClick()) {
+            MinimapClientState.toggleMinimap();
+        }
+        while (CyberdeckClient.TOGGLE_MERCHANTS_KEY.consumeClick()) {
+            MinimapClientState.toggleMerchantMarkers();
         }
 
         QuickhackScannerClient.tick(mc);
