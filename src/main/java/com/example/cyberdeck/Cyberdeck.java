@@ -14,6 +14,7 @@ import com.example.cyberdeck.network.CyberdeckNetwork;
 import com.example.cyberdeck.npc.CityNpc;
 import com.example.cyberdeck.npc.CityNpcEntities;
 import com.example.cyberdeck.npc.CityNpcSpawns;
+import com.example.cyberdeck.player.StreetCredState;
 import com.example.cyberdeck.ram.RamAttachments;
 import com.example.cyberdeck.weapon.AmmoItems;
 import com.example.cyberdeck.weapon.ReloadState;
@@ -47,6 +48,7 @@ public class Cyberdeck {
         QuickhackAttachments.ATTACHMENT_TYPES.register(modEventBus);
         TacticalMovement.ATTACHMENT_TYPES.register(modEventBus);
         HealingState.ATTACHMENT_TYPES.register(modEventBus);
+        StreetCredState.ATTACHMENT_TYPES.register(modEventBus);
 
         // Guns, ammo, grenades, ballistic armor and their entities.
         WeaponItems.ITEMS.register(modEventBus);
