@@ -103,6 +103,18 @@ public final class CyberdeckGameTests {
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             HEALING_CONSUMABLE_STATE = register(
                     "healing_consumable_state", CyberdeckGameTests::healingConsumableState);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            DETECTION_LINE_OF_SIGHT = register(
+                    "detection_line_of_sight", CyberdeckGameTests::detectionLineOfSightBuildup);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            DETECTION_CROUCH = register(
+                    "detection_crouch", CyberdeckGameTests::detectionCrouchReducesVision);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            DETECTION_DECAY = register(
+                    "detection_decay", CyberdeckGameTests::detectionDecaysWithoutSight);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            CYBERPSYCHO_BALANCE = register(
+                    "cyberpsycho_balance", CyberdeckGameTests::cyberpsychoBalance);
 
     private CyberdeckGameTests() {
     }
@@ -608,6 +620,233 @@ public final class CyberdeckGameTests {
         helper.succeed();
     }
 
+    /**
+     * Feature 3: enemy detection is gradual and line-of-sight based. A survival player standing
+     * clearly inside a soldier's forward view cone must fill the detection meter over time (and
+     * aggro at the threshold), rather than being spotted instantly.
+     */
+    private static void detectionLineOfSightBuildup(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        // Vanilla LivingEntity.canAttack refuses all player targets on PEACEFUL, so the aggro
+        // trigger can only be exercised at a hostile difficulty.
+        level.getServer().setDifficulty(net.minecraft.world.Difficulty.NORMAL, true);
+        helper.assertTrue(level.getDifficulty() != net.minecraft.world.Difficulty.PEACEFUL,
+                "test setup must raise difficulty above PEACEFUL, saw " + level.getDifficulty());
+        FactionEnemy enemy = FactionEntities.FACTION_ENEMY.get().create(
+                level, EntitySpawnReason.COMMAND);
+        helper.assertTrue(enemy != null, "faction enemy factory must create a test soldier");
+        if (enemy == null) {
+            return;
+        }
+        // Place the soldier on the padded floor facing +Z (yaw 0) and the player 5 blocks ahead,
+        // squarely inside the forward view cone with an unobstructed line of sight.
+        BlockPos enemyPos = helper.absolutePos(new BlockPos(3, 2, 1));
+        enemy.snapTo(enemyPos.getX() + 0.5, enemyPos.getY(), enemyPos.getZ() + 0.5, 0.0F, 0.0F);
+        enemy.setHome(enemyPos);
+        // Unique faction so a concurrently-running detection test cannot alert this soldier.
+        enemy.setFaction(com.example.cyberdeck.faction.Faction.ARASAKA);
+        // Pin the soldier in the void so it holds its facing while we tick it manually.
+        enemy.setNoGravity(true);
+        enemy.setDeltaMovement(Vec3.ZERO);
+        helper.assertTrue(level.addFreshEntity(enemy), "detection test could not add the soldier");
+
+        FakePlayer player = new FakePlayer(
+                level, new GameProfile(UUID.randomUUID(), "detection_los_test"));
+        player.snapTo(enemyPos.getX() + 0.5, enemyPos.getY(), enemyPos.getZ() + 5.5, 180.0F, 0.0F);
+        // Pin the player too so the level tick does not drop it out of detection range.
+        player.setNoGravity(true);
+        player.setDeltaMovement(Vec3.ZERO);
+        // A FakePlayer defaults to invulnerable abilities, which makes it unattackable; clear that
+        // so canBeSeenAsEnemy is true and the soldier can legally acquire it as a target.
+        player.getAbilities().invulnerable = false;
+        player.setInvulnerable(false);
+        // Register the player as a level entity so the soldier's proximity query can find it.
+        level.addNewPlayer(player);
+
+        helper.assertTrue(enemy.getDetection() == 0,
+                "a freshly spawned soldier must start with an empty detection meter");
+        helper.assertFalse(enemy.isTriggered(),
+                "a soldier must remain passive before any detection accumulates");
+
+        // Detection must NOT be instant: after a single tick the meter has risen but is nowhere
+        // near the threshold, and the soldier is still not aggroed.
+        enemy.aiStep();
+        int afterOneTick = enemy.getDetection();
+        helper.assertTrue(afterOneTick > 0,
+                "a visible in-cone player must begin filling the detection meter");
+        helper.assertTrue(afterOneTick < FactionEnemy.detectionThreshold(),
+                "detection must be gradual, not instant, after a single tick");
+        helper.assertFalse(enemy.isTriggered(),
+                "a soldier must not aggro from a single tick of exposure");
+
+        // Sustained exposure fills the meter to full and aggros the squad.
+        for (int i = 0; i < FactionEnemy.detectionThreshold() * 4 && !enemy.isTriggered(); i++) {
+            enemy.aiStep();
+        }
+        helper.assertTrue(enemy.getDetection() == FactionEnemy.detectionThreshold(),
+                "sustained line-of-sight exposure must fill the detection meter to full ("
+                        + enemy.getDetection() + "/" + FactionEnemy.detectionThreshold() + ")");
+        helper.assertTrue(enemy.isTriggered(),
+                "a fully exposed player must aggro the soldier once the meter is full");
+        helper.assertTrue(enemy.getTarget() == player,
+                "an aggroed soldier must acquire the exposed player as its target");
+        player.discard();
+        helper.succeed();
+    }
+
+    /**
+     * Feature 3: crouching reduces enemy vision. A crouched, still player must accumulate detection
+     * strictly slower than an identically-placed standing player over the same exposure window.
+     */
+    private static void detectionCrouchReducesVision(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        int standingDetection = detectionAfterExposure(helper, level, "detect_stand", false);
+        int crouchedDetection = detectionAfterExposure(helper, level, "detect_crouch", true);
+        helper.assertTrue(standingDetection > 0,
+                "a standing exposed player must build detection over the sample window");
+        helper.assertTrue(crouchedDetection < standingDetection,
+                "crouching must slow detection buildup relative to standing exposure");
+        helper.succeed();
+    }
+
+    /** Ticks a soldier against a fixed-pose player for a bounded window and returns the meter. */
+    private static int detectionAfterExposure(
+            GameTestHelper helper, ServerLevel level, String name, boolean crouched) {
+        FactionEnemy enemy = FactionEntities.FACTION_ENEMY.get().create(
+                level, EntitySpawnReason.COMMAND);
+        helper.assertTrue(enemy != null, "faction enemy factory must create a crouch-test soldier");
+        if (enemy == null) {
+            return 0;
+        }
+        BlockPos enemyPos = helper.absolutePos(new BlockPos(3, 2, 1));
+        enemy.snapTo(enemyPos.getX() + 0.5, enemyPos.getY(), enemyPos.getZ() + 0.5, 0.0F, 0.0F);
+        enemy.setHome(enemyPos);
+        enemy.setFaction(com.example.cyberdeck.faction.Faction.KANG_TAO);
+        enemy.setNoGravity(true);
+        enemy.setDeltaMovement(Vec3.ZERO);
+        helper.assertTrue(level.addFreshEntity(enemy), "crouch test could not add the soldier");
+
+        FakePlayer player = new FakePlayer(level, new GameProfile(UUID.randomUUID(), name));
+        player.snapTo(enemyPos.getX() + 0.5, enemyPos.getY(), enemyPos.getZ() + 5.5, 180.0F, 0.0F);
+        player.setNoGravity(true);
+        player.setDeltaMovement(Vec3.ZERO);
+        level.addNewPlayer(player);
+        if (crouched) {
+            player.setPose(net.minecraft.world.entity.Pose.CROUCHING);
+            player.setShiftKeyDown(true);
+        }
+        // Bounded sample window short enough that neither pose reaches the aggro threshold, so the
+        // comparison reflects raw buildup rate rather than saturation.
+        for (int i = 0; i < 10; i++) {
+            enemy.aiStep();
+        }
+        int detection = enemy.getDetection();
+        enemy.discard();
+        player.discard();
+        return detection;
+    }
+
+    /**
+     * Feature 3: losing line of sight stands the squad down. Once a soldier has aggroed, removing
+     * the exposed player must decay its detection meter back toward zero and clear its aggro.
+     */
+    private static void detectionDecaysWithoutSight(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        level.getServer().setDifficulty(net.minecraft.world.Difficulty.NORMAL, true);
+        FactionEnemy enemy = FactionEntities.FACTION_ENEMY.get().create(
+                level, EntitySpawnReason.COMMAND);
+        helper.assertTrue(enemy != null, "faction enemy factory must create a decay-test soldier");
+        if (enemy == null) {
+            return;
+        }
+        BlockPos enemyPos = helper.absolutePos(new BlockPos(3, 2, 1));
+        enemy.snapTo(enemyPos.getX() + 0.5, enemyPos.getY(), enemyPos.getZ() + 0.5, 0.0F, 0.0F);
+        enemy.setHome(enemyPos);
+        enemy.setFaction(com.example.cyberdeck.faction.Faction.MILITECH);
+        enemy.setNoGravity(true);
+        enemy.setDeltaMovement(Vec3.ZERO);
+        helper.assertTrue(level.addFreshEntity(enemy), "decay test could not add the soldier");
+
+        FakePlayer player = new FakePlayer(
+                level, new GameProfile(UUID.randomUUID(), "detect_decay"));
+        player.snapTo(enemyPos.getX() + 0.5, enemyPos.getY(), enemyPos.getZ() + 5.5, 180.0F, 0.0F);
+        player.setNoGravity(true);
+        player.setDeltaMovement(Vec3.ZERO);
+        player.getAbilities().invulnerable = false;
+        player.setInvulnerable(false);
+        level.addNewPlayer(player);
+        for (int i = 0; i < FactionEnemy.detectionThreshold() * 4 && !enemy.isTriggered(); i++) {
+            enemy.aiStep();
+        }
+        helper.assertTrue(enemy.isTriggered(),
+                "the decay test must first drive the soldier to aggro");
+
+        // Move the player far outside detection range so nothing is visible in the cone: with no
+        // exposed target the meter must fall and the soldier must eventually stand down.
+        player.snapTo(enemyPos.getX() + 500.5, enemyPos.getY(), enemyPos.getZ() + 0.5, 180.0F, 0.0F);
+        int before = enemy.getDetection();
+        enemy.aiStep();
+        helper.assertTrue(enemy.getDetection() < before,
+                "detection must decay once the exposed player is no longer visible");
+
+        for (int i = 0; i < FactionEnemy.detectionThreshold() && enemy.getDetection() > 0; i++) {
+            enemy.aiStep();
+        }
+        helper.assertTrue(enemy.getDetection() == 0,
+                "detection must decay all the way to zero without a visible target");
+        helper.assertFalse(enemy.isTriggered(),
+                "a soldier that fully loses its quarry must stand down");
+        helper.assertTrue(enemy.getTarget() == null,
+                "a stood-down soldier must clear its acquired target");
+        helper.succeed();
+    }
+
+    /**
+     * Feature 4: cyberpsychos are rebalanced. Their live attributes must match the tuned-down
+     * health/armour band and their self-heal must recharge 3x slower than the original cadence.
+     */
+    private static void cyberpsychoBalance(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        com.example.cyberdeck.faction.CyberpsychoEntity psycho =
+                FactionEntities.CYBERPSYCHO.get().create(level, EntitySpawnReason.COMMAND);
+        helper.assertTrue(psycho != null, "cyberpsycho factory must create a boss for balance test");
+        if (psycho == null) {
+            return;
+        }
+        helper.assertTrue(
+                psycho.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH)
+                        == 110.0,
+                "cyberpsycho max health must be rebalanced to 110");
+        helper.assertTrue(
+                psycho.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ARMOR)
+                        == 10.0,
+                "cyberpsycho armour must be rebalanced to 10");
+        helper.assertTrue(
+                psycho.getAttributeValue(
+                                net.minecraft.world.entity.ai.attributes.Attributes.ARMOR_TOUGHNESS)
+                        == 4.0,
+                "cyberpsycho armour toughness must be rebalanced to 4");
+
+        int healRecharge = cyberpsychoHealRecharge(helper);
+        helper.assertTrue(healRecharge == 300,
+                "cyberpsycho self-heal must recharge every 300 ticks (3x the original 100)");
+        psycho.discard();
+        helper.succeed();
+    }
+
+    /** Reads the private HEAL_RECHARGE_TICKS constant so the 3x nerf stays locked in. */
+    private static int cyberpsychoHealRecharge(GameTestHelper helper) {
+        try {
+            java.lang.reflect.Field field = com.example.cyberdeck.faction.CyberpsychoEntity.class
+                    .getDeclaredField("HEAL_RECHARGE_TICKS");
+            field.setAccessible(true);
+            return field.getInt(null);
+        } catch (ReflectiveOperationException exception) {
+            helper.fail("cyberpsycho heal recharge constant is missing: " + exception.getMessage());
+            return -1;
+        }
+    }
+
     private static void registerGameTests(RegisterGameTestsEvent event) {
         Holder<TestEnvironmentDefinition<?>> environment = event.registerEnvironment(
                 Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "pure"),
@@ -638,6 +877,25 @@ public final class CyberdeckGameTests {
         registerInstance(event, "tactical_movement_state", TACTICAL_MOVEMENT_STATE, data);
         registerInstance(event, "tactical_slide_activation", TACTICAL_SLIDE_ACTIVATION, data);
         registerInstance(event, "healing_consumable_state", HEALING_CONSUMABLE_STATE, data);
+
+        // Detection tests need a padded, flat, sky-lit arena so the soldier and player stand on
+        // solid ground with an unobstructed line of sight rather than raycasting into the void.
+        TestData<Holder<TestEnvironmentDefinition<?>>> arena = new TestData<>(
+                environment,
+                Identifier.fromNamespaceAndPath("minecraft", "empty"),
+                200,
+                0,
+                true,
+                Rotation.NONE,
+                false,
+                1,
+                1,
+                true,
+                8);
+        registerInstance(event, "detection_line_of_sight", DETECTION_LINE_OF_SIGHT, arena);
+        registerInstance(event, "detection_crouch", DETECTION_CROUCH, arena);
+        registerInstance(event, "detection_decay", DETECTION_DECAY, arena);
+        registerInstance(event, "cyberpsycho_balance", CYBERPSYCHO_BALANCE, data);
     }
 
     private static void registerInstance(
