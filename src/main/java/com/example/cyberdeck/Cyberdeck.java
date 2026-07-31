@@ -77,6 +77,7 @@ public class Cyberdeck {
         NeoForge.EVENT_BUS.register(new com.example.cyberdeck.effect.CyberwareTickHandler());
         NeoForge.EVENT_BUS.register(new com.example.cyberdeck.effect.CyberwareCombatHandler());
         NeoForge.EVENT_BUS.register(new FactionSpawns());
+        NeoForge.EVENT_BUS.register(new com.example.cyberdeck.combat.ThrowableDistraction());
         NeoForge.EVENT_BUS.register(new CityNpcSpawns());
         NeoForge.EVENT_BUS.register(new CityActorJoinCompatibility());
         NeoForge.EVENT_BUS.register(new com.example.cyberdeck.city.CityBuilder());
