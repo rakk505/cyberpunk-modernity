@@ -293,6 +293,9 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         tickTacticalManeuver(level);
         accumulateDetection(level);
         applyTeammateSpacing(level);
+        // --- BEGIN throwable-distraction hook (self-contained; see distraction block below) ---
+        applyDistractionLook();
+        // --- END throwable-distraction hook ---
     }
 
     /**
@@ -997,4 +1000,55 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
                     input.getIntOr("HomeZ", 0));
         }
     }
+
+    // =====================================================================================
+    // BEGIN throwable-distraction block (self-contained; safe to merge independently).
+    // A thrown item (any ThrowableItemProjectile) briefly draws this soldier's gaze toward the
+    // item's position. This only rotates the head/look; it never changes goals, target selection
+    // or tactical movement, so it composes cleanly with the combat AI owned elsewhere.
+    // =====================================================================================
+    /** World position this soldier is momentarily distracted toward, or null when not distracted. */
+    private net.minecraft.world.phys.Vec3 distractionPos;
+    /** Game-tick at which the current distraction expires. */
+    private long distractionEndTick;
+
+    /**
+     * Draw this soldier's attention to {@code pos} for {@code ticks} ticks. A brief look-only
+     * override used when a throwable lands nearby; does not alter the combat target.
+     */
+    public void distractTo(net.minecraft.world.phys.Vec3 pos, int ticks) {
+        if (pos == null || ticks <= 0) {
+            return;
+        }
+        this.distractionPos = pos;
+        this.distractionEndTick = this.level().getGameTime() + ticks;
+    }
+
+    /** True while a throwable distraction is still active. */
+    public boolean isDistracted() {
+        return distractionPos != null && this.level().getGameTime() < distractionEndTick;
+    }
+
+    /** The point this soldier is currently distracted toward, or null when not distracted. */
+    public net.minecraft.world.phys.Vec3 getDistractionPos() {
+        return isDistracted() ? distractionPos : null;
+    }
+
+    /**
+     * While distracted, turn the head toward the distraction point. Enemies already locked onto the
+     * player in melee still glance over, but their look snaps back next tick once the combat AI
+     * runs, so this remains a brief look and never steals a hard-aggro target.
+     */
+    private void applyDistractionLook() {
+        if (!isDistracted()) {
+            distractionPos = null;
+            return;
+        }
+        this.getLookControl().setLookAt(
+                distractionPos.x, distractionPos.y, distractionPos.z,
+                (float) this.getMaxHeadYRot(), (float) this.getMaxHeadXRot());
+    }
+    // =====================================================================================
+    // END throwable-distraction block.
+    // =====================================================================================
 }
