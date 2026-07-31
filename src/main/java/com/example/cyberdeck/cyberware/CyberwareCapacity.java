@@ -23,7 +23,12 @@ public final class CyberwareCapacity {
         if (compressor != null) {
             bonus = (int) Math.round(compressor.value("capacity_bonus"));
         }
+        bonus += CyberwareAttachments.getBonusCapacity(player);
         return Math.min(ABSOLUTE_CAP, baseMaximum(player) + bonus);
+    }
+
+    public static int absoluteCap() {
+        return ABSOLUTE_CAP;
     }
 
     public static boolean canInstall(Player player, CyberwareData data,

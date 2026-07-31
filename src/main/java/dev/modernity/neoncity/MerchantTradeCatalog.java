@@ -102,7 +102,7 @@ final class MerchantTradeCatalog {
 
     private static MerchantOffer offer(ItemLike result, int count, int price) {
         return new MerchantOffer(
-                new ItemCost(Items.EMERALD, price),
+                new ItemCost(CyberdeckItems.EMMIES.get(), price),
                 new ItemStack(result, count),
                 MAX_USES,
                 1,

@@ -626,12 +626,12 @@ public final class MissionService {
     }
 
     private static void complete(ServerPlayer player, ActiveMission mission) {
-        giveEmeralds(player, mission.reward());
+        giveEmmies(player, mission.reward());
         cleanup((ServerLevel) player.level(), player, mission);
         clear(player);
         player.sendSystemMessage(Component.literal(
                         "Mission complete: " + mission.title() + ". Paid "
-                                + mission.reward() + " emeralds.")
+                                + mission.reward() + " emmies.")
                 .withStyle(ChatFormatting.GREEN));
         ((ServerLevel) player.level()).playSound(null, player.blockPosition(),
                 SoundEvents.PLAYER_LEVELUP, SoundSource.PLAYERS, 0.65F, 1.35F);
@@ -735,13 +735,8 @@ public final class MissionService {
         player.getInventory().setChanged();
     }
 
-    private static void giveEmeralds(ServerPlayer player, int amount) {
-        int remaining = amount;
-        while (remaining > 0) {
-            ItemStack payment = new ItemStack(Items.EMERALD, Math.min(64, remaining));
-            remaining -= payment.getCount();
-            if (!player.addItem(payment) && !payment.isEmpty()) player.drop(payment, false);
-        }
+    private static void giveEmmies(ServerPlayer player, int amount) {
+        com.example.cyberdeck.economy.Emmies.give(player, amount);
     }
 
     private static boolean isValidFixer(ServerPlayer player, Entity merchant) {
