@@ -129,7 +129,8 @@ public final class FactionEnemyRenderer
     private static TacticalPoseData extractTacticalPose(FactionEnemy enemy, double renderTick) {
         TacticalManeuver maneuver = enemy.getTacticalManeuver();
         TacticalAction action = switch (maneuver) {
-            case DASH_LEFT, DASH_RIGHT -> TacticalAction.DASH;
+            // The sandevistan blink reuses the dash animation so the new maneuver id renders cleanly.
+            case DASH_LEFT, DASH_RIGHT, SANDEVISTAN_DASH -> TacticalAction.DASH;
             case SLIDE_FORWARD -> TacticalAction.SLIDE;
             case NONE -> TacticalAction.NONE;
         };
