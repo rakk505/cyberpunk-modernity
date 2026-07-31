@@ -159,6 +159,20 @@ public final class CyberdeckClientEvents {
             }
         }
 
+        // Stealth takedown: F is shared with the quickhack queue key, so only act when the scanner
+        // is not active AND a valid crouch-behind target exists. The server re-validates the kill.
+        while (CyberdeckClient.STEALTH_TAKEDOWN_KEY.consumeClick()) {
+            if (QuickhackScannerClient.isActive()) {
+                continue;
+            }
+            com.example.cyberdeck.faction.FactionEnemy takedownTarget =
+                    com.example.cyberdeck.faction.CrouchCombat.findStealthTakedownTarget(mc.player);
+            if (takedownTarget != null) {
+                ClientPacketDistributor.sendToServer(
+                        new com.example.cyberdeck.network.StealthTakedownPacket(takedownTarget.getId()));
+            }
+        }
+
         float forward = (mc.options.keyUp.isDown() ? 1.0F : 0.0F)
                 - (mc.options.keyDown.isDown() ? 1.0F : 0.0F);
         float strafe = (mc.options.keyRight.isDown() ? 1.0F : 0.0F)

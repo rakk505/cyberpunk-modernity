@@ -8,6 +8,7 @@ import com.example.cyberdeck.client.hud.CityMinimapOverlay;
 import com.example.cyberdeck.client.hud.QuickhackScannerOverlay;
 import com.example.cyberdeck.client.hud.SmartLockOverlay;
 import com.example.cyberdeck.client.hud.DetectionHudOverlay;
+import com.example.cyberdeck.client.hud.StealthTakedownOverlay;
 import com.example.cyberdeck.client.gun.GenericGunClientExtension;
 import com.example.cyberdeck.client.movement.TacticalPlayerAnimations;
 import com.example.cyberdeck.client.render.FactionEnemyRenderer;
@@ -166,6 +167,16 @@ public final class CyberdeckClient {
             GLFW.GLFW_KEY_J,
             CATEGORY);
 
+    // Stealth takedown (default F). F is also vanilla swap-offhand and the quickhack queue key;
+    // this mapping only acts when a valid crouch-behind takedown target is present, so normal play
+    // and the scanner keep working (see CyberdeckClientEvents).
+    public static final KeyMapping STEALTH_TAKEDOWN_KEY = new KeyMapping(
+            "key.cyberdeck.stealth_takedown",
+            KeyConflictContext.IN_GAME,
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_F,
+            CATEGORY);
+
     public CyberdeckClient(IEventBus modEventBus) {
         modEventBus.addListener(this::registerKeyMappings);
         modEventBus.addListener(this::addLayers);
@@ -215,6 +226,10 @@ public final class CyberdeckClient {
         event.registerAbove(VanillaGuiLayers.CROSSHAIR,
                 Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "detection_meter"),
                 new DetectionHudOverlay());
+        // Stealth takedown prompt below the crosshair when a valid target is behind the player.
+        event.registerAbove(VanillaGuiLayers.CROSSHAIR,
+                Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "stealth_takedown"),
+                new StealthTakedownOverlay());
     }
 
     /** Adds the scanner's orange silhouette to only the entity under the reticle. */
@@ -258,5 +273,6 @@ public final class CyberdeckClient {
         event.register(SLIDE_KEY);
         event.register(TOGGLE_MINIMAP_KEY);
         event.register(TOGGLE_MERCHANTS_KEY);
+        event.register(STEALTH_TAKEDOWN_KEY);
     }
 }
