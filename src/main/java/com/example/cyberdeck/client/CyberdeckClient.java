@@ -149,6 +149,22 @@ public final class CyberdeckClient {
             GLFW.GLFW_KEY_C,
             CATEGORY);
 
+    // Toggle the city minimap overlay entirely (default N).
+    public static final KeyMapping TOGGLE_MINIMAP_KEY = new KeyMapping(
+            "key.cyberdeck.toggle_minimap",
+            KeyConflictContext.IN_GAME,
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_N,
+            CATEGORY);
+
+    // Toggle merchant markers on the minimap and full city map (default J).
+    public static final KeyMapping TOGGLE_MERCHANTS_KEY = new KeyMapping(
+            "key.cyberdeck.toggle_merchants",
+            KeyConflictContext.IN_GAME,
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_J,
+            CATEGORY);
+
     public CyberdeckClient(IEventBus modEventBus) {
         modEventBus.addListener(this::registerKeyMappings);
         modEventBus.addListener(this::addLayers);
@@ -235,5 +251,7 @@ public final class CyberdeckClient {
         event.register(QUEUE_QUICKHACK_KEY);
         event.register(DASH_KEY);
         event.register(SLIDE_KEY);
+        event.register(TOGGLE_MINIMAP_KEY);
+        event.register(TOGGLE_MERCHANTS_KEY);
     }
 }

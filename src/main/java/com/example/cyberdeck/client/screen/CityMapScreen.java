@@ -1,9 +1,11 @@
 package com.example.cyberdeck.client.screen;
 
 import com.example.cyberdeck.client.CyberdeckClient;
+import com.example.cyberdeck.client.hud.MinimapClientState;
 import com.example.cyberdeck.client.map.CityMapNavigationClient;
 import com.example.cyberdeck.client.map.CityMapRenderUtil;
 import com.example.cyberdeck.client.map.CityMapViewport;
+import com.example.cyberdeck.client.map.MerchantMarkerClient;
 import com.example.cyberdeck.client.mission.MissionTrackerClient;
 import com.example.cyberdeck.network.OpenCityMapPacket;
 import com.mojang.blaze3d.platform.cursor.CursorTypes;
@@ -60,6 +62,8 @@ public final class CityMapScreen extends Screen {
     private boolean showMissions = true;
     private boolean showTransit = true;
     private boolean showDistricts = true;
+    // Mirrors the shared minimap merchant toggle so both views stay consistent.
+    private boolean showMerchants = MinimapClientState.merchantMarkersVisible();
     private OpenCityMapPacket.Marker selectedMarker;
 
     private CityMapScreen(OpenCityMapPacket packet) {
@@ -171,6 +175,8 @@ public final class CityMapScreen extends Screen {
         renderToggle(graphics, toggleMissions(layout), "!", showMissions, AMBER, mouseX, mouseY);
         renderToggle(graphics, toggleTransit(layout), "T", showTransit, CYAN, mouseX, mouseY);
         renderToggle(graphics, toggleDistricts(layout), "A", showDistricts, RED, mouseX, mouseY);
+        renderToggle(graphics, toggleMerchants(layout), "$", showMerchants,
+                MerchantMarkerClient.MERCHANT_COLOR, mouseX, mouseY);
     }
 
     private void renderMap(
@@ -198,6 +204,7 @@ public final class CityMapScreen extends Screen {
             CityMapRenderUtil.drawRoute(
                     graphics, viewport, CityMapNavigationClient.route().points());
             if (showDistricts) renderDistricts(graphics, map);
+            if (showMerchants) renderMerchants(graphics, map, mouseX, mouseY);
             renderMarkers(graphics, map, mouseX, mouseY);
             if (CityMapNavigationClient.waypoint() != null) {
                 CityMapRenderUtil.drawWaypoint(
@@ -307,6 +314,30 @@ public final class CityMapScreen extends Screen {
             graphics.text(font, label, textX, textY - 2,
                     hovered.kind() == OpenCityMapPacket.MarkerKind.ACTIVE_MISSION ? AMBER : CYAN,
                     false);
+            graphics.requestCursor(CursorTypes.POINTING_HAND);
+        }
+    }
+
+    private void renderMerchants(
+            GuiGraphicsExtractor graphics, Rect map, int mouseX, int mouseY) {
+        MerchantMarkerClient.Marker hovered = null;
+        for (MerchantMarkerClient.Marker marker : MerchantMarkerClient.markers(cityLayout)) {
+            int x = worldToScreenX(map, marker.x());
+            int y = worldToScreenY(map, marker.z());
+            if (!map.contains(x, y)) continue;
+            CityMapRenderUtil.drawMerchantMarker(graphics, x, y);
+            if (Math.abs(mouseX - x) <= 6 && Math.abs(mouseY - y) <= 6) {
+                hovered = marker;
+            }
+        }
+        if (hovered != null) {
+            String label = elide(hovered.label(), Math.max(40, map.width() - 20));
+            int textWidth = font.width(label);
+            int textX = Math.max(map.x() + 6,
+                    Math.min(map.right() - textWidth - 6, mouseX + 10));
+            int textY = Math.max(map.y() + 6, Math.min(map.bottom() - 10, mouseY - 17));
+            graphics.fill(textX - 4, textY - 4, textX + textWidth + 4, textY + 9, 0xE9060D12);
+            graphics.text(font, label, textX, textY - 2, MerchantMarkerClient.MERCHANT_COLOR, false);
             graphics.requestCursor(CursorTypes.POINTING_HAND);
         }
     }
@@ -498,6 +529,10 @@ public final class CityMapScreen extends Screen {
         }
         if (toggleDistricts(layout).contains(event.x(), event.y())) {
             showDistricts = !showDistricts;
+            return true;
+        }
+        if (toggleMerchants(layout).contains(event.x(), event.y())) {
+            showMerchants = MinimapClientState.toggleMerchantMarkers();
             return true;
         }
         OpenCityMapPacket.Marker mission = missionRowAt(layout, event.x(), event.y());
@@ -832,6 +867,10 @@ public final class CityMapScreen extends Screen {
 
     private Rect toggleDistricts(Layout layout) {
         return new Rect(76, layout.footerTop() - 36, 26, 22);
+    }
+
+    private Rect toggleMerchants(Layout layout) {
+        return new Rect(108, layout.footerTop() - 36, 26, 22);
     }
 
     @Override

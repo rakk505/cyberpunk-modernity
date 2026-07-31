@@ -3,6 +3,7 @@ package com.example.cyberdeck.client.map;
 import dev.modernity.neoncity.CityRoutePlanner;
 import java.util.List;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+// MerchantMarkerClient is in this same package (com.example.cyberdeck.client.map).
 
 /** Small clipped map primitives shared by the full map and the HUD minimap. */
 public final class CityMapRenderUtil {
@@ -39,6 +40,31 @@ public final class CityMapRenderUtil {
                     (int) Math.round(clipped[0]), (int) Math.round(clipped[1]),
                     (int) Math.round(clipped[2]), (int) Math.round(clipped[3]),
                     radius, color);
+        }
+    }
+
+    /** Draws a single merchant marker (small amber house glyph) at a screen position. */
+    public static void drawMerchantMarker(GuiGraphicsExtractor graphics, int x, int y) {
+        // Drop-shadow diamond behind the roof for readability over bright map tiles.
+        diamond(graphics, x, y - 1, 5, MerchantMarkerClient.MERCHANT_SHADOW);
+        // Roof triangle.
+        diamond(graphics, x, y - 2, 3, MerchantMarkerClient.MERCHANT_COLOR);
+        // Body.
+        graphics.fill(x - 2, y, x + 3, y + 4, MerchantMarkerClient.MERCHANT_COLOR);
+        graphics.fill(x - 1, y + 1, x + 2, y + 3, MerchantMarkerClient.MERCHANT_SHADOW);
+    }
+
+    /** Draws merchant markers on the rotating HUD minimap, clipped to the viewport. */
+    public static void drawMerchantMarkers(
+            GuiGraphicsExtractor graphics,
+            CityMapViewport viewport,
+            java.util.List<MerchantMarkerClient.Marker> markers) {
+        for (MerchantMarkerClient.Marker marker : markers) {
+            int x = viewport.screenX(marker.x());
+            int y = viewport.screenY(marker.z());
+            if (viewport.contains(x, y)) {
+                drawMerchantMarker(graphics, x, y);
+            }
         }
     }
 

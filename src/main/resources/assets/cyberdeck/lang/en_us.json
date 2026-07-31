@@ -72,6 +72,8 @@
   "key.cyberdeck.quickhack_queue": "Queue Quickhack",
   "key.cyberdeck.dash": "Combat Dash",
   "key.cyberdeck.slide": "Combat Slide",
+  "key.cyberdeck.toggle_minimap": "Toggle City Minimap",
+  "key.cyberdeck.toggle_merchants": "Toggle Merchant Markers",
 
   "screen.cyberdeck.cyberware": "Cyberware",
   "screen.cyberdeck.slots": "Body Slots",
