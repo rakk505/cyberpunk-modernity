@@ -155,4 +155,13 @@ public final class ServerEvents {
             event.setCanceled(true);
         }
     }
+
+    /**
+     * A player's splash potion of water baits nearby faction enemies toward its ground-impact
+     * point so they leave cover to investigate the splash.
+     */
+    @SubscribeEvent
+    public void onProjectileImpact(net.neoforged.neoforge.event.entity.ProjectileImpactEvent event) {
+        com.example.cyberdeck.combat.WaterBait.onProjectileImpact(event);
+    }
 }
