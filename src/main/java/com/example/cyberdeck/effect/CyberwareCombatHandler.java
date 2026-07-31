@@ -23,7 +23,10 @@ import net.minecraft.world.entity.animal.golem.IronGolem;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.Projectile;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
@@ -36,8 +39,9 @@ import java.util.List;
 
 /** Combat triggers shared by all tiered cyberware families. */
 public final class CyberwareCombatHandler {
-    private static final double GORILLA_FLING_HORIZONTAL = 2.4;
-    private static final double GORILLA_FLING_VERTICAL = 0.55;
+    private static final double GORILLA_FLING_HORIZONTAL = 3.4;
+    private static final double GORILLA_FLING_VERTICAL = 0.65;
+    private static final double GORILLA_WALL_SLAM_RANGE = 2.25;
 
     @SubscribeEvent
     public void onIncomingDamage(LivingIncomingDamageEvent event) {
@@ -48,7 +52,7 @@ public final class CyberwareCombatHandler {
             CyberwareData attackerData = CyberwareAttachments.get(attacker);
             Cyberware arms = attackerData.get(BodySlot.ARMS);
             if (arms != null && arms.hasFlag("gorilla_arms")) {
-                amount += 4.0f + arms.tier().rank() * 0.5f;
+                amount += 7.0f + arms.tier().rank() * 1.0f;
             }
             if (!SandevistanMechanics.gunDamageAlreadyModified()) {
                 amount *= (float) (1.0 + SandevistanMechanics.outgoingDamageBonus(attacker));
@@ -293,7 +297,7 @@ public final class CyberwareCombatHandler {
             return;
         }
         if (arms.hasFlag("gorilla_arms")) {
-            flingBack(player, target);
+            flingBack(player, target, arms);
             level.sendParticles(ParticleTypes.CRIT, target.getX(), target.getY(0.5), target.getZ(),
                     16, 0.4, 0.4, 0.4, 0.2);
         } else if (arms.hasFlag("mantis_blades")) {
@@ -335,7 +339,7 @@ public final class CyberwareCombatHandler {
                 food.getSaturationLevel() + (float) restored));
     }
 
-    private static void flingBack(ServerPlayer player, LivingEntity target) {
+    private static void flingBack(ServerPlayer player, LivingEntity target, Cyberware arms) {
         Vec3 direction = target.position().subtract(player.position());
         direction = new Vec3(direction.x, 0, direction.z);
         if (direction.lengthSqr() < 1.0e-4) {
@@ -348,6 +352,28 @@ public final class CyberwareCombatHandler {
         target.hurtMarked = true;
         player.level().playSound(null, target.getX(), target.getY(), target.getZ(),
                 SoundEvents.PLAYER_ATTACK_CRIT, SoundSource.PLAYERS, 1.0f, 0.7f);
+        wallSlam(player, target, arms, direction);
+    }
+
+    private static void wallSlam(ServerPlayer player, LivingEntity target, Cyberware arms,
+            Vec3 direction) {
+        if (!(player.level() instanceof ServerLevel level)) {
+            return;
+        }
+        Vec3 start = target.getEyePosition();
+        Vec3 end = start.add(direction.scale(GORILLA_WALL_SLAM_RANGE));
+        BlockHitResult hit = level.clip(new ClipContext(start, end,
+                ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, target));
+        if (hit.getType() != HitResult.Type.BLOCK) {
+            return;
+        }
+        float slamDamage = 3.0f + arms.tier().rank() * 1.0f;
+        target.hurtServer(level, level.damageSources().flyIntoWall(), slamDamage);
+        target.hurtMarked = true;
+        level.playSound(null, target.getX(), target.getY(), target.getZ(),
+                SoundEvents.ANVIL_LAND, SoundSource.PLAYERS, 0.7f, 1.2f);
+        level.sendParticles(ParticleTypes.CRIT, hit.getLocation().x, hit.getLocation().y,
+                hit.getLocation().z, 20, 0.3, 0.3, 0.3, 0.15);
     }
 
     private static boolean isWarpElement(DamageSource source) {
