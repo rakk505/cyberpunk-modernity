@@ -50,7 +50,7 @@ import java.util.List;
  * an airborne reinforcement drop the first time three or more members are triggered at once (see
  * {@link FactionSquads}).
  */
-public final class FactionEnemy extends Monster implements RangedAttackMob {
+public class FactionEnemy extends Monster implements RangedAttackMob {
     private static final EntityDataAccessor<Integer> DATA_FACTION =
             SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Boolean> DATA_TRIGGERED =
@@ -81,6 +81,9 @@ public final class FactionEnemy extends Monster implements RangedAttackMob {
             SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.FLOAT);
     private static final EntityDataAccessor<Float> DATA_TACTICAL_DIRECTION_Z =
             SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.FLOAT);
+    /** Current detection level, synced so the client HUD can render a detection meter. */
+    private static final EntityDataAccessor<Integer> DATA_DETECTION =
+            SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.INT);
 
     private static final int WEAPON_GLITCH_NONE = 0;
     private static final int WEAPON_GLITCH_FIDDLING = 1;
@@ -108,8 +111,22 @@ public final class FactionEnemy extends Monster implements RangedAttackMob {
     private static final double ALERT_RADIUS = 20.0;
     /** Radius (blocks) a soldier patrols around its spawn point when idle. */
     private static final double PATROL_RADIUS = 12.0;
+    /**
+     * Half-angle (degrees) of the forward view cone. A player outside this cone is not seen even
+     * with clear line of sight, so soldiers can be flanked from behind. Wide enough to feel fair.
+     */
+    private static final double VIEW_CONE_HALF_ANGLE_DEG = 75.0;
+    private static final double VIEW_CONE_COS = Math.cos(Math.toRadians(VIEW_CONE_HALF_ANGLE_DEG));
+    /** Detection lost per tick while the player is not currently visible in the view cone. */
+    private static final int DETECTION_DECAY = 2;
+    /** Ideal spacing (blocks) between same-faction soldiers so squads don't stack on one tile. */
+    private static final double TEAMMATE_SPACING = 2.4;
+    private static final double TEAMMATE_SPACING_SQR = TEAMMATE_SPACING * TEAMMATE_SPACING;
+    /** How hard a soldier is nudged away from a too-close ally each tick. */
+    private static final double TEAMMATE_SEPARATION_STRENGTH = 0.02;
+    /** Half-width (blocks) of the corridor kept clear of allies when shooting or throwing. */
+    private static final double FRIENDLY_FIRE_CLEARANCE = 0.9;
 
-    private int detection;
     /** Fractional buildup retained so crouch visibility can reduce detection smoothly. */
     private float detectionRemainder;
     /** The point this soldier patrols around; set on spawn. Null falls back to the current position. */
@@ -151,6 +168,7 @@ public final class FactionEnemy extends Monster implements RangedAttackMob {
         entityData.define(DATA_TACTICAL_MANEUVER_END_TICK, -1L);
         entityData.define(DATA_TACTICAL_DIRECTION_X, 0.0F);
         entityData.define(DATA_TACTICAL_DIRECTION_Z, 0.0F);
+        entityData.define(DATA_DETECTION, 0);
     }
 
     @Override
@@ -199,6 +217,20 @@ public final class FactionEnemy extends Monster implements RangedAttackMob {
         this.getEntityData().set(DATA_TRIGGERED, value);
     }
 
+    /** Current detection level (0..{@link #DETECTION_THRESHOLD}). Synced for the client HUD. */
+    public int getDetection() {
+        return this.getEntityData().get(DATA_DETECTION);
+    }
+
+    private void setDetection(int value) {
+        this.getEntityData().set(DATA_DETECTION, Math.max(0, Math.min(DETECTION_THRESHOLD, value)));
+    }
+
+    /** Points needed to become hostile, exposed so the client HUD can compute a fill ratio. */
+    public static int detectionThreshold() {
+        return DETECTION_THRESHOLD;
+    }
+
     /** Number of grenades this soldier can still throw; 0 means it carries none. */
     public int getGrenadeCount() {
         return grenadeCount;
@@ -224,6 +256,10 @@ public final class FactionEnemy extends Monster implements RangedAttackMob {
     public void throwGrenadeAt(LivingEntity target) {
         if (target instanceof CityNpc || isWeaponGlitching() || grenadeCount <= 0
                 || !(this.level() instanceof ServerLevel level)) {
+            return;
+        }
+        // Don't lob into a teammate: skip the throw if an ally sits in the grenade's flight path.
+        if (allyInLineOfFire(target.getBoundingBox().getCenter())) {
             return;
         }
         var grenadeItem = grenadeType == com.example.cyberdeck.weapon.GrenadeType.POISON
@@ -255,9 +291,90 @@ public final class FactionEnemy extends Monster implements RangedAttackMob {
             tickGunReload(level);
         }
         tickTacticalManeuver(level);
-        if (!isTriggered()) {
-            accumulateDetection(level);
+        accumulateDetection(level);
+        applyTeammateSpacing(level);
+    }
+
+    /**
+     * Nudges this soldier away from any same-faction ally that is standing too close, so a squad
+     * spreads out into a loose line instead of stacking on a single tile. This is a light steering
+     * impulse layered on top of navigation; it never fully overrides pathing.
+     */
+    private void applyTeammateSpacing(ServerLevel level) {
+        if (isTacticalManeuvering() || isWeaponGlitching() || !this.onGround()) {
+            return;
         }
+        Faction faction = getFaction();
+        List<FactionEnemy> allies = level.getEntitiesOfClass(FactionEnemy.class,
+                this.getBoundingBox().inflate(TEAMMATE_SPACING),
+                e -> e != this && e.isAlive() && e.getFaction() == faction);
+        if (allies.isEmpty()) {
+            return;
+        }
+        double pushX = 0.0;
+        double pushZ = 0.0;
+        for (FactionEnemy ally : allies) {
+            double dx = this.getX() - ally.getX();
+            double dz = this.getZ() - ally.getZ();
+            double distSqr = dx * dx + dz * dz;
+            if (distSqr >= TEAMMATE_SPACING_SQR || distSqr < MIN_DIRECTION_LENGTH_SQR) {
+                continue;
+            }
+            double dist = Math.sqrt(distSqr);
+            // Stronger push the closer the ally is (linear falloff to zero at the spacing radius).
+            double weight = (TEAMMATE_SPACING - dist) / TEAMMATE_SPACING;
+            pushX += (dx / dist) * weight;
+            pushZ += (dz / dist) * weight;
+        }
+        if (pushX == 0.0 && pushZ == 0.0) {
+            return;
+        }
+        Vec3 movement = this.getDeltaMovement();
+        this.setDeltaMovement(
+                movement.x + pushX * TEAMMATE_SEPARATION_STRENGTH,
+                movement.y,
+                movement.z + pushZ * TEAMMATE_SEPARATION_STRENGTH);
+        this.hurtMarked = true;
+    }
+
+    /**
+     * True if a same-faction ally sits between this soldier's eyes and {@code target}. Exposed for
+     * goals (e.g. {@link ThrowGrenadeGoal}) so they can hold fire before committing.
+     */
+    public boolean hasAllyInLineOfFire(LivingEntity target) {
+        return target != null && allyInLineOfFire(target.getBoundingBox().getCenter());
+    }
+
+    /**
+     * True if a same-faction ally sits inside the corridor between this soldier's eyes and
+     * {@code targetPos}. Used to withhold shooting and grenades that would hit a teammate.
+     */
+    private boolean allyInLineOfFire(Vec3 targetPos) {
+        Vec3 eye = this.getEyePosition();
+        Vec3 toTarget = targetPos.subtract(eye);
+        double shotLength = toTarget.length();
+        if (shotLength < MIN_DIRECTION_LENGTH_SQR) {
+            return false;
+        }
+        Vec3 dir = toTarget.scale(1.0 / shotLength);
+        Faction faction = getFaction();
+        AABB corridor = new AABB(eye, targetPos).inflate(FRIENDLY_FIRE_CLEARANCE);
+        List<FactionEnemy> allies = this.level().getEntitiesOfClass(
+                FactionEnemy.class, corridor,
+                e -> e != this && e.isAlive() && e.getFaction() == faction);
+        for (FactionEnemy ally : allies) {
+            Vec3 toAlly = ally.getBoundingBox().getCenter().subtract(eye);
+            double along = toAlly.dot(dir);
+            // Ally must be in front of the muzzle and nearer than the target to block the shot.
+            if (along <= 0.0 || along >= shotLength) {
+                continue;
+            }
+            Vec3 closest = eye.add(dir.scale(along));
+            if (ally.getBoundingBox().inflate(FRIENDLY_FIRE_CLEARANCE * 0.5).contains(closest)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -632,6 +749,13 @@ public final class FactionEnemy extends Monster implements RangedAttackMob {
                 SoundEvents.PISTON_EXTEND, SoundSource.HOSTILE, 0.7f, 1.2f);
     }
 
+    /**
+     * Detection is only built while the player is inside this soldier's forward view cone AND has an
+     * unobstructed line of sight AND is within range; it decays otherwise. Crouching shrinks the
+     * effective range and slows the buildup ({@link CrouchCombat}). When detection reaches the
+     * threshold the squad aggros; when a triggered soldier's target slips out of view and detection
+     * decays to zero, it stands down and returns to its peaceful patrol.
+     */
     private void accumulateDetection(ServerLevel level) {
         Player exposedPlayer = null;
         double bestExposureScore = Double.MAX_VALUE;
@@ -643,7 +767,11 @@ public final class FactionEnemy extends Monster implements RangedAttackMob {
             double distance = this.distanceTo(candidate);
             double acquisitionRange = DETECTION_RANGE
                     * CrouchCombat.detectionRangeMultiplier(candidate);
-            if (distance > acquisitionRange || !this.hasLineOfSight(candidate)) {
+            // Proximity alone is not enough: require a real line of sight and that the player sits
+            // inside the forward view cone so a soldier can be approached from behind unseen.
+            if (distance > acquisitionRange
+                    || !this.hasLineOfSight(candidate)
+                    || !isWithinViewCone(candidate)) {
                 continue;
             }
 
@@ -656,6 +784,7 @@ public final class FactionEnemy extends Monster implements RangedAttackMob {
             }
         }
 
+        int detection = getDetection();
         if (exposedPlayer != null) {
             // Detect faster the closer the player is.
             double distance = this.distanceTo(exposedPlayer);
@@ -664,7 +793,8 @@ public final class FactionEnemy extends Monster implements RangedAttackMob {
             int gain = (int) detectionRemainder;
             detectionRemainder -= gain;
             int previous = detection;
-            detection += gain;
+            detection = Math.min(DETECTION_THRESHOLD, detection + gain);
+            setDetection(detection);
             // Small warning cue as detection climbs.
             if (previous < DETECTION_THRESHOLD / 2
                     && detection >= DETECTION_THRESHOLD / 2) {
@@ -673,13 +803,51 @@ public final class FactionEnemy extends Monster implements RangedAttackMob {
             if (detection >= DETECTION_THRESHOLD) {
                 trigger(level, exposedPlayer);
             }
-        } else if (detection > 0) {
-            // Slowly forget when the player leaves.
-            detectionRemainder = 0.0F;
-            detection = Math.max(0, detection - 1);
         } else {
+            // Player is out of range / behind cover / outside the view cone: forget over time.
             detectionRemainder = 0.0F;
+            if (detection > 0) {
+                detection = Math.max(0, detection - DETECTION_DECAY);
+                setDetection(detection);
+            }
+            // A triggered soldier that has fully lost its quarry stands down and returns to peace.
+            if (detection <= 0 && isTriggered() && !hasVisibleHostileTarget()) {
+                standDown();
+            }
         }
+    }
+
+    /** True if {@code target} lies within this soldier's forward horizontal view cone. */
+    private boolean isWithinViewCone(Entity target) {
+        Vec3 look = this.getViewVector(1.0f);
+        Vec3 flatLook = new Vec3(look.x, 0.0, look.z);
+        if (flatLook.lengthSqr() < MIN_DIRECTION_LENGTH_SQR) {
+            return true;
+        }
+        Vec3 toTarget = new Vec3(
+                target.getX() - this.getX(), 0.0, target.getZ() - this.getZ());
+        if (toTarget.lengthSqr() < MIN_DIRECTION_LENGTH_SQR) {
+            return true;
+        }
+        return flatLook.normalize().dot(toTarget.normalize()) >= VIEW_CONE_COS;
+    }
+
+    /** True while this soldier still has a living, attackable target it can currently see. */
+    private boolean hasVisibleHostileTarget() {
+        LivingEntity target = this.getTarget();
+        return target != null
+                && target.isAlive()
+                && !(target instanceof CityNpc)
+                && this.canAttack(target)
+                && this.hasLineOfSight(target);
+    }
+
+    /** Returns a fully-decayed soldier to its peaceful patrol state (clears aggro + target). */
+    private void standDown() {
+        setTriggered(false);
+        this.setTarget(null);
+        this.setAggressive(false);
+        endTacticalManeuver();
     }
 
     /** Becomes hostile toward {@code target} and alerts nearby allies of the same faction. */
@@ -715,7 +883,16 @@ public final class FactionEnemy extends Monster implements RangedAttackMob {
                 || !(this.level() instanceof ServerLevel level)) {
             return;
         }
+        // Never shoot unprovoked: only a triggered soldier engages, and only a real acquired target
+        // with clear line of sight. This stops random/idle firing into empty space.
+        if (!isTriggered() || target != this.getTarget()) {
+            return;
+        }
         if (isWeaponGlitching() || !this.hasLineOfSight(target)) {
+            return;
+        }
+        // Hold fire if a squadmate is standing in the shot corridor (friendly-fire prevention).
+        if (allyInLineOfFire(target.getBoundingBox().getCenter())) {
             return;
         }
         if (this.getMainHandItem().getItem() instanceof GunItem gunItem) {
@@ -755,7 +932,7 @@ public final class FactionEnemy extends Monster implements RangedAttackMob {
     protected void addAdditionalSaveData(ValueOutput output) {
         super.addAdditionalSaveData(output);
         output.putString("Faction", getFaction().id());
-        output.putInt("Detection", detection);
+        output.putInt("Detection", getDetection());
         output.putBoolean("Triggered", isTriggered());
         output.putInt("Grenades", grenadeCount);
         output.putLong("GunReloadStartTick", getGunReloadStartTick());
@@ -786,7 +963,7 @@ public final class FactionEnemy extends Monster implements RangedAttackMob {
                 break;
             }
         }
-        detection = input.getIntOr("Detection", 0);
+        setDetection(input.getIntOr("Detection", 0));
         setTriggered(input.getBooleanOr("Triggered", false));
         grenadeCount = input.getIntOr("Grenades", 0);
         this.getEntityData().set(DATA_GUN_RELOAD_START_TICK,

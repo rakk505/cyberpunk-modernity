@@ -50,6 +50,10 @@ public final class ThrowGrenadeGoal extends Goal {
         if (!soldier.hasLineOfSight(candidate)) {
             return false;
         }
+        // Don't even wind up a throw that a squadmate is blocking (friendly-fire prevention).
+        if (soldier.hasAllyInLineOfFire(candidate)) {
+            return false;
+        }
         this.target = candidate;
         return true;
     }

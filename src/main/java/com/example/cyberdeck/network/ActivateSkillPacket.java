@@ -44,7 +44,7 @@ public record ActivateSkillPacket(int slot, int targetId) implements CustomPacke
             if (!(context.player() instanceof ServerPlayer player)) {
                 return;
             }
-            // Only allow while the interface is active and the helmet is worn.
+            // Only allow while the interface is active and a cyberdeck OS is installed.
             if (!CyberdeckState.isActive(player)) {
                 return;
             }

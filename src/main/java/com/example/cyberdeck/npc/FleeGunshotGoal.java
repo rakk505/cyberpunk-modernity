@@ -5,12 +5,14 @@ import java.util.EnumSet;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.goal.Goal;
+import net.minecraft.world.level.pathfinder.Path;
 
 /** Highest-priority movement that fans pedestrians away from the last gunshot. */
 final class FleeGunshotGoal extends Goal {
     private final CityNpc npc;
     private final double speed;
     private BlockPos destination;
+    private Path route;
     private int repathTicks;
 
     FleeGunshotGoal(CityNpc npc, double speed) {
@@ -55,25 +57,36 @@ final class FleeGunshotGoal extends Goal {
     public void stop() {
         npc.getNavigation().stop();
         destination = null;
+        route = null;
     }
 
     private boolean chooseDestination() {
         if (!(npc.level() instanceof ServerLevel level) || npc.gunshotSource() == null) {
             return false;
         }
-        destination = CityWorlds.findStreetAway(level, npc.blockPosition(), npc.gunshotSource(),
-                9, 22, 18, npc.getRandom());
-        return destination != null;
+        BlockPos candidate = CityWorlds.findPedestrianAreaAway(
+                level, npc.blockPosition(), npc.gunshotSource(), 9, 24, 24, npc.getRandom());
+        if (candidate == null) {
+            destination = null;
+            route = null;
+            return false;
+        }
+        Path candidateRoute = npc.getNavigation().createPath(candidate, 0);
+        if (candidateRoute == null || !candidateRoute.canReach()) {
+            destination = null;
+            route = null;
+            return false;
+        }
+        destination = candidate;
+        route = candidateRoute;
+        return true;
     }
 
     private void moveToDestination() {
-        if (destination != null
-                && !npc.getNavigation().moveTo(
-                    destination.getX() + 0.5,
-                    destination.getY(),
-                    destination.getZ() + 0.5,
-                    speed)) {
+        if (destination != null && route != null
+                && !npc.getNavigation().moveTo(route, speed)) {
             destination = null;
+            route = null;
         }
     }
 }

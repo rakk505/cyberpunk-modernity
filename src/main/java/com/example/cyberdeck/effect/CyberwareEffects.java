@@ -77,7 +77,12 @@ public final class CyberwareEffects {
     }
 
     public static boolean canQuickhack(ServerPlayer player) {
-        return hasFlag(player, "cyberdeck");
+        return canQuickhack(data(player));
+    }
+
+    /** Capability query shared by server authorization and the owner-synced client UI. */
+    public static boolean canQuickhack(CyberwareData data) {
+        return data != null && data.findFlag("cyberdeck") != null;
     }
 
     public static int cooldownTicks(ServerPlayer player, Cyberware cyberware, String key) {

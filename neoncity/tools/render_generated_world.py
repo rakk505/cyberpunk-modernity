@@ -20,7 +20,7 @@ AIR = {"minecraft:air", "minecraft:cave_air", "minecraft:void_air"}
 
 def _helpers() -> Any:
     root = Path(__file__).resolve().parents[2]
-    source = root / "structureseg" / "tools" / "convert_arnis_region.py"
+    source = root / "tools" / "citygen" / "anvil.py"
     spec = importlib.util.spec_from_file_location("neon_nbt", source)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"cannot load NBT helper: {source}")
@@ -96,7 +96,7 @@ def _decode_window(
     block_counts: Counter[str] = Counter()
     parsed = 0
     data_versions: Counter[int] = Counter()
-    region_cache: dict[tuple[int, int], bytes] = {}
+    region_cache: dict[tuple[int, int], Any | None] = {}
     region_dir = world / "region"
     if not region_dir.is_dir():
         modern = world / "dimensions" / "minecraft" / "overworld" / "region"
@@ -108,31 +108,23 @@ def _decode_window(
             region_key = (math.floor(chunk_x / 32), math.floor(chunk_z / 32))
             if region_key not in region_cache:
                 path = region_dir / f"r.{region_key[0]}.{region_key[1]}.mca"
-                if not path.is_file():
-                    continue
-                region_cache[region_key] = path.read_bytes()
-            try:
-                raw = NBT._read_mca_chunk(
-                    region_cache[region_key], chunk_x % 32, chunk_z % 32)
-            except NBT.ConversionError:
+                region_cache[region_key] = NBT.Region(str(path)) if path.is_file() else None
+            region = region_cache[region_key]
+            if region is None:
                 continue
-            _, root = NBT.NbtReader(raw).document()
+            root = region.chunk_nbt(chunk_x % 32, chunk_z % 32)
+            if root is None:
+                continue
             parsed += 1
-            data_versions[NBT._tag(root, "DataVersion", NBT.TAG_INT)] += 1
-            section_type, sections = NBT._tag(root, "sections", NBT.TAG_LIST)
-            if section_type != NBT.TAG_COMPOUND:
-                raise RuntimeError("invalid chunk section list")
+            data_versions[int(root.get("DataVersion", 0))] += 1
+            sections = root.get("sections", [])
             for section in sections:
-                section_y = NBT._tag(section, "Y", NBT.TAG_BYTE)
-                states = NBT._optional_tag(section, "block_states", NBT.TAG_COMPOUND)
-                if states is None:
+                section_y = int(section["Y"])
+                decoded = NBT.decode_section_blocks(section)
+                if decoded is None:
                     continue
-                palette_type, raw_palette = NBT._tag(states, "palette", NBT.TAG_LIST)
-                if palette_type != NBT.TAG_COMPOUND:
-                    raise RuntimeError("invalid block palette")
-                palette = [NBT._parse_state(entry).name for entry in raw_palette]
-                packed = NBT._optional_tag(states, "data", NBT.TAG_LONG_ARRAY)
-                indices = NBT._decode_palette_indices(len(palette), packed)
+                raw_palette, indices = decoded
+                palette = [str(entry["Name"]) for entry in raw_palette]
                 for linear, state_index in enumerate(indices):
                     name = palette[state_index]
                     if name in AIR:

@@ -1,7 +1,13 @@
 package com.example.cyberdeck.city;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.WeakHashMap;
+import dev.modernity.neoncity.NeonCityGenerator;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
@@ -14,6 +20,8 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.levelgen.FlatLevelSource;
+import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.level.storage.LevelResource;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.fml.ModList;
 
@@ -23,22 +31,38 @@ public final class CityWorlds {
         NONE(-1),
         CYBERDECK(-60),
         NEON_CITY(0),
-        NEON_MEGACITY(72);
+        NEON_MEGACITY(72),
+        CITY17(-64, true);
 
         private final int streetY;
+        private final boolean dynamicStreetY;
 
         Kind(int streetY) {
+            this(streetY, false);
+        }
+
+        Kind(int streetY, boolean dynamicStreetY) {
             this.streetY = streetY;
+            this.dynamicStreetY = dynamicStreetY;
         }
 
         public int streetY() {
             return streetY;
+        }
+
+        public boolean usesDynamicStreetY() {
+            return dynamicStreetY;
         }
     }
 
     private static final ResourceKey<DimensionType> NEON_MEGACITY_DIMENSION_TYPE =
             ResourceKey.create(Registries.DIMENSION_TYPE,
                     Identifier.fromNamespaceAndPath("neoncity", "megacity_overworld"));
+    private static final Map<ServerLevel, Boolean> LEGACY_NEON_LEDGER_CACHE =
+            Collections.synchronizedMap(new WeakHashMap<>());
+    private static final int[][] CARDINAL_DIRECTIONS = {
+            {1, 0}, {-1, 0}, {0, 1}, {0, -1}
+    };
 
     private CityWorlds() {
     }
@@ -48,10 +72,9 @@ public final class CityWorlds {
      * {@link Kind#NONE}; Project Moon's marked noise world is an explicit supported exception.
      */
     public static Kind kind(ServerLevel level) {
-        // Neon City 2.0 keeps vanilla noise terrain but identifies its generated overworld with a
-        // custom dimension type. Detect that marker before applying the legacy flat-world checks.
-        if (ModList.get().isLoaded("neoncity")
-                && level.dimensionTypeRegistration().is(NEON_MEGACITY_DIMENSION_TYPE)) {
+        // Project Moon keeps vanilla noise terrain but identifies its generated overworld with a
+        // custom dimension type bundled directly in Cyberdeck.
+        if (level.dimensionTypeRegistration().is(NEON_MEGACITY_DIMENSION_TYPE)) {
             return Kind.NEON_MEGACITY;
         }
 
@@ -67,9 +90,12 @@ public final class CityWorlds {
                     ? Kind.CYBERDECK : Kind.NONE;
         }
         if (signature == Kind.NEON_CITY) {
-            // The layer signature is intentionally strict, and the companion mod must also be
-            // loaded so an ordinary vanilla black/cyan superflat never gains civilians.
-            return ModList.get().isLoaded("neoncity") ? Kind.NEON_CITY : Kind.NONE;
+            // Cyberdeck 1.1 embedded this generator directly. Its persisted ledger distinguishes
+            // those official legacy worlds from a vanilla custom flat world with similar layers.
+            return hasLegacyNeonLedger(level) ? Kind.NEON_CITY : Kind.NONE;
+        }
+        if (signature == Kind.CITY17) {
+            return ModList.get().isLoaded("city17") ? Kind.CITY17 : Kind.NONE;
         }
         return Kind.NONE;
     }
@@ -91,6 +117,7 @@ public final class CityWorlds {
 
         BlockState black = Blocks.CONCRETE.pick(DyeColor.BLACK).defaultBlockState();
         BlockState cyan = Blocks.CONCRETE.pick(DyeColor.CYAN).defaultBlockState();
+        BlockState purple = Blocks.CONCRETE.pick(DyeColor.PURPLE).defaultBlockState();
         if (layers.size() == 5
                 && layers.get(0).is(Blocks.BEDROCK)
                 && layers.subList(1, 5).stream().allMatch(state -> state.is(black.getBlock()))) {
@@ -100,6 +127,9 @@ public final class CityWorlds {
                 && layers.get(0).is(black.getBlock())
                 && layers.get(1).is(cyan.getBlock())) {
             return Kind.NEON_CITY;
+        }
+        if (layers.size() == 1 && layers.get(0).is(purple.getBlock())) {
+            return Kind.CITY17;
         }
         return Kind.NONE;
     }
@@ -111,7 +141,8 @@ public final class CityWorlds {
     /** Returns whether {@code feet} is a clear pedestrian location at the preset's street deck. */
     public static boolean isWalkableStreet(ServerLevel level, BlockPos feet) {
         Kind kind = kind(level);
-        if (kind == Kind.NONE || feet.getY() != kind.streetY() + 1
+        if (kind == Kind.NONE || (!kind.usesDynamicStreetY()
+                && feet.getY() != kind.streetY() + 1)
                 || !level.isLoaded(feet) || !level.getWorldBorder().isWithinBounds(feet)) {
             return false;
         }
@@ -120,16 +151,108 @@ public final class CityWorlds {
         if (!floor.blocksMotion() || !level.isEmptyBlock(feet) || !level.isEmptyBlock(feet.above())) {
             return false;
         }
+        if (kind == Kind.CITY17) {
+            BlockPos heightmapFeet = level.getHeightmapPos(
+                    Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, feet);
+            return heightmapFeet.getY() == feet.getY()
+                    && isCity17PedestrianSurface(floor)
+                    && hasCity17StreetConnectivity(level, feet);
+        }
         // The finite Cyberdeck preset explicitly paves pedestrian routes with gray concrete. Its
         // untouched black-concrete void must not become an infinite civilian spawning plane.
         return kind != Kind.CYBERDECK
                 || floor.is(Blocks.CONCRETE.pick(DyeColor.GRAY));
     }
 
+    /** Road and plaza surfaces emitted by the Arnis-derived Taiwan atlas. */
+    public static boolean isCity17PedestrianSurface(BlockState floor) {
+        return floor.is(Blocks.CONCRETE.pick(DyeColor.GRAY))
+                || floor.is(Blocks.CONCRETE_POWDER.pick(DyeColor.GRAY));
+    }
+
+    /** Resolves a street foot position, including the Taiwan atlas's per-column terrain height. */
+    public static BlockPos resolveStreetFeet(ServerLevel level, int x, int z, int preferredY) {
+        Kind kind = kind(level);
+        if (kind == Kind.NONE) {
+            return null;
+        }
+        BlockPos candidate;
+        if (kind.usesDynamicStreetY()) {
+            BlockPos probe = new BlockPos(x, preferredY, z);
+            if (!level.isLoaded(probe)) {
+                return null;
+            }
+            candidate = level.getHeightmapPos(
+                    Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, probe);
+        } else {
+            candidate = new BlockPos(x, kind.streetY() + 1, z);
+        }
+        return isWalkableStreet(level, candidate) ? candidate : null;
+    }
+
+    /** Resolves civilian space, restricted to Arnis neighborhoods and parks in Project Moon. */
+    public static BlockPos resolvePedestrianFeet(ServerLevel level, int x, int z, int preferredY) {
+        BlockPos candidate = resolveStreetFeet(level, x, z, preferredY);
+        if (candidate == null) {
+            return null;
+        }
+        return kind(level) != Kind.NEON_MEGACITY
+                || NeonCityGenerator.isCivilianPedestrianArea(level, x, z)
+                ? candidate : null;
+    }
+
+    private static boolean hasLegacyNeonLedger(ServerLevel level) {
+        if (Boolean.TRUE.equals(LEGACY_NEON_LEDGER_CACHE.get(level))) {
+            return true;
+        }
+        Path worldRoot = level.getServer().getWorldPath(LevelResource.ROOT);
+        Path dimensionRoot = DimensionType.getStorageFolder(level.dimension(), worldRoot);
+        Path ledger = dimensionRoot.resolve("data").resolve("neoncity")
+                .resolve("generated_chunks_v1.dat");
+        boolean exists = Files.isRegularFile(ledger);
+        if (exists) {
+            LEGACY_NEON_LEDGER_CACHE.put(level, true);
+        }
+        return exists;
+    }
+
+    private static boolean hasCity17StreetConnectivity(ServerLevel level, BlockPos feet) {
+        int connected = 0;
+        for (int[] direction : CARDINAL_DIRECTIONS) {
+            BlockPos probe = feet.offset(direction[0], 0, direction[1]);
+            if (!level.isLoaded(probe)) {
+                continue;
+            }
+            BlockPos neighborFeet = level.getHeightmapPos(
+                    Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, probe);
+            if (Math.abs(neighborFeet.getY() - feet.getY()) <= 1
+                    && level.isEmptyBlock(neighborFeet)
+                    && level.isEmptyBlock(neighborFeet.above())
+                    && isCity17PedestrianSurface(level.getBlockState(neighborFeet.below()))) {
+                connected++;
+            }
+        }
+        return connected >= 2;
+    }
+
     /** Finds a loaded street location in a ring around an origin. */
     public static BlockPos findStreetNear(ServerLevel level, BlockPos origin,
                                           int minDistance, int maxDistance,
                                           int attempts, RandomSource random) {
+        return findNear(level, origin, minDistance, maxDistance, attempts, random, false);
+    }
+
+    /** Finds a loaded civilian destination without selecting Project Moon highways. */
+    public static BlockPos findPedestrianAreaNear(ServerLevel level, BlockPos origin,
+                                                   int minDistance, int maxDistance,
+                                                   int attempts, RandomSource random) {
+        return findNear(level, origin, minDistance, maxDistance, attempts, random, true);
+    }
+
+    private static BlockPos findNear(ServerLevel level, BlockPos origin,
+                                     int minDistance, int maxDistance,
+                                     int attempts, RandomSource random,
+                                     boolean pedestriansOnly) {
         Kind kind = kind(level);
         if (kind == Kind.NONE) {
             return null;
@@ -139,35 +262,39 @@ public final class CityWorlds {
             int distance = minDistance + random.nextInt(maxDistance - minDistance + 1);
             int x = origin.getX() + (int) Math.round(Math.cos(angle) * distance);
             int z = origin.getZ() + (int) Math.round(Math.sin(angle) * distance);
-            BlockPos candidate = new BlockPos(x, kind.streetY() + 1, z);
-            if (isWalkableStreet(level, candidate)) {
+            BlockPos candidate = resolveFeet(
+                    level, x, z, origin.getY(), pedestriansOnly);
+            if (candidate != null) {
                 return candidate;
             }
         }
 
         // Generated streets can be sparse around large parcels. A deterministic perimeter scan
         // guarantees that random misses do not suppress an entire civilian population cycle.
-        int feetY = kind.streetY() + 1;
         for (int radius = minDistance; radius <= maxDistance; radius += 2) {
             for (int offset = -radius; offset <= radius; offset += 2) {
-                BlockPos north = new BlockPos(
-                        origin.getX() + offset, feetY, origin.getZ() - radius);
-                if (isWalkableStreet(level, north)) {
+                BlockPos north = resolveFeet(level,
+                        origin.getX() + offset, origin.getZ() - radius, origin.getY(),
+                        pedestriansOnly);
+                if (north != null) {
                     return north;
                 }
-                BlockPos south = new BlockPos(
-                        origin.getX() + offset, feetY, origin.getZ() + radius);
-                if (isWalkableStreet(level, south)) {
+                BlockPos south = resolveFeet(level,
+                        origin.getX() + offset, origin.getZ() + radius, origin.getY(),
+                        pedestriansOnly);
+                if (south != null) {
                     return south;
                 }
-                BlockPos west = new BlockPos(
-                        origin.getX() - radius, feetY, origin.getZ() + offset);
-                if (isWalkableStreet(level, west)) {
+                BlockPos west = resolveFeet(level,
+                        origin.getX() - radius, origin.getZ() + offset, origin.getY(),
+                        pedestriansOnly);
+                if (west != null) {
                     return west;
                 }
-                BlockPos east = new BlockPos(
-                        origin.getX() + radius, feetY, origin.getZ() + offset);
-                if (isWalkableStreet(level, east)) {
+                BlockPos east = resolveFeet(level,
+                        origin.getX() + radius, origin.getZ() + offset, origin.getY(),
+                        pedestriansOnly);
+                if (east != null) {
                     return east;
                 }
             }
@@ -175,10 +302,31 @@ public final class CityWorlds {
         return null;
     }
 
+    private static BlockPos resolveFeet(ServerLevel level, int x, int z, int preferredY,
+                                        boolean pedestriansOnly) {
+        return pedestriansOnly
+                ? resolvePedestrianFeet(level, x, z, preferredY)
+                : resolveStreetFeet(level, x, z, preferredY);
+    }
+
     /** Finds the farthest sampled street point away from a gunshot. */
     public static BlockPos findStreetAway(ServerLevel level, BlockPos origin, Vec3 threat,
                                           int minDistance, int maxDistance,
                                           int attempts, RandomSource random) {
+        return findAway(level, origin, threat, minDistance, maxDistance, attempts, random, false);
+    }
+
+    /** Finds a civilian escape destination without choosing a Project Moon highway. */
+    public static BlockPos findPedestrianAreaAway(ServerLevel level, BlockPos origin, Vec3 threat,
+                                                   int minDistance, int maxDistance,
+                                                   int attempts, RandomSource random) {
+        return findAway(level, origin, threat, minDistance, maxDistance, attempts, random, true);
+    }
+
+    private static BlockPos findAway(ServerLevel level, BlockPos origin, Vec3 threat,
+                                     int minDistance, int maxDistance,
+                                     int attempts, RandomSource random,
+                                     boolean pedestriansOnly) {
         Kind kind = kind(level);
         if (kind == Kind.NONE) {
             return null;
@@ -190,12 +338,16 @@ public final class CityWorlds {
         for (int attempt = 0; attempt < attempts; attempt++) {
             double angle = awayAngle + (random.nextDouble() - 0.5) * Math.PI * 0.9;
             int distance = minDistance + random.nextInt(maxDistance - minDistance + 1);
-            BlockPos candidate = new BlockPos(
+            BlockPos candidate = resolveFeet(
+                    level,
                     origin.getX() + (int) Math.round(Math.cos(angle) * distance),
-                    kind.streetY() + 1,
-                    origin.getZ() + (int) Math.round(Math.sin(angle) * distance));
+                    origin.getZ() + (int) Math.round(Math.sin(angle) * distance),
+                    origin.getY(), pedestriansOnly);
+            if (candidate == null) {
+                continue;
+            }
             double threatDistance = Vec3.atCenterOf(candidate).distanceToSqr(threat);
-            if (threatDistance > bestDistance && isWalkableStreet(level, candidate)) {
+            if (threatDistance > bestDistance) {
                 bestDistance = threatDistance;
                 best = candidate;
             }

@@ -1,15 +1,21 @@
 package com.example.cyberdeck.client;
 
 import com.example.cyberdeck.Cyberdeck;
-import com.example.cyberdeck.CyberdeckItems;
+import com.example.cyberdeck.client.hud.MinimapClientState;
+import com.example.cyberdeck.client.map.CityMapNavigationClient;
+import com.example.cyberdeck.client.mission.MissionTrackerClient;
+import com.example.cyberdeck.cyberware.CyberwareAttachments;
+import com.example.cyberdeck.effect.CyberwareEffects;
+import com.example.cyberdeck.healing.HealingConsumable;
+import com.example.cyberdeck.healing.HealingState;
 import com.example.cyberdeck.network.ActivateSkillPacket;
 import com.example.cyberdeck.network.CyberwareActionPacket;
 import com.example.cyberdeck.network.ToggleInterfacePacket;
+import com.example.cyberdeck.network.UseHealingConsumablePacket;
 import com.example.cyberdeck.movement.TacticalAction;
 import com.example.cyberdeck.movement.TacticalMovement;
 import com.example.cyberdeck.movement.TacticalMovementPacket;
 import net.minecraft.client.Minecraft;
-import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.neoforged.api.distmarker.Dist;
@@ -57,17 +63,36 @@ public final class CyberdeckClientEvents {
     @SubscribeEvent
     public static void onClientTick(ClientTickEvent.Post event) {
         Minecraft mc = Minecraft.getInstance();
+        CityMapNavigationClient.tick(mc);
         if (mc.player == null) {
             QuickhackScannerClient.reset();
             return;
         }
+        HealingConsumableClient.migrateLegacyUseBinding(mc);
 
-        // Open the cyberware screen (works regardless of the helmet - it's body augmentation).
+        while (CyberdeckClient.OPEN_CITY_MAP_KEY.consumeClick()) {
+            if (mc.gui.screen() == null) {
+                CityMapNavigationClient.requestOpen();
+            }
+        }
+
+        // Open the cyberware screen regardless of the currently installed operating system.
         while (CyberdeckClient.OPEN_CYBERWARE_KEY.consumeClick()) {
             if (mc.gui.screen() == null) {
                 mc.setScreenAndShow(new com.example.cyberdeck.client.screen.CyberwareScreen());
             }
         }
+
+        // Minimap and merchant-marker visibility toggles persist for the client session.
+        while (CyberdeckClient.TOGGLE_MINIMAP_KEY.consumeClick()) {
+            MinimapClientState.toggleMinimap();
+        }
+        while (CyberdeckClient.TOGGLE_MERCHANTS_KEY.consumeClick()) {
+            MinimapClientState.toggleMerchantMarkers();
+        }
+
+        QuickhackScannerClient.tick(mc);
+        boolean physicalHealingClick = HealingConsumableClient.pollPhysicalUseKey(mc);
 
         // The remaining inputs are only meaningful when a screen is not open.
         if (mc.gui.screen() != null) {
@@ -75,9 +100,9 @@ public final class CyberdeckClientEvents {
             return;
         }
 
-        // Fire the toggle only when the player is wearing the helmet, to avoid hijacking TAB otherwise.
+        // The owner-synced cyberware attachment keeps TAB available when no cyberdeck OS is installed.
         while (CyberdeckClient.TOGGLE_KEY.consumeClick()) {
-            if (isWearingCyberdeck(mc.player)) {
+            if (CyberwareEffects.canQuickhack(CyberwareAttachments.get(mc.player))) {
                 ClientPacketDistributor.sendToServer(new ToggleInterfacePacket());
             }
         }
@@ -106,11 +131,45 @@ public final class CyberdeckClientEvents {
             ClientPacketDistributor.sendToServer(new CyberwareActionPacket(CyberwareActionPacket.Action.OPTICAL_CAMO));
         }
 
+        while (CyberdeckClient.SELECT_HEALING_KEY.consumeClick()) {
+            HealingConsumableClient.cycle();
+        }
+        boolean mappedHealingClick = false;
+        while (CyberdeckClient.USE_HEALING_KEY.consumeClick()) {
+            mappedHealingClick = true;
+        }
+        if (mappedHealingClick || physicalHealingClick) {
+            HealingConsumable selected = HealingConsumableClient.selected();
+            long gameTick = mc.level.getGameTime();
+            HealingState state = HealingState.get(mc.player);
+            if (mc.player.isAlive()
+                    && !mc.player.isSpectator()
+                    && HealingConsumableClient.cooldownRemaining(
+                            state, selected, gameTick) == 0L) {
+                HealingConsumableClient.predictUse(selected, gameTick);
+                ClientPacketDistributor.sendToServer(new UseHealingConsumablePacket(selected));
+            }
+        }
+
         // Manual reload: only meaningful while holding a gun. The server validates reserve ammo and
         // whether a reload is already in progress or the magazine is full.
         while (CyberdeckClient.RELOAD_KEY.consumeClick()) {
             if (mc.player.getMainHandItem().getItem() instanceof com.example.cyberdeck.weapon.GunItem) {
                 ClientPacketDistributor.sendToServer(new com.example.cyberdeck.network.ReloadPacket());
+            }
+        }
+
+        // Stealth takedown: F is shared with the quickhack queue key, so only act when the scanner
+        // is not active AND a valid crouch-behind target exists. The server re-validates the kill.
+        while (CyberdeckClient.STEALTH_TAKEDOWN_KEY.consumeClick()) {
+            if (QuickhackScannerClient.isActive()) {
+                continue;
+            }
+            com.example.cyberdeck.faction.FactionEnemy takedownTarget =
+                    com.example.cyberdeck.faction.CrouchCombat.findStealthTakedownTarget(mc.player);
+            if (takedownTarget != null) {
+                ClientPacketDistributor.sendToServer(
+                        new com.example.cyberdeck.network.StealthTakedownPacket(takedownTarget.getId()));
             }
         }
 
@@ -214,10 +273,9 @@ public final class CyberdeckClientEvents {
         quickhackUseLatched = false;
         QuickhackScannerClient.reset();
         QuickhackUploadClient.set(com.example.cyberdeck.network.QuickhackUploadPacket.NONE);
-    }
-
-    private static boolean isWearingCyberdeck(Player player) {
-        return player.getItemBySlot(EquipmentSlot.HEAD).is(CyberdeckItems.CYBERDECK.get());
+        HealingConsumableClient.reset();
+        CityMapNavigationClient.reset();
+        MissionTrackerClient.reset();
     }
 
     private static boolean queueSelectedQuickhack(Minecraft minecraft) {

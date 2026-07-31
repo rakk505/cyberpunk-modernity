@@ -200,7 +200,11 @@ public final class TacticalMovement {
             return false;
         }
         if (action == TacticalAction.SLIDE) {
-            Vec3 velocity = player.getDeltaMovement();
+            // Vanilla walking is applied from client position packets, so ServerPlayer's ordinary
+            // locomotion lives in lastKnownClientMovement rather than deltaMovement. The latter is
+            // reserved for server impulses and is commonly zero even while the player is visibly
+            // sprinting; using it here made every normal slide request fail its speed gate.
+            Vec3 velocity = player.getKnownMovement();
             return player.isSprinting()
                     && velocity.x * velocity.x + velocity.z * velocity.z
                     >= MIN_SLIDE_SPEED_SQUARED;

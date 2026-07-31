@@ -9,7 +9,7 @@ import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.entity.HumanoidMobRenderer;
 import net.minecraft.resources.Identifier;
 
-/** Player-shaped renderer with one of eight original corporate-worker skins. */
+/** Player-shaped renderer with civilian variants plus the gold-trimmed mission target. */
 public final class CityNpcRenderer
         extends HumanoidMobRenderer<CityNpc, CityNpcRenderState,
                 HumanoidModel<CityNpcRenderState>> {

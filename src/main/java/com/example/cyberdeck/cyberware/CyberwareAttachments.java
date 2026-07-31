@@ -3,6 +3,9 @@ package com.example.cyberdeck.cyberware;
 import com.example.cyberdeck.Cyberdeck;
 import com.example.cyberdeck.effect.SandevistanState;
 
+import com.mojang.serialization.Codec;
+
+import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.world.entity.player.Player;
 import net.neoforged.neoforge.attachment.AttachmentType;
 import net.neoforged.neoforge.registries.DeferredRegister;
@@ -34,6 +37,19 @@ public final class CyberwareAttachments {
                     .copyOnDeath()
                     .build());
 
+    /**
+     * Permanent per-player bonus to maximum cyberware capacity granted by consuming
+     * {@code cyberware_shard} items. Persisted to disk and copied across death so the
+     * bonus is never lost, and folded into {@link CyberwareCapacity#maximum}.
+     */
+    public static final Supplier<AttachmentType<Integer>> BONUS_CYBERWARE_CAPACITY =
+            ATTACHMENT_TYPES.register("bonus_cyberware_capacity", () -> AttachmentType
+                    .builder(() -> 0)
+                    .serialize(Codec.INT.fieldOf("bonus_cyberware_capacity"))
+                    .sync(ByteBufCodecs.VAR_INT)
+                    .copyOnDeath()
+                    .build());
+
     private CyberwareAttachments() {
     }
 
@@ -44,5 +60,13 @@ public final class CyberwareAttachments {
 
     public static SandevistanState getSandevistanState(Player player) {
         return player.getData(SANDEVISTAN_STATE.get());
+    }
+
+    public static int getBonusCapacity(Player player) {
+        return player.getData(BONUS_CYBERWARE_CAPACITY.get());
+    }
+
+    public static void addBonusCapacity(Player player, int delta) {
+        player.setData(BONUS_CYBERWARE_CAPACITY.get(), getBonusCapacity(player) + delta);
     }
 }
