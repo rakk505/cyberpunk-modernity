@@ -7,6 +7,7 @@ import com.example.cyberdeck.client.hud.MissionTrackerOverlay;
 import com.example.cyberdeck.client.hud.CityMinimapOverlay;
 import com.example.cyberdeck.client.hud.QuickhackScannerOverlay;
 import com.example.cyberdeck.client.hud.SmartLockOverlay;
+import com.example.cyberdeck.client.hud.DetectionHudOverlay;
 import com.example.cyberdeck.client.gun.GenericGunClientExtension;
 import com.example.cyberdeck.client.movement.TacticalPlayerAnimations;
 import com.example.cyberdeck.client.render.FactionEnemyRenderer;
@@ -194,6 +195,10 @@ public final class CyberdeckClient {
         event.registerAbove(VanillaGuiLayers.EFFECTS,
                 Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "quickhack_scanner"),
                 new QuickhackScannerOverlay());
+        // Track B (Combat AI): stealth detection meter above the crosshair.
+        event.registerAbove(VanillaGuiLayers.CROSSHAIR,
+                Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "detection_meter"),
+                new DetectionHudOverlay());
     }
 
     /** Adds the scanner's orange silhouette to only the entity under the reticle. */
