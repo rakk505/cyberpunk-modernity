@@ -81,19 +81,31 @@ public final class CityMinimapOverlay implements GuiLayer {
         float rotation = (float) Math.toRadians(-yaw);
 
         // Rotate the entire map content about the map center so the player faces up.
+        //
+        // The visible map is the axis-aligned scissor square [left, mapTop, size, size]. A square
+        // blit of exactly `size` rotates its corners outside that square, so at intermediate yaw
+        // angles the axis-aligned scissor clips the corners and leaves empty triangles inside the
+        // ring -- read on screen as the map skewing/shearing as the player turns. To fix this we
+        // rotate (rigidly, no non-uniform scale) an OVERSIZED blit quad that circumscribes the
+        // visible square. Scaling the destination quad and the sampled UV span by the same factor
+        // (the diagonal ratio) keeps pixels-per-world identical, so route/marker/waypoint drawing
+        // below -- which uses the unscaled `viewport` -- still lines up exactly.
+        double cover = Math.sqrt(2.0);
+        int halfQuad = (int) Math.ceil(size * 0.5 * cover);
+        double halfUv = unitSpan * 0.5 * cover;
         graphics.pose().pushMatrix();
         graphics.pose().rotateAbout(rotation, mapCenterX, mapCenterY);
         graphics.enableScissor(left, mapTop, left + size, mapTop + size);
         graphics.blit(
                 CityMapTextureCache.TEXTURE,
-                left,
-                mapTop,
-                left + size,
-                mapTop + size,
-                (float) (centerU - unitSpan * 0.5),
-                (float) (centerU + unitSpan * 0.5),
-                (float) (centerV - unitSpan * 0.5),
-                (float) (centerV + unitSpan * 0.5));
+                mapCenterX - halfQuad,
+                mapCenterY - halfQuad,
+                mapCenterX + halfQuad,
+                mapCenterY + halfQuad,
+                (float) (centerU - halfUv),
+                (float) (centerU + halfUv),
+                (float) (centerV - halfUv),
+                (float) (centerV + halfUv));
         CityMapRenderUtil.drawRoute(graphics, viewport, CityMapNavigationClient.route().points());
         if (MinimapClientState.merchantMarkersVisible()) {
             CityMapRenderUtil.drawMerchantMarkers(

@@ -27,6 +27,14 @@ public final class DetectionHudOverlay implements GuiLayer {
     private static final double SCAN_RADIUS = 32.0;
     private static final int BAR_WIDTH = 80;
     private static final int BAR_HEIGHT = 5;
+    /** Height of the vanilla hotbar (22px), pinned to the very bottom of the screen. */
+    private static final int HOTBAR_HEIGHT = 22;
+    /**
+     * Vertical gap between the bar and the top of the hotbar. Large enough that the bar and its
+     * label (drawn 10px above the bar) clear the XP bar and level number that sit directly on top
+     * of the hotbar, without reaching the health/hunger rows.
+     */
+    private static final int HOTBAR_GAP = 14;
 
     private static final int BACKGROUND = 0xC00A0F14;
     private static final int BORDER = 0xFF0A2A33;
@@ -71,7 +79,10 @@ public final class DetectionHudOverlay implements GuiLayer {
         int screenW = mc.getWindow().getGuiScaledWidth();
         int screenH = mc.getWindow().getGuiScaledHeight();
         int x = (screenW - BAR_WIDTH) / 2;
-        int y = screenH / 2 - 24; // sit above the crosshair
+        // Sit just above the vanilla hotbar. The hotbar is 22px tall, pinned to the very bottom
+        // and centered horizontally. We stack the bar and its label above it (label is drawn at
+        // y - 10) with a small gap so nothing overlaps the hotbar, XP bar, or health/hunger.
+        int y = screenH - HOTBAR_HEIGHT - HOTBAR_GAP - BAR_HEIGHT;
 
         Font font = mc.font;
         Component label = aggroed
