@@ -1,6 +1,8 @@
 package dev.modernity.neoncity;
 
 import com.example.cyberdeck.CyberdeckItems;
+import com.example.cyberdeck.faction.CyberpsychoEntity;
+import com.example.cyberdeck.npc.CityNpc;
 import com.example.cyberdeck.cyberware.Cyberware;
 import com.example.cyberdeck.cyberware.CyberwareItems;
 import com.example.cyberdeck.cyberware.CyberwareTier;
@@ -22,6 +24,10 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.GameType;
+import net.minecraft.world.item.Items;
+import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -188,8 +194,8 @@ public final class ExampleGameTests {
         }
 
         List<OpenCityMapPacket.Marker> markers = CityMapService.markers(layout);
-        helper.assertTrue(markers.size() == District.values().length + 6,
-                "city map must expose 26 transit nodes and six future job leads");
+        helper.assertTrue(markers.size() == District.values().length,
+                "city map must expose one transit node per district without fake job leads");
         long transitCount = markers.stream()
                 .filter(marker -> marker.kind() == OpenCityMapPacket.MarkerKind.TRANSIT)
                 .count();
@@ -201,6 +207,16 @@ public final class ExampleGameTests {
                             && location.district().ordinal() == marker.districtOrdinal(),
                     "city map marker escaped its district: " + marker.labelKey());
         }
+        MegacityLayout.Node activeNode = layout.node(District.M_CORP);
+        OpenCityMapPacket.Marker activeMission = new OpenCityMapPacket.Marker(
+                OpenCityMapPacket.MarkerKind.ACTIVE_MISSION,
+                activeNode.x(), activeNode.z(), District.M_CORP.ordinal(),
+                "literal:Runtime Mission");
+        List<OpenCityMapPacket.Marker> activeMarkers = CityMapService.markers(
+                layout, Optional.of(activeMission));
+        helper.assertTrue(activeMarkers.size() == District.values().length + 1
+                        && activeMarkers.getFirst().equals(activeMission),
+                "active mission did not replace decorative leads on the city map");
 
         double[] coordinates = {-extent, -3141.5, 0.0, 2718.25, extent};
         for (double coordinate : coordinates) {
@@ -778,28 +794,25 @@ public final class ExampleGameTests {
                 "Slop is not an edible, enchanted-looking merchant item");
 
         BlockPos questAnchor = new BlockPos(-112, 73, 245);
-        List<MerchantQuestService.QuestOffer> firstOffers = MerchantQuestService.offers(
+        List<MissionService.MissionOffer> firstOffers = MissionService.offers(
                 NeonCityGenerator.layout(), TEST_SEED, questAnchor, District.B_CORP);
-        List<MerchantQuestService.QuestOffer> secondOffers = MerchantQuestService.offers(
+        List<MissionService.MissionOffer> secondOffers = MissionService.offers(
                 NeonCityGenerator.layout(), TEST_SEED, questAnchor, District.B_CORP);
-        helper.assertTrue(firstOffers.equals(secondOffers) && firstOffers.size() == 5,
-                "fixer offers are not deterministic five-contract boards");
-        helper.assertTrue(firstOffers.getFirst().local()
-                        && firstOffers.getFirst().targetDistrictOrdinal()
-                                == District.B_CORP.ordinal(),
-                "fixer board has no local district delivery");
-        Set<Integer> remoteTargets = new HashSet<>();
-        for (MerchantQuestService.QuestOffer offer : firstOffers) {
-            helper.assertTrue(offer.reward() > 0 && !offer.cargo().isBlank(),
-                    "fixer offered a delivery without cargo or pay");
-            if (!offer.local()) {
-                helper.assertTrue(offer.targetDistrictOrdinal() != District.B_CORP.ordinal(),
-                        "remote fixer delivery targeted its source district");
-                remoteTargets.add(offer.targetDistrictOrdinal());
-            }
+        helper.assertTrue(firstOffers.equals(secondOffers)
+                        && firstOffers.size() == MissionCatalog.definitions().size(),
+                "fixer mission offers are not deterministic catalog projections");
+        EnumSet<MissionCatalog.MissionType> missionTypes = EnumSet.noneOf(
+                MissionCatalog.MissionType.class);
+        for (MissionService.MissionOffer offer : firstOffers) {
+            helper.assertTrue(offer.reward() > 0 && !offer.title().isBlank()
+                            && !offer.objective().isBlank() && !offer.briefing().isBlank(),
+                    "fixer offered an incomplete mission");
+            helper.assertTrue(offer.targetDistrictOrdinal() != District.B_CORP.ordinal(),
+                    "fixer mission did not choose a remote configured district");
+            missionTypes.add(offer.type());
         }
-        helper.assertTrue(remoteTargets.size() == 4,
-                "fixer board does not offer four distinct interdistrict deliveries");
+        helper.assertTrue(missionTypes.equals(EnumSet.allOf(MissionCatalog.MissionType.class)),
+                "fixer board does not cover all four configured mission types");
 
         BlockPos testOrigin = helper.absolutePos(BlockPos.ZERO);
         int testChunkX = Math.floorDiv(testOrigin.getX(), 16);
@@ -861,6 +874,158 @@ public final class ExampleGameTests {
                         && merchants.getFirst().getOffers().size() == expectedCyberware,
                 "live yellow truck lacks its recolored body or reachable cyberware merchant");
         helper.succeed();
+    }
+
+    public static void missionSystem(GameTestHelper helper) {
+        MissionService.reset();
+        List<MissionCatalog.MissionDefinition> definitions = MissionCatalog.definitions();
+        helper.assertTrue(definitions.size() >= 4
+                        && definitions.stream().map(MissionCatalog.MissionDefinition::type)
+                        .collect(java.util.stream.Collectors.toSet())
+                        .containsAll(EnumSet.allOf(MissionCatalog.MissionType.class)),
+                "JSON catalog did not validate all four mission types");
+
+        BlockPos origin = helper.absolutePos(new BlockPos(3, 3, 3));
+        for (int x = -2; x <= 8; x++) {
+            for (int z = -2; z <= 8; z++) {
+                helper.getLevel().setBlock(
+                        new BlockPos(origin.getX() + x, origin.getY() - 1, origin.getZ() + z),
+                        Blocks.STONE.defaultBlockState(), 3);
+            }
+        }
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        player.setGameMode(GameType.SURVIVAL);
+        player.snapTo(origin.getX() + 6.5, origin.getY(), origin.getZ() + 6.5,
+                180.0F, 0.0F);
+        player.getInventory().clearContent();
+
+        MissionCatalog.MissionDefinition psychoDefinition = definitions.stream()
+                .filter(value -> value.type()
+                        == MissionCatalog.MissionType.NEUTRALIZE_CYBERPSYCHO)
+                .findFirst().orElseThrow();
+        MissionService.ActiveMission psychoMission = testMission(
+                psychoDefinition, origin, 12, "");
+        MissionService.save(player, psychoMission);
+        MissionService.ActiveMission spawnedPsycho = MissionService.spawnCyberpsycho(
+                helper.getLevel(), player, psychoDefinition, psychoMission);
+        helper.assertTrue(spawnedPsycho != null, "cyberpsycho mission did not spawn its boss");
+        MissionService.save(player, spawnedPsycho);
+        CyberpsychoEntity psycho = helper.getLevel().getEntitiesOfClass(
+                CyberpsychoEntity.class, new AABB(origin).inflate(4.0)).getFirst();
+        helper.assertTrue(psycho.getMaxHealth() == psychoDefinition.cyberpsychoHealth()
+                        && psycho.installedCyberware().equals(psychoDefinition.cyberware())
+                        && psycho.getGrenadeCount() == psychoDefinition.cyberpsychoGrenades()
+                        && psycho.getMainHandItem().is(
+                                WeaponItems.gun(psychoDefinition.cyberpsychoGun()).get())
+                        && MissionService.isMissionActor(psycho),
+                "cyberpsycho lost configured health, cyberware, firearm, grenades, or mission tag");
+        int emeralds = inventoryCount(player, Items.EMERALD);
+        MissionService.onEntityDeath(new LivingDeathEvent(
+                psycho, helper.getLevel().damageSources().playerAttack(player)));
+        helper.assertTrue(MissionService.activeMission(player).isEmpty()
+                        && inventoryCount(player, Items.EMERALD) == emeralds + psychoMission.reward(),
+                "neutralize mission did not complete from the owner's target kill");
+
+        MissionCatalog.MissionDefinition assassinSource = definitions.stream()
+                .filter(value -> value.type() == MissionCatalog.MissionType.ASSASSINATE_TARGET)
+                .findFirst().orElseThrow();
+        MissionCatalog.MissionDefinition assassinDefinition = new MissionCatalog.MissionDefinition(
+                assassinSource.id(), assassinSource.type(), assassinSource.title(),
+                assassinSource.briefing(), assassinSource.targetName(),
+                assassinSource.targetDistricts(), 9, 9, 0,
+                assassinSource.objectiveRadius(), 0, null, 0, List.of(), null, 0);
+        BlockPos assassinPos = origin.offset(3, 0, 0);
+        MissionService.ActiveMission assassinMission = testMission(
+                assassinDefinition, assassinPos, 9, "");
+        MissionService.save(player, assassinMission);
+        MissionService.ActiveMission spawnedAssassin = MissionService.spawnAssassination(
+                helper.getLevel(), player, assassinDefinition, assassinMission);
+        helper.assertTrue(spawnedAssassin != null,
+                "assassination mission did not spawn its executive");
+        MissionService.save(player, spawnedAssassin);
+        CityNpc executive = helper.getLevel().getEntitiesOfClass(
+                CityNpc.class, new AABB(assassinPos).inflate(3.0),
+                MissionService::isMissionActor).getFirst();
+        helper.assertTrue(executive.getSkinVariant() == CityNpc.MISSION_TARGET_SKIN
+                        && executive.isNoAi() && executive.isPersistenceRequired(),
+                "assassination target lost its gold mission skin or durable fixed-area state");
+        emeralds = inventoryCount(player, Items.EMERALD);
+        MissionService.onEntityDeath(new LivingDeathEvent(
+                executive, helper.getLevel().damageSources().playerAttack(player)));
+        helper.assertTrue(MissionService.activeMission(player).isEmpty()
+                        && inventoryCount(player, Items.EMERALD) == emeralds + assassinMission.reward(),
+                "assassination mission did not complete from the owner's target kill");
+
+        MissionCatalog.MissionDefinition dataSource = definitions.stream()
+                .filter(value -> value.type() == MissionCatalog.MissionType.STEAL_DATA)
+                .findFirst().orElseThrow();
+        MissionCatalog.MissionDefinition dataDefinition = new MissionCatalog.MissionDefinition(
+                dataSource.id(), dataSource.type(), dataSource.title(), dataSource.briefing(),
+                dataSource.targetName(), dataSource.targetDistricts(), 7, 7, 0,
+                dataSource.objectiveRadius(), 0, null, 0, List.of(), null, 0);
+        BlockPos terminalPos = origin.offset(0, 0, 3);
+        MissionService.ActiveMission dataMission = testMission(dataDefinition, terminalPos, 7, "");
+        MissionService.save(player, dataMission);
+        helper.assertTrue(MissionService.installDataObjective(
+                        helper.getLevel(), player, dataDefinition, dataMission) != null
+                        && helper.getLevel().getBlockState(terminalPos)
+                        .is(MissionBlocks.DATA_TERMINAL.get()),
+                "steal-data mission did not install its secured terminal");
+        emeralds = inventoryCount(player, Items.EMERALD);
+        helper.assertTrue(MissionService.activateDataTerminal(player, terminalPos)
+                        && MissionService.activeMission(player).isEmpty()
+                        && helper.getLevel().isEmptyBlock(terminalPos)
+                        && inventoryCount(player, Items.EMERALD) == emeralds + dataMission.reward(),
+                "secured terminal interaction did not complete and clean up the data mission");
+
+        MissionCatalog.MissionDefinition shipping = definitions.stream()
+                .filter(value -> value.type() == MissionCatalog.MissionType.SHIP_ITEM)
+                .findFirst().orElseThrow();
+        MegacityLayout layout = MegacityLayout.create(TEST_SEED);
+        MegacityLayout.Node destination = layout.node(District.A_CORP);
+        BlockPos delivery = new BlockPos(destination.x(), origin.getY(), destination.z());
+        MissionService.ActiveMission shippingMission = testMission(
+                shipping, delivery, 11, shipping.cargoItem().toString());
+        MissionService.save(player, shippingMission);
+        helper.assertTrue(MissionService.issueCargo(
+                        helper.getLevel(), player, shipping, shippingMission) != null,
+                "shipping mission did not issue configured cargo");
+        net.minecraft.world.item.Item cargo = net.minecraft.core.registries.BuiltInRegistries.ITEM
+                .getValue(shipping.cargoItem());
+        helper.assertTrue(inventoryCount(player, cargo) == shipping.cargoCount(),
+                "shipping mission issued the wrong cargo count");
+        OpenCityMapPacket.Marker missionMarker = MissionService.activeMarker(player).orElseThrow();
+        helper.assertTrue(missionMarker.kind() == OpenCityMapPacket.MarkerKind.ACTIVE_MISSION
+                        && missionMarker.x() == delivery.getX()
+                        && missionMarker.z() == delivery.getZ(),
+                "active shipping mission is not represented by its real map objective");
+        emeralds = inventoryCount(player, Items.EMERALD);
+        MissionService.tickPlayer(player, layout.locate(destination.x(), destination.z()));
+        helper.assertTrue(MissionService.activeMission(player).isEmpty()
+                        && inventoryCount(player, cargo) == 0
+                        && inventoryCount(player, Items.EMERALD) == emeralds + shippingMission.reward(),
+                "shipping arrival did not consume cargo and pay the configured reward");
+        helper.succeed();
+    }
+
+    private static MissionService.ActiveMission testMission(
+            MissionCatalog.MissionDefinition definition,
+            BlockPos target,
+            int reward,
+            String cargoItem) {
+        return new MissionService.ActiveMission(
+                definition.id(), definition.type(), definition.title(), definition.briefing(),
+                definition.objectiveText(), District.A_CORP, target, reward, "", cargoItem,
+                definition.cargoCount(), 1L);
+    }
+
+    private static int inventoryCount(ServerPlayer player, net.minecraft.world.item.Item item) {
+        int count = 0;
+        for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++) {
+            net.minecraft.world.item.ItemStack stack = player.getInventory().getItem(slot);
+            if (stack.is(item)) count += stack.getCount();
+        }
+        return count;
     }
 
     public static void specialDistrictInfrastructure(GameTestHelper helper) {

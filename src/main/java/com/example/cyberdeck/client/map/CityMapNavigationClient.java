@@ -108,6 +108,14 @@ public final class CityMapNavigationClient {
         rebuildRoute(Minecraft.getInstance());
     }
 
+    public static void setMissionWaypoint(
+            int worldX, int worldZ, int districtOrdinal, String title) {
+        waypoint = new Waypoint(
+                worldX, worldZ, districtOrdinal, "literal:" + title, true);
+        route = EMPTY_ROUTE;
+        rebuildRoute(Minecraft.getInstance());
+    }
+
     public static void clearWaypoint() {
         waypoint = null;
         route = EMPTY_ROUTE;

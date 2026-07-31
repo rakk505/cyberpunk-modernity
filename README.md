@@ -37,6 +37,9 @@ grenades, cyberware, faction soldiers, and a procedurally generated neon city.
   City presets. They follow street-level paths, never fight back, and scatter away from gunshots.
 - **Coherent enemy squads** — faction soldiers arrive as deterministic four-person formations with
   a shared faction and patrol anchor instead of inconsistent singleton spawns.
+- **Fixer missions** — black merchant trucks offer configurable assassination, cyberpsycho,
+  data-theft, and district-delivery contracts with persistent HUD and city-map tracking. Mission
+  definitions, actors, patrol size, cargo, and emerald rewards are driven by JSON.
 
 ## Building
 
@@ -57,6 +60,8 @@ The city contains 26 seeded A-Z district blobs connected by roads, bridges, and 
 has a Nest and Backstreets atlas sourced from its own Arnis city study; leaving the city reaches
 ordinary wilderness. Entering an inhabited district displays its letter once. Operators can use
 `/neoncity teleport <A-Z>` to jump to any district's central plaza.
+
+Mission configuration and authoring commands are documented in [MISSIONS.md](MISSIONS.md).
 
 ## City map controls
 

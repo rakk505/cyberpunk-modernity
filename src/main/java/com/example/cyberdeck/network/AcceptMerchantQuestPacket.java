@@ -1,7 +1,7 @@
 package com.example.cyberdeck.network;
 
 import com.example.cyberdeck.Cyberdeck;
-import dev.modernity.neoncity.MerchantQuestService;
+import dev.modernity.neoncity.MissionService;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -35,7 +35,7 @@ public record AcceptMerchantQuestPacket(
     public static void handle(AcceptMerchantQuestPacket packet, IPayloadContext context) {
         context.enqueueWork(() -> {
             if (context.player() instanceof ServerPlayer player) {
-                MerchantQuestService.accept(
+                MissionService.accept(
                         player, packet.merchantEntityId(), packet.offerIndex());
             }
         });

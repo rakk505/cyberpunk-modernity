@@ -2,6 +2,7 @@ package com.example.cyberdeck.client.render;
 
 import com.example.cyberdeck.client.movement.TacticalPoseData;
 import com.example.cyberdeck.faction.FactionEnemy;
+import com.example.cyberdeck.faction.CyberpsychoEntity;
 import com.example.cyberdeck.faction.TacticalManeuver;
 import com.example.cyberdeck.movement.TacticalAction;
 import com.example.cyberdeck.weapon.GunItem;
@@ -28,6 +29,8 @@ public final class FactionEnemyRenderer
     /** Vanilla default (wide) Steve skin. */
     private static final Identifier STEVE_SKIN =
             Identifier.withDefaultNamespace("textures/entity/player/wide/steve.png");
+    private static final Identifier CYBERPSYCHO_SKIN = Identifier.fromNamespaceAndPath(
+            "cyberdeck", "textures/entity/cyberpsycho.png");
     private static final float RECOIL_TICKS = 4.0F;
 
     public FactionEnemyRenderer(EntityRendererProvider.Context context) {
@@ -45,7 +48,7 @@ public final class FactionEnemyRenderer
 
     @Override
     public Identifier getTextureLocation(FactionEnemyRenderState state) {
-        return STEVE_SKIN;
+        return state.cyberpsycho ? CYBERPSYCHO_SKIN : STEVE_SKIN;
     }
 
     @Override
@@ -63,6 +66,7 @@ public final class FactionEnemyRenderer
     public void extractRenderState(FactionEnemy enemy, FactionEnemyRenderState state,
                                    float partialTick) {
         super.extractRenderState(enemy, state, partialTick);
+        state.cyberpsycho = enemy instanceof CyberpsychoEntity;
 
         // The off-hand slot is this entity's holster, not a second simultaneously wielded gun.
         // Hide that model so the synchronized hand swap visibly replaces the primary with the

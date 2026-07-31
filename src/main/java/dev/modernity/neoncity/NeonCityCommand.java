@@ -61,6 +61,31 @@ public final class NeonCityCommand {
                                         .executes(context -> teleport(
                                                 context.getSource(),
                                                 StringArgumentType.getString(context, "district")))))
+                        .then(Commands.literal("mission")
+                                .then(Commands.literal("reload")
+                                        .executes(context -> reloadMissions(context.getSource())))
+                                .then(Commands.literal("clear")
+                                        .executes(context -> clearMission(context.getSource())))
+                                .then(Commands.literal("start")
+                                        .then(Commands.argument("definition", StringArgumentType.word())
+                                                .suggests((context, builder) ->
+                                                        SharedSuggestionProvider.suggest(
+                                                                MissionCatalog.definitions().stream()
+                                                                        .map(MissionCatalog.MissionDefinition::id)
+                                                                        .toList(),
+                                                                builder))
+                                                .then(Commands.argument(
+                                                                "district",
+                                                                StringArgumentType.word())
+                                                        .suggests((context, builder) ->
+                                                                SharedSuggestionProvider.suggest(
+                                                                        DISTRICT_CODES, builder))
+                                                        .executes(context -> startMission(
+                                                                context.getSource(),
+                                                                StringArgumentType.getString(
+                                                                        context, "definition"),
+                                                                StringArgumentType.getString(
+                                                                        context, "district")))))))
                         .then(Commands.literal("generate")
                                 .then(Commands.argument("chunkX", IntegerArgumentType.integer())
                                         .then(Commands.argument("chunkZ", IntegerArgumentType.integer())
@@ -171,6 +196,53 @@ public final class NeonCityCommand {
                 "%s fixer truck block=(%d,%d,%d) chunk=(%d,%d) cluster=(%d,%d)",
                 district.label(), found.minX(), found.groundY() + 1, found.minZ(),
                 found.chunkX(), found.chunkZ(), found.clusterX(), found.clusterZ())), false);
+        return 1;
+    }
+
+    private static int reloadMissions(CommandSourceStack source) {
+        try {
+            int count = MissionCatalog.reloadConfiguration();
+            source.sendSuccess(() -> Component.literal(String.format(
+                    "Loaded %d missions from %s.",
+                    count, MissionCatalog.configurationPath().toAbsolutePath())), true);
+            return count;
+        } catch (RuntimeException exception) {
+            source.sendFailure(Component.literal(exception.getMessage()));
+            return 0;
+        }
+    }
+
+    private static int clearMission(CommandSourceStack source) throws CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        if (!MissionService.abandon(player)) {
+            source.sendFailure(Component.literal("No active mission to clear."));
+            return 0;
+        }
+        return 1;
+    }
+
+    private static int startMission(
+            CommandSourceStack source,
+            String definitionId,
+            String districtCode) throws CommandSyntaxException {
+        Optional<District> parsed = parseDistrict(districtCode);
+        if (parsed.isEmpty()) {
+            source.sendFailure(Component.literal("District must be one letter from A through Z."));
+            return 0;
+        }
+        ServerPlayer player = source.getPlayerOrException();
+        ServerLevel level = (ServerLevel) player.level();
+        if (!NeonCityGenerator.isEnabled() || !NeonCityGenerator.isMegacityWorld(level)) {
+            source.sendFailure(Component.literal(
+                    "Configured missions require a Project Moon Megacity world."));
+            return 0;
+        }
+        if (!MissionService.startConfigured(player, definitionId, parsed.get())) return 0;
+        MissionService.ActiveMission mission = MissionService.activeMission(player).orElseThrow();
+        source.sendSuccess(() -> Component.literal(String.format(
+                "Staged %s in District %s at (%d, %d, %d).",
+                mission.title(), mission.targetDistrict().code(),
+                mission.target().getX(), mission.target().getY(), mission.target().getZ())), true);
         return 1;
     }
 

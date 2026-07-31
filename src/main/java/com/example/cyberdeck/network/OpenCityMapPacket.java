@@ -87,7 +87,7 @@ public record OpenCityMapPacket(
     }
 
     public enum MarkerKind {
-        MISSION_LEAD,
+        ACTIVE_MISSION,
         TRANSIT
     }
 

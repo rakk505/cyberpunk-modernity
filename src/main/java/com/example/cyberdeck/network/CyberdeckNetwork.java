@@ -10,7 +10,7 @@ public final class CyberdeckNetwork {
     }
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        PayloadRegistrar registrar = event.registrar(Cyberdeck.MODID).versioned("8");
+        PayloadRegistrar registrar = event.registrar(Cyberdeck.MODID).versioned("9");
         registrar.playToServer(
                 ToggleInterfacePacket.TYPE,
                 ToggleInterfacePacket.STREAM_CODEC,
@@ -71,6 +71,10 @@ public final class CyberdeckNetwork {
                 ClearCityWaypointPacket.TYPE,
                 ClearCityWaypointPacket.STREAM_CODEC,
                 ClearCityWaypointPacket::handle);
+        registrar.playToClient(
+                MissionSyncPacket.TYPE,
+                MissionSyncPacket.STREAM_CODEC,
+                MissionSyncPacket::handle);
         registrar.playToClient(
                 OpenMerchantQuestPacket.TYPE,
                 OpenMerchantQuestPacket.STREAM_CODEC,

@@ -27,6 +27,14 @@ public final class FactionEntities {
                     .build(ResourceKey.create(Registries.ENTITY_TYPE,
                             Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "faction_enemy"))));
 
+    public static final DeferredHolder<EntityType<?>, EntityType<CyberpsychoEntity>> CYBERPSYCHO =
+            ENTITY_TYPES.register("cyberpsycho", () -> EntityType.Builder
+                    .of(CyberpsychoEntity::new, MobCategory.MONSTER)
+                    .sized(0.68F, 2.08F)
+                    .clientTrackingRange(12)
+                    .build(ResourceKey.create(Registries.ENTITY_TYPE,
+                            Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "cyberpsycho"))));
+
     private FactionEntities() {
     }
 }

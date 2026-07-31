@@ -4,7 +4,7 @@
   "block.cyberdeck.quicktime_station": "Quicktime Station",
   "item.cyberdeck.slop": "Slop",
   "screen.cyberdeck.merchant_quest.title": "Fixer Contracts",
-  "screen.cyberdeck.merchant_quest.header": "FIXER // DELIVERY BOARD",
+  "screen.cyberdeck.merchant_quest.header": "FIXER // MISSION BOARD",
   "screen.cyberdeck.merchant_quest.subtitle": "AVAILABLE CONTRACTS",
   "screen.cyberdeck.merchant_quest.empty": "NO CONTRACTS AVAILABLE",
   "screen.cyberdeck.merchant_quest.accept": "ACCEPT CONTRACT",
@@ -178,9 +178,12 @@
   "item.cyberdeck.heavy_ballistic_boots_kang_tao": "Heavy Ballistic Boots (Kang Tao)",
 
   "entity.cyberdeck.faction_enemy": "Corpo Soldier",
+  "entity.cyberdeck.cyberpsycho": "Cyberpsycho",
   "entity.cyberdeck.city_npc": "City Civilian",
   "entity.cyberdeck.thrown_grenade": "Grenade",
   "entity.cyberdeck.smart_bullet": "Smart Round",
+  "block.cyberdeck.data_terminal": "Secured Data Terminal",
+  "item.cyberdeck.data_terminal": "Secured Data Terminal",
 
   "message.cyberdeck.no_ammo": "Out of ammo",
 

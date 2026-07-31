@@ -2,6 +2,7 @@ package com.example.cyberdeck.client;
 
 import com.example.cyberdeck.Cyberdeck;
 import com.example.cyberdeck.client.map.CityMapNavigationClient;
+import com.example.cyberdeck.client.mission.MissionTrackerClient;
 import com.example.cyberdeck.cyberware.CyberwareAttachments;
 import com.example.cyberdeck.effect.CyberwareEffects;
 import com.example.cyberdeck.healing.HealingConsumable;
@@ -251,6 +252,7 @@ public final class CyberdeckClientEvents {
         QuickhackUploadClient.set(com.example.cyberdeck.network.QuickhackUploadPacket.NONE);
         HealingConsumableClient.reset();
         CityMapNavigationClient.reset();
+        MissionTrackerClient.reset();
     }
 
     private static boolean queueSelectedQuickhack(Minecraft minecraft) {

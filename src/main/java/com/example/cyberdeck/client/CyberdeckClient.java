@@ -3,6 +3,7 @@ package com.example.cyberdeck.client;
 import com.example.cyberdeck.Cyberdeck;
 import com.example.cyberdeck.client.hud.AmmoHudOverlay;
 import com.example.cyberdeck.client.hud.HealingHudOverlay;
+import com.example.cyberdeck.client.hud.MissionTrackerOverlay;
 import com.example.cyberdeck.client.hud.CityMinimapOverlay;
 import com.example.cyberdeck.client.hud.QuickhackScannerOverlay;
 import com.example.cyberdeck.client.hud.SmartLockOverlay;
@@ -168,6 +169,7 @@ public final class CyberdeckClient {
         // Faction soldiers render as Steve-skinned humanoids; their identity shows through their
         // faction armor.
         event.registerEntityRenderer(FactionEntities.FACTION_ENEMY.get(), FactionEnemyRenderer::new);
+        event.registerEntityRenderer(FactionEntities.CYBERPSYCHO.get(), FactionEnemyRenderer::new);
         event.registerEntityRenderer(CityNpcEntities.CITY_NPC.get(), CityNpcRenderer::new);
         event.registerEntityRenderer(WeaponEntities.THROWN_GRENADE.get(), ThrownItemRenderer::new);
         event.registerEntityRenderer(WeaponEntities.SMART_BULLET.get(), NoopRenderer::new);
@@ -177,6 +179,9 @@ public final class CyberdeckClient {
         event.registerAbove(VanillaGuiLayers.EFFECTS,
                 Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "city_minimap"),
                 new CityMinimapOverlay());
+        event.registerAbove(VanillaGuiLayers.EFFECTS,
+                Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "mission_tracker"),
+                new MissionTrackerOverlay());
         event.registerAbove(VanillaGuiLayers.HOTBAR,
                 Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "ammo_hud"),
                 new AmmoHudOverlay());

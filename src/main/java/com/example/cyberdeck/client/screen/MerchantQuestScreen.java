@@ -4,7 +4,7 @@ import com.example.cyberdeck.network.AcceptMerchantQuestPacket;
 import com.example.cyberdeck.network.OpenMerchantQuestPacket;
 import com.mojang.blaze3d.platform.cursor.CursorTypes;
 import dev.modernity.neoncity.District;
-import dev.modernity.neoncity.MerchantQuestService;
+import dev.modernity.neoncity.MissionService;
 import java.util.List;
 import java.util.Locale;
 import net.minecraft.client.Minecraft;
@@ -15,7 +15,7 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 
-/** Fixer terminal for reading and accepting one of five delivery contracts. */
+/** Fixer terminal for reading and accepting data-driven missions. */
 public final class MerchantQuestScreen extends Screen {
     private static final int PANEL_WIDTH = 500;
     private static final int PANEL_HEIGHT = 364;
@@ -38,7 +38,7 @@ public final class MerchantQuestScreen extends Screen {
 
     private final int merchantEntityId;
     private final int sourceDistrictOrdinal;
-    private final List<MerchantQuestService.QuestOffer> offers;
+    private final List<MissionService.MissionOffer> offers;
     private int selectedIndex;
     private boolean accepted;
 
@@ -111,16 +111,17 @@ public final class MerchantQuestScreen extends Screen {
             graphics.verticalLine(row.x(), row.y(), row.bottom() - 1,
                     selected ? RED : BORDER);
 
-            MerchantQuestService.QuestOffer offer = offers.get(index);
+            MissionService.MissionOffer offer = offers.get(index);
             District target = district(offer.targetDistrictOrdinal());
-            String destination = target == null ? "UNKNOWN"
-                    : (offer.local() ? "LOCAL // " : "DISTRICT ") + target.code();
-            graphics.text(font, destination, row.x() + 11, row.y() + 7,
+            String destination = target == null ? "UNKNOWN" : "DISTRICT " + target.code();
+            graphics.text(font, offer.type().displayName(), row.x() + 11, row.y() + 7,
                     selected ? RED : CYAN, false);
-            graphics.text(font, offer.cargo(), row.x() + 11, row.y() + 23, TEXT, false);
+            graphics.text(font, elide(offer.title(), row.width() - 210),
+                    row.x() + 11, row.y() + 23, TEXT, false);
             String coordinates = String.format(Locale.ROOT, "%+d, %+d", offer.targetX(), offer.targetZ());
-            graphics.text(font, coordinates,
-                    row.right() - 104 - font.width(coordinates), row.y() + 23, TEXT_DIM, false);
+            graphics.text(font, destination + "  " + coordinates,
+                    row.right() - 104 - font.width(destination + "  " + coordinates),
+                    row.y() + 23, TEXT_DIM, false);
             String payment = offer.reward() + " EM";
             graphics.text(font, payment, row.right() - 12 - font.width(payment),
                     row.y() + 14, GOLD, false);
@@ -132,6 +133,14 @@ public final class MerchantQuestScreen extends Screen {
 
     private void renderFooter(
             GuiGraphicsExtractor graphics, Layout layout, int mouseX, int mouseY) {
+        if (selectedIndex >= 0 && selectedIndex < offers.size()) {
+            MissionService.MissionOffer selected = offers.get(selectedIndex);
+            int available = Math.max(120, layout.width() - BUTTON_WIDTH - 62);
+            graphics.text(font, elide(selected.objective(), available),
+                    layout.x() + 18, layout.bottom() - 66, CYAN, false);
+            graphics.text(font, elide(selected.briefing(), available),
+                    layout.x() + 18, layout.bottom() - 49, TEXT_DIM, false);
+        }
         Rect button = acceptButton(layout);
         boolean enabled = selectedIndex >= 0 && !accepted;
         boolean hovered = enabled && button.contains(mouseX, mouseY);
@@ -227,6 +236,14 @@ public final class MerchantQuestScreen extends Screen {
 
     private static String text(String key) {
         return Component.translatable(key).getString();
+    }
+
+    private String elide(String value, int maxWidth) {
+        if (font.width(value) <= maxWidth) return value;
+        String suffix = "...";
+        int end = value.length();
+        while (end > 0 && font.width(value.substring(0, end) + suffix) > maxWidth) end--;
+        return value.substring(0, end) + suffix;
     }
 
     @Override

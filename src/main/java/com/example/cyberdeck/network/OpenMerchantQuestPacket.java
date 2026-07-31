@@ -2,7 +2,8 @@ package com.example.cyberdeck.network;
 
 import com.example.cyberdeck.Cyberdeck;
 import com.example.cyberdeck.client.screen.MerchantQuestScreen;
-import dev.modernity.neoncity.MerchantQuestService;
+import dev.modernity.neoncity.MissionCatalog;
+import dev.modernity.neoncity.MissionService;
 import io.netty.handler.codec.DecoderException;
 import java.util.ArrayList;
 import java.util.List;
@@ -16,9 +17,10 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 public record OpenMerchantQuestPacket(
         int merchantEntityId,
         int sourceDistrictOrdinal,
-        List<MerchantQuestService.QuestOffer> offers) implements CustomPacketPayload {
+        List<MissionService.MissionOffer> offers) implements CustomPacketPayload {
     private static final int MAX_OFFERS = 5;
-    private static final int MAX_CARGO_LENGTH = 80;
+    private static final int MAX_ID_LENGTH = 64;
+    private static final int MAX_TEXT_LENGTH = 256;
     public static final Type<OpenMerchantQuestPacket> TYPE = new Type<>(
             Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "open_merchant_quests"));
     public static final StreamCodec<RegistryFriendlyByteBuf, OpenMerchantQuestPacket> STREAM_CODEC =
@@ -33,13 +35,16 @@ public record OpenMerchantQuestPacket(
         buffer.writeVarInt(merchantEntityId);
         buffer.writeVarInt(sourceDistrictOrdinal);
         buffer.writeVarInt(offers.size());
-        for (MerchantQuestService.QuestOffer offer : offers) {
+        for (MissionService.MissionOffer offer : offers) {
+            buffer.writeUtf(offer.definitionId(), MAX_ID_LENGTH);
+            buffer.writeVarInt(offer.type().ordinal());
+            buffer.writeUtf(offer.title(), MAX_TEXT_LENGTH);
+            buffer.writeUtf(offer.briefing(), MAX_TEXT_LENGTH);
+            buffer.writeUtf(offer.objective(), MAX_TEXT_LENGTH);
             buffer.writeVarInt(offer.targetDistrictOrdinal());
             buffer.writeInt(offer.targetX());
             buffer.writeInt(offer.targetZ());
             buffer.writeVarInt(offer.reward());
-            buffer.writeUtf(offer.cargo(), MAX_CARGO_LENGTH);
-            buffer.writeBoolean(offer.local());
         }
     }
 
@@ -50,15 +55,24 @@ public record OpenMerchantQuestPacket(
         if (size < 0 || size > MAX_OFFERS) {
             throw new DecoderException("Invalid merchant quest count: " + size);
         }
-        List<MerchantQuestService.QuestOffer> offers = new ArrayList<>(size);
+        List<MissionService.MissionOffer> offers = new ArrayList<>(size);
+        MissionCatalog.MissionType[] types = MissionCatalog.MissionType.values();
         for (int index = 0; index < size; index++) {
-            offers.add(new MerchantQuestService.QuestOffer(
+            String definitionId = buffer.readUtf(MAX_ID_LENGTH);
+            int typeOrdinal = buffer.readVarInt();
+            if (typeOrdinal < 0 || typeOrdinal >= types.length) {
+                throw new DecoderException("Invalid merchant mission type: " + typeOrdinal);
+            }
+            offers.add(new MissionService.MissionOffer(
+                    definitionId,
+                    types[typeOrdinal],
+                    buffer.readUtf(MAX_TEXT_LENGTH),
+                    buffer.readUtf(MAX_TEXT_LENGTH),
+                    buffer.readUtf(MAX_TEXT_LENGTH),
                     buffer.readVarInt(),
                     buffer.readInt(),
                     buffer.readInt(),
-                    buffer.readVarInt(),
-                    buffer.readUtf(MAX_CARGO_LENGTH),
-                    buffer.readBoolean()));
+                    buffer.readVarInt()));
         }
         return new OpenMerchantQuestPacket(merchantEntityId, sourceDistrictOrdinal, offers);
     }

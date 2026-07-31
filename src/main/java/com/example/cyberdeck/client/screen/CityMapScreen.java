@@ -4,6 +4,7 @@ import com.example.cyberdeck.client.CyberdeckClient;
 import com.example.cyberdeck.client.map.CityMapNavigationClient;
 import com.example.cyberdeck.client.map.CityMapRenderUtil;
 import com.example.cyberdeck.client.map.CityMapViewport;
+import com.example.cyberdeck.client.mission.MissionTrackerClient;
 import com.example.cyberdeck.network.OpenCityMapPacket;
 import com.mojang.blaze3d.platform.cursor.CursorTypes;
 import dev.modernity.neoncity.CityMapProjection;
@@ -21,7 +22,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.util.Util;
 import org.lwjgl.glfw.GLFW;
 
-/** Full-screen Project Moon city plan with pan, zoom, player tracking and job leads. */
+/** Full-screen Project Moon city plan with pan, zoom, player tracking and active missions. */
 public final class CityMapScreen extends Screen {
     private static final double MIN_ZOOM = 1.0;
     private static final double MAX_ZOOM = 5.0;
@@ -69,7 +70,7 @@ public final class CityMapScreen extends Screen {
                 : MegacityLayout.create(0L);
         this.extent = CityMapProjection.extent(cityLayout);
         this.missions = packet.markers().stream()
-                .filter(marker -> marker.kind() == OpenCityMapPacket.MarkerKind.MISSION_LEAD)
+                .filter(marker -> marker.kind() == OpenCityMapPacket.MarkerKind.ACTIVE_MISSION)
                 .toList();
         CityMapNavigationClient.Waypoint waypoint = CityMapNavigationClient.waypoint();
         if (waypoint == null) {
@@ -139,8 +140,8 @@ public final class CityMapScreen extends Screen {
             GuiGraphicsExtractor graphics, Layout layout, int mouseX, int mouseY) {
         graphics.fill(0, layout.headerHeight(), layout.leftWidth(), layout.footerTop(), SIDEBAR);
         graphics.verticalLine(layout.leftWidth() - 1, layout.headerHeight(), layout.footerTop(), CYAN_DIM);
-        graphics.text(font, "JOB LEADS", 12, layout.headerHeight() + 13, AMBER, false);
-        graphics.text(font, String.format(Locale.ROOT, "%02d SIGNALS", missions.size()),
+        graphics.text(font, "ACTIVE MISSION", 12, layout.headerHeight() + 13, AMBER, false);
+        graphics.text(font, String.format(Locale.ROOT, "%02d TRACKED", missions.size()),
                 12, layout.headerHeight() + 27, TEXT_DARK, false);
         int rowY = layout.headerHeight() + 48;
         int rowHeight = 32;
@@ -285,7 +286,7 @@ public final class CityMapScreen extends Screen {
             if (!map.contains(x, y)) continue;
             boolean isHovered = Math.abs(mouseX - x) <= 7 && Math.abs(mouseY - y) <= 7;
             boolean selected = marker == selectedMarker;
-            if (marker.kind() == OpenCityMapPacket.MarkerKind.MISSION_LEAD) {
+            if (marker.kind() == OpenCityMapPacket.MarkerKind.ACTIVE_MISSION) {
                 int pulse = (int) ((Math.sin(Util.getMillis() / 180.0) + 1.0) * 2.0);
                 drawDiamond(graphics, x, y, selected ? 6 : 4 + pulse / 2,
                         selected || isHovered ? AMBER : 0xFFCF9831);
@@ -304,7 +305,7 @@ public final class CityMapScreen extends Screen {
                     Math.min(map.bottom() - 10, mouseY - 17));
             graphics.fill(textX - 4, textY - 4, textX + textWidth + 4, textY + 9, 0xE9060D12);
             graphics.text(font, label, textX, textY - 2,
-                    hovered.kind() == OpenCityMapPacket.MarkerKind.MISSION_LEAD ? AMBER : CYAN,
+                    hovered.kind() == OpenCityMapPacket.MarkerKind.ACTIVE_MISSION ? AMBER : CYAN,
                     false);
             graphics.requestCursor(CursorTypes.POINTING_HAND);
         }
@@ -338,12 +339,24 @@ public final class CityMapScreen extends Screen {
         }
         District district = district(marker.districtOrdinal());
         int y = layout.headerHeight() + 44;
-        graphics.text(font, marker.kind() == OpenCityMapPacket.MarkerKind.MISSION_LEAD
-                ? "POTENTIAL CONTRACT" : "TRANSIT NODE", left + 14, y, AMBER, false);
+        graphics.text(font, marker.kind() == OpenCityMapPacket.MarkerKind.ACTIVE_MISSION
+                ? "ACTIVE CONTRACT" : "TRANSIT NODE", left + 14, y, AMBER, false);
         y += 19;
         for (String line : wrap(markerLabel(marker), layout.rightWidth() - 28)) {
             graphics.text(font, line, left + 14, y, TEXT, false);
             y += 12;
+        }
+        MissionTrackerClient.Snapshot mission = MissionTrackerClient.active();
+        if (marker.kind() == OpenCityMapPacket.MarkerKind.ACTIVE_MISSION && mission != null) {
+            y += 8;
+            graphics.text(font, mission.type().displayName(), left + 14, y, RED, false);
+            y += 15;
+            for (String line : wrap(mission.objective(), layout.rightWidth() - 28)) {
+                graphics.text(font, line, left + 14, y, CYAN, false);
+                y += 12;
+            }
+            y += 4;
+            graphics.text(font, mission.reward() + " EM ON COMPLETION", left + 14, y, AMBER, false);
         }
         y += 11;
         graphics.text(font, "DISTRICT", left + 14, y, TEXT_DARK, false);
@@ -357,9 +370,9 @@ public final class CityMapScreen extends Screen {
         y += 24;
         graphics.text(font, "STATUS", left + 14, y, TEXT_DARK, false);
         y += 12;
-        graphics.text(font, marker.kind() == OpenCityMapPacket.MarkerKind.MISSION_LEAD
-                ? "LEAD // UNCONFIRMED" : "NETWORK // ONLINE", left + 14, y,
-                marker.kind() == OpenCityMapPacket.MarkerKind.MISSION_LEAD ? AMBER : CYAN, false);
+        graphics.text(font, marker.kind() == OpenCityMapPacket.MarkerKind.ACTIVE_MISSION
+                ? "OBJECTIVE // ACTIVE" : "NETWORK // ONLINE", left + 14, y,
+                marker.kind() == OpenCityMapPacket.MarkerKind.ACTIVE_MISSION ? AMBER : CYAN, false);
     }
 
     private void renderWaypointDetails(
@@ -375,7 +388,7 @@ public final class CityMapScreen extends Screen {
         graphics.text(font, "ACTIVE WAYPOINT", left + 14, y, AMBER, false);
         y += 19;
         graphics.text(font, waypoint.marker() && !waypoint.labelKey().isEmpty()
-                ? Component.translatable(waypoint.labelKey()).getString()
+                ? displayLabel(waypoint.labelKey())
                 : "CUSTOM MAP PIN", left + 14, y, TEXT, false);
         y += 24;
         graphics.text(font, "DISTRICT", left + 14, y, TEXT_DARK, false);
@@ -664,7 +677,7 @@ public final class CityMapScreen extends Screen {
     }
 
     private boolean isLayerVisible(OpenCityMapPacket.Marker marker) {
-        return marker.kind() == OpenCityMapPacket.MarkerKind.MISSION_LEAD
+        return marker.kind() == OpenCityMapPacket.MarkerKind.ACTIVE_MISSION
                 ? showMissions : showTransit && zoom >= 1.25;
     }
 
@@ -719,7 +732,13 @@ public final class CityMapScreen extends Screen {
             return Component.translatable(marker.labelKey(),
                     district == null ? "?" : district.label()).getString();
         }
-        return Component.translatable(marker.labelKey()).getString();
+        return displayLabel(marker.labelKey());
+    }
+
+    private static String displayLabel(String label) {
+        return label.startsWith("literal:")
+                ? label.substring("literal:".length())
+                : Component.translatable(label).getString();
     }
 
     private static District district(int ordinal) {

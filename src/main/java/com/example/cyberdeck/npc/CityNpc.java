@@ -33,7 +33,8 @@ import net.minecraft.world.phys.Vec3;
  * street-level waypoints, and scatters away from gunfire reported by {@link GunshotAlerts}.
  */
 public final class CityNpc extends PathfinderMob {
-    public static final int SKIN_COUNT = 8;
+    public static final int SKIN_COUNT = 9;
+    public static final int MISSION_TARGET_SKIN = 8;
     public static final int PANIC_TICKS = 100;
 
     private static final EntityDataAccessor<Integer> DATA_SKIN =

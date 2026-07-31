@@ -1,0 +1,45 @@
+{
+  "ambientocclusion": false,
+  "textures": {
+    "body": "minecraft:block/polished_blackstone",
+    "frame": "minecraft:block/iron_block",
+    "screen": "minecraft:block/cyan_stained_glass",
+    "button": "minecraft:block/gold_block",
+    "particle": "minecraft:block/polished_blackstone"
+  },
+  "elements": [
+    {
+      "from": [1, 0, 2], "to": [15, 4, 14],
+      "faces": {
+        "down": {"texture": "#body"}, "up": {"texture": "#frame"},
+        "north": {"texture": "#body"}, "south": {"texture": "#body"},
+        "west": {"texture": "#body"}, "east": {"texture": "#body"}
+      }
+    },
+    {
+      "from": [3, 4, 4], "to": [13, 15, 12],
+      "faces": {
+        "down": {"texture": "#body"}, "up": {"texture": "#frame"},
+        "north": {"texture": "#body"}, "south": {"texture": "#body"},
+        "west": {"texture": "#frame"}, "east": {"texture": "#frame"}
+      }
+    },
+    {
+      "from": [4, 7, 3], "to": [12, 13, 4],
+      "faces": {
+        "north": {"texture": "#screen", "light_emission": 15},
+        "south": {"texture": "#body"}, "up": {"texture": "#frame"},
+        "down": {"texture": "#frame"}, "west": {"texture": "#frame"},
+        "east": {"texture": "#frame"}
+      }
+    },
+    {
+      "from": [7, 5, 1], "to": [9, 7, 3],
+      "faces": {
+        "north": {"texture": "#button"}, "south": {"texture": "#button"},
+        "up": {"texture": "#button"}, "down": {"texture": "#button"},
+        "west": {"texture": "#button"}, "east": {"texture": "#button"}
+      }
+    }
+  ]
+}

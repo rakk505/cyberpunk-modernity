@@ -31,6 +31,8 @@ import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.RegisterGameTestsEvent;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.neoforge.event.entity.living.MobSpawnEvent;
+import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
@@ -58,6 +60,8 @@ public final class ProjectMoonCityModule {
             PARK_TREE_LIBRARY = register("park_tree_library", ExampleGameTests::parkTreeLibrary);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             MERCHANT_TRUCKS = register("merchant_trucks", ExampleGameTests::merchantTrucks);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            MISSION_SYSTEM = register("mission_system", ExampleGameTests::missionSystem);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             SKYLINE_HIERARCHY = register(
                     "skyline_hierarchy", ExampleGameTests::skylineHierarchy);
@@ -128,6 +132,11 @@ public final class ProjectMoonCityModule {
         generationEnabled = false;
         districtEntryNotifier.clear();
         atmosphereDistricts.clear();
+        int missionCount = MissionCatalog.reloadConfiguration();
+        Cyberdeck.LOGGER.info(
+                "[ProjectMoonCity] loaded {} missions from {}",
+                missionCount,
+                MissionCatalog.configurationPath().toAbsolutePath());
         ServerLevel overworld = event.getServer().overworld();
         if (overworld == null || !NeonCityGenerator.initialize(overworld)) {
             NeonCityGenerator.reset();
@@ -166,7 +175,7 @@ public final class ProjectMoonCityModule {
                 }
                 MegacityLayout.Location location = NeonCityGenerator.layout().locate(
                         player.getBlockX(), player.getBlockZ());
-                MerchantQuestService.tickPlayer(player, location);
+                MissionService.tickPlayer(player, location);
                 District notificationDistrict = DistrictEntryNotifier.inhabitedDistrict(
                         location.district(), location.zone());
                 districtEntryNotifier.updatePlayer(player, notificationDistrict);
@@ -217,7 +226,26 @@ public final class ProjectMoonCityModule {
         event.setCanceled(true);
         event.setCancellationResult(InteractionResult.SUCCESS);
         if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
-            MerchantQuestService.open(player, event.getTarget());
+            MissionService.open(player, event.getTarget());
+        }
+    }
+
+    @SubscribeEvent
+    public void onMissionActorDeath(LivingDeathEvent event) {
+        MissionService.onEntityDeath(event);
+    }
+
+    @SubscribeEvent
+    public void onPlayerLogin(PlayerEvent.PlayerLoggedInEvent event) {
+        if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
+            MissionService.forceSync(player);
+        }
+    }
+
+    @SubscribeEvent
+    public void onPlayerLogout(PlayerEvent.PlayerLoggedOutEvent event) {
+        if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
+            MissionService.forgetPlayer(player);
         }
     }
 
@@ -227,6 +255,7 @@ public final class ProjectMoonCityModule {
         districtEntryNotifier.clear();
         atmosphereDistricts.clear();
         QuicktimeTravelService.clearRuntimeState();
+        MissionService.reset();
         NeonCityGenerator.reset();
     }
 
@@ -271,6 +300,7 @@ public final class ProjectMoonCityModule {
         registerInstance(event, "organic_roads", ORGANIC_ROADS, data);
         registerInstance(event, "park_tree_library", PARK_TREE_LIBRARY, data);
         registerInstance(event, "merchant_trucks", MERCHANT_TRUCKS, data);
+        registerInstance(event, "mission_system", MISSION_SYSTEM, data);
         registerInstance(event, "skyline_hierarchy", SKYLINE_HIERARCHY, data);
         registerInstance(event, "negative_determinism", NEGATIVE_DETERMINISM, data);
         registerInstance(event, "deterministic_seed_layouts", DETERMINISTIC_SEED_LAYOUTS, data);

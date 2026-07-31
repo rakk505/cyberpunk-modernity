@@ -50,7 +50,7 @@ import java.util.List;
  * an airborne reinforcement drop the first time three or more members are triggered at once (see
  * {@link FactionSquads}).
  */
-public final class FactionEnemy extends Monster implements RangedAttackMob {
+public class FactionEnemy extends Monster implements RangedAttackMob {
     private static final EntityDataAccessor<Integer> DATA_FACTION =
             SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Boolean> DATA_TRIGGERED =

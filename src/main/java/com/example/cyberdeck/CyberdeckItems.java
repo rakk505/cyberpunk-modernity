@@ -1,6 +1,7 @@
 package com.example.cyberdeck;
 
 import dev.modernity.neoncity.QuicktimeBlocks;
+import dev.modernity.neoncity.MissionBlocks;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.CreativeModeTab;
@@ -41,6 +42,7 @@ public final class CyberdeckItems {
                         output.accept(CYBERDECK.get());
                         output.accept(SLOP.get());
                         output.accept(QuicktimeBlocks.QUICKTIME_STATION_ITEM.get());
+                        output.accept(MissionBlocks.DATA_TERMINAL_ITEM.get());
                         output.accept(QuickhackItems.QUICKHACK_HEAD.get());
                         for (com.example.cyberdeck.skill.Skill skill
                                 : com.example.cyberdeck.skill.Skill.VALUES) {

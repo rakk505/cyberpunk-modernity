@@ -4,6 +4,7 @@ import com.example.cyberdeck.cyberware.CyberwareAttachments;
 import com.example.cyberdeck.cyberware.CyberwareItems;
 import com.example.cyberdeck.city.CityActorJoinCompatibility;
 import com.example.cyberdeck.faction.FactionEnemy;
+import com.example.cyberdeck.faction.CyberpsychoEntity;
 import com.example.cyberdeck.faction.FactionEntities;
 import com.example.cyberdeck.faction.FactionSpawns;
 import com.example.cyberdeck.healing.HealingState;
@@ -22,6 +23,7 @@ import com.example.cyberdeck.weapon.WeaponEntities;
 import com.example.cyberdeck.weapon.WeaponItems;
 import com.mojang.logging.LogUtils;
 import dev.modernity.neoncity.ProjectMoonCityModule;
+import dev.modernity.neoncity.MissionBlocks;
 import dev.modernity.neoncity.QuicktimeBlocks;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
@@ -57,6 +59,7 @@ public class Cyberdeck {
         CityNpcEntities.ENTITY_TYPES.register(modEventBus);
         CyberdeckGameTests.bootstrap(modEventBus);
         QuicktimeBlocks.register(modEventBus);
+        MissionBlocks.register(modEventBus);
         ProjectMoonCityModule.bootstrap(modEventBus);
 
         modEventBus.addListener(CyberdeckNetwork::register);
@@ -79,6 +82,7 @@ public class Cyberdeck {
 
     private static void registerEntityAttributes(EntityAttributeCreationEvent event) {
         event.put(FactionEntities.FACTION_ENEMY.get(), FactionEnemy.createAttributes().build());
+        event.put(FactionEntities.CYBERPSYCHO.get(), CyberpsychoEntity.createAttributes().build());
         event.put(CityNpcEntities.CITY_NPC.get(), CityNpc.createAttributes().build());
     }
 }
