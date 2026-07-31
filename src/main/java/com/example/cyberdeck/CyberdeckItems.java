@@ -33,6 +33,18 @@ public final class CyberdeckItems {
                     .alwaysEdible()
                     .build())));
 
+    /** Night City's physical currency; merchants and mission payouts use emmies. */
+    public static final DeferredItem<Item> EMMIES = ITEMS.registerItem("emmies",
+            com.example.cyberdeck.economy.EmmiesItem::new);
+
+    /** Permanently raises the holder's maximum cyberware capacity on use. */
+    public static final DeferredItem<Item> CYBERWARE_SHARD = ITEMS.registerItem("cyberware_shard",
+            props -> new com.example.cyberdeck.economy.CyberwareShardItem(props.stacksTo(16)));
+
+    /** Cracks open into a stack of emmies, increasing the player's balance. */
+    public static final DeferredItem<Item> MONEY_SHARD = ITEMS.registerItem("money_shard",
+            props -> new com.example.cyberdeck.economy.MoneyShardItem(props.stacksTo(16)));
+
     public static final DeferredHolder<CreativeModeTab, CreativeModeTab> CYBERDECK_TAB =
             CREATIVE_MODE_TABS.register("cyberdeck_tab", () -> CreativeModeTab.builder()
                     .title(Component.translatable("itemGroup.cyberdeck"))
@@ -41,6 +53,9 @@ public final class CyberdeckItems {
                     .displayItems((parameters, output) -> {
                         output.accept(CYBERDECK.get());
                         output.accept(SLOP.get());
+                        output.accept(EMMIES.get());
+                        output.accept(MONEY_SHARD.get());
+                        output.accept(CYBERWARE_SHARD.get());
                         output.accept(QuicktimeBlocks.QUICKTIME_STATION_ITEM.get());
                         output.accept(MissionBlocks.DATA_TERMINAL_ITEM.get());
                         output.accept(QuickhackItems.QUICKHACK_HEAD.get());

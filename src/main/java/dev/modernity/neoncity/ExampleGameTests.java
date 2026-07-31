@@ -919,11 +919,12 @@ public final class ExampleGameTests {
                                 WeaponItems.gun(psychoDefinition.cyberpsychoGun()).get())
                         && MissionService.isMissionActor(psycho),
                 "cyberpsycho lost configured health, cyberware, firearm, grenades, or mission tag");
-        int emeralds = inventoryCount(player, Items.EMERALD);
+        int emeralds = inventoryCount(player, CyberdeckItems.EMMIES.get());
         MissionService.onEntityDeath(new LivingDeathEvent(
                 psycho, helper.getLevel().damageSources().playerAttack(player)));
         helper.assertTrue(MissionService.activeMission(player).isEmpty()
-                        && inventoryCount(player, Items.EMERALD) == emeralds + psychoMission.reward(),
+                        && inventoryCount(player, CyberdeckItems.EMMIES.get())
+                                == emeralds + psychoMission.reward(),
                 "neutralize mission did not complete from the owner's target kill");
 
         MissionCatalog.MissionDefinition assassinSource = definitions.stream()
@@ -949,11 +950,12 @@ public final class ExampleGameTests {
         helper.assertTrue(executive.getSkinVariant() == CityNpc.MISSION_TARGET_SKIN
                         && executive.isNoAi() && executive.isPersistenceRequired(),
                 "assassination target lost its gold mission skin or durable fixed-area state");
-        emeralds = inventoryCount(player, Items.EMERALD);
+        emeralds = inventoryCount(player, CyberdeckItems.EMMIES.get());
         MissionService.onEntityDeath(new LivingDeathEvent(
                 executive, helper.getLevel().damageSources().playerAttack(player)));
         helper.assertTrue(MissionService.activeMission(player).isEmpty()
-                        && inventoryCount(player, Items.EMERALD) == emeralds + assassinMission.reward(),
+                        && inventoryCount(player, CyberdeckItems.EMMIES.get())
+                                == emeralds + assassinMission.reward(),
                 "assassination mission did not complete from the owner's target kill");
 
         MissionCatalog.MissionDefinition dataSource = definitions.stream()
@@ -971,11 +973,12 @@ public final class ExampleGameTests {
                         && helper.getLevel().getBlockState(terminalPos)
                         .is(MissionBlocks.DATA_TERMINAL.get()),
                 "steal-data mission did not install its secured terminal");
-        emeralds = inventoryCount(player, Items.EMERALD);
+        emeralds = inventoryCount(player, CyberdeckItems.EMMIES.get());
         helper.assertTrue(MissionService.activateDataTerminal(player, terminalPos)
                         && MissionService.activeMission(player).isEmpty()
                         && helper.getLevel().isEmptyBlock(terminalPos)
-                        && inventoryCount(player, Items.EMERALD) == emeralds + dataMission.reward(),
+                        && inventoryCount(player, CyberdeckItems.EMMIES.get())
+                                == emeralds + dataMission.reward(),
                 "secured terminal interaction did not complete and clean up the data mission");
 
         MissionCatalog.MissionDefinition shipping = definitions.stream()
@@ -999,11 +1002,12 @@ public final class ExampleGameTests {
                         && missionMarker.x() == delivery.getX()
                         && missionMarker.z() == delivery.getZ(),
                 "active shipping mission is not represented by its real map objective");
-        emeralds = inventoryCount(player, Items.EMERALD);
+        emeralds = inventoryCount(player, CyberdeckItems.EMMIES.get());
         MissionService.tickPlayer(player, layout.locate(destination.x(), destination.z()));
         helper.assertTrue(MissionService.activeMission(player).isEmpty()
                         && inventoryCount(player, cargo) == 0
-                        && inventoryCount(player, Items.EMERALD) == emeralds + shippingMission.reward(),
+                        && inventoryCount(player, CyberdeckItems.EMMIES.get())
+                                == emeralds + shippingMission.reward(),
                 "shipping arrival did not consume cargo and pay the configured reward");
         helper.succeed();
     }
