@@ -9,13 +9,18 @@ import net.minecraft.server.level.ServerBossEvent;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.BossEvent;
+import net.minecraft.world.DifficultyInstance;
+import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.SpawnGroupData;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
+import org.jspecify.annotations.Nullable;
 
 /** Dedicated gun-and-grenade boss entity with configurable installed cyberware. */
 public final class CyberpsychoEntity extends FactionEnemy {
@@ -28,6 +33,27 @@ public final class CyberpsychoEntity extends FactionEnemy {
     // Balance: blood_pump self-heal now recharges 3x slower (was every 100 ticks / 5s) so the
     // psycho heals roughly a third as often; the heal amount is unchanged.
     private static final int HEAL_RECHARGE_TICKS = 300;
+    /**
+     * Cooldown (ticks) between sandevistan near-teleport dashes so it blinks in bursts rather than
+     * teleport-locking the player. ~2.5s at 20 tps.
+     */
+    private static final int SANDEVISTAN_DASH_COOLDOWN_TICKS = 50;
+    /**
+     * Possible spawn loadouts. On natural spawn one is picked at random so the sandevistan is an
+     * optional variant rather than guaranteed. Subdermal_armor and blood_pump remain common; a
+     * variant may also carry optical_camo. An explicit datapack {@code configure()} overrides this.
+     */
+    private static final List<List<String>> SPAWN_LOADOUTS = List.of(
+            List.of("sandevistan", "subdermal_armor", "blood_pump"),
+            List.of("sandevistan", "blood_pump", "optical_camo"),
+            List.of("subdermal_armor", "blood_pump"),
+            List.of("subdermal_armor", "blood_pump", "optical_camo"),
+            List.of("blood_pump", "optical_camo"));
+
+    /** Set true once {@link #configure} is called so a mission datapack loadout is never overwritten. */
+    private boolean explicitlyConfigured;
+    /** Game time of the last sandevistan dash; used to enforce the dash cooldown. */
+    private long lastSandevistanDashTick = Long.MIN_VALUE;
     private final ServerBossEvent bossEvent = new ServerBossEvent(
             UUID.randomUUID(),
             Component.literal("CYBERPSYCHO").withStyle(ChatFormatting.RED),
@@ -61,6 +87,7 @@ public final class CyberpsychoEntity extends FactionEnemy {
     }
 
     public void configure(int health, List<String> cyberware) {
+        explicitlyConfigured = true;
         double maximum = Math.max(40, health);
         getAttribute(Attributes.MAX_HEALTH).setBaseValue(maximum);
         setHealth((float) maximum);
@@ -70,6 +97,28 @@ public final class CyberpsychoEntity extends FactionEnemy {
         getAttribute(Attributes.ARMOR_TOUGHNESS).setBaseValue(
                 installedCyberware.contains("subdermal_armor") ? 4.0 : 2.0);
         bossEvent.setName(getDisplayName());
+    }
+
+    /**
+     * On natural spawn, roll one of the {@link #SPAWN_LOADOUTS} so the sandevistan is an optional
+     * variant. A mission datapack that has already called {@link #configure} keeps its explicit
+     * list untouched.
+     */
+    @Override
+    @Nullable
+    public SpawnGroupData finalizeSpawn(ServerLevelAccessor level, DifficultyInstance difficulty,
+                                        EntitySpawnReason reason, @Nullable SpawnGroupData spawnData) {
+        SpawnGroupData result = super.finalizeSpawn(level, difficulty, reason, spawnData);
+        if (!explicitlyConfigured) {
+            List<String> loadout = SPAWN_LOADOUTS.get(getRandom().nextInt(SPAWN_LOADOUTS.size()));
+            installedCyberware = List.copyOf(loadout);
+            getAttribute(Attributes.ARMOR).setBaseValue(
+                    installedCyberware.contains("subdermal_armor") ? 10.0 : 5.0);
+            getAttribute(Attributes.ARMOR_TOUGHNESS).setBaseValue(
+                    installedCyberware.contains("subdermal_armor") ? 4.0 : 2.0);
+            bossEvent.setName(getDisplayName());
+        }
+        return result;
     }
 
     public List<String> installedCyberware() {
@@ -83,12 +132,17 @@ public final class CyberpsychoEntity extends FactionEnemy {
         bossEvent.setProgress(getHealth() / getMaxHealth());
 
         LivingEntity target = getTarget();
+        // Sandevistan is now an optional variant: only dash when it is actually installed, there is a
+        // valid target with line of sight, and the cooldown has elapsed so it cannot teleport-lock
+        // the player. tryStartTacticalManeuver reuses canManeuverAgainst/canTravel, so it will not
+        // fire off a ledge, into lava, or through a wall.
         if (target != null && target.isAlive() && isTriggered()
                 && installedCyberware.contains("sandevistan")
-                && tickCount % 45 == 0 && hasLineOfSight(target)) {
-            TacticalManeuver maneuver = getRandom().nextBoolean()
-                    ? TacticalManeuver.DASH_LEFT : TacticalManeuver.DASH_RIGHT;
-            tryStartTacticalManeuver(maneuver, target);
+                && level.getGameTime() - lastSandevistanDashTick >= SANDEVISTAN_DASH_COOLDOWN_TICKS
+                && tickCount % 15 == 0 && hasLineOfSight(target)) {
+            if (tryStartTacticalManeuver(TacticalManeuver.SANDEVISTAN_DASH, target)) {
+                lastSandevistanDashTick = level.getGameTime();
+            }
         }
         if (installedCyberware.contains("blood_pump")
                 && getHealth() < getMaxHealth() && tickCount % HEAL_RECHARGE_TICKS == 0) {
