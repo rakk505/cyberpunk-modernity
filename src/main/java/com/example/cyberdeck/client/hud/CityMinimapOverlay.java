@@ -3,7 +3,6 @@ package com.example.cyberdeck.client.hud;
 import com.example.cyberdeck.client.map.CityMapNavigationClient;
 import com.example.cyberdeck.client.map.CityMapRenderUtil;
 import com.example.cyberdeck.client.map.CityMapViewport;
-import com.example.cyberdeck.client.map.MerchantMarkerClient;
 import com.example.cyberdeck.client.map.MinimapGeometry;
 import com.example.cyberdeck.client.screen.CityMapTextureCache;
 import dev.modernity.neoncity.CityMapProjection;
@@ -111,8 +110,8 @@ public final class CityMinimapOverlay implements GuiLayer {
                 (float) (centerV + halfUv));
         CityMapRenderUtil.drawRoute(graphics, viewport, CityMapNavigationClient.route().points());
         if (MinimapClientState.merchantMarkersVisible()) {
-            CityMapRenderUtil.drawMerchantMarkers(
-                    graphics, viewport, MerchantMarkerClient.markers(snapshot.layout()));
+            CityMapRenderUtil.drawVendorMarkers(
+                    graphics, viewport, snapshot.packet().markers());
         }
         if (CityMapNavigationClient.waypoint() != null) {
             CityMapRenderUtil.drawWaypoint(

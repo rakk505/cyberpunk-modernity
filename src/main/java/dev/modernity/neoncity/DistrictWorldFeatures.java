@@ -113,6 +113,7 @@ final class DistrictWorldFeatures {
             NeonCityGenerator.UrbanSample[][] samples) {
         long seed = NeonCityGenerator.layout().seed();
         MerchantTruckLibrary.decorateChunk(level, chunk, samples);
+        VendorStallLibrary.decorateChunk(level, chunk, samples);
         ParkTreeLibrary.decorateChunk(level, chunk, samples);
         WalledBorderLibrary.decorateChunk(level, chunk, samples);
         BorderVillageLibrary.decorateChunk(level, chunk, samples);

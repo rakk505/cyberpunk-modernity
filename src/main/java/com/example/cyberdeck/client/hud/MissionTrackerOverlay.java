@@ -35,7 +35,9 @@ public final class MissionTrackerOverlay implements GuiLayer {
         graphics.fill(left, top, left + width, top + HEIGHT, BACKGROUND);
         graphics.outline(left, top, width, HEIGHT, BORDER);
         graphics.horizontalLine(left + 1, left + 74, top + 1, RED);
-        graphics.text(minecraft.font, mission.type().displayName(), left + 9, top + 8, RED, false);
+        graphics.text(minecraft.font,
+                mission.kind().displayName() + " // " + mission.type().displayName(),
+                left + 9, top + 8, RED, false);
         graphics.text(minecraft.font, elide(minecraft, mission.title(), width - 18),
                 left + 9, top + 22, TEXT, false);
         graphics.text(minecraft.font, elide(minecraft, mission.objective(), width - 18),
@@ -48,9 +50,11 @@ public final class MissionTrackerOverlay implements GuiLayer {
                 : "DISTRICT " + district.code();
         double distance = CityMapNavigationClient.distanceToWaypoint(
                 minecraft.player.getX(), minecraft.player.getZ());
-        String footer = String.format(Locale.ROOT, "%s  //  %.0fm", destination, distance);
+        String pay = mission.reward() + " EM  " + mission.streetCred() + " SC";
+        int footerWidth = Math.max(0, width - 26 - minecraft.font.width(pay));
+        String footer = elide(minecraft,
+                String.format(Locale.ROOT, "%s  //  %.0fm", destination, distance), footerWidth);
         graphics.text(minecraft.font, footer, left + 9, top + 49, DIM, false);
-        String pay = mission.reward() + " EM";
         graphics.text(minecraft.font, pay, left + width - 9 - minecraft.font.width(pay),
                 top + 49, GOLD, false);
     }

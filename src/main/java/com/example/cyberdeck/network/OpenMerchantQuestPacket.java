@@ -45,6 +45,7 @@ public record OpenMerchantQuestPacket(
             buffer.writeInt(offer.targetX());
             buffer.writeInt(offer.targetZ());
             buffer.writeVarInt(offer.reward());
+            buffer.writeVarInt(offer.streetCred());
         }
     }
 
@@ -72,6 +73,7 @@ public record OpenMerchantQuestPacket(
                     buffer.readVarInt(),
                     buffer.readInt(),
                     buffer.readInt(),
+                    buffer.readVarInt(),
                     buffer.readVarInt()));
         }
         return new OpenMerchantQuestPacket(merchantEntityId, sourceDistrictOrdinal, offers);

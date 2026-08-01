@@ -2,6 +2,8 @@ package dev.modernity.neoncity;
 
 import com.example.cyberdeck.CyberdeckItems;
 import com.example.cyberdeck.faction.CyberpsychoEntity;
+import com.example.cyberdeck.faction.FactionEnemy;
+import com.example.cyberdeck.faction.FactionEntities;
 import com.example.cyberdeck.npc.CityNpc;
 import com.example.cyberdeck.cyberware.Cyberware;
 import com.example.cyberdeck.cyberware.CyberwareItems;
@@ -11,6 +13,7 @@ import com.example.cyberdeck.weapon.AmmoType;
 import com.example.cyberdeck.weapon.GunType;
 import com.example.cyberdeck.weapon.WeaponItems;
 import com.example.cyberdeck.network.OpenCityMapPacket;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -27,6 +30,7 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.entity.EntitySpawnReason;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Block;
@@ -1098,8 +1102,13 @@ public final class ExampleGameTests {
             helper.assertTrue(offer.reward() > 0 && !offer.title().isBlank()
                             && !offer.objective().isBlank() && !offer.briefing().isBlank(),
                     "fixer offered an incomplete mission");
-            helper.assertTrue(offer.targetDistrictOrdinal() != District.B_CORP.ordinal(),
-                    "fixer mission did not choose a remote configured district");
+            MissionCatalog.MissionDefinition offeredDefinition =
+                    MissionCatalog.definition(offer.definitionId());
+            District offeredDistrict = District.values()[offer.targetDistrictOrdinal()];
+            helper.assertTrue(offeredDefinition.targetDistricts().contains(offeredDistrict)
+                            && (!offeredDefinition.targetDistricts().contains(District.B_CORP)
+                                    || offeredDistrict == District.B_CORP),
+                    "fixer mission did not prefer its own configured district");
             missionTypes.add(offer.type());
         }
         helper.assertTrue(missionTypes.equals(EnumSet.allOf(MissionCatalog.MissionType.class)),
@@ -1164,6 +1173,87 @@ public final class ExampleGameTests {
                         && helper.getLevel().noCollision(merchants.getFirst())
                         && merchants.getFirst().getOffers().size() == expectedCyberware,
                 "live yellow truck lacks its recolored body or reachable cyberware merchant");
+
+        Set<BlockPos> plannedStalls = new HashSet<>();
+        for (District district : District.values()) {
+            VendorStallLibrary.StallCandidate stall =
+                    VendorStallLibrary.canonical(district).orElse(null);
+            helper.assertTrue(stall != null && plannedStalls.add(stall.sitePos()),
+                    district + " has no unique deterministic open-space vendor stall");
+            helper.assertTrue(
+                    MerchantTruckLibrary.canonicalBlackTruck(district).isPresent()
+                            || VendorStallLibrary.plannedRole(district)
+                            == MerchantTruckLibrary.MerchantRole.QUEST,
+                    district + " has neither a fixer truck nor a fixer stall fallback");
+        }
+
+        BlockPos stallCenter = helper.absolutePos(new BlockPos(4, 3, 22));
+        for (int x = -5; x <= 5; x++) {
+            for (int z = -5; z <= 5; z++) {
+                helper.getLevel().setBlock(
+                        stallCenter.offset(x, -1, z), Blocks.STONE.defaultBlockState(), 3);
+                for (int y = 0; y <= 5; y++) {
+                    helper.getLevel().setBlock(stallCenter.offset(x, y, z),
+                            Blocks.AIR.defaultBlockState(), 3);
+                }
+            }
+        }
+        VendorStallLibrary.StallCandidate liveStall = new VendorStallLibrary.StallCandidate(
+                District.B_CORP, stallCenter, Direction.SOUTH, TEST_SEED ^ 0x5157L);
+        helper.assertTrue(VendorStallLibrary.place(
+                        helper.getLevel(), liveStall, MerchantTruckLibrary.MerchantRole.QUEST),
+                "live fixer stall refused a clear, supported footprint");
+        Map<BlockPos, BlockState> stallBlocks = VendorStallLibrary.stallBlocks(
+                liveStall, MerchantTruckLibrary.MerchantRole.QUEST);
+        helper.assertTrue(stallBlocks.values().stream().anyMatch(state -> state.is(Blocks.LECTERN))
+                        && stallBlocks.values().stream().filter(state -> state.is(Blocks.BARREL)).count() == 2
+                        && stallBlocks.values().stream().filter(state ->
+                        state.is(Blocks.CONCRETE.pick(DyeColor.BLACK))).count() >= 8
+                        && stallBlocks.keySet().stream().allMatch(position ->
+                        helper.getLevel().getBlockState(position).equals(stallBlocks.get(position))),
+                "fixer stall lost its lectern, barrels, black canopy, or deterministic block plan");
+
+        List<Villager> stallMerchants = helper.getLevel().getEntitiesOfClass(
+                Villager.class,
+                new AABB(stallCenter).inflate(4.0),
+                merchant -> MerchantTruckLibrary.merchantAnchor(merchant)
+                        .filter(stallCenter::equals).isPresent());
+        helper.assertTrue(stallMerchants.size() == 1
+                        && stallMerchants.getFirst().isNoAi()
+                        && stallMerchants.getFirst().isInvulnerable()
+                        && MerchantTruckLibrary.merchantRole(stallMerchants.getFirst()).orElseThrow()
+                        == MerchantTruckLibrary.MerchantRole.QUEST,
+                "fixer stall did not spawn exactly one immovable, invulnerable fixer");
+
+        Villager fixer = stallMerchants.getFirst();
+        fixer.setPos(stallCenter.getX() + 7.5, stallCenter.getY(), stallCenter.getZ() + 0.5);
+        fixer.setDeltaMovement(new net.minecraft.world.phys.Vec3(1.0, 0.5, -1.0));
+        VendorService.maintainAnchors(helper.getLevel());
+        VendorService.maintainAnchors(helper.getLevel());
+        List<Villager> restored = helper.getLevel().getEntitiesOfClass(
+                Villager.class,
+                new AABB(stallCenter).inflate(2.0),
+                merchant -> MerchantTruckLibrary.merchantAnchor(merchant)
+                        .filter(stallCenter::equals).isPresent());
+        helper.assertTrue(restored.size() == 1
+                        && restored.getFirst().blockPosition().equals(stallCenter)
+                        && restored.getFirst().getDeltaMovement().lengthSqr() == 0.0,
+                "vendor anchor maintenance did not restore position/velocity or suppressed duplicates");
+
+        VendorAnchorData anchors = VendorAnchorData.get(helper.getLevel());
+        VendorAnchorData.Anchor fixerAnchor = anchors.fixer(District.B_CORP).orElseThrow();
+        List<OpenCityMapPacket.Marker> vendorMarkers = CityMapService.markers(
+                NeonCityGenerator.layout(), Optional.empty(), anchors.anchors());
+        helper.assertTrue(OpenCityMapPacket.MAX_MARKERS >= 256
+                        && vendorMarkers.stream().anyMatch(marker ->
+                        marker.kind() == OpenCityMapPacket.MarkerKind.FIXER
+                                && marker.x() == fixerAnchor.merchantPos().getX()
+                                && marker.z() == fixerAnchor.merchantPos().getZ())
+                        && vendorMarkers.stream().anyMatch(marker ->
+                        marker.kind() == OpenCityMapPacket.MarkerKind.MERCHANT
+                                && marker.x() == live.merchantSpawn().getX()
+                                && marker.z() == live.merchantSpawn().getZ()),
+                "city map did not expose distinct exact fixer and merchant registry anchors");
         helper.succeed();
     }
 
@@ -1281,6 +1371,13 @@ public final class ExampleGameTests {
         MissionService.ActiveMission shippingMission = testMission(
                 shipping, delivery, 11, shipping.cargoItem().toString());
         MissionService.save(player, shippingMission);
+        MissionService.saveContext(player, new MissionService.ContractContext(
+                MissionService.ContractKind.GIG,
+                shipping.streetCred(),
+                UUID.randomUUID(),
+                PartyService.participantSnapshot(player),
+                true,
+                false));
         helper.assertTrue(MissionService.issueCargo(
                         helper.getLevel(), player, shipping, shippingMission) != null,
                 "shipping mission did not issue configured cargo");
@@ -1294,6 +1391,8 @@ public final class ExampleGameTests {
                         && missionMarker.z() == delivery.getZ(),
                 "active shipping mission is not represented by its real map objective");
         emeralds = inventoryCount(player, CyberdeckItems.EMMIES.get());
+        player.snapTo(delivery.getX() + 0.5, delivery.getY(), delivery.getZ() + 0.5,
+                0.0F, 0.0F);
         MissionService.tickPlayer(player, layout.locate(destination.x(), destination.z()));
         helper.assertTrue(MissionService.activeMission(player).isEmpty()
                         && inventoryCount(player, cargo) == 0
@@ -1301,6 +1400,207 @@ public final class ExampleGameTests {
                                 == emeralds + shippingMission.reward(),
                 "shipping arrival did not consume cargo and pay the configured reward");
         helper.succeed();
+    }
+
+    public static void missionBuildingPlanner(GameTestHelper helper) {
+        BlockPos origin = helper.absolutePos(new BlockPos(4, 4, 4));
+        MissionBuildingPlanner.Site site = syntheticMissionSite(origin);
+        prepareMissionSite(helper, site);
+
+        MissionBuildingPlanner.Site restored = MissionBuildingPlanner.Site.load(site.save())
+                .orElseThrow();
+        helper.assertTrue(restored.id().equals(site.id())
+                        && restored.district() == site.district()
+                        && sameBounds(restored.bounds(), site.bounds())
+                        && restored.floorYs().equals(site.floorYs())
+                        && restored.target().equals(site.target())
+                        && restored.entrance().equals(site.entrance())
+                        && restored.stairs().equals(site.stairs())
+                        && restored.patrolRoutes().equals(site.patrolRoutes())
+                        && restored.decorations().equals(site.decorations())
+                        && restored.planSeed() == site.planSeed(),
+                "mission building site did not survive its NBT round trip");
+
+        helper.assertTrue(MissionBuildingPlanner.preflight(helper.getLevel(), restored),
+                "valid synthetic mission building failed preflight");
+        helper.assertTrue(MissionBuildingPlanner.install(helper.getLevel(), restored)
+                        == MissionBuildingPlanner.InstallationResult.INSTALLED,
+                "valid synthetic mission building was not installed");
+        helper.assertTrue(MissionBuildingPlanner.install(helper.getLevel(), restored)
+                        == MissionBuildingPlanner.InstallationResult.ALREADY_INSTALLED,
+                "mission building installation was not idempotent");
+
+        Direction entranceAcross = restored.entrance().outward().getClockWise();
+        helper.assertTrue(helper.getLevel().getBlockState(restored.entrance().position())
+                        .is(Blocks.IRON_DOOR)
+                        && helper.getLevel().getBlockState(
+                                restored.entrance().position().relative(entranceAcross))
+                        .is(Blocks.IRON_DOOR),
+                "mission building did not install a two-wide entrance");
+        for (MissionBuildingPlanner.StairRun stair : restored.stairs()) {
+            Direction across = stair.ascending().getClockWise();
+            for (int step = 0; step < stair.rise(); step++) {
+                for (int lane = 0; lane < 2; lane++) {
+                    BlockPos position = stair.start().relative(stair.ascending(), step)
+                            .relative(across, lane).above(step);
+                    helper.assertTrue(helper.getLevel().getBlockState(position)
+                                    .is(Blocks.POLISHED_DEEPSLATE_STAIRS)
+                                    && helper.getLevel().isEmptyBlock(position.above())
+                                    && helper.getLevel().isEmptyBlock(position.above(2)),
+                            "mission stair run lost width or headroom at " + position);
+                }
+            }
+        }
+        helper.assertTrue(restored.patrolRoutes().size() == restored.floorYs().size()
+                        && restored.stairs().size() == restored.floorYs().size() - 1
+                        && restored.decorations().stream().allMatch(decoration ->
+                                !helper.getLevel().isEmptyBlock(decoration.position())),
+                "mission site lost multi-floor patrol or office-cover invariants");
+        for (MissionBuildingPlanner.PatrolRoute route : restored.patrolRoutes()) {
+            helper.assertTrue(restored.floorYs().contains(route.floorY())
+                            && route.waypoints().size() >= 2,
+                    "mission patrol route is not assigned to a usable floor");
+            for (BlockPos waypoint : route.waypoints()) {
+                helper.assertTrue(helper.getLevel().isEmptyBlock(waypoint)
+                                && helper.getLevel().isEmptyBlock(waypoint.above())
+                                && helper.getLevel().getBlockState(waypoint.below()).blocksMotion(),
+                        "mission decoration obstructed patrol waypoint " + waypoint);
+            }
+        }
+        helper.assertTrue(helper.getLevel().isEmptyBlock(restored.target())
+                        && helper.getLevel().isEmptyBlock(restored.target().above()),
+                "mission decoration obstructed the objective cell");
+
+        MissionSiteData reservations = MissionSiteData.get(helper.getLevel());
+        UUID firstContract = UUID.randomUUID();
+        UUID nextContract = UUID.randomUUID();
+        String reservationId = "test:" + firstContract;
+        helper.assertTrue(reservations.reserve(reservationId, firstContract)
+                        && reservations.isReservedByOther(reservationId, nextContract),
+                "mission site reservation did not exclude a concurrent contract");
+        reservations.releaseOwned(firstContract);
+        helper.assertTrue(reservations.reserve(reservationId, nextContract),
+                "completed mission site reservation was not reusable");
+        reservations.releaseOwned(nextContract);
+
+        BlockPos blockEntity = origin.offset(2, 0, 2);
+        helper.getLevel().setBlock(blockEntity, Blocks.CHEST.defaultBlockState(), Block.UPDATE_ALL);
+        helper.assertTrue(!MissionBuildingPlanner.preflight(helper.getLevel(), restored)
+                        && MissionBuildingPlanner.install(helper.getLevel(), restored)
+                                == MissionBuildingPlanner.InstallationResult.UNSAFE,
+                "mission building accepted a block entity inside its edit envelope");
+        helper.getLevel().setBlock(blockEntity, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+        helper.getLevel().setBlock(
+                restored.entrance().position(), Blocks.BEDROCK.defaultBlockState(), Block.UPDATE_ALL);
+        helper.assertTrue(!MissionBuildingPlanner.preflight(helper.getLevel(), restored)
+                        && MissionBuildingPlanner.install(helper.getLevel(), restored)
+                                == MissionBuildingPlanner.InstallationResult.UNSAFE,
+                "mission building replaced a protected entrance block");
+        helper.succeed();
+    }
+
+    public static void factionPatrolRoutes(GameTestHelper helper) {
+        FactionEnemy enemy = FactionEntities.FACTION_ENEMY.get().create(
+                helper.getLevel(), EntitySpawnReason.EVENT);
+        helper.assertTrue(enemy != null, "could not create faction enemy for patrol test");
+
+        List<BlockPos> mutable = new ArrayList<>();
+        for (int index = 0; index < 40; index++) {
+            mutable.add(helper.absolutePos(new BlockPos(index, 3, index % 4)));
+        }
+        BlockPos expectedFirst = mutable.getFirst();
+        enemy.setPatrolRoute(mutable);
+        mutable.set(0, expectedFirst.offset(100, 0, 0));
+        helper.assertTrue(enemy.getPatrolRoute().size() == 32
+                        && enemy.getPatrolRoute().getFirst().equals(expectedFirst),
+                "faction patrol setter did not bound and defensively copy its route");
+
+        String encoded = FactionEnemy.encodePatrolRoute(enemy.getPatrolRoute());
+        helper.assertTrue(FactionEnemy.decodePatrolRoute(encoded).equals(enemy.getPatrolRoute()),
+                "faction patrol route did not survive persistence encoding");
+        helper.assertTrue(FactionEnemy.decodePatrolRoute(
+                        "1,2,3;broken;4,5,6").equals(List.of(
+                                new BlockPos(1, 2, 3), new BlockPos(4, 5, 6))),
+                "faction patrol persistence did not isolate a malformed waypoint");
+        enemy.setPatrolRoute(List.of());
+        helper.assertTrue(enemy.getPatrolRoute().isEmpty(),
+                "clearing a faction patrol route retained stale waypoints");
+        helper.succeed();
+    }
+
+    private static MissionBuildingPlanner.Site syntheticMissionSite(BlockPos origin) {
+        int lowerY = origin.getY();
+        int upperY = lowerY + 5;
+        BoundingBox bounds = new BoundingBox(
+                origin.getX(), lowerY - 1, origin.getZ(),
+                origin.getX() + 15, upperY + 3, origin.getZ() + 15);
+        MissionBuildingPlanner.Entrance entrance = new MissionBuildingPlanner.Entrance(
+                origin.offset(7, 0, 0), Direction.NORTH, 1, false);
+        MissionBuildingPlanner.StairRun stairs = new MissionBuildingPlanner.StairRun(
+                origin.offset(3, 0, 4), Direction.EAST, upperY - lowerY);
+        List<MissionBuildingPlanner.PatrolRoute> routes = List.of(
+                new MissionBuildingPlanner.PatrolRoute(lowerY, List.of(
+                        origin.offset(3, 0, 10), origin.offset(11, 0, 10))),
+                new MissionBuildingPlanner.PatrolRoute(upperY, List.of(
+                        origin.offset(3, 5, 10), origin.offset(11, 5, 10))));
+        List<MissionBuildingPlanner.Decoration> decorations = List.of(
+                new MissionBuildingPlanner.Decoration(
+                        origin.offset(10, 0, 4),
+                        MissionBuildingPlanner.DecorKind.RECEPTION_DESK,
+                        Direction.NORTH),
+                new MissionBuildingPlanner.Decoration(
+                        origin.offset(10, 5, 4),
+                        MissionBuildingPlanner.DecorKind.CUBICLE_DESK,
+                        Direction.NORTH));
+        return new MissionBuildingPlanner.Site(
+                "test:office",
+                District.A_CORP,
+                bounds,
+                List.of(lowerY, upperY),
+                origin.offset(12, 5, 12),
+                entrance,
+                List.of(stairs),
+                routes,
+                decorations,
+                TEST_SEED);
+    }
+
+    private static void prepareMissionSite(
+            GameTestHelper helper, MissionBuildingPlanner.Site site) {
+        BoundingBox bounds = site.bounds();
+        for (int y = bounds.minY(); y <= bounds.maxY(); y++) {
+            for (int z = bounds.minZ(); z <= bounds.maxZ(); z++) {
+                for (int x = bounds.minX(); x <= bounds.maxX(); x++) {
+                    helper.getLevel().setBlock(
+                            new BlockPos(x, y, z), Blocks.AIR.defaultBlockState(),
+                            Block.UPDATE_SKIP_ALL_SIDEEFFECTS | Block.UPDATE_CLIENTS);
+                }
+            }
+        }
+        for (int floorY : site.floorYs()) {
+            for (int z = bounds.minZ(); z <= bounds.maxZ(); z++) {
+                for (int x = bounds.minX(); x <= bounds.maxX(); x++) {
+                    helper.getLevel().setBlock(
+                            new BlockPos(x, floorY - 1, z), Blocks.STONE.defaultBlockState(),
+                            Block.UPDATE_SKIP_ALL_SIDEEFFECTS | Block.UPDATE_CLIENTS);
+                }
+            }
+        }
+        Direction across = site.entrance().outward().getClockWise();
+        for (int lane = 0; lane < 2; lane++) {
+            for (int y = 0; y < 3; y++) {
+                helper.getLevel().setBlock(
+                        site.entrance().position().relative(across, lane).above(y),
+                        Blocks.STONE.defaultBlockState(),
+                        Block.UPDATE_SKIP_ALL_SIDEEFFECTS | Block.UPDATE_CLIENTS);
+            }
+        }
+    }
+
+    private static boolean sameBounds(BoundingBox first, BoundingBox second) {
+        return first.minX() == second.minX() && first.minY() == second.minY()
+                && first.minZ() == second.minZ() && first.maxX() == second.maxX()
+                && first.maxY() == second.maxY() && first.maxZ() == second.maxZ();
     }
 
     private static MissionService.ActiveMission testMission(

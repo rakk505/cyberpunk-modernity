@@ -63,6 +63,16 @@ public final class ProjectMoonCityModule {
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             MISSION_SYSTEM = register("mission_system", ExampleGameTests::missionSystem);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            STORY_MISSION_DAG = register("story_mission_dag", MissionFeatureGameTests::storyDag);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            PARTY_REWARDS = register("party_rewards", MissionFeatureGameTests::partyRewards);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            MISSION_BUILDING_PLANNER = register(
+                    "mission_building_planner", ExampleGameTests::missionBuildingPlanner);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            FACTION_PATROL_ROUTES = register(
+                    "faction_patrol_routes", ExampleGameTests::factionPatrolRoutes);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             SKYLINE_HIERARCHY = register(
                     "skyline_hierarchy", ExampleGameTests::skylineHierarchy);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
@@ -115,6 +125,7 @@ public final class ProjectMoonCityModule {
     private volatile boolean generationEnabled;
     private final DistrictEntryNotifier districtEntryNotifier = new DistrictEntryNotifier();
     private final Map<UUID, Integer> atmosphereDistricts = new HashMap<>();
+    private long vendorRevision = -1L;
 
     private ProjectMoonCityModule() {
     }
@@ -135,11 +146,15 @@ public final class ProjectMoonCityModule {
         generationEnabled = false;
         districtEntryNotifier.clear();
         atmosphereDistricts.clear();
+        vendorRevision = -1L;
         int missionCount = MissionCatalog.reloadConfiguration();
+        int storyMissionCount = StoryMissionCatalog.reloadConfiguration();
         Cyberdeck.LOGGER.info(
-                "[ProjectMoonCity] loaded {} missions from {}",
+                "[ProjectMoonCity] loaded {} gigs from {} and {} story missions from {}",
                 missionCount,
-                MissionCatalog.configurationPath().toAbsolutePath());
+                MissionCatalog.configurationPath().toAbsolutePath(),
+                storyMissionCount,
+                StoryMissionCatalog.configurationPath().toAbsolutePath());
         ServerLevel overworld = event.getServer().overworld();
         if (overworld == null || !NeonCityGenerator.initialize(overworld)) {
             NeonCityGenerator.reset();
@@ -179,7 +194,12 @@ public final class ProjectMoonCityModule {
                 NeonCityGenerator.UrbanSample sample = NeonCityGenerator.sample(
                         player.getBlockX(), player.getBlockZ());
                 MegacityLayout.Location location = NeonCityGenerator.effectiveLocation(sample);
+                if (location.insideCity()
+                        && sample.zone() != MegacityLayout.Zone.WILDERNESS) {
+                    VendorService.ensureDistrictFixer(overworld, location.district());
+                }
                 MissionService.tickPlayer(player, location);
+                AmbientGigService.tick(player);
                 boolean uCorpMarine = UCorpPortGeneration.plan(NeonCityGenerator.layout())
                         .isManagedAt(player.getBlockX(), player.getBlockZ());
                 District notificationDistrict = uCorpMarine
@@ -191,6 +211,14 @@ public final class ProjectMoonCityModule {
                         ? sample.district()
                         : null;
                 updateAtmosphere(overworld, player, atmosphereDistrict);
+            }
+            VendorService.maintainAnchors(overworld);
+            long currentVendorRevision = VendorAnchorData.get(overworld).revision();
+            if (currentVendorRevision != vendorRevision) {
+                vendorRevision = currentVendorRevision;
+                for (net.minecraft.server.level.ServerPlayer player : overworld.players()) {
+                    CityMapService.open(player, false);
+                }
             }
             districtEntryNotifier.retainPlayers(activePlayers);
             atmosphereDistricts.keySet().retainAll(activePlayers);
@@ -211,6 +239,22 @@ public final class ProjectMoonCityModule {
     /** Block ambient mobs while preserving Cyberdeck-managed civilians and faction actors. */
     @SubscribeEvent
     public void onEntityJoin(EntityJoinLevelEvent event) {
+        if (event.getLevel() instanceof ServerLevel level
+                && MissionService.removeIfTerminal(level, event.getEntity())) {
+            event.setCanceled(true);
+            return;
+        }
+        if (event.getEntity() instanceof net.minecraft.world.entity.item.ItemEntity item
+                && event.getLevel() instanceof ServerLevel level
+                && MissionService.isExpiredCargo(level, item.getItem())) {
+            event.setCanceled(true);
+            return;
+        }
+        if (event.getLevel() instanceof ServerLevel level
+                && MerchantTruckLibrary.isMerchant(event.getEntity())) {
+            VendorService.registerLoadedMerchant(level, event.getEntity());
+            return;
+        }
         if (!(event.getEntity() instanceof Mob)
                 || CityActorJoinCompatibility.isManagedCityActor(event.getEntity())
                 || DistrictWorldFeatures.isSCorpFarmer(event.getEntity())
@@ -246,8 +290,13 @@ public final class ProjectMoonCityModule {
     @SubscribeEvent
     public void onPlayerLogin(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
-            MissionService.forceSync(player);
+            MissionService.onPlayerLogin(player);
         }
+    }
+
+    @SubscribeEvent
+    public void onPlayerClone(PlayerEvent.Clone event) {
+        MissionService.onPlayerClone(event.getOriginal(), event.getEntity());
     }
 
     @SubscribeEvent
@@ -262,6 +311,7 @@ public final class ProjectMoonCityModule {
         generationEnabled = false;
         districtEntryNotifier.clear();
         atmosphereDistricts.clear();
+        vendorRevision = -1L;
         QuicktimeTravelService.clearRuntimeState();
         MissionService.reset();
         NeonCityGenerator.reset();
@@ -284,6 +334,8 @@ public final class ProjectMoonCityModule {
     @SubscribeEvent
     public void onRegisterCommands(RegisterCommandsEvent event) {
         NeonCityCommand.register(event.getDispatcher());
+        MissionCommands.register(event.getDispatcher());
+        PartyService.registerCommands(event.getDispatcher());
     }
 
     private void registerGameTests(RegisterGameTestsEvent event) {
@@ -309,6 +361,10 @@ public final class ProjectMoonCityModule {
         registerInstance(event, "park_tree_library", PARK_TREE_LIBRARY, data);
         registerInstance(event, "merchant_trucks", MERCHANT_TRUCKS, data);
         registerInstance(event, "mission_system", MISSION_SYSTEM, data);
+        registerInstance(event, "story_mission_dag", STORY_MISSION_DAG, data);
+        registerInstance(event, "party_rewards", PARTY_REWARDS, data);
+        registerInstance(event, "mission_building_planner", MISSION_BUILDING_PLANNER, data);
+        registerInstance(event, "faction_patrol_routes", FACTION_PATROL_ROUTES, data);
         registerInstance(event, "skyline_hierarchy", SKYLINE_HIERARCHY, data);
         registerInstance(event, "negative_determinism", NEGATIVE_DETERMINISM, data);
         registerInstance(event, "deterministic_seed_layouts", DETERMINISTIC_SEED_LAYOUTS, data);

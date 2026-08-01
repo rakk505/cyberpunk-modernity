@@ -87,7 +87,9 @@ public final class CityMapNavigationClient {
 
         boolean shouldOpen = packet.forceOpen() || openRequested;
         openRequested = false;
-        if (shouldOpen) CityMapScreen.open(packet);
+        if (shouldOpen || Minecraft.getInstance().gui.screen() instanceof CityMapScreen) {
+            CityMapScreen.open(packet);
+        }
     }
 
     public static void setWaypoint(int worldX, int worldZ) {

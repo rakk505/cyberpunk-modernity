@@ -83,7 +83,8 @@ public record StreetCredState(int streetCred, int experience, int cyberwareCapac
     }
 
     public static void addStreetCred(Player player, int delta) {
-        setStreetCred(player, getStreetCred(player) + delta);
+        long updated = (long) getStreetCred(player) + delta;
+        setStreetCred(player, (int) Math.max(0L, Math.min(Integer.MAX_VALUE, updated)));
     }
 
     public static int getExperience(Player player) {

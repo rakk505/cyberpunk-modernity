@@ -146,6 +146,7 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
     private float detectionRemainder;
     /** The point this soldier patrols around; set on spawn. Null falls back to the current position. */
     private net.minecraft.core.BlockPos homePos;
+    private List<BlockPos> patrolRoute = List.of();
     /** Grenades remaining to throw; 0 means this soldier was not issued any. */
     private int grenadeCount;
     /** Which grenade variant this soldier lobs. */
@@ -207,8 +208,10 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         this.goalSelector.addGoal(2, new FilteredMeleeAttackGoal(
                 this, 1.35, true, this::isMeleeArmed));
         this.goalSelector.addGoal(3, new MeleeAttackGoal(this, 1.0, false));
-        // Idle behavior: patrol a fixed area around the spawn point instead of roaming freely.
-        this.goalSelector.addGoal(6, new PatrolAreaGoal(this, 0.8, this::getHome, PATROL_RADIUS));
+        // Authored mission routes take precedence; ordinary squads retain their bounded area patrol.
+        this.goalSelector.addGoal(6, new PatrolRouteGoal(this, 0.8));
+        this.goalSelector.addGoal(7, new PatrolAreaGoal(
+                this, 0.8, this::getHome, PATROL_RADIUS, () -> patrolRoute.isEmpty()));
         this.goalSelector.addGoal(8, new LookAtPlayerGoal(this, Player.class, 12.0f));
         this.goalSelector.addGoal(8, new RandomLookAroundGoal(this));
         // Retaliate if attacked even before detection completes.
@@ -231,6 +234,24 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
     /** Sets the patrol anchor; called on spawn so the squad guards where it appeared. */
     public void setHome(net.minecraft.core.BlockPos pos) {
         this.homePos = pos;
+    }
+
+    public List<BlockPos> getPatrolRoute() {
+        return patrolRoute;
+    }
+
+    public void setPatrolRoute(List<BlockPos> waypoints) {
+        if (waypoints == null || waypoints.isEmpty()) {
+            patrolRoute = List.of();
+            this.getNavigation().stop();
+            return;
+        }
+        patrolRoute = waypoints.stream()
+                .filter(java.util.Objects::nonNull)
+                .limit(32)
+                .map(BlockPos::immutable)
+                .toList();
+        this.getNavigation().stop();
     }
 
     public boolean isTriggered() {
@@ -1098,6 +1119,9 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
             output.putInt("HomeY", homePos.getY());
             output.putInt("HomeZ", homePos.getZ());
         }
+        if (!patrolRoute.isEmpty()) {
+            output.putString("PatrolRoute", encodePatrolRoute(patrolRoute));
+        }
     }
 
     @Override
@@ -1154,6 +1178,38 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
                     input.getIntOr("HomeY", 0),
                     input.getIntOr("HomeZ", 0));
         }
+        patrolRoute = decodePatrolRoute(input.getStringOr("PatrolRoute", ""));
+    }
+
+    public static String encodePatrolRoute(List<BlockPos> route) {
+        return route.stream()
+                .map(pos -> pos.getX() + "," + pos.getY() + "," + pos.getZ())
+                .collect(java.util.stream.Collectors.joining(";"));
+    }
+
+    public static List<BlockPos> decodePatrolRoute(String encoded) {
+        if (encoded == null || encoded.isBlank()) {
+            return List.of();
+        }
+        java.util.ArrayList<BlockPos> route = new java.util.ArrayList<>();
+        for (String waypoint : encoded.split(";")) {
+            if (route.size() >= 32) {
+                break;
+            }
+            String[] coordinates = waypoint.split(",", -1);
+            if (coordinates.length != 3) {
+                continue;
+            }
+            try {
+                route.add(new BlockPos(
+                        Integer.parseInt(coordinates[0]),
+                        Integer.parseInt(coordinates[1]),
+                        Integer.parseInt(coordinates[2])));
+            } catch (NumberFormatException ignored) {
+                // Ignore one malformed waypoint without discarding the remaining saved route.
+            }
+        }
+        return List.copyOf(route);
     }
 
     // =====================================================================================

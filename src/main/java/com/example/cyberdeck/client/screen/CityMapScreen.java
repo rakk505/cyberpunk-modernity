@@ -5,7 +5,6 @@ import com.example.cyberdeck.client.hud.MinimapClientState;
 import com.example.cyberdeck.client.map.CityMapNavigationClient;
 import com.example.cyberdeck.client.map.CityMapRenderUtil;
 import com.example.cyberdeck.client.map.CityMapViewport;
-import com.example.cyberdeck.client.map.MerchantMarkerClient;
 import com.example.cyberdeck.client.mission.MissionTrackerClient;
 import com.example.cyberdeck.network.OpenCityMapPacket;
 import com.mojang.blaze3d.platform.cursor.CursorTypes;
@@ -176,7 +175,7 @@ public final class CityMapScreen extends Screen {
         renderToggle(graphics, toggleTransit(layout), "T", showTransit, CYAN, mouseX, mouseY);
         renderToggle(graphics, toggleDistricts(layout), "A", showDistricts, RED, mouseX, mouseY);
         renderToggle(graphics, toggleMerchants(layout), "$", showMerchants,
-                MerchantMarkerClient.MERCHANT_COLOR, mouseX, mouseY);
+                CityMapRenderUtil.MERCHANT_COLOR, mouseX, mouseY);
     }
 
     private void renderMap(
@@ -287,6 +286,7 @@ public final class CityMapScreen extends Screen {
             GuiGraphicsExtractor graphics, Rect map, int mouseX, int mouseY) {
         OpenCityMapPacket.Marker hovered = null;
         for (OpenCityMapPacket.Marker marker : packet.markers()) {
+            if (isVendor(marker)) continue;
             if (!isLayerVisible(marker)) continue;
             int x = worldToScreenX(map, marker.x());
             int y = worldToScreenY(map, marker.z());
@@ -320,24 +320,29 @@ public final class CityMapScreen extends Screen {
 
     private void renderMerchants(
             GuiGraphicsExtractor graphics, Rect map, int mouseX, int mouseY) {
-        MerchantMarkerClient.Marker hovered = null;
-        for (MerchantMarkerClient.Marker marker : MerchantMarkerClient.markers(cityLayout)) {
+        OpenCityMapPacket.Marker hovered = null;
+        for (OpenCityMapPacket.Marker marker : packet.markers()) {
+            if (!isVendor(marker)) continue;
             int x = worldToScreenX(map, marker.x());
             int y = worldToScreenY(map, marker.z());
             if (!map.contains(x, y)) continue;
-            CityMapRenderUtil.drawMerchantMarker(graphics, x, y);
+            CityMapRenderUtil.drawVendorMarker(graphics, x, y, marker.kind());
             if (Math.abs(mouseX - x) <= 6 && Math.abs(mouseY - y) <= 6) {
                 hovered = marker;
             }
         }
         if (hovered != null) {
-            String label = elide(hovered.label(), Math.max(40, map.width() - 20));
+            String label = elide(markerLabel(hovered), Math.max(40, map.width() - 20));
             int textWidth = font.width(label);
             int textX = Math.max(map.x() + 6,
                     Math.min(map.right() - textWidth - 6, mouseX + 10));
             int textY = Math.max(map.y() + 6, Math.min(map.bottom() - 10, mouseY - 17));
             graphics.fill(textX - 4, textY - 4, textX + textWidth + 4, textY + 9, 0xE9060D12);
-            graphics.text(font, label, textX, textY - 2, MerchantMarkerClient.MERCHANT_COLOR, false);
+            graphics.text(font, label, textX, textY - 2,
+                    hovered.kind() == OpenCityMapPacket.MarkerKind.FIXER
+                            ? CityMapRenderUtil.FIXER_COLOR
+                            : CityMapRenderUtil.MERCHANT_COLOR,
+                    false);
             graphics.requestCursor(CursorTypes.POINTING_HAND);
         }
     }
@@ -370,8 +375,7 @@ public final class CityMapScreen extends Screen {
         }
         District district = district(marker.districtOrdinal());
         int y = layout.headerHeight() + 44;
-        graphics.text(font, marker.kind() == OpenCityMapPacket.MarkerKind.ACTIVE_MISSION
-                ? "ACTIVE CONTRACT" : "TRANSIT NODE", left + 14, y, AMBER, false);
+        graphics.text(font, markerHeading(marker), left + 14, y, AMBER, false);
         y += 19;
         for (String line : wrap(markerLabel(marker), layout.rightWidth() - 28)) {
             graphics.text(font, line, left + 14, y, TEXT, false);
@@ -387,7 +391,9 @@ public final class CityMapScreen extends Screen {
                 y += 12;
             }
             y += 4;
-            graphics.text(font, mission.reward() + " EM ON COMPLETION", left + 14, y, AMBER, false);
+            String reward = mission.reward() + " EM // " + mission.streetCred() + " STREET CRED";
+            graphics.text(font, elide(reward, layout.rightWidth() - 28),
+                    left + 14, y, AMBER, false);
         }
         y += 11;
         graphics.text(font, "DISTRICT", left + 14, y, TEXT_DARK, false);
@@ -401,8 +407,7 @@ public final class CityMapScreen extends Screen {
         y += 24;
         graphics.text(font, "STATUS", left + 14, y, TEXT_DARK, false);
         y += 12;
-        graphics.text(font, marker.kind() == OpenCityMapPacket.MarkerKind.ACTIVE_MISSION
-                ? "OBJECTIVE // ACTIVE" : "NETWORK // ONLINE", left + 14, y,
+        graphics.text(font, markerStatus(marker), left + 14, y,
                 marker.kind() == OpenCityMapPacket.MarkerKind.ACTIVE_MISSION ? AMBER : CYAN, false);
     }
 
@@ -712,8 +717,11 @@ public final class CityMapScreen extends Screen {
     }
 
     private boolean isLayerVisible(OpenCityMapPacket.Marker marker) {
-        return marker.kind() == OpenCityMapPacket.MarkerKind.ACTIVE_MISSION
-                ? showMissions : showTransit && zoom >= 1.25;
+        return switch (marker.kind()) {
+            case ACTIVE_MISSION -> showMissions;
+            case FIXER, MERCHANT -> showMerchants;
+            case TRANSIT -> showTransit && zoom >= 1.25;
+        };
     }
 
     private int worldToScreenX(Rect map, double worldX) {
@@ -768,6 +776,29 @@ public final class CityMapScreen extends Screen {
                     district == null ? "?" : district.label()).getString();
         }
         return displayLabel(marker.labelKey());
+    }
+
+    private static boolean isVendor(OpenCityMapPacket.Marker marker) {
+        return marker.kind() == OpenCityMapPacket.MarkerKind.FIXER
+                || marker.kind() == OpenCityMapPacket.MarkerKind.MERCHANT;
+    }
+
+    private static String markerHeading(OpenCityMapPacket.Marker marker) {
+        return switch (marker.kind()) {
+            case ACTIVE_MISSION -> "ACTIVE CONTRACT";
+            case FIXER -> "DISTRICT FIXER";
+            case MERCHANT -> "MERCHANT STALL";
+            case TRANSIT -> "TRANSIT NODE";
+        };
+    }
+
+    private static String markerStatus(OpenCityMapPacket.Marker marker) {
+        return switch (marker.kind()) {
+            case ACTIVE_MISSION -> "OBJECTIVE // ACTIVE";
+            case FIXER -> "GIG NETWORK // ONLINE";
+            case MERCHANT -> "MARKET // OPEN";
+            case TRANSIT -> "NETWORK // ONLINE";
+        };
     }
 
     private static String displayLabel(String label) {

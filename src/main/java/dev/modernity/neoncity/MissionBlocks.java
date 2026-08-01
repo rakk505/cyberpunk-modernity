@@ -20,7 +20,7 @@ public final class MissionBlocks {
             DataTerminalBlock::new,
             properties -> properties
                     .mapColor(MapColor.COLOR_BLACK)
-                    .strength(5.0F, 30.0F)
+                    .strength(-1.0F, 3_600_000.0F)
                     .sound(SoundType.METAL)
                     .lightLevel(state -> 9)
                     .noOcclusion()

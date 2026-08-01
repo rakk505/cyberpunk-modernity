@@ -14,13 +14,31 @@ import org.jspecify.annotations.Nullable;
  */
 public final class PatrolAreaGoal extends RandomStrollGoal {
     private final java.util.function.Supplier<BlockPos> home;
+    private final java.util.function.BooleanSupplier enabled;
     private final double radius;
 
     public PatrolAreaGoal(PathfinderMob mob, double speedModifier,
                           java.util.function.Supplier<BlockPos> home, double radius) {
+        this(mob, speedModifier, home, radius, () -> true);
+    }
+
+    public PatrolAreaGoal(PathfinderMob mob, double speedModifier,
+                          java.util.function.Supplier<BlockPos> home, double radius,
+                          java.util.function.BooleanSupplier enabled) {
         super(mob, speedModifier);
         this.home = home;
         this.radius = radius;
+        this.enabled = enabled;
+    }
+
+    @Override
+    public boolean canUse() {
+        return enabled.getAsBoolean() && super.canUse();
+    }
+
+    @Override
+    public boolean canContinueToUse() {
+        return enabled.getAsBoolean() && super.canContinueToUse();
     }
 
     @Override

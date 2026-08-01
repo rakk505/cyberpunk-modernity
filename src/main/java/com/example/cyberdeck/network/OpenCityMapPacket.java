@@ -17,7 +17,7 @@ public record OpenCityMapPacket(
         long layoutSeed,
         String generatorFingerprint,
         List<Marker> markers) implements CustomPacketPayload {
-    public static final int MAX_MARKERS = 64;
+    public static final int MAX_MARKERS = 1024;
     private static final int MAX_LABEL_LENGTH = 128;
 
     public static final Type<OpenCityMapPacket> TYPE = new Type<>(
@@ -88,6 +88,8 @@ public record OpenCityMapPacket(
 
     public enum MarkerKind {
         ACTIVE_MISSION,
+        FIXER,
+        MERCHANT,
         TRANSIT
     }
 

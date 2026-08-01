@@ -15,7 +15,7 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 
-/** Fixer terminal for reading and accepting data-driven missions. */
+/** Fixer terminal for reading and accepting data-driven gigs. */
 public final class MerchantQuestScreen extends Screen {
     private static final int PANEL_WIDTH = 500;
     private static final int PANEL_HEIGHT = 364;
@@ -122,7 +122,7 @@ public final class MerchantQuestScreen extends Screen {
             graphics.text(font, destination + "  " + coordinates,
                     row.right() - 104 - font.width(destination + "  " + coordinates),
                     row.y() + 23, TEXT_DIM, false);
-            String payment = offer.reward() + " EM";
+            String payment = offer.reward() + " EM  " + offer.streetCred() + " SC";
             graphics.text(font, payment, row.right() - 12 - font.width(payment),
                     row.y() + 14, GOLD, false);
             if (hovered) {

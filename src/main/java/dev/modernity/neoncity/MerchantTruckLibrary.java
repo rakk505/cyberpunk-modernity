@@ -165,6 +165,10 @@ final class MerchantTruckLibrary {
                 continue;
             }
             MerchantRole role = role(candidate);
+            if (role == MerchantRole.QUEST
+                    && VendorAnchorData.get(level).fixer(candidate.district()).isPresent()) {
+                role = tradingRole(candidate);
+            }
             if (placeTruck(level, candidate, role)) {
                 placed++;
             }
@@ -221,6 +225,10 @@ final class MerchantTruckLibrary {
         if (black.isPresent() && black.get().equals(candidate)) {
             return MerchantRole.QUEST;
         }
+        return tradingRole(candidate);
+    }
+
+    private static MerchantRole tradingRole(TruckCandidate candidate) {
         MerchantRole[] tradingRoles = {
                 MerchantRole.GUN,
                 MerchantRole.CYBERWARE,
@@ -315,6 +323,14 @@ final class MerchantTruckLibrary {
                     role.displayName(), candidate.base());
             return false;
         }
+        VendorService.register(
+                level,
+                merchant,
+                role,
+                candidate.district(),
+                candidate.base(),
+                candidate.merchantSpawn(),
+                candidate.rotation() == Rotation.NONE ? 0.0F : 90.0F);
         LOGGER.debug("[NeonCity] placed {} truck in {} at {}",
                 role, candidate.district().label(), candidate.base());
         return true;
@@ -327,14 +343,32 @@ final class MerchantTruckLibrary {
         BlockPos spawn = candidate.merchantSpawn();
         AABB bounds = new AABB(spawn).inflate(2.0);
         if (!level.getEntitiesOfClass(Villager.class, bounds,
-                MerchantTruckLibrary::isMerchant).isEmpty()) {
+                entity -> isMerchant(entity)
+                        && merchantAnchor(entity).filter(candidate.base()::equals).isPresent())
+                .isEmpty()) {
             return null;
         }
+        return createMerchant(
+                level,
+                spawn,
+                candidate.rotation() == Rotation.NONE ? 0.0F : 90.0F,
+                role,
+                candidate.district(),
+                candidate.base());
+    }
+
+    static Villager createMerchant(
+            ServerLevel level,
+            BlockPos spawn,
+            float yaw,
+            MerchantRole role,
+            District district,
+            BlockPos anchor) {
         Villager merchant = EntityTypes.VILLAGER.create(level, EntitySpawnReason.STRUCTURE);
         if (merchant == null) {
             return null;
         }
-        merchant.snapTo(spawn, candidate.rotation() == Rotation.NONE ? 0.0F : 90.0F, 0.0F);
+        merchant.snapTo(spawn, yaw, 0.0F);
         merchant.finalizeSpawn(
                 level,
                 level.getCurrentDifficultyAt(spawn),
@@ -345,15 +379,33 @@ final class MerchantTruckLibrary {
         merchant.setVillagerDataFinalized(true);
         merchant.getPersistentData().putBoolean(MERCHANT_TAG, true);
         merchant.getPersistentData().putInt(ROLE_TAG, role.ordinal());
-        merchant.getPersistentData().putInt(DISTRICT_TAG, candidate.district().ordinal());
-        merchant.getPersistentData().putLong(ANCHOR_TAG, candidate.base().asLong());
+        merchant.getPersistentData().putInt(DISTRICT_TAG, district.ordinal());
+        merchant.getPersistentData().putLong(ANCHOR_TAG, anchor.asLong());
         merchant.setPersistenceRequired();
         merchant.setNoAi(true);
+        merchant.setInvulnerable(true);
         merchant.setCustomName(Component.literal(role.displayName()));
         merchant.setCustomNameVisible(true);
         merchant.getOffers().clear();
         merchant.getOffers().addAll(MerchantTradeCatalog.offers(role));
         return merchant;
+    }
+
+    static boolean hasTruckBlocks(ServerLevel level, TruckCandidate candidate) {
+        int occupied = 0;
+        BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
+        for (int y = 0; y < TRUCK.sizeY() && occupied < 12; y++) {
+            for (int z = 0; z < candidate.sizeZ() && occupied < 12; z++) {
+                for (int x = 0; x < candidate.sizeX() && occupied < 12; x++) {
+                    cursor.set(candidate.minX() + x, candidate.groundY() + 1 + y,
+                            candidate.minZ() + z);
+                    if (!level.isEmptyBlock(cursor)) {
+                        occupied++;
+                    }
+                }
+            }
+        }
+        return occupied >= 12;
     }
 
     static boolean isMerchant(Entity entity) {
@@ -391,6 +443,7 @@ final class MerchantTruckLibrary {
     static void clearCaches() {
         PLAN_CACHE.clear();
         BLACK_TRUCK_CACHE.clear();
+        VendorStallLibrary.clearCache();
     }
 
     private static List<TruckCandidate> candidatesForChunk(

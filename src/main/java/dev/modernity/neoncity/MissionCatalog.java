@@ -18,7 +18,7 @@ import java.util.Locale;
 import java.util.Set;
 import net.minecraft.resources.Identifier;
 
-/** Strict parser for the editable mission catalog bundled as server data. */
+/** Strict parser for the editable fixer-gig catalog bundled as server data. */
 public final class MissionCatalog {
     public static final String RESOURCE = "/data/neoncity/missions/catalog.json";
     public static final int SCHEMA_VERSION = 1;
@@ -77,10 +77,36 @@ public final class MissionCatalog {
             int cyberpsychoGrenades,
             List<String> cyberware,
             Identifier cargoItem,
-            int cargoCount) {
+            int cargoCount,
+            int streetCred,
+            int activationRadius) {
         public MissionDefinition {
             targetDistricts = List.copyOf(targetDistricts);
             cyberware = List.copyOf(cyberware);
+        }
+
+        /** Compatibility constructor for tests and old callers created before gig reputation. */
+        public MissionDefinition(
+                String id,
+                MissionType type,
+                String title,
+                String briefing,
+                String targetName,
+                List<District> targetDistricts,
+                int rewardMin,
+                int rewardMax,
+                int guards,
+                int objectiveRadius,
+                int cyberpsychoHealth,
+                GunType cyberpsychoGun,
+                int cyberpsychoGrenades,
+                List<String> cyberware,
+                Identifier cargoItem,
+                int cargoCount) {
+            this(id, type, title, briefing, targetName, targetDistricts,
+                    rewardMin, rewardMax, guards, objectiveRadius,
+                    cyberpsychoHealth, cyberpsychoGun, cyberpsychoGrenades,
+                    cyberware, cargoItem, cargoCount, 10, 64);
         }
 
         public String objectiveText() {
@@ -167,7 +193,7 @@ public final class MissionCatalog {
         return List.copyOf(definitions);
     }
 
-    private static MissionDefinition parseDefinition(JsonObject value) {
+    static MissionDefinition parseDefinition(JsonObject value) {
         String id = text(value, "id");
         if (!id.matches("[a-z0-9_]{1,48}")) {
             throw new IllegalArgumentException("invalid mission id " + id);
@@ -177,12 +203,17 @@ public final class MissionCatalog {
         String briefing = bounded(text(value, "briefing"), 1, 256, "briefing");
         String targetName = bounded(text(value, "target_name"), 1, 64, "target_name");
         List<District> targetDistricts = districts(array(value, "target_districts"));
-        JsonObject reward = object(value, "reward_emeralds");
-        int rewardMin = range(integer(reward, "min"), 1, 256, "reward min");
-        int rewardMax = range(integer(reward, "max"), rewardMin, 256, "reward max");
-        int guards = range(integer(value, "guards"), 0, 8, "guards");
+        JsonObject reward = value.has("reward_emmies")
+                ? object(value, "reward_emmies") : object(value, "reward_emeralds");
+        int rewardMin = range(integer(reward, "min"), 1, 10_000, "reward min");
+        int rewardMax = range(integer(reward, "max"), rewardMin, 10_000, "reward max");
+        int guards = range(integer(value, "guards"), 0, 24, "guards");
         int objectiveRadius = range(integer(value, "objective_radius"), 8, 128,
                 "objective_radius");
+        int streetCred = value.has("street_cred")
+                ? range(integer(value, "street_cred"), 1, 10_000, "street_cred") : 10;
+        int activationRadius = value.has("activation_radius")
+                ? range(integer(value, "activation_radius"), 16, 160, "activation_radius") : 64;
 
         int health = 0;
         GunType gun = null;
@@ -217,7 +248,8 @@ public final class MissionCatalog {
         return new MissionDefinition(
                 id, type, title, briefing, targetName, targetDistricts,
                 rewardMin, rewardMax, guards, objectiveRadius,
-                health, gun, grenades, cyberware, cargoItem, cargoCount);
+                health, gun, grenades, cyberware, cargoItem, cargoCount,
+                streetCred, activationRadius);
     }
 
     private static List<District> districts(JsonArray values) {
