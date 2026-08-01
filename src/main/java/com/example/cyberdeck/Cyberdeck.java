@@ -2,6 +2,8 @@ package com.example.cyberdeck;
 
 import com.example.cyberdeck.cyberware.CyberwareAttachments;
 import com.example.cyberdeck.cyberware.CyberwareItems;
+import com.example.cyberdeck.defense.DefenseContent;
+import com.example.cyberdeck.defense.KangTaoTurret;
 import com.example.cyberdeck.city.CityActorJoinCompatibility;
 import com.example.cyberdeck.faction.FactionEnemy;
 import com.example.cyberdeck.faction.CyberpsychoEntity;
@@ -50,6 +52,7 @@ public class Cyberdeck {
         TacticalMovement.ATTACHMENT_TYPES.register(modEventBus);
         HealingState.ATTACHMENT_TYPES.register(modEventBus);
         StreetCredState.ATTACHMENT_TYPES.register(modEventBus);
+        DefenseContent.register(modEventBus);
 
         // Guns, ammo, grenades, ballistic armor and their entities.
         WeaponItems.ITEMS.register(modEventBus);
@@ -70,6 +73,8 @@ public class Cyberdeck {
         modEventBus.addListener(CyberdeckItems::addCreative);
         modEventBus.addListener(CyberwareItems::addToTab);
         modEventBus.addListener(WeaponItems::addToTab);
+        modEventBus.addListener(DefenseContent::addToTab);
+        modEventBus.addListener(DefenseContent::registerTests);
         modEventBus.addListener(Cyberdeck::registerEntityAttributes);
 
         NeoForge.EVENT_BUS.register(new ServerEvents());
@@ -90,5 +95,6 @@ public class Cyberdeck {
         event.put(FactionEntities.FACTION_ENEMY.get(), FactionEnemy.createAttributes().build());
         event.put(FactionEntities.CYBERPSYCHO.get(), CyberpsychoEntity.createAttributes().build());
         event.put(CityNpcEntities.CITY_NPC.get(), CityNpc.createAttributes().build());
+        event.put(DefenseContent.KANG_TAO_TURRET.get(), KangTaoTurret.createAttributes().build());
     }
 }
