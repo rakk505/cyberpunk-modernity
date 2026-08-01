@@ -13,6 +13,8 @@ import com.example.cyberdeck.cyberware.SlotUnlock;
 import com.example.cyberdeck.effect.SandevistanMechanics;
 import com.example.cyberdeck.effect.SandevistanState;
 import com.example.cyberdeck.effect.CyberwareEffects;
+import com.example.cyberdeck.defense.DefenseContent;
+import com.example.cyberdeck.defense.KangTaoTurret;
 import com.example.cyberdeck.faction.FactionEnemy;
 import com.example.cyberdeck.faction.FactionEntities;
 import com.example.cyberdeck.faction.FactionSpawns;
@@ -600,11 +602,13 @@ public final class CyberdeckGameTests {
                 level, EntitySpawnReason.COMMAND);
         FactionEnemy enemy = FactionEntities.FACTION_ENEMY.get().create(
                 level, EntitySpawnReason.COMMAND);
+        KangTaoTurret turret = DefenseContent.KANG_TAO_TURRET.get().create(
+                level, EntitySpawnReason.COMMAND);
         Entity unrelated = EntityTypes.ZOMBIE.create(
                 level, EntitySpawnReason.COMMAND);
-        helper.assertTrue(civilian != null && enemy != null && unrelated != null,
+        helper.assertTrue(civilian != null && enemy != null && turret != null && unrelated != null,
                 "entity factories needed by join compatibility must be available");
-        if (civilian == null || enemy == null || unrelated == null) {
+        if (civilian == null || enemy == null || turret == null || unrelated == null) {
             return;
         }
 
@@ -617,6 +621,11 @@ public final class CyberdeckGameTests {
         CityActorJoinCompatibility.restoreManagedCityActor(enemyJoin, true);
         helper.assertFalse(enemyJoin.isCanceled(),
                 "a faction enemy canceled by a companion generator must be restored");
+
+        EntityJoinLevelEvent turretJoin = canceledJoin(turret, level);
+        CityActorJoinCompatibility.restoreManagedCityActor(turretJoin, true);
+        helper.assertFalse(turretJoin.isCanceled(),
+                "a placed turret canceled by a companion generator must be restored");
 
         EntityJoinLevelEvent unrelatedJoin = canceledJoin(unrelated, level);
         CityActorJoinCompatibility.restoreManagedCityActor(unrelatedJoin, true);

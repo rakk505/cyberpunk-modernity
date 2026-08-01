@@ -2,7 +2,12 @@
   "itemGroup.cyberdeck": "Cyberdeck",
 
   "block.cyberdeck.quicktime_station": "Quicktime Station",
+  "block.cyberdeck.explosive_canister": "Explosive Canister",
   "item.cyberdeck.slop": "Slop",
+  "item.cyberdeck.kang_tao_turret": "Kang Tao Turret",
+  "message.cyberdeck.turret.invalid_surface": "Turret requires a solid floor.",
+  "message.cyberdeck.turret.blocked": "Not enough clear space to deploy the turret.",
+  "message.cyberdeck.turret.deployed": "Kang Tao turret deployed.",
   "item.cyberdeck.emmies": "Emmies",
   "item.cyberdeck.cyberware_shard": "Cyberware Shard",
   "item.cyberdeck.money_shard": "Money Shard",
@@ -199,6 +204,7 @@
   "entity.cyberdeck.city_npc.exec": "Exec",
   "entity.cyberdeck.thrown_grenade": "Grenade",
   "entity.cyberdeck.smart_bullet": "Smart Round",
+  "entity.cyberdeck.kang_tao_turret": "Kang Tao Turret",
   "block.cyberdeck.data_terminal": "Secured Data Terminal",
   "item.cyberdeck.data_terminal": "Secured Data Terminal",
 

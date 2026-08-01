@@ -13,7 +13,9 @@ import com.example.cyberdeck.client.gun.GenericGunClientExtension;
 import com.example.cyberdeck.client.movement.TacticalPlayerAnimations;
 import com.example.cyberdeck.client.render.FactionEnemyRenderer;
 import com.example.cyberdeck.client.render.CityNpcRenderer;
+import com.example.cyberdeck.client.render.KangTaoTurretRenderer;
 import com.example.cyberdeck.client.render.MantisBladesLayer;
+import com.example.cyberdeck.defense.DefenseContent;
 import com.example.cyberdeck.faction.FactionEntities;
 import com.example.cyberdeck.npc.CityNpcEntities;
 import com.example.cyberdeck.weapon.WeaponEntities;
@@ -199,6 +201,8 @@ public final class CyberdeckClient {
         event.registerEntityRenderer(FactionEntities.FACTION_ENEMY.get(), FactionEnemyRenderer::new);
         event.registerEntityRenderer(FactionEntities.CYBERPSYCHO.get(), FactionEnemyRenderer::new);
         event.registerEntityRenderer(CityNpcEntities.CITY_NPC.get(), CityNpcRenderer::new);
+        event.registerEntityRenderer(
+                DefenseContent.KANG_TAO_TURRET.get(), KangTaoTurretRenderer::new);
         event.registerEntityRenderer(WeaponEntities.THROWN_GRENADE.get(), ThrownItemRenderer::new);
         event.registerEntityRenderer(WeaponEntities.SMART_BULLET.get(), NoopRenderer::new);
     }
