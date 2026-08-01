@@ -1,5 +1,6 @@
 package dev.modernity.neoncity;
 
+import com.example.cyberdeck.city.CityLootGeneration;
 import java.util.Comparator;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
@@ -112,12 +113,12 @@ final class DistrictWorldFeatures {
             ChunkPos chunk,
             NeonCityGenerator.UrbanSample[][] samples) {
         long seed = NeonCityGenerator.layout().seed();
-        MerchantTruckLibrary.decorateChunk(level, chunk, samples);
         ParkTreeLibrary.decorateChunk(level, chunk, samples);
         WalledBorderLibrary.decorateChunk(level, chunk, samples);
         BorderVillageLibrary.decorateChunk(level, chunk, samples);
         CliffInfrastructureLibrary.decorateChunk(level, chunk);
         ParkTreeLibrary.decorateBorderChunk(level, chunk, samples);
+        CityLootGeneration.decorateMegacityChunk(level, chunk, samples);
         placeSnowDrifts(level, chunk, samples, seed);
         placeFarmWorker(level, chunk, samples, seed);
     }

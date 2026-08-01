@@ -11,9 +11,11 @@ import com.example.cyberdeck.npc.NpcRole;
 import com.example.cyberdeck.weapon.GunType;
 import com.example.cyberdeck.weapon.WeaponItems;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.WeakHashMap;
 import net.minecraft.core.BlockPos;
@@ -44,6 +46,7 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlac
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.level.LevelEvent;
 import net.neoforged.neoforge.event.tick.LevelTickEvent;
 
@@ -52,21 +55,25 @@ public final class TraumaTeamEvents {
     public enum Phase {
         DESCENDING,
         LANDED,
+        BOARDING,
         ASCENDING
     }
 
     public static final int AERODYNE_WIDTH = 23;
     public static final int AERODYNE_HEIGHT = 9;
     public static final int AERODYNE_LENGTH = 11;
+    public static final int AERODYNE_HOVER_CLEARANCE = 3;
     public static final int DEFAULT_DROP_HEIGHT = 24;
     public static final int MIN_RESPONDERS = 4;
     public static final int MAX_RESPONDERS = 5;
+    public static final int EXEC_APPROACH_TIMEOUT_TICKS = 20 * 60 * 2 + 20 * 30;
+    public static final int EXEC_BOARDING_WAIT_TICKS = 20 * 60 * 2 + 20 * 30;
+    public static final int MAX_LANDED_TICKS =
+            EXEC_APPROACH_TIMEOUT_TICKS + EXEC_BOARDING_WAIT_TICKS;
 
     private static final Identifier AERODYNE = Identifier.fromNamespaceAndPath(
             Cyberdeck.MODID, "trauma_team/aerodyne");
     private static final int MOVE_INTERVAL_TICKS = 3;
-    private static final int EVACUATION_TIMEOUT_TICKS = 20 * 30;
-    private static final int FAILED_REQUEST_HOLD_TICKS = 20 * 5;
     private static final double PICKUP_DISTANCE_SQR = 3.5 * 3.5;
     private static final int BLOCK_UPDATE_FLAGS =
             Block.UPDATE_SKIP_ALL_SIDEEFFECTS | Block.UPDATE_CLIENTS | Block.UPDATE_SUPPRESS_DROPS;
@@ -101,7 +108,7 @@ public final class TraumaTeamEvents {
 
     /** Administrative dispatch used by /cyberdeck trauma. */
     public static boolean requestForCommand(ServerPlayer target) {
-        if (!target.isAlive() || target.isCreative() || target.isSpectator()) {
+        if (!isCommandTargetEligible(target)) {
             return false;
         }
         ServerLevel level = target.level();
@@ -140,7 +147,7 @@ public final class TraumaTeamEvents {
             exec.discard();
             return false;
         }
-        if (!start(level, exec, target, landingCenter, DEFAULT_DROP_HEIGHT)) {
+        if (!start(level, exec, target, landingCenter, DEFAULT_DROP_HEIGHT, true)) {
             exec.discard();
             return false;
         }
@@ -155,18 +162,49 @@ public final class TraumaTeamEvents {
                 exec.getUUID(), landingCenter, target.getScoreboardName());
     }
 
-    /** Explicit landing hook used by deterministic GameTests. */
+    public static boolean isCommandTargetEligible(ServerPlayer target) {
+        return target.isAlive() && !target.isSpectator();
+    }
+
+    /** Explicit landing hook used by deterministic GameTests; mirrors command eligibility. */
     public static boolean requestAt(ServerLevel level, CityNpc exec, ServerPlayer target,
                                     BlockPos landingCenter, int dropHeight) {
-        return start(level, exec, target, landingCenter, Math.max(0, dropHeight));
+        return start(level, exec, target, landingCenter, Math.max(0, dropHeight), true);
+    }
+
+    /** Reduced timing hook used to exercise the full lifecycle in deterministic GameTests. */
+    public static boolean requestAt(ServerLevel level, CityNpc exec, ServerPlayer target,
+                                    BlockPos landingCenter, int dropHeight,
+                                    int approachTimeoutTicks, int boardingWaitTicks) {
+        if (approachTimeoutTicks < 1 || boardingWaitTicks < 1) {
+            return false;
+        }
+        return start(level, exec, target, landingCenter, Math.max(0, dropHeight),
+                true, approachTimeoutTicks, boardingWaitTicks);
     }
 
     private static boolean start(ServerLevel level, CityNpc exec, ServerPlayer target,
                                  BlockPos landingCenter, int dropHeight) {
+        return start(level, exec, target, landingCenter, dropHeight,
+                false, EXEC_APPROACH_TIMEOUT_TICKS, EXEC_BOARDING_WAIT_TICKS);
+    }
+
+    private static boolean start(ServerLevel level, CityNpc exec, ServerPlayer target,
+                                 BlockPos landingCenter, int dropHeight,
+                                 boolean allowCreativeTarget) {
+        return start(level, exec, target, landingCenter, dropHeight,
+                allowCreativeTarget, EXEC_APPROACH_TIMEOUT_TICKS, EXEC_BOARDING_WAIT_TICKS);
+    }
+
+    private static boolean start(ServerLevel level, CityNpc exec, ServerPlayer target,
+                                 BlockPos landingCenter, int dropHeight,
+                                 boolean allowCreativeTarget,
+                                 int approachTimeoutTicks, int boardingWaitTicks) {
         if (!exec.isAlive() || exec.getRole() != NpcRole.EXEC
-                || !target.isAlive() || target.isCreative() || target.isSpectator()
+                || !target.isAlive() || target.isSpectator()
+                || (!allowCreativeTarget && target.isCreative())
                 || hasEvent(level, exec.getUUID())
-                || !hasLandingClearance(level, landingCenter, dropHeight)) {
+                || !hasLandingClearance(level, landingCenter)) {
             return false;
         }
         StructureTemplate template = level.getStructureManager().get(AERODYNE).orElse(null);
@@ -175,12 +213,16 @@ public final class TraumaTeamEvents {
             return false;
         }
 
+        int availableDropHeight = availableDropHeight(level, landingCenter, dropHeight);
         EventState state = new EventState(
                 template,
                 exec.getUUID(),
                 target.getUUID(),
                 landingCenter,
-                dropHeight);
+                availableDropHeight,
+                allowCreativeTarget,
+                approachTimeoutTicks,
+                boardingWaitTicks);
         if (!state.place(level)) {
             return false;
         }
@@ -198,45 +240,71 @@ public final class TraumaTeamEvents {
     }
 
     public static boolean hasLandingClearance(ServerLevel level, BlockPos center) {
-        return hasLandingClearance(level, center, DEFAULT_DROP_HEIGHT);
+        if (!isSafeFeet(level, center)) {
+            return false;
+        }
+        int minX = center.getX() - AERODYNE_WIDTH / 2;
+        int minZ = center.getZ() - AERODYNE_LENGTH / 2;
+        int structureY = center.getY() + AERODYNE_HOVER_CLEARANCE;
+        return isEmptyVolume(
+                level,
+                minX,
+                center.getY(),
+                minZ,
+                minX + AERODYNE_WIDTH - 1,
+                structureY + AERODYNE_HEIGHT - 1,
+                minZ + AERODYNE_LENGTH - 1);
     }
 
+    /** Compatibility overload: approach height no longer affects landing-site acceptance. */
     public static boolean hasLandingClearance(ServerLevel level, BlockPos center, int dropHeight) {
+        return hasLandingClearance(level, center);
+    }
+
+    private static int availableDropHeight(
+            ServerLevel level, BlockPos center, int requestedDropHeight) {
         int minX = center.getX() - AERODYNE_WIDTH / 2;
         int minZ = center.getZ() - AERODYNE_LENGTH / 2;
         int maxX = minX + AERODYNE_WIDTH - 1;
         int maxZ = minZ + AERODYNE_LENGTH - 1;
-        BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
-
-        for (int x = minX; x <= maxX; x += 2) {
-            for (int z = minZ; z <= maxZ; z += 2) {
-                cursor.set(x, center.getY() - 1, z);
-                if (!level.isLoaded(cursor) || !level.getWorldBorder().isWithinBounds(cursor)
-                        || !level.getBlockState(cursor).blocksMotion()) {
-                    return false;
-                }
+        int structureTopY = center.getY()
+                + AERODYNE_HOVER_CLEARANCE
+                + AERODYNE_HEIGHT - 1;
+        int allowedDropHeight = 0;
+        for (int offsetY = 1; offsetY <= Math.max(0, requestedDropHeight); offsetY++) {
+            if (!isEmptyVolume(
+                    level,
+                    minX,
+                    structureTopY + offsetY,
+                    minZ,
+                    maxX,
+                    structureTopY + offsetY,
+                    maxZ)) {
+                break;
             }
+            allowedDropHeight = offsetY;
         }
+        return allowedDropHeight;
+    }
+
+    private static boolean isEmptyVolume(
+            ServerLevel level,
+            int minX,
+            int minY,
+            int minZ,
+            int maxX,
+            int maxY,
+            int maxZ) {
+        BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
         for (int x = minX; x <= maxX; x++) {
             for (int z = minZ; z <= maxZ; z++) {
-                for (int y = 0; y < AERODYNE_HEIGHT + Math.max(0, dropHeight); y++) {
-                    cursor.set(x, center.getY() + y, z);
-                    if (!level.isLoaded(cursor) || !level.getWorldBorder().isWithinBounds(cursor)
+                for (int y = minY; y <= maxY; y++) {
+                    cursor.set(x, y, z);
+                    if (!level.isLoaded(cursor)
+                            || !level.getWorldBorder().isWithinBounds(cursor)
                             || !level.isEmptyBlock(cursor)) {
                         return false;
                     }
-                }
-            }
-        }
-        for (int[] offset : RESPONDER_OFFSETS) {
-            BlockPos feet = resolveFeet(
-                    level, center.getX() + offset[0], center.getZ() + offset[1], center.getY());
-            if (feet == null || feet.getY() != center.getY()) {
-                return false;
-            }
-            for (int y = 0; y < 8; y++) {
-                if (!level.isEmptyBlock(feet.above(y))) {
-                    return false;
                 }
             }
         }
@@ -244,7 +312,7 @@ public final class TraumaTeamEvents {
     }
 
     private static BlockPos findLandingCenter(ServerLevel level, BlockPos origin, RandomSource random) {
-        BlockPos direct = resolveFeet(level, origin.getX(), origin.getZ(), origin.getY());
+        BlockPos direct = resolveLandingAnchor(level, origin.getX(), origin.getZ(), origin.getY());
         if (direct != null && hasLandingClearance(level, direct)) {
             return direct;
         }
@@ -252,7 +320,7 @@ public final class TraumaTeamEvents {
             double offset = random.nextDouble() * Math.PI * 2.0;
             for (int sample = 0; sample < 16; sample++) {
                 double angle = offset + sample * Math.PI * 2.0 / 16.0;
-                BlockPos candidate = resolveFeet(
+                BlockPos candidate = resolveLandingAnchor(
                         level,
                         origin.getX() + (int) Math.round(Math.cos(angle) * radius),
                         origin.getZ() + (int) Math.round(Math.sin(angle) * radius),
@@ -263,6 +331,15 @@ public final class TraumaTeamEvents {
             }
         }
         return null;
+    }
+
+    private static BlockPos resolveLandingAnchor(ServerLevel level, int x, int z, int preferredY) {
+        BlockPos probe = new BlockPos(x, preferredY, z);
+        if (!level.isLoaded(probe)) {
+            return null;
+        }
+        BlockPos candidate = level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, probe);
+        return isSafeFeet(level, candidate) ? candidate : null;
     }
 
     private static BlockPos resolveFeet(ServerLevel level, int x, int z, int preferredY) {
@@ -284,13 +361,13 @@ public final class TraumaTeamEvents {
 
     private static ServerPlayer resolveTarget(ServerLevel level, CityNpc exec, Entity attacker) {
         if (attacker instanceof ServerPlayer player
-                && player.isAlive() && !player.isCreative() && !player.isSpectator()) {
+                && isAutomaticTargetEligible(player)) {
             return player;
         }
         ServerPlayer nearest = null;
         double nearestDistance = 96.0 * 96.0;
         for (ServerPlayer player : level.players()) {
-            if (!player.isAlive() || player.isCreative() || player.isSpectator()) {
+            if (!isAutomaticTargetEligible(player)) {
                 continue;
             }
             double distance = exec.distanceToSqr(player);
@@ -300,6 +377,10 @@ public final class TraumaTeamEvents {
             }
         }
         return nearest;
+    }
+
+    public static boolean isAutomaticTargetEligible(ServerPlayer player) {
+        return player.isAlive() && !player.isCreative() && !player.isSpectator();
     }
 
     @SubscribeEvent
@@ -320,6 +401,21 @@ public final class TraumaTeamEvents {
         }
         if (events.isEmpty()) {
             ACTIVE.remove(level);
+        }
+    }
+
+    @SubscribeEvent
+    public void onLivingDeath(LivingDeathEvent event) {
+        if (!(event.getEntity().level() instanceof ServerLevel level)) {
+            return;
+        }
+        List<EventState> events = ACTIVE.get(level);
+        if (events == null) {
+            return;
+        }
+        UUID entityId = event.getEntity().getUUID();
+        for (EventState state : events) {
+            state.recordDeath(entityId);
         }
     }
 
@@ -371,24 +467,35 @@ public final class TraumaTeamEvents {
         private final int originZ;
         private final int landingY;
         private final int startY;
+        private final boolean allowCreativeTarget;
+        private final int approachTimeoutTicks;
+        private final int boardingWaitTicks;
         private final List<UUID> responders = new ArrayList<>();
+        private final Set<UUID> deadResponders = new HashSet<>();
         private final List<BlockPos> placedBlocks = new ArrayList<>();
         private int currentY;
         private int movementTicks;
         private long landedAt = -1L;
+        private long boardingStartedAt = -1L;
+        private boolean execKilled;
         private Phase phase = Phase.DESCENDING;
 
         private EventState(StructureTemplate template, UUID execId, UUID targetId,
-                           BlockPos landingCenter, int dropHeight) {
+                           BlockPos landingCenter, int dropHeight,
+                           boolean allowCreativeTarget,
+                           int approachTimeoutTicks, int boardingWaitTicks) {
             this.template = template;
             this.execId = execId;
             this.targetId = targetId;
             this.landingCenter = landingCenter.immutable();
             this.originX = landingCenter.getX() - AERODYNE_WIDTH / 2;
             this.originZ = landingCenter.getZ() - AERODYNE_LENGTH / 2;
-            this.landingY = landingCenter.getY();
+            this.landingY = landingCenter.getY() + AERODYNE_HOVER_CLEARANCE;
             this.startY = landingY + dropHeight;
             this.currentY = startY;
+            this.allowCreativeTarget = allowCreativeTarget;
+            this.approachTimeoutTicks = approachTimeoutTicks;
+            this.boardingWaitTicks = boardingWaitTicks;
         }
 
         private BlockPos origin() {
@@ -400,9 +507,15 @@ public final class TraumaTeamEvents {
         }
 
         private boolean tick(ServerLevel level) {
+            if (phase != Phase.ASCENDING && execLost(level)) {
+                clearExecEvacuation(level);
+                beginAscent(level);
+                return false;
+            }
             return switch (phase) {
                 case DESCENDING -> tickDescent(level);
                 case LANDED -> tickLanded(level);
+                case BOARDING -> tickBoarding(level);
                 case ASCENDING -> tickAscent(level);
             };
         }
@@ -429,21 +542,72 @@ public final class TraumaTeamEvents {
         private boolean tickLanded(ServerLevel level) {
             Entity entity = level.getEntity(execId);
             CityNpc exec = entity instanceof CityNpc npc ? npc : null;
-            long elapsed = level.getGameTime() - landedAt;
-            if (exec != null && exec.isAlive()
-                    && exec.distanceToSqr(Vec3.atCenterOf(pickupPosition())) <= PICKUP_DISTANCE_SQR) {
-                exec.clearEvacuationTarget();
-                exec.discard();
-                beginAscent(level);
-            } else if (exec == null || !exec.isAlive()) {
-                if (elapsed >= FAILED_REQUEST_HOLD_TICKS) {
-                    beginAscent(level);
+            if (exec == null || !exec.isAlive() || respondersEliminated(level)) {
+                if (exec != null && exec.isAlive()) {
+                    exec.clearEvacuationTarget();
                 }
-            } else if (elapsed >= EVACUATION_TIMEOUT_TICKS) {
+                beginAscent(level);
+            } else if (exec.distanceToSqr(Vec3.atCenterOf(pickupPosition()))
+                    <= PICKUP_DISTANCE_SQR) {
+                phase = Phase.BOARDING;
+                boardingStartedAt = level.getGameTime();
+                exec.clearEvacuationTarget();
+                stopBoardingExec(exec);
+            } else if (level.getGameTime() - landedAt >= approachTimeoutTicks) {
                 exec.clearEvacuationTarget();
                 beginAscent(level);
             }
             return false;
+        }
+
+        private boolean tickBoarding(ServerLevel level) {
+            Entity entity = level.getEntity(execId);
+            CityNpc exec = entity instanceof CityNpc npc ? npc : null;
+            if (exec == null || !exec.isAlive() || respondersEliminated(level)) {
+                if (exec != null && exec.isAlive()) {
+                    exec.clearEvacuationTarget();
+                }
+                beginAscent(level);
+            } else if (level.getGameTime() - boardingStartedAt >= boardingWaitTicks) {
+                exec.clearEvacuationTarget();
+                exec.discard();
+                beginAscent(level);
+            } else {
+                stopBoardingExec(exec);
+            }
+            return false;
+        }
+
+        private void stopBoardingExec(CityNpc exec) {
+            exec.getNavigation().stop();
+            Vec3 movement = exec.getDeltaMovement();
+            exec.setDeltaMovement(0.0, movement.y, 0.0);
+        }
+
+        private boolean respondersEliminated(ServerLevel level) {
+            if (responders.isEmpty()) {
+                return false;
+            }
+            for (UUID responderId : responders) {
+                Entity responder = level.getEntity(responderId);
+                if (responder != null && !responder.isAlive()) {
+                    deadResponders.add(responderId);
+                }
+            }
+            return deadResponders.containsAll(responders);
+        }
+
+        private boolean execLost(ServerLevel level) {
+            Entity exec = level.getEntity(execId);
+            return execKilled || exec == null || !exec.isAlive();
+        }
+
+        private void recordDeath(UUID entityId) {
+            if (execId.equals(entityId)) {
+                execKilled = true;
+            } else if (responders.contains(entityId)) {
+                deadResponders.add(entityId);
+            }
         }
 
         private boolean tickAscent(ServerLevel level) {
@@ -497,6 +661,16 @@ public final class TraumaTeamEvents {
         }
 
         private boolean place(ServerLevel level) {
+            if (!isEmptyVolume(
+                    level,
+                    originX,
+                    currentY,
+                    originZ,
+                    originX + AERODYNE_WIDTH - 1,
+                    currentY + AERODYNE_HEIGHT - 1,
+                    originZ + AERODYNE_LENGTH - 1)) {
+                return false;
+            }
             StructurePlaceSettings settings = settings();
             boolean placed = template.placeInWorld(
                     level, origin(), origin(), settings, level.getRandom(), BLOCK_UPDATE_FLAGS);
@@ -547,7 +721,7 @@ public final class TraumaTeamEvents {
                         level,
                         landingCenter.getX() + offset[0],
                         landingCenter.getZ() + offset[1],
-                        landingY);
+                        landingCenter.getY());
                 if (feet == null) {
                     continue;
                 }
@@ -567,7 +741,7 @@ public final class TraumaTeamEvents {
                 responder.setDropChance(EquipmentSlot.MAINHAND, 0.05F);
                 responder.addEffect(new MobEffectInstance(
                         MobEffects.SLOW_FALLING, 20 * 8, 0, false, false));
-                responder.deployAsTraumaTeam(target);
+                responder.deployAsTraumaTeam(target, allowCreativeTarget);
                 if (level.addFreshEntity(responder)) {
                     responders.add(responder.getUUID());
                 }

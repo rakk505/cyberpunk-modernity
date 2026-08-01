@@ -62,7 +62,7 @@ public final class CyberwareInstaller {
         if (cyberware.slot() == BodySlot.OPERATING_SYSTEM) {
             SandevistanMechanics.onOperatingSystemChanged(player, cyberware);
         }
-        reconcileQuickhackAccess(player, updated);
+        reconcileScannerAccess(player, updated);
         CyberwarePassives.reapply(player);
         if (previous != null) {
             returnItem(player, previous);
@@ -106,7 +106,7 @@ public final class CyberwareInstaller {
         if (slot == BodySlot.OPERATING_SYSTEM) {
             SandevistanMechanics.onOperatingSystemChanged(player, null);
         }
-        reconcileQuickhackAccess(player, updated);
+        reconcileScannerAccess(player, updated);
         CyberwarePassives.reapply(player);
         returnItem(player, removed);
         player.sendSystemMessage(Component.translatable("message.cyberdeck.removed",
@@ -138,8 +138,11 @@ public final class CyberwareInstaller {
     }
 
     /** Replacing/removing the active deck must restore the hotbar and cancel queued uploads now. */
-    private static void reconcileQuickhackAccess(ServerPlayer player, CyberwareData data) {
-        if (!CyberwareEffects.canQuickhack(data)) {
+    private static void reconcileScannerAccess(ServerPlayer player, CyberwareData data) {
+        if (CyberdeckState.hasQuickhackSession(player) && !CyberwareEffects.canQuickhack(data)) {
+            CyberdeckState.deactivate(player);
+            com.example.cyberdeck.skill.QuickhackUploads.cancel(player);
+        } else if (CyberdeckState.hasScanOnlySession(player) && !CyberwareEffects.canScan(data)) {
             CyberdeckState.deactivate(player);
         }
     }

@@ -7,10 +7,7 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.Mob;
-import net.minecraft.world.entity.animal.golem.IronGolem;
 import net.minecraft.world.entity.monster.Enemy;
-import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -28,7 +25,8 @@ import java.util.List;
  */
 public final class ServerEvents {
     // How far the scan reaches and how wide the "field of view" cone is (dot-product threshold).
-    private static final double SCAN_RANGE = 48.0;
+    private static final double SCAN_RANGE =
+            com.example.cyberdeck.skill.QuickhackUploads.MAX_TARGET_RANGE;
     private static final double FOV_DOT = 0.5; // ~120 degree cone
 
     @SubscribeEvent
@@ -46,23 +44,28 @@ public final class ServerEvents {
         // Smart Link target acquisition is independent of the cyberdeck operating system/interface.
         com.example.cyberdeck.weapon.SmartTargeting.tick(player, level);
 
-        // Deactivate immediately if the installed operating system no longer supports quickhacks.
-        if (player.getPersistentData().getBoolean("cyberdeck_active").orElse(false)
+        // Capability removal closes either interface immediately; a removed deck also releases RAM.
+        if (CyberdeckState.hasQuickhackSession(player)
                 && !CyberdeckState.hasInstalledCyberdeck(player)) {
+            CyberdeckState.deactivate(player);
+            com.example.cyberdeck.skill.QuickhackUploads.cancel(player);
+            return;
+        }
+        if (CyberdeckState.hasScanOnlySession(player)
+                && !CyberdeckState.hasInstalledEyeImplant(player)) {
             CyberdeckState.deactivate(player);
             return;
         }
 
-        if (!CyberdeckState.isActive(player)) {
-            com.example.cyberdeck.skill.QuickhackUploads.cancel(player);
+        // Uploads are committed server-side and continue after scanner mode is closed. The queue
+        // itself still cancels for death, deck removal, target loss, or excessive distance.
+        com.example.cyberdeck.skill.QuickhackUploads.tick(player, level);
+
+        if (!CyberdeckState.isScannerActive(player)) {
             return;
         }
 
-        // Uploads are advanced only after mode and OS validation, preventing a completion on the
-        // same tick that quickhacking is deactivated.
-        com.example.cyberdeck.skill.QuickhackUploads.tick(player, level);
-
-        // Outline valid entities within the player's field of view while the cyberdeck is active.
+        // Outline valid entities within the player's field of view while either scanner is active.
         Vec3 eye = player.getEyePosition();
         Vec3 look = player.getLookAngle().normalize();
         AABB scanBox = player.getBoundingBox().inflate(SCAN_RANGE);
@@ -108,10 +111,7 @@ public final class ServerEvents {
     }
 
     private static boolean isTargetable(LivingEntity entity) {
-        if (!entity.isAlive()) {
-            return false;
-        }
-        return entity instanceof Mob || entity instanceof Villager || entity instanceof IronGolem;
+        return entity.isAlive() && (entity instanceof Enemy || entity instanceof CityNpc);
     }
 
     /** No hostile AI, vanilla or modded, may select a city civilian as an attack target. */

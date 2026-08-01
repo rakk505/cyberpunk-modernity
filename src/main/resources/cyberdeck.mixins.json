@@ -3,6 +3,10 @@
   "minVersion": "0.8",
   "package": "com.example.cyberdeck.mixin",
   "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "ContainerMixin",
+    "ItemStackCodecMixin"
+  ],
   "client": [
     "client.HumanoidModelMixin"
   ],

@@ -1,0 +1,23 @@
+{
+  "skin": {
+    "source": "src/main/resources/assets/cyberdeck/textures/entity/excision_agent.png",
+    "size": [
+      64,
+      64
+    ],
+    "sha256": "28c2ef6a4d14742264c1cf4064897b9edac4a49c8ed0a8965cfce98ea3d147db",
+    "design": "black/navy law-enforcement uniform, blue panels, EX helmet mark, gold badge"
+  },
+  "aerodyne": {
+    "source": "src/main/resources/data/cyberdeck/structure/excision/aerodyne.nbt",
+    "template": "cyberdeck:excision/aerodyne",
+    "size": [
+      23,
+      9,
+      11
+    ],
+    "blocks": 902,
+    "palette_states": 142,
+    "sha256": "081a36b9569187be34bfa5a17cf68db9d58ae38808cfff91717114292a5d83a2"
+  }
+}

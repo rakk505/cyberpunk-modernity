@@ -31,7 +31,11 @@ public final class CityMapService {
                 forceOpen,
                 layout.seed(),
                 NeonCityGenerator.GENERATOR_FINGERPRINT,
-                markers(layout, MissionService.activeMarker(player)));
+                markers(
+                        layout,
+                        MissionService.activeMarker(player),
+                        VendorAnchorData.get(level).anchors(),
+                        AmbientGigService.availableOffers(player)));
     }
 
     static List<OpenCityMapPacket.Marker> markers(MegacityLayout layout) {
@@ -41,8 +45,33 @@ public final class CityMapService {
     static List<OpenCityMapPacket.Marker> markers(
             MegacityLayout layout,
             java.util.Optional<OpenCityMapPacket.Marker> activeMission) {
+        return markers(layout, activeMission, List.of());
+    }
+
+    static List<OpenCityMapPacket.Marker> markers(
+            MegacityLayout layout,
+            java.util.Optional<OpenCityMapPacket.Marker> activeMission,
+            List<VendorAnchorData.Anchor> vendors) {
+        return markers(layout, activeMission, vendors, List.of());
+    }
+
+    static List<OpenCityMapPacket.Marker> markers(
+            MegacityLayout layout,
+            java.util.Optional<OpenCityMapPacket.Marker> activeMission,
+            List<VendorAnchorData.Anchor> vendors,
+            List<AmbientGigService.DiscoveredGig> gigs) {
         List<OpenCityMapPacket.Marker> markers = new ArrayList<>();
         activeMission.ifPresent(markers::add);
+        for (AmbientGigService.DiscoveredGig gig : gigs) {
+            MissionService.MissionOffer offer = gig.offer();
+            markers.add(new OpenCityMapPacket.Marker(
+                    OpenCityMapPacket.MarkerKind.AVAILABLE_GIG,
+                    offer.targetX(),
+                    offer.targetZ(),
+                    offer.targetDistrictOrdinal(),
+                    "literal:" + offer.title(),
+                    gig.offerId().toString()));
+        }
         for (District district : District.values()) {
             MegacityLayout.Node node = layout.node(district);
             markers.add(new OpenCityMapPacket.Marker(
@@ -51,6 +80,17 @@ public final class CityMapService {
                     node.z(),
                     district.ordinal(),
                     "screen.cyberdeck.city_map.transit"));
+        }
+        for (VendorAnchorData.Anchor vendor : vendors) {
+            markers.add(new OpenCityMapPacket.Marker(
+                    vendor.fixer()
+                            ? OpenCityMapPacket.MarkerKind.FIXER
+                            : OpenCityMapPacket.MarkerKind.MERCHANT,
+                    vendor.merchantPos().getX(),
+                    vendor.merchantPos().getZ(),
+                    vendor.district().ordinal(),
+                    "literal:" + vendor.role().displayName()
+                            + " // District " + vendor.district().code()));
         }
         return List.copyOf(markers);
     }

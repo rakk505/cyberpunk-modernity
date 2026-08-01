@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "cyberdeck:block/ammo_cache" },
+    "facing=east": { "model": "cyberdeck:block/ammo_cache", "y": 90 },
+    "facing=south": { "model": "cyberdeck:block/ammo_cache", "y": 180 },
+    "facing=west": { "model": "cyberdeck:block/ammo_cache", "y": 270 }
+  }
+}

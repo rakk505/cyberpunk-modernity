@@ -87,6 +87,8 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
             SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Boolean> DATA_TRAUMA_TEAM =
             SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Boolean> DATA_EXCISION =
+            SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.BOOLEAN);
 
     private static final int WEAPON_GLITCH_NONE = 0;
     private static final int WEAPON_GLITCH_FIDDLING = 1;
@@ -146,12 +148,15 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
     private float detectionRemainder;
     /** The point this soldier patrols around; set on spawn. Null falls back to the current position. */
     private net.minecraft.core.BlockPos homePos;
+    private List<BlockPos> patrolRoute = List.of();
     /** Grenades remaining to throw; 0 means this soldier was not issued any. */
     private int grenadeCount;
     /** Which grenade variant this soldier lobs. */
     private com.example.cyberdeck.weapon.GrenadeType grenadeType =
             com.example.cyberdeck.weapon.GrenadeType.INCENDIARY;
     private UUID traumaTargetId;
+    private boolean traumaAllowsCreative;
+    private UUID excisionTargetId;
 
     public FactionEnemy(EntityType<? extends FactionEnemy> type, Level level) {
         super(type, level);
@@ -186,6 +191,7 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         entityData.define(DATA_TACTICAL_DIRECTION_Z, 0.0F);
         entityData.define(DATA_DETECTION, 0);
         entityData.define(DATA_TRAUMA_TEAM, false);
+        entityData.define(DATA_EXCISION, false);
     }
 
     @Override
@@ -207,8 +213,10 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         this.goalSelector.addGoal(2, new FilteredMeleeAttackGoal(
                 this, 1.35, true, this::isMeleeArmed));
         this.goalSelector.addGoal(3, new MeleeAttackGoal(this, 1.0, false));
-        // Idle behavior: patrol a fixed area around the spawn point instead of roaming freely.
-        this.goalSelector.addGoal(6, new PatrolAreaGoal(this, 0.8, this::getHome, PATROL_RADIUS));
+        // Authored mission routes take precedence; ordinary squads retain their bounded area patrol.
+        this.goalSelector.addGoal(6, new PatrolRouteGoal(this, 0.8));
+        this.goalSelector.addGoal(7, new PatrolAreaGoal(
+                this, 0.8, this::getHome, PATROL_RADIUS, () -> patrolRoute.isEmpty()));
         this.goalSelector.addGoal(8, new LookAtPlayerGoal(this, Player.class, 12.0f));
         this.goalSelector.addGoal(8, new RandomLookAroundGoal(this));
         // Retaliate if attacked even before detection completes.
@@ -233,6 +241,24 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         this.homePos = pos;
     }
 
+    public List<BlockPos> getPatrolRoute() {
+        return patrolRoute;
+    }
+
+    public void setPatrolRoute(List<BlockPos> waypoints) {
+        if (waypoints == null || waypoints.isEmpty()) {
+            patrolRoute = List.of();
+            this.getNavigation().stop();
+            return;
+        }
+        patrolRoute = waypoints.stream()
+                .filter(java.util.Objects::nonNull)
+                .limit(32)
+                .map(BlockPos::immutable)
+                .toList();
+        this.getNavigation().stop();
+    }
+
     public boolean isTriggered() {
         return this.getEntityData().get(DATA_TRIGGERED);
     }
@@ -241,10 +267,49 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         return this.getEntityData().get(DATA_TRAUMA_TEAM);
     }
 
+    public boolean isExcision() {
+        return this.getEntityData().get(DATA_EXCISION);
+    }
+
+    public boolean isExcisionTarget(UUID playerId) {
+        return isExcision() && playerId.equals(excisionTargetId);
+    }
+
+    @Override
+    protected LivingEntity asValidTarget(LivingEntity target) {
+        if (target instanceof Player player
+                && player.isAlive()
+                && !player.isSpectator()
+                && (isExcisionTarget(player.getUUID())
+                || isTraumaTeam() && traumaAllowsCreative
+                        && player.getUUID().equals(traumaTargetId))) {
+            return target;
+        }
+        return super.asValidTarget(target);
+    }
+
     /** Makes this responder persistent and permanently hostile to the requesting player's attacker. */
-    public void deployAsTraumaTeam(net.minecraft.server.level.ServerPlayer target) {
+    public void deployAsTraumaTeam(
+            net.minecraft.server.level.ServerPlayer target, boolean allowCreative) {
         this.getEntityData().set(DATA_TRAUMA_TEAM, true);
+        this.getEntityData().set(DATA_EXCISION, false);
         this.traumaTargetId = target.getUUID();
+        this.traumaAllowsCreative = allowCreative;
+        this.excisionTargetId = null;
+        this.setPersistenceRequired();
+        this.setTriggered(true);
+        this.setDetection(DETECTION_THRESHOLD);
+        this.setTarget(target);
+        this.setAggressive(true);
+    }
+
+    /** Marks this soldier as an Excision agent assigned to one wanted player. */
+    public void deployAsExcision(net.minecraft.server.level.ServerPlayer target) {
+        this.getEntityData().set(DATA_EXCISION, true);
+        this.getEntityData().set(DATA_TRAUMA_TEAM, false);
+        this.excisionTargetId = target.getUUID();
+        this.traumaTargetId = null;
+        this.traumaAllowsCreative = false;
         this.setPersistenceRequired();
         this.setTriggered(true);
         this.setDetection(DETECTION_THRESHOLD);
@@ -343,8 +408,10 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
             tickGunReload(level);
         }
         tickTacticalManeuver(level);
-        if (isTraumaTeam()) {
-            maintainTraumaAggro(level);
+        if (isExcision()) {
+            maintainAssignedAggro(level, excisionTargetId, true);
+        } else if (isTraumaTeam()) {
+            maintainAssignedAggro(level, traumaTargetId, traumaAllowsCreative);
         } else {
             accumulateDetection(level);
         }
@@ -354,27 +421,32 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         // --- END throwable-distraction hook ---
     }
 
-    private void maintainTraumaAggro(ServerLevel level) {
+    private void maintainAssignedAggro(ServerLevel level, UUID assignedTargetId,
+                                       boolean allowCreative) {
         LivingEntity current = this.getTarget();
-        if (current != null && traumaTargetId != null
-                && current.getUUID().equals(traumaTargetId) && current.isAlive()
+        if (current != null && assignedTargetId != null
+                && current.getUUID().equals(assignedTargetId) && current.isAlive()
                 && (!(current instanceof Player player)
-                || !player.isCreative() && !player.isSpectator())) {
+                || (allowCreative || !player.isCreative()) && !player.isSpectator())) {
             setTriggered(true);
             setDetection(DETECTION_THRESHOLD);
             this.setAggressive(true);
             return;
         }
-        if (traumaTargetId == null) {
+        if (assignedTargetId == null) {
             return;
         }
         net.minecraft.server.level.ServerPlayer target =
-                level.getServer().getPlayerList().getPlayer(traumaTargetId);
-        if (target != null && target.isAlive() && !target.isCreative() && !target.isSpectator()) {
+                level.getServer().getPlayerList().getPlayer(assignedTargetId);
+        if (target != null && target.isAlive()
+                && (allowCreative || !target.isCreative()) && !target.isSpectator()) {
             this.setTarget(target);
             setTriggered(true);
             setDetection(DETECTION_THRESHOLD);
             this.setAggressive(true);
+        } else {
+            this.setTarget(null);
+            this.setAggressive(false);
         }
     }
 
@@ -1078,8 +1150,13 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         output.putInt("Detection", getDetection());
         output.putBoolean("Triggered", isTriggered());
         output.putBoolean("TraumaTeam", isTraumaTeam());
+        output.putBoolean("TraumaAllowsCreative", traumaAllowsCreative);
+        output.putBoolean("Excision", isExcision());
         if (traumaTargetId != null) {
             output.putString("TraumaTarget", traumaTargetId.toString());
+        }
+        if (excisionTargetId != null) {
+            output.putString("ExcisionTarget", excisionTargetId.toString());
         }
         output.putInt("Grenades", grenadeCount);
         output.putLong("GunReloadStartTick", getGunReloadStartTick());
@@ -1098,6 +1175,9 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
             output.putInt("HomeY", homePos.getY());
             output.putInt("HomeZ", homePos.getZ());
         }
+        if (!patrolRoute.isEmpty()) {
+            output.putString("PatrolRoute", encodePatrolRoute(patrolRoute));
+        }
     }
 
     @Override
@@ -1114,13 +1194,23 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         setTriggered(input.getBooleanOr("Triggered", false));
         boolean traumaTeam = input.getBooleanOr("TraumaTeam", false);
         this.getEntityData().set(DATA_TRAUMA_TEAM, traumaTeam);
+        traumaAllowsCreative = traumaTeam
+                && input.getBooleanOr("TraumaAllowsCreative", false);
+        boolean excision = input.getBooleanOr("Excision", false);
+        this.getEntityData().set(DATA_EXCISION, excision);
         String traumaTarget = input.getStringOr("TraumaTarget", "");
         try {
             traumaTargetId = traumaTarget.isEmpty() ? null : UUID.fromString(traumaTarget);
         } catch (IllegalArgumentException ignored) {
             traumaTargetId = null;
         }
-        if (traumaTeam) {
+        String excisionTarget = input.getStringOr("ExcisionTarget", "");
+        try {
+            excisionTargetId = excisionTarget.isEmpty() ? null : UUID.fromString(excisionTarget);
+        } catch (IllegalArgumentException ignored) {
+            excisionTargetId = null;
+        }
+        if (traumaTeam || excision) {
             this.setPersistenceRequired();
         }
         grenadeCount = input.getIntOr("Grenades", 0);
@@ -1154,6 +1244,38 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
                     input.getIntOr("HomeY", 0),
                     input.getIntOr("HomeZ", 0));
         }
+        patrolRoute = decodePatrolRoute(input.getStringOr("PatrolRoute", ""));
+    }
+
+    public static String encodePatrolRoute(List<BlockPos> route) {
+        return route.stream()
+                .map(pos -> pos.getX() + "," + pos.getY() + "," + pos.getZ())
+                .collect(java.util.stream.Collectors.joining(";"));
+    }
+
+    public static List<BlockPos> decodePatrolRoute(String encoded) {
+        if (encoded == null || encoded.isBlank()) {
+            return List.of();
+        }
+        java.util.ArrayList<BlockPos> route = new java.util.ArrayList<>();
+        for (String waypoint : encoded.split(";")) {
+            if (route.size() >= 32) {
+                break;
+            }
+            String[] coordinates = waypoint.split(",", -1);
+            if (coordinates.length != 3) {
+                continue;
+            }
+            try {
+                route.add(new BlockPos(
+                        Integer.parseInt(coordinates[0]),
+                        Integer.parseInt(coordinates[1]),
+                        Integer.parseInt(coordinates[2])));
+            } catch (NumberFormatException ignored) {
+                // Ignore one malformed waypoint without discarding the remaining saved route.
+            }
+        }
+        return List.copyOf(route);
     }
 
     // =====================================================================================

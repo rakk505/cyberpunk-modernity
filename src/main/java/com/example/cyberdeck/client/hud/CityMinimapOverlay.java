@@ -20,8 +20,9 @@ import net.neoforged.neoforge.client.gui.GuiLayer;
  * Heading-locked live city minimap centered on the player during normal gameplay.
  *
  * <p>The map rotates with the player's orientation so the player arrow always points up, and a
- * compass ring around the map renders live N/S/E/W markers. Visibility and merchant markers can be
- * toggled at runtime via {@link MinimapClientState}.</p>
+ * compass ring around the map renders live N/S/E/W markers. The selected route, endpoint, and
+ * district merchant signals are overlaid. Visibility can be toggled at runtime via
+ * {@link MinimapClientState}.</p>
  */
 public final class CityMinimapOverlay implements GuiLayer {
     private static final double WORLD_SPAN = 1_200.0;

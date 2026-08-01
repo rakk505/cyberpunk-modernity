@@ -9,6 +9,7 @@ import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.phys.AABB;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.tick.EntityTickEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 
@@ -34,6 +35,7 @@ public final class CyberwareTickHandler {
         }
 
         CyberwareEffects.tickPlayer(player);
+        DoubleJumpGuard.tick(player);
         SandevistanMechanics.tick(player);
         tickSandevistanPlayerSlow(player);
         tickOpticalCamo(player);
@@ -67,9 +69,22 @@ public final class CyberwareTickHandler {
     @SubscribeEvent
     public void onLogin(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
+            // Recover a scanner session left active by a server/client crash before touching any
+            // other equipment-derived state.
+            com.example.cyberdeck.CyberdeckState.recover(player);
             // Re-assert passive modifiers so a reloaded loadout is correctly reflected.
             SandevistanMechanics.deactivateForSessionBoundary(player);
             CyberwarePassives.reapply(player);
+        }
+    }
+
+    /** Put real items back before vanilla evaluates keep-inventory and death drops. */
+    @SubscribeEvent
+    public void onPlayerDeath(LivingDeathEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            com.example.cyberdeck.CyberdeckState.recover(player);
+            com.example.cyberdeck.skill.QuickhackUploads.cancel(player);
+            DoubleJumpGuard.forget(player.getUUID());
         }
     }
 
@@ -81,6 +96,7 @@ public final class CyberwareTickHandler {
             com.example.cyberdeck.skill.QuickhackUploads.forget(player.getUUID());
             SandevistanMechanics.deactivateForSessionBoundary(player);
             ActiveAbilities.forget(player.getUUID());
+            DoubleJumpGuard.forget(player.getUUID());
             LegSpeed.forget(player.getUUID());
             CyberwareEffects.forget(player.getUUID());
         }
@@ -90,6 +106,8 @@ public final class CyberwareTickHandler {
     public void onRespawn(PlayerEvent.PlayerRespawnEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
             com.example.cyberdeck.skill.QuickhackUploads.cancel(player);
+            com.example.cyberdeck.CyberdeckState.recover(player);
+            DoubleJumpGuard.forget(player.getUUID());
             // copyOnDeath keeps the data; make sure passives are re-applied to the new entity.
             SandevistanMechanics.deactivateForSessionBoundary(player);
             CyberwarePassives.reapply(player);
@@ -99,6 +117,7 @@ public final class CyberwareTickHandler {
     @SubscribeEvent
     public void onServerStopping(net.neoforged.neoforge.event.server.ServerStoppingEvent event) {
         com.example.cyberdeck.skill.QuickhackUploads.clearAll();
+        DoubleJumpGuard.clearAll();
     }
 
     private void tickSandevistanPlayerSlow(ServerPlayer player) {

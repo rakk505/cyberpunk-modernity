@@ -66,7 +66,8 @@ public final class CityMapNavigationClient {
         requestPending = false;
         lastPacket = packet;
         if (packet.available()) {
-            boolean samePlan = snapshot != null
+            boolean hadSnapshot = snapshot != null;
+            boolean samePlan = hadSnapshot
                     && snapshot.layoutSeed() == packet.layoutSeed()
                     && snapshot.fingerprint().equals(packet.generatorFingerprint());
             MegacityLayout layout = MegacityLayout.createFromLayoutSeed(packet.layoutSeed());
@@ -76,7 +77,11 @@ public final class CityMapNavigationClient {
                     CityMapProjection.extent(layout),
                     packet.layoutSeed(),
                     packet.generatorFingerprint());
-            if (!samePlan) clearWaypoint();
+            if (hadSnapshot && !samePlan) {
+                clearWaypoint();
+            } else {
+                reconcileMarkerWaypoint(packet);
+            }
             CityMapTextureCache.prepare(packet);
             rebuildRoute(Minecraft.getInstance());
         } else {
@@ -87,7 +92,9 @@ public final class CityMapNavigationClient {
 
         boolean shouldOpen = packet.forceOpen() || openRequested;
         openRequested = false;
-        if (shouldOpen) CityMapScreen.open(packet);
+        if (shouldOpen || Minecraft.getInstance().gui.screen() instanceof CityMapScreen) {
+            CityMapScreen.open(packet);
+        }
     }
 
     public static void setWaypoint(int worldX, int worldZ) {
@@ -96,14 +103,15 @@ public final class CityMapNavigationClient {
             MegacityLayout.Location location = snapshot.layout().locateDistrict(worldX, worldZ);
             if (location.insideCity()) district = location.district().ordinal();
         }
-        waypoint = new Waypoint(worldX, worldZ, district, "", false);
+        waypoint = new Waypoint(worldX, worldZ, district, "", null, "");
         route = EMPTY_ROUTE;
         rebuildRoute(Minecraft.getInstance());
     }
 
     public static void setWaypoint(OpenCityMapPacket.Marker marker) {
         waypoint = new Waypoint(
-                marker.x(), marker.z(), marker.districtOrdinal(), marker.labelKey(), true);
+                marker.x(), marker.z(), marker.districtOrdinal(), marker.labelKey(),
+                marker.kind(), marker.referenceId());
         route = EMPTY_ROUTE;
         rebuildRoute(Minecraft.getInstance());
     }
@@ -111,7 +119,8 @@ public final class CityMapNavigationClient {
     public static void setMissionWaypoint(
             int worldX, int worldZ, int districtOrdinal, String title) {
         waypoint = new Waypoint(
-                worldX, worldZ, districtOrdinal, "literal:" + title, true);
+                worldX, worldZ, districtOrdinal, "literal:" + title,
+                OpenCityMapPacket.MarkerKind.ACTIVE_MISSION, "");
         route = EMPTY_ROUTE;
         rebuildRoute(Minecraft.getInstance());
     }
@@ -161,6 +170,39 @@ public final class CityMapNavigationClient {
         return waypoint == null ? 0.0 : Math.hypot(waypoint.x() - worldX, waypoint.z() - worldZ);
     }
 
+    /** Returns whether a fresh server marker is the source of this marker-backed waypoint. */
+    public static boolean matchesWaypoint(
+            OpenCityMapPacket.Marker marker, Waypoint candidate) {
+        if (marker == null || candidate == null || !candidate.marker()
+                || marker.kind() != candidate.kind()) {
+            return false;
+        }
+        if (!candidate.referenceId().isBlank()) {
+            return candidate.referenceId().equals(marker.referenceId());
+        }
+        // There can only be one active contract marker. Its target may move from the provisional
+        // district location to the selected building when deployment completes.
+        if (candidate.kind() == OpenCityMapPacket.MarkerKind.ACTIVE_MISSION) return true;
+        return marker.x() == candidate.x()
+                && marker.z() == candidate.z()
+                && marker.labelKey().equals(candidate.labelKey());
+    }
+
+    private static void reconcileMarkerWaypoint(OpenCityMapPacket packet) {
+        if (waypoint == null || !waypoint.marker()) return;
+        OpenCityMapPacket.Marker refreshed = packet.markers().stream()
+                .filter(marker -> matchesWaypoint(marker, waypoint))
+                .findFirst().orElse(null);
+        if (refreshed == null) {
+            clearWaypoint();
+            return;
+        }
+        waypoint = new Waypoint(
+                refreshed.x(), refreshed.z(), refreshed.districtOrdinal(), refreshed.labelKey(),
+                refreshed.kind(), refreshed.referenceId());
+        route = EMPTY_ROUTE;
+    }
+
     public record Snapshot(
             OpenCityMapPacket packet,
             MegacityLayout layout,
@@ -174,6 +216,15 @@ public final class CityMapNavigationClient {
             int z,
             int districtOrdinal,
             String labelKey,
-            boolean marker) {
+            OpenCityMapPacket.MarkerKind kind,
+            String referenceId) {
+        public Waypoint {
+            labelKey = labelKey == null ? "" : labelKey;
+            referenceId = referenceId == null ? "" : referenceId;
+        }
+
+        public boolean marker() {
+            return kind != null;
+        }
     }
 }

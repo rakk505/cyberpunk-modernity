@@ -4,6 +4,7 @@ import com.example.cyberdeck.Cyberdeck;
 import com.example.cyberdeck.client.hud.MinimapClientState;
 import com.example.cyberdeck.client.map.CityMapNavigationClient;
 import com.example.cyberdeck.client.mission.MissionTrackerClient;
+import com.example.cyberdeck.client.mission.GigJournalClient;
 import com.example.cyberdeck.cyberware.CyberwareAttachments;
 import com.example.cyberdeck.effect.CyberwareEffects;
 import com.example.cyberdeck.healing.HealingConsumable;
@@ -16,6 +17,7 @@ import com.example.cyberdeck.movement.TacticalAction;
 import com.example.cyberdeck.movement.TacticalMovement;
 import com.example.cyberdeck.movement.TacticalMovementPacket;
 import net.minecraft.client.Minecraft;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.neoforged.api.distmarker.Dist;
@@ -48,7 +50,7 @@ public final class CyberdeckClientEvents {
             quickhackUseLatched = false;
         }
         while (CyberdeckClient.QUEUE_QUICKHACK_KEY.consumeClick()) {
-            if (!QuickhackScannerClient.isActive() || mc.player == null) {
+            if (!QuickhackScannerClient.isQuickhacking() || mc.player == null) {
                 continue;
             }
             if (mc.options.keySwapOffhand.same(CyberdeckClient.QUEUE_QUICKHACK_KEY)) {
@@ -73,6 +75,12 @@ public final class CyberdeckClientEvents {
         while (CyberdeckClient.OPEN_CITY_MAP_KEY.consumeClick()) {
             if (mc.gui.screen() == null) {
                 CityMapNavigationClient.requestOpen();
+            }
+        }
+
+        while (CyberdeckClient.OPEN_JOURNAL_KEY.consumeClick()) {
+            if (mc.gui.screen() == null) {
+                com.example.cyberdeck.client.screen.JournalScreen.open();
             }
         }
 
@@ -102,18 +110,19 @@ public final class CyberdeckClientEvents {
 
         // The owner-synced cyberware attachment keeps TAB available when no cyberdeck OS is installed.
         while (CyberdeckClient.TOGGLE_KEY.consumeClick()) {
-            if (CyberwareEffects.canQuickhack(CyberwareAttachments.get(mc.player))) {
+            var cyberware = CyberwareAttachments.get(mc.player);
+            if (CyberwareEffects.canQuickhack(cyberware) || CyberwareEffects.canScan(cyberware)) {
                 ClientPacketDistributor.sendToServer(new ToggleInterfacePacket());
             }
         }
 
         while (CyberdeckClient.PREVIOUS_QUICKHACK_KEY.consumeClick()) {
-            if (QuickhackScannerClient.isActive()) {
+            if (QuickhackScannerClient.isQuickhacking()) {
                 QuickhackScannerClient.cycle(mc.player, -1);
             }
         }
         while (CyberdeckClient.NEXT_QUICKHACK_KEY.consumeClick()) {
-            if (QuickhackScannerClient.isActive()) {
+            if (QuickhackScannerClient.isQuickhacking()) {
                 QuickhackScannerClient.cycle(mc.player, 1);
             }
         }
@@ -159,10 +168,9 @@ public final class CyberdeckClientEvents {
             }
         }
 
-        // Stealth takedown: F is shared with the quickhack queue key, so only act when the scanner
-        // is not active AND a valid crouch-behind target exists. The server re-validates the kill.
+        // Stealth takedown: F is reserved only by full quickhacking, not by the read-only scanner.
         while (CyberdeckClient.STEALTH_TAKEDOWN_KEY.consumeClick()) {
-            if (QuickhackScannerClient.isActive()) {
+            if (QuickhackScannerClient.isQuickhacking()) {
                 continue;
             }
             com.example.cyberdeck.faction.FactionEnemy takedownTarget =
@@ -235,7 +243,7 @@ public final class CyberdeckClientEvents {
         if (mc.player == null) {
             return;
         }
-        if (!QuickhackScannerClient.isActive()) {
+        if (!QuickhackScannerClient.isQuickhacking()) {
             return;
         }
         if (!quickhackUseLatched) {
@@ -263,9 +271,21 @@ public final class CyberdeckClientEvents {
                 || layer.equals(VanillaGuiLayers.CONTEXTUAL_INFO_BAR_BACKGROUND)
                 || layer.equals(VanillaGuiLayers.EXPERIENCE_LEVEL)
                 || layer.equals(VanillaGuiLayers.CONTEXTUAL_INFO_BAR)
-                || layer.equals(VanillaGuiLayers.TAB_LIST)) {
+                || layer.equals(VanillaGuiLayers.TAB_LIST)
+                || isScannerSuppressedLayer(layer)) {
             event.setCanceled(true);
         }
+    }
+
+    private static boolean isScannerSuppressedLayer(Identifier layer) {
+        return layer.equals(Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "city_minimap"))
+                || layer.equals(Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "mission_tracker"))
+                || layer.equals(Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "wanted_hud"))
+                || layer.equals(Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "ammo_hud"))
+                || layer.equals(Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "healing_hud"))
+                || layer.equals(Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "smart_lock"))
+                || layer.equals(Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "detection_meter"))
+                || layer.equals(Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "stealth_takedown"));
     }
 
     @SubscribeEvent
@@ -276,9 +296,13 @@ public final class CyberdeckClientEvents {
         HealingConsumableClient.reset();
         CityMapNavigationClient.reset();
         MissionTrackerClient.reset();
+        GigJournalClient.reset();
     }
 
     private static boolean queueSelectedQuickhack(Minecraft minecraft) {
+        if (!QuickhackScannerClient.isQuickhacking()) {
+            return false;
+        }
         LivingEntity target = QuickhackScannerClient.actionTarget(minecraft.level);
         if (target == null) {
             return false;

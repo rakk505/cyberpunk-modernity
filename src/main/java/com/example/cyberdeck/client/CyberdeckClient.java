@@ -3,12 +3,14 @@ package com.example.cyberdeck.client;
 import com.example.cyberdeck.Cyberdeck;
 import com.example.cyberdeck.client.hud.AmmoHudOverlay;
 import com.example.cyberdeck.client.hud.HealingHudOverlay;
-import com.example.cyberdeck.client.hud.MissionTrackerOverlay;
 import com.example.cyberdeck.client.hud.CityMinimapOverlay;
+import com.example.cyberdeck.client.hud.MissionTrackerOverlay;
 import com.example.cyberdeck.client.hud.QuickhackScannerOverlay;
+import com.example.cyberdeck.client.hud.QuickhackUploadOverlay;
 import com.example.cyberdeck.client.hud.SmartLockOverlay;
 import com.example.cyberdeck.client.hud.DetectionHudOverlay;
 import com.example.cyberdeck.client.hud.StealthTakedownOverlay;
+import com.example.cyberdeck.client.hud.WantedHudOverlay;
 import com.example.cyberdeck.client.gun.GenericGunClientExtension;
 import com.example.cyberdeck.client.movement.TacticalPlayerAnimations;
 import com.example.cyberdeck.client.render.FactionEnemyRenderer;
@@ -50,7 +52,7 @@ public final class CyberdeckClient {
     public static final KeyMapping.Category CATEGORY =
             new KeyMapping.Category(Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "main"));
 
-    // Bound to TAB by default. Toggles the scanner when a cyberdeck OS is installed.
+    // Bound to TAB by default. Toggles quickhacking for a deck or read-only scanning for optics.
     public static final KeyMapping TOGGLE_KEY = new KeyMapping(
             "key.cyberdeck.toggle",
             InputConstants.Type.KEYSYM,
@@ -70,6 +72,14 @@ public final class CyberdeckClient {
             KeyConflictContext.IN_GAME,
             InputConstants.Type.KEYSYM,
             GLFW.GLFW_KEY_M,
+            CATEGORY);
+
+    // Opens the accepted-contract journal (default I).
+    public static final KeyMapping OPEN_JOURNAL_KEY = new KeyMapping(
+            "key.cyberdeck.open_journal",
+            KeyConflictContext.IN_GAME,
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_I,
             CATEGORY);
 
     // Sandevistan (default T).
@@ -214,6 +224,9 @@ public final class CyberdeckClient {
         event.registerAbove(VanillaGuiLayers.EFFECTS,
                 Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "mission_tracker"),
                 new MissionTrackerOverlay());
+        event.registerAbove(VanillaGuiLayers.EFFECTS,
+                Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "wanted_hud"),
+                new WantedHudOverlay());
         event.registerAbove(VanillaGuiLayers.HOTBAR,
                 Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "ammo_hud"),
                 new AmmoHudOverlay());
@@ -223,9 +236,13 @@ public final class CyberdeckClient {
         event.registerAbove(VanillaGuiLayers.CROSSHAIR,
                 Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "smart_lock"),
                 new SmartLockOverlay());
-        event.registerAbove(VanillaGuiLayers.EFFECTS,
-                Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "quickhack_scanner"),
+        Identifier quickhackScanner =
+                Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "quickhack_scanner");
+        event.registerAbove(VanillaGuiLayers.EFFECTS, quickhackScanner,
                 new QuickhackScannerOverlay());
+        event.registerAbove(quickhackScanner,
+                Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "quickhack_upload"),
+                new QuickhackUploadOverlay());
         // Track B (Combat AI): stealth detection meter above the crosshair.
         event.registerAbove(VanillaGuiLayers.CROSSHAIR,
                 Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "detection_meter"),
@@ -263,6 +280,7 @@ public final class CyberdeckClient {
         event.register(TOGGLE_KEY);
         event.register(OPEN_CYBERWARE_KEY);
         event.register(OPEN_CITY_MAP_KEY);
+        event.register(OPEN_JOURNAL_KEY);
         event.register(SANDEVISTAN_KEY);
         event.register(ARM_CANNON_KEY);
         event.register(THRETEVAC_KEY);

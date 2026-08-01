@@ -3,16 +3,24 @@ package com.example.cyberdeck;
 import com.mojang.authlib.GameProfile;
 import com.example.cyberdeck.city.CityWorlds;
 import com.example.cyberdeck.city.CityActorJoinCompatibility;
+import com.example.cyberdeck.city.AmmoCacheBlock;
+import com.example.cyberdeck.city.BlackLootCacheBlockEntity;
+import com.example.cyberdeck.city.CityLootBlocks;
+import com.example.cyberdeck.city.CityLootGeneration;
+import com.example.cyberdeck.client.map.MerchantMarkerClient;
 import com.example.cyberdeck.client.map.MinimapGeometry;
 import com.example.cyberdeck.cyberware.BodySlot;
 import com.example.cyberdeck.cyberware.Cyberware;
+import com.example.cyberdeck.cyberware.CyberwareAttachments;
 import com.example.cyberdeck.cyberware.CyberwareData;
 import com.example.cyberdeck.cyberware.CyberwareItems;
+import com.example.cyberdeck.cyberware.CyberwareItem;
 import com.example.cyberdeck.cyberware.SandevistanProfile;
 import com.example.cyberdeck.cyberware.SlotUnlock;
 import com.example.cyberdeck.effect.SandevistanMechanics;
 import com.example.cyberdeck.effect.SandevistanState;
 import com.example.cyberdeck.effect.CyberwareEffects;
+import com.example.cyberdeck.effect.DoubleJumpGuard;
 import com.example.cyberdeck.defense.DefenseContent;
 import com.example.cyberdeck.defense.KangTaoTurret;
 import com.example.cyberdeck.faction.FactionEnemy;
@@ -30,11 +38,18 @@ import com.example.cyberdeck.npc.GunshotAlerts;
 import com.example.cyberdeck.npc.NpcRole;
 import com.example.cyberdeck.trauma.TraumaTeamEvents;
 import com.example.cyberdeck.player.StreetCredState;
+import com.example.cyberdeck.skill.QuickhackUploads;
+import com.example.cyberdeck.skill.Skill;
+import com.example.cyberdeck.ram.RamAttachments;
 import com.example.cyberdeck.movement.TacticalAction;
 import com.example.cyberdeck.movement.TacticalMovement;
 import com.example.cyberdeck.movement.TacticalMovementState;
 import com.example.cyberdeck.weapon.GunType;
 import com.example.cyberdeck.weapon.GunItem;
+import com.example.cyberdeck.weapon.AmmoItem;
+import com.example.cyberdeck.weapon.AmmoItems;
+import com.example.cyberdeck.weapon.AmmoType;
+import dev.modernity.neoncity.MegacityLayout;
 import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.HashSet;
 import java.util.List;
@@ -56,6 +71,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
@@ -66,6 +82,7 @@ import net.minecraft.world.entity.player.Input;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.pathfinder.PathType;
 import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.Rotation;
@@ -161,6 +178,21 @@ public final class CyberdeckGameTests {
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             TRAUMA_TEAM_LIFECYCLE = register(
                     "trauma_team_lifecycle", CyberdeckGameTests::traumaTeamLifecycle);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            QUICKHACK_LONG_RANGE = register(
+                    "quickhack_long_range", CyberdeckGameTests::quickhackLongRange);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            QUICKHACK_MULTI_TARGET = register(
+                    "quickhack_multi_target", CyberdeckGameTests::quickhackMultiTarget);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            QUICKHACK_HOTBAR_RECOVERY = register(
+                    "quickhack_hotbar_recovery", CyberdeckGameTests::quickhackHotbarRecovery);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            DOUBLE_JUMP_PACKET_GUARD = register(
+                    "double_jump_packet_guard", CyberdeckGameTests::doubleJumpPacketGuard);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            CITY_LOOT_CACHES = register(
+                    "city_loot_caches", CyberdeckGameTests::cityLootCaches);
 
     private CyberdeckGameTests() {
     }
@@ -296,6 +328,18 @@ public final class CyberdeckGameTests {
                         == viewport
                         && MinimapGeometry.rotatedTwoCornerScissorWidth(viewport, 45.0) < 1.0E-9,
                 "rotated two-corner scissors must remain forbidden: they collapse at 45 degrees");
+        MegacityLayout layout = MegacityLayout.create(0x4D45524348414E54L);
+        List<MerchantMarkerClient.Marker> merchantMarkers = MerchantMarkerClient.markers(layout);
+        helper.assertTrue(merchantMarkers.size() == layout.nodes().size(),
+                "live minimap must retain one merchant signal per city district");
+        for (int index = 0; index < merchantMarkers.size(); index++) {
+            MegacityLayout.Node node = layout.nodes().get(index);
+            MerchantMarkerClient.Marker marker = merchantMarkers.get(index);
+            helper.assertTrue(marker.x() == node.x()
+                            && marker.z() == node.z()
+                            && marker.districtCode().equals(node.district().code()),
+                    "merchant minimap marker drifted from its district node");
+        }
         helper.succeed();
     }
 
@@ -372,6 +416,10 @@ public final class CyberdeckGameTests {
 
     private static void traumaTeamLifecycle(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
+        helper.assertTrue(TraumaTeamEvents.EXEC_BOARDING_WAIT_TICKS == 3_000,
+                "Exec boarding hold must last exactly 2.5 minutes");
+        helper.assertTrue(TraumaTeamEvents.MAX_LANDED_TICKS == 6_000,
+                "a landed aerodyne must have a bounded five-minute lifecycle");
         var cyberdeckCommand = level.getServer().getCommands().getDispatcher()
                 .getRoot().getChild("cyberdeck");
         helper.assertTrue(cyberdeckCommand != null
@@ -382,9 +430,22 @@ public final class CyberdeckGameTests {
                 helper.setBlock(new BlockPos(x, 1, z), Blocks.STONE);
             }
         }
+        helper.setBlock(new BlockPos(5, 1, 5), Blocks.AIR);
         BlockPos landing = helper.absolutePos(new BlockPos(16, 2, 10));
+        BlockPos underbodyObstruction = new BlockPos(16, 4, 10);
+        helper.setBlock(underbodyObstruction, Blocks.STONE);
+        helper.assertTrue(!TraumaTeamEvents.hasLandingClearance(level, landing, 2),
+                "Aerodyne clearance must reject blocks in the three-block hover gap");
+        helper.setBlock(underbodyObstruction, Blocks.AIR);
+        BlockPos hullObstruction = new BlockPos(16, 5, 10);
+        helper.setBlock(hullObstruction, Blocks.STONE);
+        helper.assertTrue(!TraumaTeamEvents.hasLandingClearance(level, landing, 2),
+                "Aerodyne clearance must reject blocks inside the full structure volume");
+        helper.setBlock(hullObstruction, Blocks.AIR);
+        BlockPos approachObstruction = new BlockPos(16, 14, 10);
+        helper.setBlock(approachObstruction, Blocks.STONE);
         helper.assertTrue(TraumaTeamEvents.hasLandingClearance(level, landing, 2),
-                "prepared Trauma Team arena must accept the aerodyne footprint");
+                "landing clearance must allow uneven ground and ignore overhead approach blocks");
 
         CityNpc exec = CityNpcEntities.CITY_NPC.get().create(level, EntitySpawnReason.COMMAND);
         helper.assertTrue(exec != null, "Exec factory failed for Trauma Team lifecycle");
@@ -400,7 +461,7 @@ public final class CyberdeckGameTests {
 
         ServerPlayer player = makeSurvivalServerPlayerInLevel(helper);
         player.addEffect(new MobEffectInstance(
-                MobEffects.RESISTANCE, 20 * 10, 4, false, false));
+                MobEffects.RESISTANCE, 20 * 20, 4, false, false));
         BlockPos playerPos = helper.absolutePos(new BlockPos(1, 2, 1));
         player.snapTo(playerPos.getX() + 0.5, playerPos.getY(), playerPos.getZ() + 0.5,
                 0.0F, 0.0F);
@@ -429,14 +490,22 @@ public final class CyberdeckGameTests {
         helper.assertTrue(!aerodyne.get().save(new CompoundTag())
                         .getListOrEmpty("blocks").isEmpty(),
                 "native Trauma Team aerodyne template has no placeable blocks");
-        helper.assertTrue(TraumaTeamEvents.requestAt(level, exec, player, landing, 2),
-                "Trauma Team request did not start with a valid native aerodyne template");
+        player.setGameMode(GameType.CREATIVE);
+        helper.assertTrue(TraumaTeamEvents.isCommandTargetEligible(player),
+                "/cyberdeck trauma must accept a living creative-mode target");
+        helper.assertFalse(TraumaTeamEvents.isAutomaticTargetEligible(player),
+                "automatic Trauma Team targeting must ignore creative-mode players");
+        helper.assertTrue(TraumaTeamEvents.requestAt(level, exec, player, landing, 2, 80, 20),
+                "creative-mode Trauma Team request did not start with a valid aerodyne template");
+
+        int[] deployedResponders = {0};
 
         helper.runAfterDelay(12, () -> {
             helper.assertTrue(TraumaTeamEvents.phaseFor(level, execId)
                             == TraumaTeamEvents.Phase.LANDED,
                     "aerodyne did not finish its animated descent");
             int count = TraumaTeamEvents.responderCount(level, execId);
+            deployedResponders[0] = count;
             helper.assertTrue(count >= TraumaTeamEvents.MIN_RESPONDERS
                             && count <= TraumaTeamEvents.MAX_RESPONDERS,
                     "Trauma Team must deploy 4-5 responders, got " + count);
@@ -447,34 +516,230 @@ public final class CyberdeckGameTests {
             helper.assertTrue(responders.stream().allMatch(responder ->
                             responder.isTriggered()
                                     && responder.getTarget() == player
-                                    && responder.getMainHandItem().getItem() instanceof GunItem),
-                    "responders must arrive armed and immediately target the player");
+                                    && responder.getMainHandItem().getItem() instanceof GunItem
+                                    && !responder.isInvulnerable()),
+                    "responders must arrive armed, killable, and immediately target the player");
+            helper.assertTrue(player.isCreative(),
+                    "creative command target changed mode before responder aggro was verified");
+            player.setGameMode(GameType.SURVIVAL);
+            helper.assertTrue(helper.getBlockState(approachObstruction).is(Blocks.STONE),
+                    "adaptive descent must not overwrite an overhead approach block");
 
             BlockPos pickup = landing.offset(0, 0, TraumaTeamEvents.AERODYNE_LENGTH / 2 + 2);
             exec.snapTo(pickup.getX() + 0.5, pickup.getY(), pickup.getZ() + 0.5,
                     0.0F, 0.0F);
         });
 
-        helper.runAfterDelay(32, () -> {
+        helper.runAfterDelay(16, () -> {
+            helper.assertTrue(TraumaTeamEvents.phaseFor(level, execId)
+                            == TraumaTeamEvents.Phase.BOARDING,
+                    "Exec did not enter the visible boarding hold beside the aerodyne");
+            helper.assertTrue(exec.isAlive() && !exec.isEvacuating() && !exec.isInvulnerable(),
+                    "boarding Exec must remain present, stationary, and killable");
+            List<FactionEnemy> responders = level.getEntitiesOfClass(
+                    FactionEnemy.class, new AABB(landing).inflate(48.0),
+                    responder -> responder.isTraumaTeam() && responder.isAlive());
+            helper.assertTrue(!responders.isEmpty(),
+                    "boarding event lost all Trauma Team responders unexpectedly");
+            FactionEnemy casualty = responders.getFirst();
+            casualty.setHealth(1.0F);
+            helper.assertTrue(casualty.hurtServer(
+                            level, level.damageSources().playerAttack(player), 100.0F)
+                            && !casualty.isAlive(),
+                    "Trauma Team responder could not be killed during boarding");
+        });
+
+        helper.runAfterDelay(28, () -> {
+            helper.assertTrue(TraumaTeamEvents.phaseFor(level, execId)
+                            == TraumaTeamEvents.Phase.BOARDING
+                            && level.getEntity(execId) != null,
+                    "aerodyne extracted the Exec before the boarding hold elapsed");
+        });
+
+        helper.runAfterDelay(38, () -> {
+            TraumaTeamEvents.Phase phase = TraumaTeamEvents.phaseFor(level, execId);
+            helper.assertTrue(phase == TraumaTeamEvents.Phase.ASCENDING || phase == null,
+                    "aerodyne remained landed after the boarding hold elapsed");
+            helper.assertTrue(level.getEntity(execId) == null,
+                    "successfully boarded Exec must leave the world at lift-off");
+        });
+
+        UUID[] strandedExecId = {null};
+        CityNpc[] strandedExec = {null};
+        helper.runAfterDelay(48, () -> {
             helper.assertTrue(TraumaTeamEvents.activeEventCount(level) == 0,
                     "aerodyne did not lift off and clear after successful extraction");
-            helper.assertTrue(level.getEntity(execId) == null,
-                    "successfully extracted Exec must leave the world with the aerodyne");
             List<FactionEnemy> survivors = level.getEntitiesOfClass(
-                    FactionEnemy.class, new AABB(landing).inflate(64.0), FactionEnemy::isTraumaTeam);
-            helper.assertTrue(survivors.size() >= TraumaTeamEvents.MIN_RESPONDERS,
+                    FactionEnemy.class, new AABB(landing).inflate(64.0),
+                    responder -> responder.isTraumaTeam() && responder.isAlive());
+            helper.assertTrue(survivors.size() >= deployedResponders[0] - 1,
                     "surviving Trauma Team members must remain after lift-off");
             helper.assertTrue(survivors.stream().allMatch(responder ->
                             responder.isTriggered() && responder.getTarget() == player),
                     "remaining responders must stay aggroed onto the player");
+
+            CityNpc stranded = CityNpcEntities.CITY_NPC.get().create(
+                    level, EntitySpawnReason.COMMAND);
+            helper.assertTrue(stranded != null,
+                    "Exec factory failed for responder-wipe Trauma Team lifecycle");
+            if (stranded == null) {
+                return;
+            }
+            stranded.snapTo(execStart.getX() + 0.5, execStart.getY(), execStart.getZ() + 0.5,
+                    0.0F, 0.0F);
+            stranded.setRole(NpcRole.EXEC);
+            stranded.setPersistenceRequired();
+            helper.assertTrue(level.addFreshEntity(stranded),
+                    "could not add responder-wipe Trauma Team Exec");
+            strandedExec[0] = stranded;
+            strandedExecId[0] = stranded.getUUID();
+            helper.assertTrue(TraumaTeamEvents.requestAt(
+                            level, stranded, player, landing, 2, 80, 20),
+                    "could not start responder-wipe Trauma Team event");
+        });
+
+        helper.runAfterDelay(60, () -> {
+            helper.assertTrue(TraumaTeamEvents.phaseFor(level, strandedExecId[0])
+                            == TraumaTeamEvents.Phase.LANDED,
+                    "second aerodyne did not land for the responder-wipe lifecycle");
+            BlockPos pickup = landing.offset(0, 0, TraumaTeamEvents.AERODYNE_LENGTH / 2 + 2);
+            strandedExec[0].snapTo(
+                    pickup.getX() + 0.5, pickup.getY(), pickup.getZ() + 0.5, 0.0F, 0.0F);
+        });
+
+        helper.runAfterDelay(64, () -> {
+            helper.assertTrue(TraumaTeamEvents.phaseFor(level, strandedExecId[0])
+                            == TraumaTeamEvents.Phase.BOARDING,
+                    "second Exec did not enter the boarding hold");
+            List<FactionEnemy> responders = level.getEntitiesOfClass(
+                    FactionEnemy.class, new AABB(landing).inflate(128.0),
+                    responder -> responder.isTraumaTeam() && responder.isAlive());
+            helper.assertTrue(responders.size() >= TraumaTeamEvents.MIN_RESPONDERS,
+                    "responder-wipe lifecycle did not deploy a full Trauma Team");
+            for (FactionEnemy responder : responders) {
+                responder.setHealth(1.0F);
+                helper.assertTrue(responder.hurtServer(
+                                level, level.damageSources().playerAttack(player), 100.0F)
+                                && !responder.isAlive(),
+                        "Trauma Team responder survived the wipe setup");
+            }
+            helper.assertTrue(strandedExec[0].isAlive(),
+                    "responder wipe unexpectedly killed the boarding Exec");
+        });
+
+        helper.runAfterDelay(67, () -> {
+            helper.assertTrue(TraumaTeamEvents.phaseFor(level, strandedExecId[0])
+                            == TraumaTeamEvents.Phase.ASCENDING,
+                    "full responder wipe did not trigger the normal ascent immediately");
+            helper.assertTrue(strandedExec[0].isAlive()
+                            && level.getEntity(strandedExecId[0]) != null
+                            && !strandedExec[0].isEvacuating(),
+                    "responder-wipe departure must leave the living Exec behind");
+        });
+
+        UUID[] doomedExecId = {null};
+        CityNpc[] doomedExec = {null};
+        helper.runAfterDelay(82, () -> {
+            helper.assertTrue(TraumaTeamEvents.activeEventCount(level) == 0,
+                    "responder-wipe aerodyne did not finish its ascent");
+            strandedExec[0].discard();
+
+            CityNpc doomed = CityNpcEntities.CITY_NPC.get().create(
+                    level, EntitySpawnReason.COMMAND);
+            helper.assertTrue(doomed != null,
+                    "Exec factory failed for death-triggered Trauma Team lifecycle");
+            if (doomed == null) {
+                return;
+            }
+            doomed.snapTo(execStart.getX() + 0.5, execStart.getY(), execStart.getZ() + 0.5,
+                    0.0F, 0.0F);
+            doomed.setRole(NpcRole.EXEC);
+            doomed.setPersistenceRequired();
+            helper.assertTrue(level.addFreshEntity(doomed),
+                    "could not add death-triggered Trauma Team Exec");
+            doomedExec[0] = doomed;
+            doomedExecId[0] = doomed.getUUID();
+            helper.assertTrue(TraumaTeamEvents.requestAt(
+                            level, doomed, player, landing, 2, 80, 20),
+                    "could not start death-triggered Trauma Team event");
+        });
+
+        helper.runAfterDelay(94, () -> {
+            helper.assertTrue(TraumaTeamEvents.phaseFor(level, doomedExecId[0])
+                            == TraumaTeamEvents.Phase.LANDED,
+                    "third aerodyne did not land for the death-triggered lifecycle");
+            BlockPos pickup = landing.offset(0, 0, TraumaTeamEvents.AERODYNE_LENGTH / 2 + 2);
+            doomedExec[0].snapTo(
+                    pickup.getX() + 0.5, pickup.getY(), pickup.getZ() + 0.5, 0.0F, 0.0F);
+        });
+
+        helper.runAfterDelay(98, () -> {
+            CityNpc doomed = doomedExec[0];
+            helper.assertTrue(TraumaTeamEvents.phaseFor(level, doomedExecId[0])
+                            == TraumaTeamEvents.Phase.BOARDING,
+                    "third Exec did not enter the boarding hold");
+            doomed.setHealth(1.0F);
+            helper.assertTrue(doomed.hurtServer(
+                            level, level.damageSources().playerAttack(player), 100.0F)
+                            && !doomed.isAlive(),
+                    "boarding Exec could not be killed");
+        });
+
+        helper.runAfterDelay(101, () -> {
+            helper.assertTrue(TraumaTeamEvents.phaseFor(level, doomedExecId[0])
+                            == TraumaTeamEvents.Phase.ASCENDING,
+                    "Exec death did not trigger the normal ascent immediately");
+        });
+
+        UUID[] descentDeathExecId = {null};
+        helper.runAfterDelay(116, () -> {
+            helper.assertTrue(TraumaTeamEvents.activeEventCount(level) == 0,
+                    "death-triggered aerodyne did not finish its ascent");
+
+            CityNpc descending = CityNpcEntities.CITY_NPC.get().create(
+                    level, EntitySpawnReason.COMMAND);
+            helper.assertTrue(descending != null,
+                    "Exec factory failed for descent-death Trauma Team lifecycle");
+            if (descending == null) {
+                return;
+            }
+            descending.snapTo(
+                    execStart.getX() + 0.5, execStart.getY(), execStart.getZ() + 0.5,
+                    0.0F, 0.0F);
+            descending.setRole(NpcRole.EXEC);
+            descending.setPersistenceRequired();
+            helper.assertTrue(level.addFreshEntity(descending),
+                    "could not add descent-death Trauma Team Exec");
+            descentDeathExecId[0] = descending.getUUID();
+            helper.assertTrue(TraumaTeamEvents.requestAt(
+                            level, descending, player, landing, 2, 80, 20),
+                    "could not start descent-death Trauma Team event");
+            descending.setHealth(1.0F);
+            helper.assertTrue(descending.hurtServer(
+                            level, level.damageSources().playerAttack(player), 100.0F)
+                            && !descending.isAlive(),
+                    "descending Trauma Team Exec could not be killed");
+        });
+
+        helper.runAfterDelay(118, () -> {
+            helper.assertTrue(TraumaTeamEvents.phaseFor(level, descentDeathExecId[0])
+                            == TraumaTeamEvents.Phase.ASCENDING,
+                    "Exec death during descent did not reverse the aerodyne immediately");
+        });
+
+        helper.runAfterDelay(130, () -> {
+            helper.assertTrue(TraumaTeamEvents.activeEventCount(level) == 0,
+                    "descent-death aerodyne did not finish its ascent");
             for (int x = 5; x <= 27; x++) {
-                for (int y = 2; y <= 10; y++) {
+                for (int y = 2; y <= 13; y++) {
                     for (int z = 5; z <= 15; z++) {
                         helper.assertTrue(helper.getBlockState(new BlockPos(x, y, z)).isAir(),
                                 "lift-off left an aerodyne block behind at " + x + "," + y + "," + z);
                     }
                 }
             }
+            helper.assertTrue(helper.getBlockState(approachObstruction).is(Blocks.STONE),
+                    "lift-off must preserve the overhead approach block");
             disconnectTestPlayer(player);
             helper.succeed();
         });
@@ -489,16 +754,12 @@ public final class CyberdeckGameTests {
                 helper.getLevel().getServer(),
                 helper.getLevel(),
                 cookie.gameProfile(),
-                cookie.clientInformation()) {
-            @Override
-            public GameType gameMode() {
-                return GameType.SURVIVAL;
-            }
-        };
+                cookie.clientInformation());
         GameType.SURVIVAL.updatePlayerAbilities(player.getAbilities());
         Connection connection = new Connection(PacketFlow.SERVERBOUND);
         new EmbeddedChannel(connection);
         helper.getLevel().getServer().getPlayerList().placeNewPlayer(connection, player, cookie);
+        player.setGameMode(GameType.SURVIVAL);
         return player;
     }
 
@@ -762,6 +1023,272 @@ public final class CyberdeckGameTests {
                 "85% player slow should map to Slowness VI");
         helper.assertTrue(SandevistanMechanics.slownessAmplifier(0.20) == 0,
                 "20% player slow should map to Slowness I");
+        helper.succeed();
+    }
+
+    private static void quickhackLongRange(GameTestHelper helper) {
+        helper.assertTrue(QuickhackUploads.MAX_TARGET_RANGE >= 128.0,
+                "quickhacks must reach at least eight chunks");
+        helper.assertTrue(QuickhackUploads.MAX_TARGET_RANGE <= 192.0,
+                "quickhack reach must stay within practical entity tracking distance");
+        helper.succeed();
+    }
+
+    private static void quickhackMultiTarget(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        ServerPlayer player = makeSurvivalServerPlayerInLevel(helper);
+        Cyberware deck = Cyberware.byId("arasaka_mk_1_5_t1");
+        helper.assertTrue(deck != null, "test cyberdeck must exist");
+        if (deck == null) {
+            return;
+        }
+
+        CyberwareData loadout = new CyberwareData();
+        loadout.install(deck, 0);
+        player.setData(CyberwareAttachments.CYBERWARE.get(), loadout);
+        RamAttachments.set(player, RamAttachments.MAX_RAM);
+
+        BlockPos playerPos = helper.absolutePos(new BlockPos(1, 2, 1));
+        player.snapTo(playerPos.getX() + 0.5, playerPos.getY(), playerPos.getZ() + 0.5,
+                0.0F, 0.0F);
+        var first = helper.spawn(EntityTypes.ZOMBIE, new BlockPos(3, 2, 1));
+        var second = helper.spawn(EntityTypes.ZOMBIE, new BlockPos(5, 2, 1));
+        CyberdeckState.setActive(player, true);
+
+        QuickhackUploads.EnqueueResult firstResult = QuickhackUploads.enqueue(
+                player, Skill.OVERHEAT, first, level);
+        QuickhackUploads.EnqueueResult secondResult = QuickhackUploads.enqueue(
+                player, Skill.SHORT_CIRCUIT, second, level);
+        helper.assertTrue(firstResult.accepted() && secondResult.accepted(),
+                "different enemies must accept concurrent quickhack uploads");
+        helper.assertValueEqual(QuickhackUploads.activeTargetCount(player), 2,
+                "independent quickhack target count");
+        helper.assertTrue(QuickhackUploads.uploadEndTick(player, first.getId())
+                        != QuickhackUploads.uploadEndTick(player, second.getId()),
+                "different quickhacks must retain their own upload completion times");
+
+        QuickhackUploads.cancel(player);
+        CyberdeckState.deactivate(player);
+        disconnectTestPlayer(player);
+        helper.succeed();
+    }
+
+    private static void quickhackHotbarRecovery(GameTestHelper helper) {
+        FakePlayer player = new FakePlayer(
+                helper.getLevel(), new GameProfile(UUID.randomUUID(), "hotbar_recovery_test"));
+        Cyberware deck = Cyberware.byId("arasaka_mk_1_5_t1");
+        helper.assertTrue(deck != null, "test cyberdeck must exist");
+        if (deck == null) {
+            return;
+        }
+
+        CyberwareData loadout = new CyberwareData();
+        loadout.install(deck, 0);
+        player.setData(CyberwareAttachments.CYBERWARE.get(), loadout);
+        player.getInventory().setItem(0,
+                new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND, 7));
+        player.getInventory().setItem(4,
+                new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.REDSTONE, 23));
+        CyberdeckState.setActive(player, true);
+
+        QuickhackHotbar stashed = player.getData(QuickhackAttachments.STASHED_HOTBAR.get());
+        helper.assertTrue(QuickhackAttachments.isQuickhacking(player)
+                        && !QuickhackAttachments.isScanning(player),
+                "a cyberdeck must open the full quickhack interface, not scan-only mode");
+        helper.assertTrue(stashed.present() && stashed.items().size() == QuickhackHotbar.SIZE,
+                "scanner activation must create a complete durable hotbar snapshot");
+        var ops = helper.getLevel().registryAccess().createSerializationContext(
+                com.mojang.serialization.JsonOps.INSTANCE);
+        var encoded = QuickhackHotbar.MAP_CODEC.codec().encodeStart(ops, stashed)
+                .getOrThrow(message -> helper.assertionException(Component.literal(message)));
+        QuickhackHotbar decoded = QuickhackHotbar.MAP_CODEC.codec().parse(ops, encoded)
+                .getOrThrow(message -> helper.assertionException(Component.literal(message)));
+
+        // Simulate a save/reload where the active marker was lost but the durable stash survived.
+        player.setData(QuickhackAttachments.STASHED_HOTBAR.get(), decoded);
+        player.getPersistentData().putBoolean("cyberdeck_active", false);
+        CyberdeckState.recover(player);
+        helper.assertTrue(player.getInventory().getItem(0).is(net.minecraft.world.item.Items.DIAMOND)
+                        && player.getInventory().getItem(0).getCount() == 7,
+                "slot zero must survive scanner crash recovery");
+        helper.assertTrue(player.getInventory().getItem(4).is(net.minecraft.world.item.Items.REDSTONE)
+                        && player.getInventory().getItem(4).getCount() == 23,
+                "slot four must survive scanner crash recovery");
+        helper.assertFalse(player.getData(QuickhackAttachments.STASHED_HOTBAR.get()).present(),
+                "successful recovery must clear the durable stash");
+
+        Cyberware optics = Cyberware.byId("basic_kiroshi_optics_t1");
+        Cyberware faceplate = Cyberware.byId("behavioral_imprint_synced_faceplate_t5");
+        helper.assertTrue(optics != null && faceplate != null,
+                "scanner capability test cyberware must exist");
+        if (optics == null || faceplate == null) {
+            return;
+        }
+
+        CyberwareData opticsOnly = new CyberwareData();
+        opticsOnly.install(optics, 0);
+        helper.assertTrue(CyberwareEffects.canScan(opticsOnly)
+                        && !CyberwareEffects.canQuickhack(opticsOnly),
+                "ocular implants must scan without granting quickhacks");
+        player.setData(CyberwareAttachments.CYBERWARE.get(), opticsOnly);
+        CyberdeckState.setScannerActive(player, true);
+        helper.assertTrue(CyberdeckState.isScanOnlyActive(player)
+                        && CyberdeckState.isScannerActive(player)
+                        && !CyberdeckState.isActive(player),
+                "eye-only loadouts must enter read-only scanner mode");
+        helper.assertTrue(QuickhackAttachments.isScanning(player)
+                        && !QuickhackAttachments.isQuickhacking(player)
+                        && !player.getData(QuickhackAttachments.STASHED_HOTBAR.get()).present(),
+                "scan-only mode must not create a quickhack hotbar session");
+        helper.assertTrue(player.getInventory().getItem(0).is(net.minecraft.world.item.Items.DIAMOND)
+                        && player.getInventory().getItem(0).getCount() == 7
+                        && player.getInventory().getItem(4).is(net.minecraft.world.item.Items.REDSTONE)
+                        && player.getInventory().getItem(4).getCount() == 23,
+                "scan-only activation must leave the real hotbar untouched");
+        CyberdeckState.deactivate(player);
+        helper.assertTrue(player.getInventory().getItem(0).is(net.minecraft.world.item.Items.DIAMOND)
+                        && player.getInventory().getItem(4).is(net.minecraft.world.item.Items.REDSTONE),
+                "scan-only deactivation must preserve the real hotbar");
+
+        CyberwareData faceplateOnly = new CyberwareData();
+        faceplateOnly.install(faceplate, 0);
+        helper.assertFalse(CyberwareEffects.canScan(faceplateOnly),
+                "the identity faceplate must not count as an ocular scanner");
+        helper.succeed();
+    }
+
+    private static void doubleJumpPacketGuard(GameTestHelper helper) {
+        helper.assertFalse(DoubleJumpGuard.canConsume(true, 20, false, 0L, 100L),
+                "physical ground support must reject a double-jump packet");
+        helper.assertFalse(DoubleJumpGuard.canConsume(false, 1, false, 0L, 100L),
+                "a packet cannot invent the required airborne interval");
+        helper.assertTrue(DoubleJumpGuard.canConsume(false,
+                        DoubleJumpGuard.MIN_AIRBORNE_TICKS, false, 90L, 100L),
+                "one legitimate airborne double jump must be accepted");
+        helper.assertFalse(DoubleJumpGuard.canConsume(false, 200, true, 0L, 1000L),
+                "the same airborne cycle must stay consumed even after its cooldown");
+        helper.assertFalse(DoubleJumpGuard.canConsume(false, 20, false, 110L, 100L),
+                "a newly grounded cycle must still respect the server cooldown");
+        helper.succeed();
+    }
+
+    private static void cityLootCaches(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos blackPosition = helper.absolutePos(new BlockPos(1, 2, 1));
+        level.setBlock(blackPosition,
+                CityLootBlocks.BLACK_LOOT_CACHE.get().defaultBlockState(),
+                net.minecraft.world.level.block.Block.UPDATE_ALL);
+        helper.assertTrue(level.getBlockEntity(blackPosition)
+                        instanceof BlackLootCacheBlockEntity,
+                "black cache must create its persistent inventory block entity");
+        if (!(level.getBlockEntity(blackPosition) instanceof BlackLootCacheBlockEntity cache)) {
+            return;
+        }
+        CityLootGeneration.populate(cache, RandomSource.create(0xCAFE));
+        boolean hasGun = false;
+        boolean hasCyberware = false;
+        int rewards = 0;
+        for (int slot = 0; slot < cache.getContainerSize(); slot++) {
+            ItemStack stack = cache.getItem(slot);
+            if (stack.isEmpty()) {
+                continue;
+            }
+            rewards++;
+            hasGun |= stack.getItem() instanceof GunItem;
+            hasCyberware |= stack.getItem() instanceof CyberwareItem;
+        }
+        helper.assertValueEqual(cache.getContainerSize(), 54, "black cache inventory size");
+        helper.assertTrue(hasGun && hasCyberware,
+                "every black cache must guarantee at least one gun and one cyberware item");
+        helper.assertTrue(rewards >= 3 && rewards <= 5,
+                "black cache must contain the guaranteed pair plus one to three extras");
+
+        for (AmmoType type : AmmoType.values()) {
+            ItemStack ammo = new ItemStack(AmmoItems.item(type).get());
+            helper.assertValueEqual(ammo.getMaxStackSize(), AmmoItem.MAX_STACK_SIZE,
+                    type.itemId() + " max stack size");
+            helper.assertValueEqual(ammo.getMaxStackSize(), 500,
+                    type.itemId() + " requested stack size");
+        }
+
+        FakePlayer stackPlayer = new FakePlayer(
+                level, new GameProfile(UUID.randomUUID(), "ammo_stack_test"));
+        ItemStack firstAmmo = new ItemStack(AmmoItems.item(AmmoType.HANDGUN).get(), 450);
+        ItemStack secondAmmo = new ItemStack(AmmoItems.item(AmmoType.HANDGUN).get(), 50);
+        helper.assertTrue(stackPlayer.getInventory().add(firstAmmo)
+                        && firstAmmo.isEmpty()
+                        && stackPlayer.getInventory().add(secondAmmo)
+                        && secondAmmo.isEmpty(),
+                "player inventory must accept a complete 500-round ammo stack");
+        helper.assertValueEqual(stackPlayer.getInventory().getItem(0).getCount(), 500,
+                "merged ammo count in one inventory slot");
+        long occupiedAmmoSlots = stackPlayer.getInventory().getNonEquipmentItems().stream()
+                .filter(stack -> stack.is(AmmoItems.item(AmmoType.HANDGUN).get()))
+                .count();
+        helper.assertValueEqual(occupiedAmmoSlots, 1L,
+                "500 rounds must occupy exactly one inventory slot");
+        var itemOps = level.registryAccess().createSerializationContext(
+                net.minecraft.nbt.NbtOps.INSTANCE);
+        var encodedAmmo = ItemStack.CODEC.encodeStart(
+                        itemOps, stackPlayer.getInventory().getItem(0))
+                .getOrThrow(message -> helper.assertionException(Component.literal(message)));
+        ItemStack decodedAmmo = ItemStack.CODEC.parse(itemOps, encodedAmmo)
+                .getOrThrow(message -> helper.assertionException(Component.literal(message)));
+        helper.assertTrue(decodedAmmo.is(AmmoItems.item(AmmoType.HANDGUN).get())
+                        && decodedAmmo.getCount() == 500,
+                "a 500-round stack must survive the inventory persistence codec");
+
+        FakePlayer player = new FakePlayer(
+                level, new GameProfile(UUID.randomUUID(), "ammo_cache_test"));
+        BlockPos ammoPosition = helper.absolutePos(new BlockPos(3, 2, 1));
+        BlockState ammoState = CityLootBlocks.AMMO_CACHE.get().defaultBlockState();
+        level.setBlock(ammoPosition, ammoState,
+                net.minecraft.world.level.block.Block.UPDATE_ALL);
+
+        // Exercise the same BlockState hook used by a real left-click packet.
+        ammoState.attack(level, ammoPosition, player);
+        AmmoType rewardType = null;
+        int rewardAmount = 0;
+        for (AmmoType type : AmmoType.values()) {
+            int count = AmmoItems.count(player, type);
+            if (count > 0) {
+                helper.assertTrue(rewardType == null,
+                        "one ammo cache must grant exactly one ammunition type");
+                rewardType = type;
+                rewardAmount = count;
+            }
+        }
+        helper.assertTrue(rewardType != null,
+                "the first left-click attack hook must produce ammunition");
+        helper.assertTrue(rewardAmount >= AmmoCacheBlock.MIN_REWARD
+                        && rewardAmount <= AmmoCacheBlock.MAX_REWARD
+                        && rewardAmount % AmmoCacheBlock.REWARD_STEP == 0,
+                "ammo cache reward must stay inside the configured stepped range");
+        helper.assertBlockPresent(Blocks.AIR, new BlockPos(3, 2, 1));
+        ammoState.attack(level, ammoPosition, player);
+        int roundsAfterDuplicateAttack = 0;
+        for (AmmoType type : AmmoType.values()) {
+            roundsAfterDuplicateAttack += AmmoItems.count(player, type);
+        }
+        helper.assertValueEqual(roundsAfterDuplicateAttack, rewardAmount,
+                "a consumed ammo cache must reject duplicate left-click packets");
+
+        HashSet<CityLootGeneration.CacheKind> generatedKinds = new HashSet<>();
+        for (int x = -24; x <= 24; x++) {
+            for (int z = -24; z <= 24; z++) {
+                CityLootGeneration.CacheKind first = CityLootGeneration.cacheKind(1234L, x, z);
+                CityLootGeneration.CacheKind second = CityLootGeneration.cacheKind(1234L, x, z);
+                helper.assertTrue(first == second,
+                        "cache generation decisions must be deterministic per chunk");
+                if (first != null) {
+                    generatedKinds.add(first);
+                }
+            }
+        }
+        helper.assertTrue(generatedKinds.containsAll(List.of(
+                        CityLootGeneration.CacheKind.BLACK_LOOT,
+                        CityLootGeneration.CacheKind.AMMO)),
+                "the city generation pass must emit both cache variants");
         helper.succeed();
     }
 
@@ -1095,7 +1622,7 @@ public final class CyberdeckGameTests {
 
     /**
      * Feature 4: cyberpsychos are rebalanced. Their live attributes must match the tuned-down
-     * health/armour band and their self-heal must recharge 3x slower than the original cadence.
+     * health/armour band and their self-heal must stay sharply below the original values.
      */
     private static void cyberpsychoBalance(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
@@ -1107,26 +1634,28 @@ public final class CyberdeckGameTests {
         }
         helper.assertTrue(
                 psycho.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH)
-                        == 110.0,
-                "cyberpsycho max health must be rebalanced to 110");
+                        == 75.0,
+                "cyberpsycho max health must be rebalanced to 75");
         helper.assertTrue(
                 psycho.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ARMOR)
-                        == 10.0,
-                "cyberpsycho armour must be rebalanced to 10");
+                        == 7.0,
+                "cyberpsycho armour must be rebalanced to 7");
         helper.assertTrue(
                 psycho.getAttributeValue(
                                 net.minecraft.world.entity.ai.attributes.Attributes.ARMOR_TOUGHNESS)
-                        == 4.0,
-                "cyberpsycho armour toughness must be rebalanced to 4");
+                        == 2.0,
+                "cyberpsycho armour toughness must be rebalanced to 2");
 
         int healRecharge = cyberpsychoHealRecharge(helper);
-        helper.assertTrue(healRecharge == 300,
-                "cyberpsycho self-heal must recharge every 300 ticks (3x the original 100)");
+        helper.assertTrue(healRecharge == 400,
+                "cyberpsycho self-heal must recharge every 400 ticks");
+        helper.assertTrue(cyberpsychoHealAmount(helper) == 1.0F,
+                "cyberpsycho blood pump must restore only one health point");
         psycho.discard();
         helper.succeed();
     }
 
-    /** Reads the private HEAL_RECHARGE_TICKS constant so the 3x nerf stays locked in. */
+    /** Reads the private heal cadence so the balance regression stays locked in. */
     private static int cyberpsychoHealRecharge(GameTestHelper helper) {
         try {
             java.lang.reflect.Field field = com.example.cyberdeck.faction.CyberpsychoEntity.class
@@ -1136,6 +1665,18 @@ public final class CyberdeckGameTests {
         } catch (ReflectiveOperationException exception) {
             helper.fail("cyberpsycho heal recharge constant is missing: " + exception.getMessage());
             return -1;
+        }
+    }
+
+    private static float cyberpsychoHealAmount(GameTestHelper helper) {
+        try {
+            java.lang.reflect.Field field = com.example.cyberdeck.faction.CyberpsychoEntity.class
+                    .getDeclaredField("HEAL_AMOUNT");
+            field.setAccessible(true);
+            return field.getFloat(null);
+        } catch (ReflectiveOperationException exception) {
+            helper.fail("cyberpsycho heal amount is missing: " + exception.getMessage());
+            return -1.0F;
         }
     }
 
@@ -1608,6 +2149,11 @@ public final class CyberdeckGameTests {
         registerInstance(event, "street_cred_persistence", STREET_CRED_PERSISTENCE, data);
         registerInstance(event, "minimap_rotation_geometry", MINIMAP_ROTATION_GEOMETRY, data);
         registerInstance(event, "npc_roles_and_drops", NPC_ROLES_AND_DROPS, data);
+        registerInstance(event, "quickhack_long_range", QUICKHACK_LONG_RANGE, data);
+        registerInstance(event, "quickhack_multi_target", QUICKHACK_MULTI_TARGET, data);
+        registerInstance(event, "quickhack_hotbar_recovery", QUICKHACK_HOTBAR_RECOVERY, data);
+        registerInstance(event, "double_jump_packet_guard", DOUBLE_JUMP_PACKET_GUARD, data);
+        registerInstance(event, "city_loot_caches", CITY_LOOT_CACHES, data);
 
         TestData<Holder<TestEnvironmentDefinition<?>>> traumaArena = new TestData<>(
                 environment,

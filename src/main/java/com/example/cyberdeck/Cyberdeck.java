@@ -5,6 +5,7 @@ import com.example.cyberdeck.cyberware.CyberwareItems;
 import com.example.cyberdeck.defense.DefenseContent;
 import com.example.cyberdeck.defense.KangTaoTurret;
 import com.example.cyberdeck.city.CityActorJoinCompatibility;
+import com.example.cyberdeck.city.CityLootBlocks;
 import com.example.cyberdeck.faction.FactionEnemy;
 import com.example.cyberdeck.faction.CyberpsychoEntity;
 import com.example.cyberdeck.faction.FactionEntities;
@@ -25,6 +26,9 @@ import com.example.cyberdeck.weapon.SmartLockState;
 import com.example.cyberdeck.weapon.WeaponComponents;
 import com.example.cyberdeck.weapon.WeaponEntities;
 import com.example.cyberdeck.weapon.WeaponItems;
+import com.example.cyberdeck.wanted.WantedState;
+import com.example.cyberdeck.wanted.WantedGameTests;
+import com.example.cyberdeck.wanted.WantedSystem;
 import com.mojang.logging.LogUtils;
 import dev.modernity.neoncity.ProjectMoonCityModule;
 import dev.modernity.neoncity.MissionBlocks;
@@ -52,6 +56,7 @@ public class Cyberdeck {
         TacticalMovement.ATTACHMENT_TYPES.register(modEventBus);
         HealingState.ATTACHMENT_TYPES.register(modEventBus);
         StreetCredState.ATTACHMENT_TYPES.register(modEventBus);
+        WantedState.ATTACHMENT_TYPES.register(modEventBus);
         DefenseContent.register(modEventBus);
 
         // Guns, ammo, grenades, ballistic armor and their entities.
@@ -65,9 +70,11 @@ public class Cyberdeck {
         FactionEntities.ENTITY_TYPES.register(modEventBus);
         CityNpcEntities.ENTITY_TYPES.register(modEventBus);
         CyberdeckGameTests.bootstrap(modEventBus);
+        WantedGameTests.bootstrap(modEventBus);
         QuicktimeBlocks.register(modEventBus);
         MissionBlocks.register(modEventBus);
         ProjectMoonCityModule.bootstrap(modEventBus);
+        CityLootBlocks.register(modEventBus);
 
         modEventBus.addListener(CyberdeckNetwork::register);
         modEventBus.addListener(CyberdeckItems::addCreative);
@@ -87,6 +94,7 @@ public class Cyberdeck {
         NeoForge.EVENT_BUS.register(new com.example.cyberdeck.combat.ThrowableDistraction());
         NeoForge.EVENT_BUS.register(new CityNpcSpawns());
         NeoForge.EVENT_BUS.register(new com.example.cyberdeck.trauma.TraumaTeamEvents());
+        NeoForge.EVENT_BUS.register(new WantedSystem());
         NeoForge.EVENT_BUS.register(new CityActorJoinCompatibility());
         NeoForge.EVENT_BUS.register(new com.example.cyberdeck.city.CityBuilder());
     }

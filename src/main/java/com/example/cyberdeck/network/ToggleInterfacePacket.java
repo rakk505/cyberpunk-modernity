@@ -9,7 +9,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 /**
- * Sent when the player presses the scanner toggle with a cyberdeck OS installed.
+ * Sent when the player presses the scanner toggle with a cyberdeck or ocular implant installed.
  */
 public record ToggleInterfacePacket() implements CustomPacketPayload {
     public static final Type<ToggleInterfacePacket> TYPE =
