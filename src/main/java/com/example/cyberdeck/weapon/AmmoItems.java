@@ -14,7 +14,7 @@ import java.util.Map;
 
 /**
  * Registers the three ammunition items and provides inventory helpers for counting and consuming
- * them. Ammo is plain stackable {@link Item}s; guns look them up by {@link AmmoType}.
+ * them. Ammo stacks to 500 rounds; guns look items up by {@link AmmoType}.
  */
 public final class AmmoItems {
     public static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(Cyberdeck.MODID);
@@ -23,7 +23,7 @@ public final class AmmoItems {
 
     static {
         for (AmmoType type : AmmoType.values()) {
-            BY_TYPE.put(type, ITEMS.registerItem(type.itemId(), Item::new));
+            BY_TYPE.put(type, ITEMS.registerItem(type.itemId(), AmmoItem::new));
         }
     }
 

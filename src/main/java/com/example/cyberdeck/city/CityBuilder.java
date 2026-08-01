@@ -2,6 +2,7 @@ package com.example.cyberdeck.city;
 
 import com.example.cyberdeck.Cyberdeck;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.DyeColor;
@@ -233,6 +234,23 @@ public final class CityBuilder {
                         enqueueBuilding(level, template, settings, type, x, z);
                     }
                 }
+
+                // One deterministic street cache per city block. The western road provides a
+                // consistent clear strip, while the long cache aligns with the road instead of
+                // protruding into a building parcel.
+                CityLootGeneration.CacheKind cacheKind = rng.nextInt(3) == 0
+                        ? CityLootGeneration.CacheKind.BLACK_LOOT
+                        : CityLootGeneration.CacheKind.AMMO;
+                int cacheX = blockOriginX - 3;
+                int cacheZ = blockOriginZ + 8
+                        + rng.nextInt(Math.max(1, cityBlockSpan - 16));
+                long cacheSeed = rng.nextLong();
+                queue.add(() -> CityLootGeneration.place(
+                        level,
+                        new BlockPos(cacheX, GROUND_TOP_Y + 1, cacheZ),
+                        cacheKind,
+                        Direction.EAST,
+                        cacheSeed));
             }
         }
 

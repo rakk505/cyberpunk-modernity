@@ -3,12 +3,17 @@ package com.example.cyberdeck;
 import com.mojang.authlib.GameProfile;
 import com.example.cyberdeck.city.CityWorlds;
 import com.example.cyberdeck.city.CityActorJoinCompatibility;
+import com.example.cyberdeck.city.AmmoCacheBlock;
+import com.example.cyberdeck.city.BlackLootCacheBlockEntity;
+import com.example.cyberdeck.city.CityLootBlocks;
+import com.example.cyberdeck.city.CityLootGeneration;
 import com.example.cyberdeck.client.map.MinimapGeometry;
 import com.example.cyberdeck.cyberware.BodySlot;
 import com.example.cyberdeck.cyberware.Cyberware;
 import com.example.cyberdeck.cyberware.CyberwareAttachments;
 import com.example.cyberdeck.cyberware.CyberwareData;
 import com.example.cyberdeck.cyberware.CyberwareItems;
+import com.example.cyberdeck.cyberware.CyberwareItem;
 import com.example.cyberdeck.cyberware.SandevistanProfile;
 import com.example.cyberdeck.cyberware.SlotUnlock;
 import com.example.cyberdeck.effect.SandevistanMechanics;
@@ -38,6 +43,9 @@ import com.example.cyberdeck.movement.TacticalMovement;
 import com.example.cyberdeck.movement.TacticalMovementState;
 import com.example.cyberdeck.weapon.GunType;
 import com.example.cyberdeck.weapon.GunItem;
+import com.example.cyberdeck.weapon.AmmoItem;
+import com.example.cyberdeck.weapon.AmmoItems;
+import com.example.cyberdeck.weapon.AmmoType;
 import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.HashSet;
 import java.util.List;
@@ -59,6 +67,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
@@ -69,6 +78,7 @@ import net.minecraft.world.entity.player.Input;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.pathfinder.PathType;
 import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.Rotation;
@@ -176,6 +186,9 @@ public final class CyberdeckGameTests {
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             DOUBLE_JUMP_PACKET_GUARD = register(
                     "double_jump_packet_guard", CyberdeckGameTests::doubleJumpPacketGuard);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            CITY_LOOT_CACHES = register(
+                    "city_loot_caches", CyberdeckGameTests::cityLootCaches);
 
     private CyberdeckGameTests() {
     }
@@ -875,6 +888,126 @@ public final class CyberdeckGameTests {
                 "the same airborne cycle must stay consumed even after its cooldown");
         helper.assertFalse(DoubleJumpGuard.canConsume(false, 20, false, 110L, 100L),
                 "a newly grounded cycle must still respect the server cooldown");
+        helper.succeed();
+    }
+
+    private static void cityLootCaches(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos blackPosition = helper.absolutePos(new BlockPos(1, 2, 1));
+        level.setBlock(blackPosition,
+                CityLootBlocks.BLACK_LOOT_CACHE.get().defaultBlockState(),
+                net.minecraft.world.level.block.Block.UPDATE_ALL);
+        helper.assertTrue(level.getBlockEntity(blackPosition)
+                        instanceof BlackLootCacheBlockEntity,
+                "black cache must create its persistent inventory block entity");
+        if (!(level.getBlockEntity(blackPosition) instanceof BlackLootCacheBlockEntity cache)) {
+            return;
+        }
+        CityLootGeneration.populate(cache, RandomSource.create(0xCAFE));
+        boolean hasGun = false;
+        boolean hasCyberware = false;
+        int rewards = 0;
+        for (int slot = 0; slot < cache.getContainerSize(); slot++) {
+            ItemStack stack = cache.getItem(slot);
+            if (stack.isEmpty()) {
+                continue;
+            }
+            rewards++;
+            hasGun |= stack.getItem() instanceof GunItem;
+            hasCyberware |= stack.getItem() instanceof CyberwareItem;
+        }
+        helper.assertValueEqual(cache.getContainerSize(), 54, "black cache inventory size");
+        helper.assertTrue(hasGun && hasCyberware,
+                "every black cache must guarantee at least one gun and one cyberware item");
+        helper.assertTrue(rewards >= 3 && rewards <= 5,
+                "black cache must contain the guaranteed pair plus one to three extras");
+
+        for (AmmoType type : AmmoType.values()) {
+            ItemStack ammo = new ItemStack(AmmoItems.item(type).get());
+            helper.assertValueEqual(ammo.getMaxStackSize(), AmmoItem.MAX_STACK_SIZE,
+                    type.itemId() + " max stack size");
+            helper.assertValueEqual(ammo.getMaxStackSize(), 500,
+                    type.itemId() + " requested stack size");
+        }
+
+        FakePlayer stackPlayer = new FakePlayer(
+                level, new GameProfile(UUID.randomUUID(), "ammo_stack_test"));
+        ItemStack firstAmmo = new ItemStack(AmmoItems.item(AmmoType.HANDGUN).get(), 450);
+        ItemStack secondAmmo = new ItemStack(AmmoItems.item(AmmoType.HANDGUN).get(), 50);
+        helper.assertTrue(stackPlayer.getInventory().add(firstAmmo)
+                        && firstAmmo.isEmpty()
+                        && stackPlayer.getInventory().add(secondAmmo)
+                        && secondAmmo.isEmpty(),
+                "player inventory must accept a complete 500-round ammo stack");
+        helper.assertValueEqual(stackPlayer.getInventory().getItem(0).getCount(), 500,
+                "merged ammo count in one inventory slot");
+        long occupiedAmmoSlots = stackPlayer.getInventory().getNonEquipmentItems().stream()
+                .filter(stack -> stack.is(AmmoItems.item(AmmoType.HANDGUN).get()))
+                .count();
+        helper.assertValueEqual(occupiedAmmoSlots, 1L,
+                "500 rounds must occupy exactly one inventory slot");
+        var itemOps = level.registryAccess().createSerializationContext(
+                net.minecraft.nbt.NbtOps.INSTANCE);
+        var encodedAmmo = ItemStack.CODEC.encodeStart(
+                        itemOps, stackPlayer.getInventory().getItem(0))
+                .getOrThrow(message -> helper.assertionException(Component.literal(message)));
+        ItemStack decodedAmmo = ItemStack.CODEC.parse(itemOps, encodedAmmo)
+                .getOrThrow(message -> helper.assertionException(Component.literal(message)));
+        helper.assertTrue(decodedAmmo.is(AmmoItems.item(AmmoType.HANDGUN).get())
+                        && decodedAmmo.getCount() == 500,
+                "a 500-round stack must survive the inventory persistence codec");
+
+        FakePlayer player = new FakePlayer(
+                level, new GameProfile(UUID.randomUUID(), "ammo_cache_test"));
+        BlockPos ammoPosition = helper.absolutePos(new BlockPos(3, 2, 1));
+        BlockState ammoState = CityLootBlocks.AMMO_CACHE.get().defaultBlockState();
+        level.setBlock(ammoPosition, ammoState,
+                net.minecraft.world.level.block.Block.UPDATE_ALL);
+
+        // Exercise the same BlockState hook used by a real left-click packet.
+        ammoState.attack(level, ammoPosition, player);
+        AmmoType rewardType = null;
+        int rewardAmount = 0;
+        for (AmmoType type : AmmoType.values()) {
+            int count = AmmoItems.count(player, type);
+            if (count > 0) {
+                helper.assertTrue(rewardType == null,
+                        "one ammo cache must grant exactly one ammunition type");
+                rewardType = type;
+                rewardAmount = count;
+            }
+        }
+        helper.assertTrue(rewardType != null,
+                "the first left-click attack hook must produce ammunition");
+        helper.assertTrue(rewardAmount >= AmmoCacheBlock.MIN_REWARD
+                        && rewardAmount <= AmmoCacheBlock.MAX_REWARD
+                        && rewardAmount % AmmoCacheBlock.REWARD_STEP == 0,
+                "ammo cache reward must stay inside the configured stepped range");
+        helper.assertBlockPresent(Blocks.AIR, new BlockPos(3, 2, 1));
+        ammoState.attack(level, ammoPosition, player);
+        int roundsAfterDuplicateAttack = 0;
+        for (AmmoType type : AmmoType.values()) {
+            roundsAfterDuplicateAttack += AmmoItems.count(player, type);
+        }
+        helper.assertValueEqual(roundsAfterDuplicateAttack, rewardAmount,
+                "a consumed ammo cache must reject duplicate left-click packets");
+
+        HashSet<CityLootGeneration.CacheKind> generatedKinds = new HashSet<>();
+        for (int x = -24; x <= 24; x++) {
+            for (int z = -24; z <= 24; z++) {
+                CityLootGeneration.CacheKind first = CityLootGeneration.cacheKind(1234L, x, z);
+                CityLootGeneration.CacheKind second = CityLootGeneration.cacheKind(1234L, x, z);
+                helper.assertTrue(first == second,
+                        "cache generation decisions must be deterministic per chunk");
+                if (first != null) {
+                    generatedKinds.add(first);
+                }
+            }
+        }
+        helper.assertTrue(generatedKinds.containsAll(List.of(
+                        CityLootGeneration.CacheKind.BLACK_LOOT,
+                        CityLootGeneration.CacheKind.AMMO)),
+                "the city generation pass must emit both cache variants");
         helper.succeed();
     }
 
@@ -1725,6 +1858,7 @@ public final class CyberdeckGameTests {
         registerInstance(event, "quickhack_multi_target", QUICKHACK_MULTI_TARGET, data);
         registerInstance(event, "quickhack_hotbar_recovery", QUICKHACK_HOTBAR_RECOVERY, data);
         registerInstance(event, "double_jump_packet_guard", DOUBLE_JUMP_PACKET_GUARD, data);
+        registerInstance(event, "city_loot_caches", CITY_LOOT_CACHES, data);
 
         TestData<Holder<TestEnvironmentDefinition<?>>> traumaArena = new TestData<>(
                 environment,

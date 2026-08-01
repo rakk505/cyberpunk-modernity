@@ -3,6 +3,7 @@ package com.example.cyberdeck;
 import com.example.cyberdeck.cyberware.CyberwareAttachments;
 import com.example.cyberdeck.cyberware.CyberwareItems;
 import com.example.cyberdeck.city.CityActorJoinCompatibility;
+import com.example.cyberdeck.city.CityLootBlocks;
 import com.example.cyberdeck.faction.FactionEnemy;
 import com.example.cyberdeck.faction.CyberpsychoEntity;
 import com.example.cyberdeck.faction.FactionEntities;
@@ -65,6 +66,7 @@ public class Cyberdeck {
         QuicktimeBlocks.register(modEventBus);
         MissionBlocks.register(modEventBus);
         ProjectMoonCityModule.bootstrap(modEventBus);
+        CityLootBlocks.register(modEventBus);
 
         modEventBus.addListener(CyberdeckNetwork::register);
         modEventBus.addListener(CyberdeckItems::addCreative);

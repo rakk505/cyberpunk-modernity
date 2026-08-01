@@ -2,6 +2,10 @@
   "itemGroup.cyberdeck": "Cyberdeck",
 
   "block.cyberdeck.quicktime_station": "Quicktime Station",
+  "block.cyberdeck.black_loot_cache": "Black Equipment Cache",
+  "block.cyberdeck.ammo_cache": "Ammo Cache",
+  "container.cyberdeck.black_loot_cache": "Black Equipment Cache",
+  "message.cyberdeck.ammo_cache.claimed": "AMMO CACHE // +%s %s",
   "item.cyberdeck.slop": "Slop",
   "item.cyberdeck.emmies": "Emmies",
   "item.cyberdeck.cyberware_shard": "Cyberware Shard",
