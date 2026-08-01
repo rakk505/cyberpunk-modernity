@@ -91,11 +91,6 @@ public record ActivateSkillPacket(int slot, int targetId) implements CustomPacke
                             "message.cyberdeck.quickhack_duplicate", skill.displayName()), true);
                     playFailure(player);
                 }
-                case TARGET_MISMATCH -> {
-                    player.sendSystemMessage(Component.translatable(
-                            "message.cyberdeck.quickhack_target_mismatch"), true);
-                    playFailure(player);
-                }
                 case INVALID_TARGET -> sendFailure(
                         player, "message.cyberdeck.quickhack_invalid_target");
                 case INACTIVE, INVALID_SKILL -> {

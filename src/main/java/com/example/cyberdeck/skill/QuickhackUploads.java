@@ -10,16 +10,20 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.Enemy;
 import net.neoforged.neoforge.network.PacketDistributor;
+import net.neoforged.neoforge.network.registration.NetworkRegistry;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/** Server-authoritative, per-caster FIFO of quickhacks reserved against one target. */
+/** Server-authoritative, independently-timed quickhack queues grouped by caster and target. */
 public final class QuickhackUploads {
+    /** Total active and pending quickhacks a player may reserve across all targets. */
     public static final int MAX_QUEUE_SIZE = 4;
     /** Ten chunks: substantially beyond combat range while retaining client entity tracking. */
     public static final double MAX_TARGET_RANGE = 160.0;
@@ -32,7 +36,6 @@ public final class QuickhackUploads {
         INVALID_TARGET,
         QUEUE_FULL,
         DUPLICATE_SKILL,
-        TARGET_MISMATCH,
         INSUFFICIENT_RAM
     }
 
@@ -59,46 +62,51 @@ public final class QuickhackUploads {
         }
     }
 
-    private static final Map<UUID, UploadQueue> QUEUES = new HashMap<>();
+    private static final class CasterUploads {
+        private final LinkedHashMap<UUID, UploadQueue> byTarget = new LinkedHashMap<>();
+    }
+
+    private static final Map<UUID, CasterUploads> UPLOADS = new HashMap<>();
 
     private QuickhackUploads() {
     }
 
     /**
-     * Validates and queues one quickhack. RAM remains in its attachment while queued; the sum of
-     * queued costs is reserved and therefore unavailable to later enqueue attempts. The head cost
-     * is deducted only when its upload successfully completes.
+     * Reserves one quickhack. Different targets upload concurrently; hacks queued on the same
+     * target remain FIFO. The global four-entry cap and shared RAM reservation prevent overcommit.
      */
     public static EnqueueResult enqueue(ServerPlayer caster, Skill skill, LivingEntity target,
                                         ServerLevel level) {
-        UploadQueue queue = QUEUES.get(caster.getUUID());
-        if (queue != null
-                && !isValidContinuingTarget(caster, resolveTarget(queue, level), level)) {
-            QUEUES.remove(caster.getUUID());
-            syncNone(caster);
-            queue = null;
+        CasterUploads uploads = UPLOADS.get(caster.getUUID());
+        boolean pruned = uploads != null && pruneInvalidTargets(caster, uploads, level);
+        if (uploads != null && uploads.byTarget.isEmpty()) {
+            UPLOADS.remove(caster.getUUID());
+            uploads = null;
         }
+
         int available = availableRam(caster);
         if (!CyberdeckState.isActive(caster)) {
+            syncAfterRejectedEnqueue(caster, uploads, pruned);
             return new EnqueueResult(EnqueueStatus.INACTIVE, 0, available);
         }
         if (skill == null || skill == Skill.STANDBY) {
+            syncAfterRejectedEnqueue(caster, uploads, pruned);
             return new EnqueueResult(EnqueueStatus.INVALID_SKILL, 0, available);
         }
         if (!isValidNewTarget(caster, target, level)) {
+            syncAfterRejectedEnqueue(caster, uploads, pruned);
             return new EnqueueResult(EnqueueStatus.INVALID_TARGET, 0, available);
         }
-
-        if (queue != null && (!queue.targetUuid.equals(target.getUUID())
-                || queue.targetId != target.getId())) {
-            return new EnqueueResult(EnqueueStatus.TARGET_MISMATCH, 0, available);
-        }
-        if (queue != null && queue.hacks.size() >= MAX_QUEUE_SIZE) {
+        if (uploads != null && queuedHackCount(uploads) >= MAX_QUEUE_SIZE) {
+            syncAfterRejectedEnqueue(caster, uploads, pruned);
             return new EnqueueResult(EnqueueStatus.QUEUE_FULL, 0, available);
         }
+
+        UploadQueue queue = uploads == null ? null : uploads.byTarget.get(target.getUUID());
         if (queue != null) {
             for (ReservedHack queued : queue.hacks) {
                 if (queued.skill() == skill) {
+                    syncAfterRejectedEnqueue(caster, uploads, pruned);
                     return new EnqueueResult(EnqueueStatus.DUPLICATE_SKILL, 0, available);
                 }
             }
@@ -106,117 +114,175 @@ public final class QuickhackUploads {
 
         int cost = com.example.cyberdeck.effect.CyberwareEffects.quickhackRamCost(caster, skill);
         if (available < cost) {
+            syncAfterRejectedEnqueue(caster, uploads, pruned);
             return new EnqueueResult(EnqueueStatus.INSUFFICIENT_RAM, 0, available);
         }
 
+        if (uploads == null) {
+            uploads = new CasterUploads();
+            UPLOADS.put(caster.getUUID(), uploads);
+        }
         if (queue == null) {
             queue = new UploadQueue(target);
-            QUEUES.put(caster.getUUID(), queue);
+            uploads.byTarget.put(target.getUUID(), queue);
         }
         queue.hacks.addLast(new ReservedHack(skill, cost));
         if (queue.hacks.size() == 1) {
             beginHead(queue, caster, level.getGameTime());
         }
-        sync(caster, queue);
+        sync(caster, uploads);
         return new EnqueueResult(EnqueueStatus.ACCEPTED, queue.hacks.size(), available - cost);
     }
 
-    /** Advances the active head, commits its reserved RAM, and promotes the next queued hack. */
+    /** Advances every target head independently and promotes each target's next queued hack. */
     public static void tick(ServerPlayer caster, ServerLevel level) {
-        UploadQueue queue = QUEUES.get(caster.getUUID());
-        if (queue == null) {
+        CasterUploads uploads = UPLOADS.get(caster.getUUID());
+        if (uploads == null) {
             return;
         }
-        // Scanner mode is only required to enqueue. Once reserved, an upload keeps running while
-        // the player returns to normal movement and combat, provided the deck remains installed.
         if (!caster.isAlive() || !CyberdeckState.hasInstalledCyberdeck(caster)) {
             cancel(caster);
             return;
         }
 
-        LivingEntity target = resolveTarget(queue, level);
-        if (!isValidContinuingTarget(caster, target, level)) {
-            cancel(caster);
-            return;
-        }
-        if (level.getGameTime() < queue.endTick) {
-            return;
+        boolean changed = false;
+        long now = level.getGameTime();
+        Iterator<UploadQueue> iterator = uploads.byTarget.values().iterator();
+        while (iterator.hasNext()) {
+            UploadQueue queue = iterator.next();
+            LivingEntity target = resolveTarget(queue, level);
+            if (!isValidContinuingTarget(caster, target, level)) {
+                iterator.remove();
+                changed = true;
+                continue;
+            }
+            if (now < queue.endTick) {
+                continue;
+            }
+
+            ReservedHack completed = queue.hacks.peekFirst();
+            if (completed == null) {
+                iterator.remove();
+                changed = true;
+                continue;
+            }
+            if (!RamAttachments.spend(caster, completed.ramCost())) {
+                cancel(caster);
+                return;
+            }
+
+            queue.hacks.removeFirst();
+            SkillExecutor.execute(completed.skill(), caster, target, level);
+            changed = true;
+
+            if (queue.hacks.isEmpty()) {
+                iterator.remove();
+                continue;
+            }
+
+            target = resolveTarget(queue, level);
+            if (!isValidContinuingTarget(caster, target, level)) {
+                iterator.remove();
+                continue;
+            }
+            beginHead(queue, caster, now);
         }
 
-        ReservedHack completed = queue.hacks.peekFirst();
-        if (completed == null) {
-            QUEUES.remove(caster.getUUID());
+        if (uploads.byTarget.isEmpty()) {
+            UPLOADS.remove(caster.getUUID());
             syncNone(caster);
-            return;
+        } else if (changed) {
+            sync(caster, uploads);
         }
-
-        // A reservation should make this spend infallible. If another system reduced RAM anyway,
-        // fail closed: do not execute the quickhack and release the whole queue.
-        if (!RamAttachments.spend(caster, completed.ramCost())) {
-            cancel(caster);
-            return;
-        }
-        queue.hacks.removeFirst();
-        SkillExecutor.execute(completed.skill(), caster, target, level);
-
-        if (queue.hacks.isEmpty()) {
-            QUEUES.remove(caster.getUUID());
-            syncNone(caster);
-            return;
-        }
-
-        // A completed effect may kill or remove the shared target. In that case the remaining
-        // reservations are released instead of being charged for effects that cannot execute.
-        target = resolveTarget(queue, level);
-        if (!isValidContinuingTarget(caster, target, level)) {
-            cancel(caster);
-            return;
-        }
-        beginHead(queue, caster, level.getGameTime());
-        sync(caster, queue);
     }
 
     public static boolean hasQueue(ServerPlayer caster) {
-        return QUEUES.containsKey(caster.getUUID());
+        return UPLOADS.containsKey(caster.getUUID());
     }
 
-    /** Compatibility alias for callers that only need to know whether any upload is queued. */
     public static boolean isUploading(ServerPlayer caster) {
         return hasQueue(caster);
     }
 
-    /** Total RAM promised to active and pending entries but not yet spent. */
+    /** Total RAM promised to active and pending entries on every target. */
     public static int reservedRam(ServerPlayer caster) {
-        UploadQueue queue = QUEUES.get(caster.getUUID());
-        if (queue == null) {
+        CasterUploads uploads = UPLOADS.get(caster.getUUID());
+        if (uploads == null) {
             return 0;
         }
         int reserved = 0;
-        for (ReservedHack hack : queue.hacks) {
-            reserved += hack.ramCost();
+        for (UploadQueue queue : uploads.byTarget.values()) {
+            for (ReservedHack hack : queue.hacks) {
+                reserved += hack.ramCost();
+            }
         }
         return reserved;
     }
 
-    /** RAM that can still be reserved by another queue entry. */
     public static int availableRam(ServerPlayer caster) {
         return Math.max(0, RamAttachments.get(caster) - reservedRam(caster));
     }
 
+    /** Number of enemies whose queue head is currently uploading. */
+    public static int activeTargetCount(ServerPlayer caster) {
+        CasterUploads uploads = UPLOADS.get(caster.getUUID());
+        return uploads == null ? 0 : uploads.byTarget.size();
+    }
+
+    /** End tick for a target's current upload, or -1 when that target has no queue. */
+    public static long uploadEndTick(ServerPlayer caster, int targetId) {
+        CasterUploads uploads = UPLOADS.get(caster.getUUID());
+        if (uploads != null) {
+            for (UploadQueue queue : uploads.byTarget.values()) {
+                if (queue.targetId == targetId) {
+                    return queue.endTick;
+                }
+            }
+        }
+        return -1L;
+    }
+
     /** Releases every uncommitted reservation and clears the owner's client snapshot. */
     public static void cancel(ServerPlayer caster) {
-        if (QUEUES.remove(caster.getUUID()) != null) {
+        if (UPLOADS.remove(caster.getUUID()) != null) {
             syncNone(caster);
         }
     }
 
     /** Removes transient state when no client connection remains to receive a clear packet. */
     public static void forget(UUID casterId) {
-        QUEUES.remove(casterId);
+        UPLOADS.remove(casterId);
     }
 
     public static void clearAll() {
-        QUEUES.clear();
+        UPLOADS.clear();
+    }
+
+    private static boolean pruneInvalidTargets(ServerPlayer caster, CasterUploads uploads,
+                                               ServerLevel level) {
+        return uploads.byTarget.values().removeIf(queue ->
+                !isValidContinuingTarget(caster, resolveTarget(queue, level), level));
+    }
+
+    private static int queuedHackCount(CasterUploads uploads) {
+        int count = 0;
+        for (UploadQueue queue : uploads.byTarget.values()) {
+            count += queue.hacks.size();
+        }
+        return count;
+    }
+
+    private static void syncAfterRejectedEnqueue(ServerPlayer caster,
+                                                  CasterUploads uploads,
+                                                  boolean changed) {
+        if (!changed) {
+            return;
+        }
+        if (uploads == null || uploads.byTarget.isEmpty()) {
+            syncNone(caster);
+        } else {
+            sync(caster, uploads);
+        }
     }
 
     private static boolean isValidNewTarget(ServerPlayer caster, LivingEntity target,
@@ -257,22 +323,33 @@ public final class QuickhackUploads {
                         .quickhackUploadTicks(caster, head.skill()));
     }
 
-    private static void sync(ServerPlayer caster, UploadQueue queue) {
-        ReservedHack head = queue.hacks.peekFirst();
-        if (head == null) {
-            syncNone(caster);
-            return;
+    private static void sync(ServerPlayer caster, CasterUploads uploads) {
+        List<QuickhackUploadPacket.TargetUpload> snapshots =
+                new ArrayList<>(uploads.byTarget.size());
+        for (UploadQueue queue : uploads.byTarget.values()) {
+            ReservedHack head = queue.hacks.peekFirst();
+            if (head == null) {
+                continue;
+            }
+            List<Integer> skills = new ArrayList<>(queue.hacks.size());
+            for (ReservedHack hack : queue.hacks) {
+                skills.add(hack.skill().ordinal());
+            }
+            snapshots.add(new QuickhackUploadPacket.TargetUpload(
+                    head.skill().ordinal(), queue.targetId, queue.startTick, queue.endTick,
+                    skills));
         }
-        List<Integer> skills = new ArrayList<>(queue.hacks.size());
-        for (ReservedHack hack : queue.hacks) {
-            skills.add(hack.skill().ordinal());
-        }
-        PacketDistributor.sendToPlayer(caster, new QuickhackUploadPacket(
-                head.skill().ordinal(), queue.targetId, queue.startTick, queue.endTick,
-                reservedRam(caster), List.copyOf(skills)));
+        sendSnapshot(caster, new QuickhackUploadPacket(reservedRam(caster), snapshots));
     }
 
     private static void syncNone(ServerPlayer caster) {
-        PacketDistributor.sendToPlayer(caster, QuickhackUploadPacket.NONE);
+        sendSnapshot(caster, QuickhackUploadPacket.NONE);
+    }
+
+    private static void sendSnapshot(ServerPlayer caster, QuickhackUploadPacket packet) {
+        if (caster.connection != null
+                && NetworkRegistry.hasChannel(caster.connection, QuickhackUploadPacket.TYPE.id())) {
+            PacketDistributor.sendToPlayer(caster, packet);
+        }
     }
 }

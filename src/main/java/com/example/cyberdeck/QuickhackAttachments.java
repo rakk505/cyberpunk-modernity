@@ -25,6 +25,14 @@ public final class QuickhackAttachments {
                     .sync(ByteBufCodecs.BOOL)
                     .build());
 
+    /** Server-only durable stash; copied across death so scanner mode cannot destroy real items. */
+    public static final Supplier<AttachmentType<QuickhackHotbar>> STASHED_HOTBAR =
+            ATTACHMENT_TYPES.register("stashed_hotbar", () -> AttachmentType
+                    .builder(() -> QuickhackHotbar.NONE)
+                    .serialize(QuickhackHotbar.MAP_CODEC)
+                    .copyOnDeath()
+                    .build());
+
     private QuickhackAttachments() {
     }
 

@@ -37,27 +37,28 @@ public final class QuickhackUploadOverlay implements GuiLayer {
             return;
         }
 
-        QuickhackUploadPacket packet = QuickhackUploadClient.get();
-        Skill skill = Skill.fromSlot(packet.activeSkillOrdinal());
-        Entity entity = minecraft.level.getEntity(packet.targetId());
-        if (skill == null || !(entity instanceof LivingEntity target) || !target.isAlive()) {
-            return;
-        }
-
         float partialTick = deltaTracker.getGameTimeDeltaPartialTick(false);
-        ScreenPoint point = projectAboveTarget(minecraft, target, partialTick,
-                graphics.guiWidth(), graphics.guiHeight());
-        if (point == null) {
-            return;
-        }
+        double gameTime = minecraft.level.getGameTime() + partialTick;
+        for (QuickhackUploadPacket.TargetUpload upload : QuickhackUploadClient.uploads()) {
+            Skill skill = Skill.fromSlot(upload.activeSkillOrdinal());
+            Entity entity = minecraft.level.getEntity(upload.targetId());
+            if (skill == null || !(entity instanceof LivingEntity target) || !target.isAlive()) {
+                continue;
+            }
 
-        float progress = QuickhackUploadClient.uploadProgress(
-                minecraft.level.getGameTime() + partialTick);
-        int x = Mth.clamp(Math.round(point.x()) - SIZE / 2, 4,
-                Math.max(4, graphics.guiWidth() - SIZE - 4));
-        int y = Mth.clamp(Math.round(point.y()) - SIZE - 5, 4,
-                Math.max(4, graphics.guiHeight() - SIZE - 4));
-        drawMarker(graphics, skill, x, y, progress, minecraft.level.getGameTime());
+            ScreenPoint point = projectAboveTarget(minecraft, target, partialTick,
+                    graphics.guiWidth(), graphics.guiHeight());
+            if (point == null) {
+                continue;
+            }
+
+            float progress = QuickhackUploadClient.uploadProgress(upload, gameTime);
+            int x = Mth.clamp(Math.round(point.x()) - SIZE / 2, 4,
+                    Math.max(4, graphics.guiWidth() - SIZE - 4));
+            int y = Mth.clamp(Math.round(point.y()) - SIZE - 5, 4,
+                    Math.max(4, graphics.guiHeight() - SIZE - 4));
+            drawMarker(graphics, skill, x, y, progress, minecraft.level.getGameTime());
+        }
     }
 
     private static void drawMarker(GuiGraphicsExtractor graphics, Skill skill, int x, int y,

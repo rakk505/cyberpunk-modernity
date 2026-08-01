@@ -146,9 +146,10 @@ public final class CyberwareActions {
     }
 
     /** Frog Legs double jump: applies an extra upward impulse mid-air. Validated server-side. */
-    public static void doubleJump(ServerPlayer player) {
-        if (CyberwareEffects.findFlag(player, "double_jump") == null) {
-            return;
+    public static boolean doubleJump(ServerPlayer player) {
+        if (CyberwareEffects.findFlag(player, "double_jump") == null
+                || !DoubleJumpGuard.tryConsume(player)) {
+            return false;
         }
         Vec3 m = player.getDeltaMovement();
         player.setDeltaMovement(m.x, 0.52, m.z);
@@ -160,5 +161,6 @@ public final class CyberwareActions {
             level.playSound(null, player.getX(), player.getY(), player.getZ(),
                     SoundEvents.SLIME_JUMP, SoundSource.PLAYERS, 0.6f, 1.4f);
         }
+        return true;
     }
 }

@@ -1,13 +1,11 @@
 package com.example.cyberdeck.client;
 
 import com.example.cyberdeck.network.QuickhackUploadPacket;
+import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 
-/**
- * Client-side holder for the caster's current quickhack upload, populated by
- * {@link QuickhackUploadPacket}. The upload marker HUD reads this each frame.
- */
+/** Immutable client snapshot of every independently uploading quickhack target. */
 public final class QuickhackUploadClient {
     private static volatile QuickhackUploadPacket current = QuickhackUploadPacket.NONE;
 
@@ -22,28 +20,29 @@ public final class QuickhackUploadClient {
         return current;
     }
 
-    public static boolean isUploading() {
-        QuickhackUploadPacket p = current;
-        return p.activeSkillOrdinal() >= 0
-                && p.targetId() >= 0
-                && p.endTick() > p.startTick();
+    public static List<QuickhackUploadPacket.TargetUpload> uploads() {
+        return current.uploads();
     }
 
-    public static int activeSkillOrdinal() {
-        return current.activeSkillOrdinal();
+    public static boolean isUploading() {
+        return !current.uploads().isEmpty();
     }
 
     public static int reservedRam() {
         return Math.max(0, current.reservedRam());
     }
 
-    public static List<Integer> queuedSkillOrdinals() {
-        List<Integer> queue = current.skillOrdinals();
-        return queue == null ? List.of() : queue;
+    public static int activeSkillOrdinal(int targetId) {
+        QuickhackUploadPacket.TargetUpload upload = uploadForTarget(targetId);
+        return upload == null ? -1 : upload.activeSkillOrdinal();
     }
 
-    public static int queuePosition(int skillOrdinal) {
-        List<Integer> queue = queuedSkillOrdinals();
+    public static int queuePosition(int targetId, int skillOrdinal) {
+        QuickhackUploadPacket.TargetUpload upload = uploadForTarget(targetId);
+        if (upload == null) {
+            return -1;
+        }
+        List<Integer> queue = upload.skillOrdinals();
         for (int i = 0; i < queue.size(); i++) {
             if (queue.get(i) != null && queue.get(i) == skillOrdinal) {
                 return i + 1;
@@ -52,17 +51,22 @@ public final class QuickhackUploadClient {
         return -1;
     }
 
-    public static float uploadProgress(long gameTime) {
-        return uploadProgress((double) gameTime);
-    }
-
-    public static float uploadProgress(double gameTime) {
-        QuickhackUploadPacket packet = current;
-        long duration = packet.endTick() - packet.startTick();
-        if (duration <= 0L || packet.activeSkillOrdinal() < 0) {
+    public static float uploadProgress(QuickhackUploadPacket.TargetUpload upload,
+                                       double gameTime) {
+        long duration = upload.endTick() - upload.startTick();
+        if (duration <= 0L || upload.activeSkillOrdinal() < 0) {
             return 0.0F;
         }
         return Math.max(0.0F, Math.min(1.0F,
-                (float) ((gameTime - packet.startTick()) / duration)));
+                (float) ((gameTime - upload.startTick()) / duration)));
+    }
+
+    public static QuickhackUploadPacket.@Nullable TargetUpload uploadForTarget(int targetId) {
+        for (QuickhackUploadPacket.TargetUpload upload : current.uploads()) {
+            if (upload.targetId() == targetId) {
+                return upload;
+            }
+        }
+        return null;
     }
 }

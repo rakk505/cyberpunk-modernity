@@ -11,40 +11,44 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 import java.util.List;
 
-/**
- * Server -> client snapshot of the caster's ordered quickhack queue. A packet with
- * {@code targetId < 0} clears the queue display and its RAM reservation.
- *
- * @param activeSkillOrdinal ordinal of the active {@link com.example.cyberdeck.skill.Skill}
- * @param targetId     network id of the target entity, or -1 for "no upload"
- * @param startTick    game time the upload began
- * @param endTick      game time the upload completes
- * @param reservedRam  RAM promised to all active and pending queue entries
- * @param skillOrdinals ordered skill ordinals, active first, with at most four entries
- */
-public record QuickhackUploadPacket(int activeSkillOrdinal, int targetId, long startTick,
-                                    long endTick, int reservedRam, List<Integer> skillOrdinals)
+/** Server-to-client snapshot of every quickhack target owned by one caster. */
+public record QuickhackUploadPacket(int reservedRam, List<TargetUpload> uploads)
         implements CustomPacketPayload {
+    private static final int MAX_UPLOAD_TARGETS = 4;
 
     public QuickhackUploadPacket {
-        skillOrdinals = List.copyOf(skillOrdinals);
+        uploads = List.copyOf(uploads);
+    }
+
+    /** One independently-timed target queue, with the currently uploading hack first. */
+    public record TargetUpload(int activeSkillOrdinal, int targetId, long startTick,
+                               long endTick, List<Integer> skillOrdinals) {
+        public TargetUpload {
+            skillOrdinals = List.copyOf(skillOrdinals);
+        }
+
+        private static final StreamCodec<RegistryFriendlyByteBuf, TargetUpload> STREAM_CODEC =
+                StreamCodec.composite(
+                        ByteBufCodecs.VAR_INT, TargetUpload::activeSkillOrdinal,
+                        ByteBufCodecs.VAR_INT, TargetUpload::targetId,
+                        ByteBufCodecs.VAR_LONG, TargetUpload::startTick,
+                        ByteBufCodecs.VAR_LONG, TargetUpload::endTick,
+                        ByteBufCodecs.VAR_INT.apply(ByteBufCodecs.list(4)),
+                        TargetUpload::skillOrdinals,
+                        TargetUpload::new);
     }
 
     public static final QuickhackUploadPacket NONE =
-            new QuickhackUploadPacket(-1, -1, 0L, 0L, 0, List.of());
+            new QuickhackUploadPacket(0, List.of());
 
     public static final Type<QuickhackUploadPacket> TYPE =
             new Type<>(Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "quickhack_upload"));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, QuickhackUploadPacket> STREAM_CODEC =
             StreamCodec.composite(
-                    ByteBufCodecs.VAR_INT, QuickhackUploadPacket::activeSkillOrdinal,
-                    ByteBufCodecs.VAR_INT, QuickhackUploadPacket::targetId,
-                    ByteBufCodecs.VAR_LONG, QuickhackUploadPacket::startTick,
-                    ByteBufCodecs.VAR_LONG, QuickhackUploadPacket::endTick,
                     ByteBufCodecs.VAR_INT, QuickhackUploadPacket::reservedRam,
-                    ByteBufCodecs.VAR_INT.apply(ByteBufCodecs.list(4)),
-                    QuickhackUploadPacket::skillOrdinals,
+                    TargetUpload.STREAM_CODEC.apply(ByteBufCodecs.list(MAX_UPLOAD_TARGETS)),
+                    QuickhackUploadPacket::uploads,
                     QuickhackUploadPacket::new);
 
     @Override

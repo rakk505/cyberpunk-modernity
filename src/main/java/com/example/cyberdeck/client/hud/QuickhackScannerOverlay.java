@@ -208,14 +208,15 @@ public final class QuickhackScannerOverlay implements GuiLayer {
         graphics.fill(x, y + 12, x + 36, y + 14, CYAN);
 
         int rowY = y + 18;
+        int targetId = target.getId();
         for (int ordinal = 0; ordinal < count; ordinal++) {
             Skill skill = Skill.fromSlot(ordinal);
             if (skill == null) {
                 continue;
             }
             boolean selected = ordinal == QuickhackScannerClient.selectedSkillOrdinal();
-            boolean uploading = ordinal == QuickhackUploadClient.activeSkillOrdinal();
-            int queuePosition = QuickhackUploadClient.queuePosition(ordinal);
+            boolean uploading = ordinal == QuickhackUploadClient.activeSkillOrdinal(targetId);
+            int queuePosition = QuickhackUploadClient.queuePosition(targetId, ordinal);
             boolean committed = uploading || queuePosition > 0;
             boolean affordable = committed || skill.ramCost() <= availableRam;
             drawHackRow(graphics, font, skill, x, rowY, width, rowHeight, selected,

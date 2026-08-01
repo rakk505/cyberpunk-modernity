@@ -6,6 +6,7 @@ import com.example.cyberdeck.city.CityActorJoinCompatibility;
 import com.example.cyberdeck.client.map.MinimapGeometry;
 import com.example.cyberdeck.cyberware.BodySlot;
 import com.example.cyberdeck.cyberware.Cyberware;
+import com.example.cyberdeck.cyberware.CyberwareAttachments;
 import com.example.cyberdeck.cyberware.CyberwareData;
 import com.example.cyberdeck.cyberware.CyberwareItems;
 import com.example.cyberdeck.cyberware.SandevistanProfile;
@@ -13,6 +14,7 @@ import com.example.cyberdeck.cyberware.SlotUnlock;
 import com.example.cyberdeck.effect.SandevistanMechanics;
 import com.example.cyberdeck.effect.SandevistanState;
 import com.example.cyberdeck.effect.CyberwareEffects;
+import com.example.cyberdeck.effect.DoubleJumpGuard;
 import com.example.cyberdeck.faction.FactionEnemy;
 import com.example.cyberdeck.faction.FactionEntities;
 import com.example.cyberdeck.faction.FactionSpawns;
@@ -29,6 +31,8 @@ import com.example.cyberdeck.npc.NpcRole;
 import com.example.cyberdeck.trauma.TraumaTeamEvents;
 import com.example.cyberdeck.player.StreetCredState;
 import com.example.cyberdeck.skill.QuickhackUploads;
+import com.example.cyberdeck.skill.Skill;
+import com.example.cyberdeck.ram.RamAttachments;
 import com.example.cyberdeck.movement.TacticalAction;
 import com.example.cyberdeck.movement.TacticalMovement;
 import com.example.cyberdeck.movement.TacticalMovementState;
@@ -163,6 +167,15 @@ public final class CyberdeckGameTests {
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             QUICKHACK_LONG_RANGE = register(
                     "quickhack_long_range", CyberdeckGameTests::quickhackLongRange);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            QUICKHACK_MULTI_TARGET = register(
+                    "quickhack_multi_target", CyberdeckGameTests::quickhackMultiTarget);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            QUICKHACK_HOTBAR_RECOVERY = register(
+                    "quickhack_hotbar_recovery", CyberdeckGameTests::quickhackHotbarRecovery);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            DOUBLE_JUMP_PACKET_GUARD = register(
+                    "double_jump_packet_guard", CyberdeckGameTests::doubleJumpPacketGuard);
 
     private CyberdeckGameTests() {
     }
@@ -765,6 +778,103 @@ public final class CyberdeckGameTests {
                 "quickhacks must reach at least eight chunks");
         helper.assertTrue(QuickhackUploads.MAX_TARGET_RANGE <= 192.0,
                 "quickhack reach must stay within practical entity tracking distance");
+        helper.succeed();
+    }
+
+    private static void quickhackMultiTarget(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        ServerPlayer player = makeSurvivalServerPlayerInLevel(helper);
+        Cyberware deck = Cyberware.byId("arasaka_mk_1_5_t1");
+        helper.assertTrue(deck != null, "test cyberdeck must exist");
+        if (deck == null) {
+            return;
+        }
+
+        CyberwareData loadout = new CyberwareData();
+        loadout.install(deck, 0);
+        player.setData(CyberwareAttachments.CYBERWARE.get(), loadout);
+        RamAttachments.set(player, RamAttachments.MAX_RAM);
+
+        BlockPos playerPos = helper.absolutePos(new BlockPos(1, 2, 1));
+        player.snapTo(playerPos.getX() + 0.5, playerPos.getY(), playerPos.getZ() + 0.5,
+                0.0F, 0.0F);
+        var first = helper.spawn(EntityTypes.ZOMBIE, new BlockPos(3, 2, 1));
+        var second = helper.spawn(EntityTypes.ZOMBIE, new BlockPos(5, 2, 1));
+        CyberdeckState.setActive(player, true);
+
+        QuickhackUploads.EnqueueResult firstResult = QuickhackUploads.enqueue(
+                player, Skill.OVERHEAT, first, level);
+        QuickhackUploads.EnqueueResult secondResult = QuickhackUploads.enqueue(
+                player, Skill.SHORT_CIRCUIT, second, level);
+        helper.assertTrue(firstResult.accepted() && secondResult.accepted(),
+                "different enemies must accept concurrent quickhack uploads");
+        helper.assertValueEqual(QuickhackUploads.activeTargetCount(player), 2,
+                "independent quickhack target count");
+        helper.assertTrue(QuickhackUploads.uploadEndTick(player, first.getId())
+                        != QuickhackUploads.uploadEndTick(player, second.getId()),
+                "different quickhacks must retain their own upload completion times");
+
+        QuickhackUploads.cancel(player);
+        CyberdeckState.deactivate(player);
+        disconnectTestPlayer(player);
+        helper.succeed();
+    }
+
+    private static void quickhackHotbarRecovery(GameTestHelper helper) {
+        FakePlayer player = new FakePlayer(
+                helper.getLevel(), new GameProfile(UUID.randomUUID(), "hotbar_recovery_test"));
+        Cyberware deck = Cyberware.byId("arasaka_mk_1_5_t1");
+        helper.assertTrue(deck != null, "test cyberdeck must exist");
+        if (deck == null) {
+            return;
+        }
+
+        CyberwareData loadout = new CyberwareData();
+        loadout.install(deck, 0);
+        player.setData(CyberwareAttachments.CYBERWARE.get(), loadout);
+        player.getInventory().setItem(0,
+                new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND, 7));
+        player.getInventory().setItem(4,
+                new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.REDSTONE, 23));
+        CyberdeckState.setActive(player, true);
+
+        QuickhackHotbar stashed = player.getData(QuickhackAttachments.STASHED_HOTBAR.get());
+        helper.assertTrue(stashed.present() && stashed.items().size() == QuickhackHotbar.SIZE,
+                "scanner activation must create a complete durable hotbar snapshot");
+        var ops = helper.getLevel().registryAccess().createSerializationContext(
+                com.mojang.serialization.JsonOps.INSTANCE);
+        var encoded = QuickhackHotbar.MAP_CODEC.codec().encodeStart(ops, stashed)
+                .getOrThrow(message -> helper.assertionException(Component.literal(message)));
+        QuickhackHotbar decoded = QuickhackHotbar.MAP_CODEC.codec().parse(ops, encoded)
+                .getOrThrow(message -> helper.assertionException(Component.literal(message)));
+
+        // Simulate a save/reload where the active marker was lost but the durable stash survived.
+        player.setData(QuickhackAttachments.STASHED_HOTBAR.get(), decoded);
+        player.getPersistentData().putBoolean("cyberdeck_active", false);
+        CyberdeckState.recover(player);
+        helper.assertTrue(player.getInventory().getItem(0).is(net.minecraft.world.item.Items.DIAMOND)
+                        && player.getInventory().getItem(0).getCount() == 7,
+                "slot zero must survive scanner crash recovery");
+        helper.assertTrue(player.getInventory().getItem(4).is(net.minecraft.world.item.Items.REDSTONE)
+                        && player.getInventory().getItem(4).getCount() == 23,
+                "slot four must survive scanner crash recovery");
+        helper.assertFalse(player.getData(QuickhackAttachments.STASHED_HOTBAR.get()).present(),
+                "successful recovery must clear the durable stash");
+        helper.succeed();
+    }
+
+    private static void doubleJumpPacketGuard(GameTestHelper helper) {
+        helper.assertFalse(DoubleJumpGuard.canConsume(true, 20, false, 0L, 100L),
+                "physical ground support must reject a double-jump packet");
+        helper.assertFalse(DoubleJumpGuard.canConsume(false, 1, false, 0L, 100L),
+                "a packet cannot invent the required airborne interval");
+        helper.assertTrue(DoubleJumpGuard.canConsume(false,
+                        DoubleJumpGuard.MIN_AIRBORNE_TICKS, false, 90L, 100L),
+                "one legitimate airborne double jump must be accepted");
+        helper.assertFalse(DoubleJumpGuard.canConsume(false, 200, true, 0L, 1000L),
+                "the same airborne cycle must stay consumed even after its cooldown");
+        helper.assertFalse(DoubleJumpGuard.canConsume(false, 20, false, 110L, 100L),
+                "a newly grounded cycle must still respect the server cooldown");
         helper.succeed();
     }
 
@@ -1612,6 +1722,9 @@ public final class CyberdeckGameTests {
         registerInstance(event, "minimap_rotation_geometry", MINIMAP_ROTATION_GEOMETRY, data);
         registerInstance(event, "npc_roles_and_drops", NPC_ROLES_AND_DROPS, data);
         registerInstance(event, "quickhack_long_range", QUICKHACK_LONG_RANGE, data);
+        registerInstance(event, "quickhack_multi_target", QUICKHACK_MULTI_TARGET, data);
+        registerInstance(event, "quickhack_hotbar_recovery", QUICKHACK_HOTBAR_RECOVERY, data);
+        registerInstance(event, "double_jump_packet_guard", DOUBLE_JUMP_PACKET_GUARD, data);
 
         TestData<Holder<TestEnvironmentDefinition<?>>> traumaArena = new TestData<>(
                 environment,
