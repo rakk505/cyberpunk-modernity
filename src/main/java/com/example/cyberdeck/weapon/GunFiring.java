@@ -206,7 +206,8 @@ public final class GunFiring {
                 shooter, start, end, new AABB(start, end).inflate(1.0),
                 entity -> entity instanceof LivingEntity living && entity != shooter
                         && entity.isAlive() && !entity.isSpectator()
-                        && (!(shooter instanceof FactionEnemy) || !(living instanceof CityNpc)),
+                        && (!(shooter instanceof FactionEnemy || shooter instanceof CityNpc)
+                        || !(living instanceof CityNpc)),
                 start.distanceToSqr(end));
     }
 

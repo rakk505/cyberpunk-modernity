@@ -7,12 +7,16 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -39,8 +43,14 @@ public final class ArnisPatchLibrary {
     private static final long SELECTION_SALT = 0x41524E49535A4F4EL;
     private static final int MAX_SELECTION_CACHE = 131_072;
     private static final int EXPECTED_ATLAS_AXIS = 16;
+    private static final int CONSERVATIVE_PARK_MAX_BLOCKS = 320;
+    private static final int CONSERVATIVE_PARK_MAX_ABOVE_SURFACE = 2;
+    private static final int PARK_ACCESS_LANE_WIDTH = 3;
+    private static final int PARK_ACCESS_LANE_DEPTH = 4;
     private static final String CATALOG_RESOURCE =
             "/data/neoncity/arnis_districts/catalog.json";
+    private static final String OPEN_PARK_AUDIT_RESOURCE =
+            "/data/neoncity/arnis_districts/open_park_tiles.json";
     private static final Pattern ATLAS_TILE =
             Pattern.compile("^(.+)_([0-9]+)_([0-9]+)$");
 
@@ -58,6 +68,7 @@ public final class ArnisPatchLibrary {
             int sizeX,
             int sizeY,
             int sizeZ,
+            int blockCount,
             String sha256,
             List<Connector> connectors
     ) {
@@ -93,8 +104,14 @@ public final class ArnisPatchLibrary {
 
     private record AxisMapping(int source, boolean flipped) {}
     private record SelectionKey(long seed, int chunkX, int chunkZ) {}
+    private record OpenParkAudit(
+            Set<String> catalogIds,
+            Map<District, Integer> districtCounts,
+            Map<Integer, Integer> heightCounts
+    ) {}
 
     public static final List<Patch> PATCHES = loadCatalog();
+    private static final OpenParkAudit OPEN_PARK_AUDIT = loadOpenParkAudit(PATCHES);
     private static final Map<District, List<Atlas>> ATLASES = buildAtlases(PATCHES);
     private static final ConcurrentHashMap<SelectionKey, Optional<Placement>> SELECTION_CACHE =
             new ConcurrentHashMap<>();
@@ -166,6 +183,68 @@ public final class ArnisPatchLibrary {
     private static boolean isAtlasZone(MegacityLayout.Zone zone) {
         return zone == MegacityLayout.Zone.NEST
                 || zone == MegacityLayout.Zone.BACKSTREETS;
+    }
+
+    /** A deliberately sparse source tile that can host a park without carving a building. */
+    public static boolean isConservativeOpenParkTile(Patch patch) {
+        return patch.blockCount() <= CONSERVATIVE_PARK_MAX_BLOCKS
+                && !patch.connectors().isEmpty()
+                && OPEN_PARK_AUDIT.catalogIds().contains(patch.catalogId());
+    }
+
+    static Set<String> auditedOpenParkTileIds() {
+        return OPEN_PARK_AUDIT.catalogIds();
+    }
+
+    static Map<District, Integer> auditedOpenParkDistrictCounts() {
+        return OPEN_PARK_AUDIT.districtCounts();
+    }
+
+    static Map<Integer, Integer> auditedOpenParkHeightCounts() {
+        return OPEN_PARK_AUDIT.heightCounts();
+    }
+
+    static int auditedOpenParkMaximumAboveSurface() {
+        return CONSERVATIVE_PARK_MAX_ABOVE_SURFACE;
+    }
+
+    /**
+     * Returns whether a world column belongs to a three-block entrance lane into
+     * a selected sparse park tile. Lanes are narrowed in source space before the
+     * atlas reflection is applied, so even-width connectors mirror coherently.
+     */
+    public static boolean isParkAccessLaneAt(Placement placement, int worldX, int worldZ) {
+        if (!isConservativeOpenParkTile(placement.patch())) return false;
+        int localX = worldX - (placement.chunkX() << 4);
+        int localZ = worldZ - (placement.chunkZ() << 4);
+        if (localX < 0 || localX >= 16 || localZ < 0 || localZ >= 16) return false;
+
+        Connector connector = placement.patch().connectors().stream()
+                .max(Comparator.comparingInt(Connector::width)
+                        .thenComparingInt(value -> -value.edge().ordinal())
+                        .thenComparingInt(value -> -value.offset()))
+                .orElseThrow();
+        Connector transformed = transformConnector(
+                parkAccessLane(connector), placement.flipX(), placement.flipZ());
+        int across = switch (transformed.edge()) {
+            case WEST, EAST -> localZ;
+            case NORTH, SOUTH -> localX;
+        };
+        int depth = switch (transformed.edge()) {
+            case WEST -> localX;
+            case EAST -> 15 - localX;
+            case NORTH -> localZ;
+            case SOUTH -> 15 - localZ;
+        };
+        return across >= transformed.offset()
+                && across < transformed.offset() + transformed.width()
+                && depth < PARK_ACCESS_LANE_DEPTH;
+    }
+
+    private static Connector parkAccessLane(Connector connector) {
+        int offset = connector.offset()
+                + (connector.width() - PARK_ACCESS_LANE_WIDTH) / 2;
+        return new Connector(connector.edge(), offset, PARK_ACCESS_LANE_WIDTH);
     }
 
     /**
@@ -358,10 +437,12 @@ public final class ArnisPatchLibrary {
                         blocks.get("x").getAsInt(),
                         blocks.get("y").getAsInt(),
                         blocks.get("z").getAsInt(),
+                        value.get("block_count").getAsInt(),
                         value.get("sha256").getAsString(),
                         List.copyOf(connectors));
                 if (patch.sizeX() != 16 || patch.sizeZ() != 16
-                        || patch.surfaceOffset() < 0 || patch.placementZones().isEmpty()) {
+                        || patch.surfaceOffset() < 0 || patch.blockCount() <= 0
+                        || patch.placementZones().isEmpty()) {
                     throw new IllegalStateException(
                             "runtime Arnis tile must be one complete anchored chunk: " + catalogId);
                 }
@@ -372,6 +453,138 @@ public final class ArnisPatchLibrary {
         }
         patches.sort(Comparator.comparing(Patch::catalogId));
         return List.copyOf(patches);
+    }
+
+    private static OpenParkAudit loadOpenParkAudit(List<Patch> patches) {
+        try (InputStream stream = ArnisPatchLibrary.class.getResourceAsStream(
+                OPEN_PARK_AUDIT_RESOURCE)) {
+            if (stream == null) {
+                throw new IllegalStateException(
+                        "missing audited open-park allowlist " + OPEN_PARK_AUDIT_RESOURCE);
+            }
+            JsonObject root = JsonParser.parseReader(
+                    new InputStreamReader(stream, StandardCharsets.UTF_8)).getAsJsonObject();
+            if (root.get("schema_version").getAsInt() != 1) {
+                throw new IllegalStateException("unsupported open-park audit schema");
+            }
+            JsonObject generatedFrom = root.getAsJsonObject("generated_from");
+            String auditedCatalogHash = generatedFrom.get("catalog_sha256").getAsString();
+            if (!auditedCatalogHash.equals(resourceSha256(CATALOG_RESOURCE))) {
+                throw new IllegalStateException(
+                        "open-park audit was not generated from the bundled catalog");
+            }
+            JsonObject criteria = root.getAsJsonObject("criteria");
+            if (criteria.get("maximum_block_count").getAsInt()
+                            != CONSERVATIVE_PARK_MAX_BLOCKS
+                    || !criteria.get("requires_road_connector").getAsBoolean()
+                    || criteria.get("maximum_occupied_blocks_above_surface").getAsInt()
+                            != CONSERVATIVE_PARK_MAX_ABOVE_SURFACE) {
+                throw new IllegalStateException(
+                        "open-park audit criteria disagree with runtime policy");
+            }
+
+            LinkedHashMap<String, Patch> byId = new LinkedHashMap<>();
+            for (Patch patch : patches) {
+                if (byId.put(patch.catalogId(), patch) != null) {
+                    throw new IllegalStateException(
+                            "duplicate Arnis catalog id " + patch.catalogId());
+                }
+            }
+            long sparseConnectorCandidates = patches.stream()
+                    .filter(patch -> patch.blockCount() <= CONSERVATIVE_PARK_MAX_BLOCKS)
+                    .filter(patch -> !patch.connectors().isEmpty())
+                    .count();
+            if (generatedFrom.get("scanned_sparse_connector_tiles").getAsLong()
+                    != sparseConnectorCandidates) {
+                throw new IllegalStateException(
+                        "open-park audit candidate count disagrees with the catalog");
+            }
+
+            LinkedHashSet<String> auditedIds = new LinkedHashSet<>();
+            EnumMap<District, Integer> districtCounts = new EnumMap<>(District.class);
+            LinkedHashMap<Integer, Integer> heightCounts = new LinkedHashMap<>();
+            JsonObject groups = root.getAsJsonObject(
+                    "tiles_by_max_occupied_blocks_above_surface");
+            for (Map.Entry<String, JsonElement> group : groups.entrySet()) {
+                int height = Integer.parseInt(group.getKey());
+                if (height < 0 || height > CONSERVATIVE_PARK_MAX_ABOVE_SURFACE) {
+                    throw new IllegalStateException(
+                            "open-park audit contains out-of-policy height " + height);
+                }
+                int count = 0;
+                for (JsonElement element : group.getValue().getAsJsonArray()) {
+                    String catalogId = element.getAsString();
+                    if (!auditedIds.add(catalogId)) {
+                        throw new IllegalStateException(
+                                "duplicate open-park audit id " + catalogId);
+                    }
+                    Patch patch = byId.get(catalogId);
+                    if (patch == null
+                            || patch.blockCount() > CONSERVATIVE_PARK_MAX_BLOCKS
+                            || patch.connectors().isEmpty()) {
+                        throw new IllegalStateException(
+                                "invalid open-park audit tile " + catalogId);
+                    }
+                    districtCounts.merge(patch.district(), 1, Integer::sum);
+                    count++;
+                }
+                heightCounts.put(height, count);
+            }
+
+            int declaredTotal = root.get("tile_count").getAsInt();
+            if (auditedIds.size() != declaredTotal) {
+                throw new IllegalStateException(
+                        "open-park audit total mismatch: declared=" + declaredTotal
+                                + ", listed=" + auditedIds.size());
+            }
+            verifyIntegerCounts(root.getAsJsonObject("height_counts"), heightCounts,
+                    "open-park height");
+
+            EnumMap<District, Integer> declaredDistrictCounts = new EnumMap<>(District.class);
+            for (Map.Entry<String, JsonElement> entry
+                    : root.getAsJsonObject("district_counts").entrySet()) {
+                declaredDistrictCounts.put(
+                        District.valueOf(entry.getKey() + "_CORP"), entry.getValue().getAsInt());
+            }
+            if (declaredDistrictCounts.size() != District.values().length
+                    || !declaredDistrictCounts.equals(districtCounts)) {
+                throw new IllegalStateException(
+                        "open-park district counts disagree with listed tiles");
+            }
+            return new OpenParkAudit(
+                    Collections.unmodifiableSet(auditedIds),
+                    Collections.unmodifiableMap(districtCounts),
+                    Collections.unmodifiableMap(heightCounts));
+        } catch (IOException | RuntimeException error) {
+            throw new IllegalStateException("cannot load audited open-park allowlist", error);
+        }
+    }
+
+    private static void verifyIntegerCounts(
+            JsonObject declared,
+            Map<Integer, Integer> actual,
+            String label) {
+        LinkedHashMap<Integer, Integer> declaredCounts = new LinkedHashMap<>();
+        for (Map.Entry<String, JsonElement> entry : declared.entrySet()) {
+            declaredCounts.put(Integer.parseInt(entry.getKey()), entry.getValue().getAsInt());
+        }
+        if (!declaredCounts.equals(actual)) {
+            throw new IllegalStateException(label + " counts disagree with listed tiles");
+        }
+    }
+
+    private static String resourceSha256(String resource) throws IOException {
+        try (InputStream stream = ArnisPatchLibrary.class.getResourceAsStream(resource)) {
+            if (stream == null) {
+                throw new IllegalStateException("missing audited resource " + resource);
+            }
+            try {
+                return HexFormat.of().formatHex(
+                        MessageDigest.getInstance("SHA-256").digest(stream.readAllBytes()));
+            } catch (NoSuchAlgorithmException impossible) {
+                throw new IllegalStateException("SHA-256 is unavailable", impossible);
+            }
+        }
     }
 
     private static Map<District, List<Atlas>> buildAtlases(List<Patch> patches) {

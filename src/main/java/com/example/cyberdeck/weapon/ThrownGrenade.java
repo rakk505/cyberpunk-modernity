@@ -1,6 +1,5 @@
 package com.example.cyberdeck.weapon;
 
-import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
@@ -13,8 +12,6 @@ import net.minecraft.world.entity.projectile.throwableitemprojectile.ThrowableIt
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
@@ -25,7 +22,7 @@ import java.util.List;
  * The physical thrown grenade. Detonates on the first impact (block or entity), producing an area
  * effect determined by the carried {@link GrenadeType}:
  * <ul>
- *   <li><b>Incendiary</b> - ignites entities in radius and scatters fire on exposed ground.</li>
+ *   <li><b>Incendiary</b> - ignites entities in radius (no fire blocks are placed in the world).</li>
  *   <li><b>Poison</b> - spawns a lingering toxic cloud that poisons entities in radius.</li>
  * </ul>
  * The type is derived from the item the grenade carries, so no extra synced data is needed.
@@ -74,13 +71,20 @@ public final class ThrownGrenade extends ThrowableItemProjectile {
                 level.sendParticles(ParticleTypes.EXPLOSION, center.x, center.y, center.z, 1, 0, 0, 0, 0);
                 level.sendParticles(ParticleTypes.FLAME, center.x, center.y, center.z,
                         60, r * 0.4, 0.4, r * 0.4, 0.05);
+                // No fire blocks are placed, so add a few purely-visual short-lived flame bursts for
+                // a satisfying incendiary flash. These are client-safe particle spawns only.
+                level.sendParticles(ParticleTypes.SMALL_FLAME, center.x, center.y, center.z,
+                        40, r * 0.5, 0.3, r * 0.5, 0.02);
+                level.sendParticles(ParticleTypes.LAVA, center.x, center.y, center.z,
+                        8, r * 0.3, 0.2, r * 0.3, 0.0);
                 level.playSound(null, center.x, center.y, center.z,
                         SoundEvents.FIRECHARGE_USE, SoundSource.NEUTRAL, 1.2f, 0.8f);
                 for (LivingEntity victim : victims) {
+                    // igniteForSeconds already respects water/rain, so victims standing in water
+                    // won't catch fire; ignited entities burn out on their own with no world fire.
                     victim.igniteForSeconds(type.effectDurationTicks() / 20);
                     victim.hurtServer(level, this.damageSources().onFire(), 3.0f);
                 }
-                scatterFire(level, BlockPos.containing(center), (int) r);
             }
             case POISON -> {
                 level.sendParticles(ParticleTypes.SNEEZE, center.x, center.y, center.z, 1, 0, 0, 0, 0);
@@ -95,23 +99,6 @@ public final class ThrownGrenade extends ThrowableItemProjectile {
                             MobEffects.POISON, type.effectDurationTicks(), 1, false, true, true));
                     victim.addEffect(new MobEffectInstance(
                             MobEffects.SLOWNESS, type.effectDurationTicks() / 2, 0, false, true, true));
-                }
-            }
-        }
-    }
-
-    private void scatterFire(ServerLevel level, BlockPos center, int radius) {
-        for (int i = 0; i < 12; i++) {
-            int dx = level.getRandom().nextInt(radius * 2 + 1) - radius;
-            int dz = level.getRandom().nextInt(radius * 2 + 1) - radius;
-            for (int dy = 2; dy >= -2; dy--) {
-                BlockPos ground = center.offset(dx, dy, dz);
-                BlockPos above = ground.above();
-                BlockState groundState = level.getBlockState(ground);
-                if (!groundState.isAir() && groundState.isSolidRender()
-                        && level.getBlockState(above).isAir()) {
-                    level.setBlockAndUpdate(above, Blocks.FIRE.defaultBlockState());
-                    break;
                 }
             }
         }

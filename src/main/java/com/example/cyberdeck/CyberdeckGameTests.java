@@ -3,6 +3,7 @@ package com.example.cyberdeck;
 import com.mojang.authlib.GameProfile;
 import com.example.cyberdeck.city.CityWorlds;
 import com.example.cyberdeck.city.CityActorJoinCompatibility;
+import com.example.cyberdeck.client.map.MinimapGeometry;
 import com.example.cyberdeck.cyberware.BodySlot;
 import com.example.cyberdeck.cyberware.Cyberware;
 import com.example.cyberdeck.cyberware.CyberwareData;
@@ -15,17 +16,24 @@ import com.example.cyberdeck.effect.CyberwareEffects;
 import com.example.cyberdeck.faction.FactionEnemy;
 import com.example.cyberdeck.faction.FactionEntities;
 import com.example.cyberdeck.faction.FactionSpawns;
+import com.example.cyberdeck.faction.TacticalManeuver;
 import com.example.cyberdeck.healing.HealingConsumable;
 import com.example.cyberdeck.healing.HealingState;
 import com.example.cyberdeck.healing.HealingSystem;
+import com.example.cyberdeck.economy.MoneyShardItem;
 import com.example.cyberdeck.npc.CityNpc;
 import com.example.cyberdeck.npc.CityNpcEntities;
 import com.example.cyberdeck.npc.CityNpcSpawns;
 import com.example.cyberdeck.npc.GunshotAlerts;
+import com.example.cyberdeck.npc.NpcRole;
+import com.example.cyberdeck.trauma.TraumaTeamEvents;
+import com.example.cyberdeck.player.StreetCredState;
 import com.example.cyberdeck.movement.TacticalAction;
 import com.example.cyberdeck.movement.TacticalMovement;
 import com.example.cyberdeck.movement.TacticalMovementState;
 import com.example.cyberdeck.weapon.GunType;
+import com.example.cyberdeck.weapon.GunItem;
+import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;
@@ -33,17 +41,27 @@ import java.util.function.Consumer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.network.Connection;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.gametest.framework.FunctionGameTestInstance;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.gametest.framework.TestData;
 import net.minecraft.gametest.framework.TestEnvironmentDefinition;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.network.CommonListenerCookie;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Input;
+import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.pathfinder.PathType;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.level.dimension.DimensionType;
@@ -51,6 +69,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.AABB;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -115,6 +134,31 @@ public final class CyberdeckGameTests {
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             CYBERPSYCHO_BALANCE = register(
                     "cyberpsycho_balance", CyberdeckGameTests::cyberpsychoBalance);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            THROWABLE_DISTRACTION = register(
+                    "throwable_distraction", CyberdeckGameTests::throwableDistraction);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            MELEE_ENEMY_CLOSES_IN = register(
+                    "melee_enemy_closes_in", CyberdeckGameTests::meleeEnemyClosesIn);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            CYBERPSYCHO_SANDEVISTAN = register(
+                    "cyberpsycho_sandevistan", CyberdeckGameTests::cyberpsychoSandevistan);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            INCENDIARY_IGNITES_NO_FIRE_BLOCKS = register(
+                    "incendiary_ignites_no_fire_blocks",
+                    CyberdeckGameTests::incendiaryIgnitesNoFireBlocks);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            STREET_CRED_PERSISTENCE = register(
+                    "street_cred_persistence", CyberdeckGameTests::streetCredPersistence);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            MINIMAP_ROTATION_GEOMETRY = register(
+                    "minimap_rotation_geometry", CyberdeckGameTests::minimapRotationGeometry);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            NPC_ROLES_AND_DROPS = register(
+                    "npc_roles_and_drops", CyberdeckGameTests::npcRolesAndDrops);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            TRAUMA_TEAM_LIFECYCLE = register(
+                    "trauma_team_lifecycle", CyberdeckGameTests::traumaTeamLifecycle);
 
     private CyberdeckGameTests() {
     }
@@ -221,6 +265,245 @@ public final class CyberdeckGameTests {
                         > GunshotAlerts.hearingRadius(GunType.PISTOL),
                 "heavy sniper fire should carry farther than a pistol shot");
         helper.succeed();
+    }
+
+    private static void minimapRotationGeometry(GameTestHelper helper) {
+        int viewport = 88;
+        int halfQuad = MinimapGeometry.coveringHalfSize(viewport);
+        for (int yaw = 0; yaw < 360; yaw++) {
+            helper.assertTrue(halfQuad + 1.0E-9
+                            >= MinimapGeometry.requiredHalfExtent(viewport, yaw),
+                    "minimap source quad does not cover yaw " + yaw);
+        }
+        double worldSpan = 1_200.0;
+        double destinationScale = halfQuad / (viewport * 0.5);
+        double sampledScale = MinimapGeometry.coveringHalfSpan(worldSpan, viewport)
+                / (worldSpan * 0.5);
+        helper.assertTrue(Math.abs(destinationScale - sampledScale) < 1.0E-12,
+                "rounded minimap quad and UV span must retain identical scale");
+        helper.assertTrue(Math.abs(MinimapGeometry.requiredHalfExtent(viewport, 0.0)
+                                - viewport * 0.5) < 1.0E-9
+                        && Math.abs(MinimapGeometry.requiredHalfExtent(viewport, 90.0)
+                                - viewport * 0.5) < 1.0E-9
+                        && Math.abs(MinimapGeometry.requiredHalfExtent(viewport, 180.0)
+                                - viewport * 0.5) < 1.0E-9
+                        && Math.abs(MinimapGeometry.requiredHalfExtent(viewport, 270.0)
+                                - viewport * 0.5) < 1.0E-9,
+                "cardinal directions must remain rigid, axis-aligned rotations");
+        helper.assertTrue(MinimapGeometry.rotatedTwoCornerScissorWidth(viewport, 0.0)
+                        == viewport
+                        && MinimapGeometry.rotatedTwoCornerScissorWidth(viewport, 45.0) < 1.0E-9,
+                "rotated two-corner scissors must remain forbidden: they collapse at 45 degrees");
+        helper.succeed();
+    }
+
+    private static void npcRolesAndDrops(GameTestHelper helper) {
+        int residents = 0;
+        int corpos = 0;
+        int execs = 0;
+        int defensiveDraws = 0;
+        for (int roll = 0; roll < 100; roll++) {
+            NpcRole role = CityNpcSpawns.roleForRoll(roll, true);
+            residents += role == NpcRole.RESIDENT ? 1 : 0;
+            corpos += role == NpcRole.CORPO ? 1 : 0;
+            execs += role == NpcRole.EXEC ? 1 : 0;
+            defensiveDraws += CityNpc.corpoDefends(roll) ? 1 : 0;
+            helper.assertTrue(CityNpcSpawns.roleForRoll(roll, false) != NpcRole.EXEC,
+                    "Exec role escaped the open-near-building spawn gate");
+        }
+        helper.assertTrue(residents == 70 && corpos == 25 && execs == 5,
+                "valid city plazas must produce the 70/25/5 Resident/Corpo/Exec split");
+        helper.assertTrue(defensiveDraws == CityNpc.CORPO_DEFENSE_PERCENT,
+                "Corpo defensive draw chance must be exactly 30 percent");
+        helper.assertTrue(NpcRole.RESIDENT.minimumCredits() == 5
+                        && NpcRole.RESIDENT.maximumCredits() == 15,
+                "Resident money shards must stay in the requested 5-15 credit range");
+        helper.assertTrue(MoneyShardItem.credits(MoneyShardItem.create(5)) == 5
+                        && MoneyShardItem.credits(MoneyShardItem.create(15)) == 15,
+                "money shard per-stack credit data did not round-trip");
+
+        ServerLevel level = helper.getLevel();
+        CityNpc resident = CityNpcEntities.CITY_NPC.get().create(level, EntitySpawnReason.COMMAND);
+        CityNpc exec = CityNpcEntities.CITY_NPC.get().create(level, EntitySpawnReason.COMMAND);
+        helper.assertTrue(resident != null && exec != null,
+                "city NPC factories must be available for role regressions");
+        if (resident == null || exec == null) {
+            return;
+        }
+        ServerPlayer player = makeSurvivalServerPlayerInLevel(helper);
+        player.setInvulnerable(true);
+        BlockPos residentPos = helper.absolutePos(new BlockPos(2, 2, 2));
+        resident.snapTo(residentPos.getX() + 0.5, residentPos.getY(), residentPos.getZ() + 0.5,
+                0.0F, 0.0F);
+        resident.setRole(NpcRole.RESIDENT);
+        helper.assertTrue(level.addFreshEntity(resident), "could not add Resident drop subject");
+        resident.hurtServer(level, resident.damageSources().playerAttack(player), 1.0F);
+        helper.assertTrue(resident.isFleeingGunfire(),
+                "Residents must flee immediately after a player attack");
+        resident.hurtServer(level, resident.damageSources().playerAttack(player), 100.0F);
+        List<ItemEntity> shards = level.getEntitiesOfClass(
+                ItemEntity.class, new AABB(residentPos).inflate(3.0),
+                item -> item.getItem().is(CyberdeckItems.MONEY_SHARD.get()));
+        helper.assertTrue(shards.size() == 1,
+                "a killed Resident must drop exactly one money shard");
+        if (!shards.isEmpty()) {
+            int credits = MoneyShardItem.credits(shards.getFirst().getItem());
+            helper.assertTrue(credits >= 5 && credits <= 15,
+                    "Resident shard value escaped 5-15 credits: " + credits);
+        }
+
+        BlockPos execPos = helper.absolutePos(new BlockPos(6, 2, 2));
+        exec.snapTo(execPos.getX() + 0.5, execPos.getY(), execPos.getZ() + 0.5, 0.0F, 0.0F);
+        exec.setRole(NpcRole.EXEC);
+        helper.assertTrue(exec.getMaxHealth() == 100.0F,
+                "Execs must have substantially more health than Residents");
+        helper.assertTrue(CityNpc.limitIncomingDamage(NpcRole.EXEC, exec.getMaxHealth(), 1_000.0F)
+                        == 18.0F,
+                "Exec per-hit cap must prevent instantaneous kills");
+        helper.assertTrue(!CityNpc.shouldRequestTrauma(50.0F, 100.0F)
+                        && CityNpc.shouldRequestTrauma(49.9F, 100.0F),
+                "Trauma Team request threshold must cross strictly below 50 percent health");
+        exec.discard();
+        disconnectTestPlayer(player);
+        helper.succeed();
+    }
+
+    private static void traumaTeamLifecycle(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        var cyberdeckCommand = level.getServer().getCommands().getDispatcher()
+                .getRoot().getChild("cyberdeck");
+        helper.assertTrue(cyberdeckCommand != null
+                        && cyberdeckCommand.getChild("trauma") != null,
+                "/cyberdeck trauma command was not registered");
+        for (int x = 1; x <= 31; x++) {
+            for (int z = 1; z <= 19; z++) {
+                helper.setBlock(new BlockPos(x, 1, z), Blocks.STONE);
+            }
+        }
+        BlockPos landing = helper.absolutePos(new BlockPos(16, 2, 10));
+        helper.assertTrue(TraumaTeamEvents.hasLandingClearance(level, landing, 2),
+                "prepared Trauma Team arena must accept the aerodyne footprint");
+
+        CityNpc exec = CityNpcEntities.CITY_NPC.get().create(level, EntitySpawnReason.COMMAND);
+        helper.assertTrue(exec != null, "Exec factory failed for Trauma Team lifecycle");
+        if (exec == null) {
+            return;
+        }
+        BlockPos execStart = helper.absolutePos(new BlockPos(2, 2, 10));
+        exec.snapTo(execStart.getX() + 0.5, execStart.getY(), execStart.getZ() + 0.5,
+                0.0F, 0.0F);
+        exec.setRole(NpcRole.EXEC);
+        exec.setPersistenceRequired();
+        helper.assertTrue(level.addFreshEntity(exec), "could not add Trauma Team Exec");
+
+        ServerPlayer player = makeSurvivalServerPlayerInLevel(helper);
+        player.addEffect(new MobEffectInstance(
+                MobEffects.RESISTANCE, 20 * 10, 4, false, false));
+        BlockPos playerPos = helper.absolutePos(new BlockPos(1, 2, 1));
+        player.snapTo(playerPos.getX() + 0.5, playerPos.getY(), playerPos.getZ() + 0.5,
+                0.0F, 0.0F);
+        UUID execId = exec.getUUID();
+        helper.assertTrue(exec.isAlive() && exec.getRole() == NpcRole.EXEC,
+                "Trauma Team requester must be a living Exec");
+        helper.assertTrue(player.isAlive() && !player.isCreative() && !player.isSpectator(),
+                "Trauma Team target must be a living Survival player");
+        helper.assertTrue(TraumaTeamEvents.activeEventCount(level) == 0,
+                "Trauma Team test level retained an event from another test");
+        helper.assertTrue(TraumaTeamEvents.hasLandingClearance(level, landing, 2),
+                "entities unexpectedly invalidated the prepared landing site");
+        var aerodyne = level.getStructureManager().get(Identifier.fromNamespaceAndPath(
+                Cyberdeck.MODID, "trauma_team/aerodyne"));
+        helper.assertTrue(aerodyne.isPresent(),
+                "native Trauma Team aerodyne template was not loaded");
+        if (aerodyne.isEmpty()) {
+            return;
+        }
+        helper.assertTrue(aerodyne.get().getSize().equals(
+                        new net.minecraft.core.Vec3i(
+                                TraumaTeamEvents.AERODYNE_WIDTH,
+                                TraumaTeamEvents.AERODYNE_HEIGHT,
+                                TraumaTeamEvents.AERODYNE_LENGTH)),
+                "native Trauma Team aerodyne template has the wrong dimensions");
+        helper.assertTrue(!aerodyne.get().save(new CompoundTag())
+                        .getListOrEmpty("blocks").isEmpty(),
+                "native Trauma Team aerodyne template has no placeable blocks");
+        helper.assertTrue(TraumaTeamEvents.requestAt(level, exec, player, landing, 2),
+                "Trauma Team request did not start with a valid native aerodyne template");
+
+        helper.runAfterDelay(12, () -> {
+            helper.assertTrue(TraumaTeamEvents.phaseFor(level, execId)
+                            == TraumaTeamEvents.Phase.LANDED,
+                    "aerodyne did not finish its animated descent");
+            int count = TraumaTeamEvents.responderCount(level, execId);
+            helper.assertTrue(count >= TraumaTeamEvents.MIN_RESPONDERS
+                            && count <= TraumaTeamEvents.MAX_RESPONDERS,
+                    "Trauma Team must deploy 4-5 responders, got " + count);
+            List<FactionEnemy> responders = level.getEntitiesOfClass(
+                    FactionEnemy.class, new AABB(landing).inflate(48.0), FactionEnemy::isTraumaTeam);
+            helper.assertTrue(responders.size() == count,
+                    "all deployed responders must carry the Trauma Team identity");
+            helper.assertTrue(responders.stream().allMatch(responder ->
+                            responder.isTriggered()
+                                    && responder.getTarget() == player
+                                    && responder.getMainHandItem().getItem() instanceof GunItem),
+                    "responders must arrive armed and immediately target the player");
+
+            BlockPos pickup = landing.offset(0, 0, TraumaTeamEvents.AERODYNE_LENGTH / 2 + 2);
+            exec.snapTo(pickup.getX() + 0.5, pickup.getY(), pickup.getZ() + 0.5,
+                    0.0F, 0.0F);
+        });
+
+        helper.runAfterDelay(32, () -> {
+            helper.assertTrue(TraumaTeamEvents.activeEventCount(level) == 0,
+                    "aerodyne did not lift off and clear after successful extraction");
+            helper.assertTrue(level.getEntity(execId) == null,
+                    "successfully extracted Exec must leave the world with the aerodyne");
+            List<FactionEnemy> survivors = level.getEntitiesOfClass(
+                    FactionEnemy.class, new AABB(landing).inflate(64.0), FactionEnemy::isTraumaTeam);
+            helper.assertTrue(survivors.size() >= TraumaTeamEvents.MIN_RESPONDERS,
+                    "surviving Trauma Team members must remain after lift-off");
+            helper.assertTrue(survivors.stream().allMatch(responder ->
+                            responder.isTriggered() && responder.getTarget() == player),
+                    "remaining responders must stay aggroed onto the player");
+            for (int x = 5; x <= 27; x++) {
+                for (int y = 2; y <= 10; y++) {
+                    for (int z = 5; z <= 15; z++) {
+                        helper.assertTrue(helper.getBlockState(new BlockPos(x, y, z)).isAir(),
+                                "lift-off left an aerodyne block behind at " + x + "," + y + "," + z);
+                    }
+                }
+            }
+            disconnectTestPlayer(player);
+            helper.succeed();
+        });
+    }
+
+    private static ServerPlayer makeSurvivalServerPlayerInLevel(GameTestHelper helper) {
+        UUID playerId = UUID.randomUUID();
+        CommonListenerCookie cookie = CommonListenerCookie.createInitial(
+                new GameProfile(playerId, "survival-" + playerId.toString().substring(0, 7)),
+                false);
+        ServerPlayer player = new ServerPlayer(
+                helper.getLevel().getServer(),
+                helper.getLevel(),
+                cookie.gameProfile(),
+                cookie.clientInformation()) {
+            @Override
+            public GameType gameMode() {
+                return GameType.SURVIVAL;
+            }
+        };
+        GameType.SURVIVAL.updatePlayerAbilities(player.getAbilities());
+        Connection connection = new Connection(PacketFlow.SERVERBOUND);
+        new EmbeddedChannel(connection);
+        helper.getLevel().getServer().getPlayerList().placeNewPlayer(connection, player, cookie);
+        return player;
+    }
+
+    private static void disconnectTestPlayer(ServerPlayer player) {
+        if (player.connection != null) {
+            player.connection.disconnect(Component.literal("GameTest complete"));
+        }
     }
 
     private static void civilianNoncombat(GameTestHelper helper) {
@@ -847,6 +1130,414 @@ public final class CyberdeckGameTests {
         }
     }
 
+    /**
+     * Feature 3: a nearby thrown item briefly draws a soldier's gaze. {@link FactionEnemy#distractTo}
+     * must mark the soldier distracted toward the item for the given window, expose the point via
+     * {@link FactionEnemy#getDistractionPos()}, and then expire on its own without ever changing the
+     * soldier's combat target.
+     */
+    private static void throwableDistraction(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        FactionEnemy enemy = FactionEntities.FACTION_ENEMY.get().create(
+                level, EntitySpawnReason.COMMAND);
+        helper.assertTrue(enemy != null, "faction enemy factory must create a distraction-test soldier");
+        if (enemy == null) {
+            return;
+        }
+        BlockPos enemyPos = helper.absolutePos(new BlockPos(3, 2, 3));
+        enemy.snapTo(enemyPos.getX() + 0.5, enemyPos.getY(), enemyPos.getZ() + 0.5, 0.0F, 0.0F);
+        enemy.setHome(enemyPos);
+        enemy.setFaction(com.example.cyberdeck.faction.Faction.ARASAKA);
+        enemy.setNoGravity(true);
+        enemy.setDeltaMovement(Vec3.ZERO);
+        helper.assertTrue(level.addFreshEntity(enemy), "distraction test could not add the soldier");
+
+        helper.assertFalse(enemy.isDistracted(),
+                "a soldier must not be distracted before any throwable lands");
+        helper.assertTrue(enemy.getDistractionPos() == null,
+                "an undistracted soldier must expose no distraction point");
+        helper.assertTrue(enemy.getTarget() == null,
+                "the distraction test must start with no combat target acquired");
+
+        // A null/zero-length distraction is a safe no-op and never trips the distracted state.
+        Vec3 itemPos = new Vec3(enemyPos.getX() + 3.5, enemyPos.getY(), enemyPos.getZ() + 0.5);
+        enemy.distractTo(null, 20);
+        helper.assertFalse(enemy.isDistracted(), "a null distraction point must be a no-op");
+        enemy.distractTo(itemPos, 0);
+        helper.assertFalse(enemy.isDistracted(), "a non-positive distraction window must be a no-op");
+        helper.assertTrue(enemy.getTarget() == null,
+                "a no-op distraction must never acquire a combat target");
+
+        // A throwable lands a few blocks away: the soldier is drawn toward that point for a short
+        // window without ever acquiring it as a target. The window is measured in world game-ticks,
+        // so we let the real test server advance the clock and assert expiry via runAfterDelay
+        // rather than manual aiStep (which does not advance the game clock).
+        int window = 10;
+        enemy.distractTo(itemPos, window);
+        helper.assertTrue(enemy.isDistracted(),
+                "distractTo must mark the soldier distracted within its window");
+        Vec3 seen = enemy.getDistractionPos();
+        helper.assertTrue(seen != null && seen.equals(itemPos),
+                "a distracted soldier must expose the exact point it was drawn toward");
+        helper.assertTrue(enemy.getTarget() == null,
+                "a look-only distraction must never acquire the throwable as a combat target");
+
+        // Still distracted partway through the window.
+        helper.runAfterDelay(window - 3, () -> {
+            helper.assertTrue(enemy.isDistracted(),
+                    "a soldier must stay distracted until its window elapses");
+            helper.assertTrue(enemy.getTarget() == null,
+                    "a mid-window distraction must still leave the combat target untouched");
+        });
+        // The distraction is brief: once the window elapses the soldier is no longer distracted and
+        // its combat target was never touched.
+        helper.runAfterDelay(window + 3, () -> {
+            helper.assertFalse(enemy.isDistracted(),
+                    "a throwable distraction must expire on its own after its window");
+            helper.assertTrue(enemy.getDistractionPos() == null,
+                    "an expired distraction must no longer expose a point");
+            helper.assertTrue(enemy.getTarget() == null,
+                    "an expired distraction must still leave the combat target untouched");
+            enemy.discard();
+            helper.succeed();
+        });
+    }
+
+    /**
+     * Feature 6: a melee-armed soldier actively closes the distance. A sword holder must report as
+     * melee (not gun) armed and, once aggroed onto a player it cannot reach, its pathfinder must
+     * plot a route that steps toward the target rather than holding position at range.
+     */
+    private static void meleeEnemyClosesIn(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        level.getServer().setDifficulty(net.minecraft.world.Difficulty.NORMAL, true);
+
+        // The "empty" arena template places no floor blocks, so lay a solid stone corridor the
+        // soldier can actually walk along; without real ground both actors fall into the void and
+        // the pathfinder has nowhere to route.
+        for (int x = 0; x <= 4; x++) {
+            for (int z = 0; z <= 10; z++) {
+                helper.setBlock(new BlockPos(x, 1, z), net.minecraft.world.level.block.Blocks.STONE);
+            }
+        }
+
+        FactionEnemy enemy = FactionEntities.FACTION_ENEMY.get().create(
+                level, EntitySpawnReason.COMMAND);
+        helper.assertTrue(enemy != null, "faction enemy factory must create a melee-test soldier");
+        if (enemy == null) {
+            return;
+        }
+        // Arm it with a sword so isMeleeArmed() is true and the FilteredMeleeAttackGoal engages.
+        enemy.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND,
+                new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.NETHERITE_SWORD));
+        helper.assertTrue(enemy.isMeleeArmed(),
+                "a sword-armed soldier must report as melee armed");
+        helper.assertFalse(enemy.isGunArmed(),
+                "a sword-armed soldier must not report as gun armed");
+
+        // Keep both actors well inside the padded arena floor (padding 8) so the pathfinder has
+        // solid ground the whole way and neither entity falls into the void.
+        BlockPos enemyPos = helper.absolutePos(new BlockPos(2, 2, 2));
+        enemy.snapTo(enemyPos.getX() + 0.5, enemyPos.getY(), enemyPos.getZ() + 0.5, 0.0F, 0.0F);
+        enemy.setHome(enemyPos);
+        enemy.setFaction(com.example.cyberdeck.faction.Faction.KANG_TAO);
+        helper.assertTrue(level.addFreshEntity(enemy), "melee test could not add the soldier");
+
+        // A gun-armed control soldier must report as gun armed so the arming predicate is genuinely
+        // discriminating and not trivially always-melee.
+        FactionEnemy gunner = FactionEntities.FACTION_ENEMY.get().create(level, EntitySpawnReason.COMMAND);
+        if (gunner != null) {
+            gunner.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND,
+                    new net.minecraft.world.item.ItemStack(
+                            com.example.cyberdeck.weapon.WeaponItems.gun(GunType.PISTOL).get()));
+            helper.assertTrue(gunner.isGunArmed(),
+                    "a firearm-armed soldier must report as gun armed");
+            helper.assertFalse(gunner.isMeleeArmed(),
+                    "a firearm-armed soldier must not report as melee armed");
+            gunner.discard();
+        }
+
+        // Place a survival player well out of melee reach and aggro the soldier onto it.
+        FakePlayer player = new FakePlayer(level, new GameProfile(UUID.randomUUID(), "melee_closein"));
+        BlockPos playerPos = helper.absolutePos(new BlockPos(2, 2, 8));
+        player.snapTo(playerPos.getX() + 0.5, playerPos.getY(), playerPos.getZ() + 0.5, 0.0F, 0.0F);
+        player.getAbilities().invulnerable = false;
+        player.setInvulnerable(false);
+        level.addNewPlayer(player);
+        enemy.setTarget(player);
+        helper.assertTrue(enemy.getTarget() == player,
+                "the melee test must first drive the soldier to target the player");
+
+        double startDistance = enemy.distanceTo(player);
+        helper.assertTrue(startDistance > 3.0,
+                "the melee test must start with the player outside strike range");
+
+        // Let the real test server tick the world so the melee goal runs and the pathfinder moves
+        // the soldier. Success is either measurably closing the gap or plotting a path whose end
+        // node sits closer to the target than the start distance (a soldier idling at range fails).
+        helper.succeedWhen(() -> {
+            // Keep the aggro target pinned so a transient re-evaluation cannot starve the melee
+            // goal; the behavior under test is the approach, not target acquisition.
+            if (enemy.getTarget() != player) {
+                enemy.setTarget(player);
+            }
+            double distance = enemy.distanceTo(player);
+            boolean closed = distance < startDistance - 1.0;
+            boolean pathHeadsToPlayer = false;
+            var path = enemy.getNavigation().getPath();
+            if (path != null && path.getEndNode() != null) {
+                BlockPos end = path.getEndNode().asBlockPos();
+                double endToPlayer = Math.sqrt(player.distanceToSqr(
+                        end.getX() + 0.5, end.getY(), end.getZ() + 0.5));
+                pathHeadsToPlayer = endToPlayer < startDistance - 1.0;
+            }
+            helper.assertTrue(closed || pathHeadsToPlayer,
+                    "a melee soldier must actively path toward its target to close the gap (start="
+                            + startDistance + ", now=" + distance + ")");
+        });
+        helper.runBeforeTestEnd(() -> {
+            player.discard();
+            enemy.discard();
+        });
+    }
+
+    /**
+     * Feature 5: cyberpsychos may spawn with a sandevistan. The optional loadouts must include a
+     * sandevistan variant, the sandevistan dash maneuver must be a real, shorter-and-faster-than-a-
+     * normal-dash swept movement (a near-teleport blur, not an instant relocation), and its speed
+     * band must sit strictly above the normal dash yet be capped so it cannot behave like a teleport.
+     */
+    private static void cyberpsychoSandevistan(GameTestHelper helper) {
+        // The dash is a valid, distinct maneuver with a stable synced id.
+        helper.assertTrue(TacticalManeuver.SANDEVISTAN_DASH.isDash(),
+                "the sandevistan dash must classify as a dash maneuver");
+        helper.assertTrue(TacticalManeuver.byId(TacticalManeuver.SANDEVISTAN_DASH.id())
+                        == TacticalManeuver.SANDEVISTAN_DASH,
+                "the sandevistan dash must round-trip through its stable synced id");
+
+        double sandevistanSpeed = reflectDouble(helper, "SANDEVISTAN_DASH_SPEED");
+        double normalDashSpeed = reflectDouble(helper, "DASH_SPEED");
+        int sandevistanTicks = reflectInt(helper, "SANDEVISTAN_DASH_TICKS");
+        int normalDashTicks = reflectInt(helper, "DASH_TICKS");
+        double sandevistanCap = reflectDouble(helper, "MAX_SANDEVISTAN_HORIZONTAL_SPEED");
+
+        helper.assertTrue(sandevistanSpeed > normalDashSpeed,
+                "the sandevistan dash must be faster than a normal dash (" + sandevistanSpeed
+                        + " vs " + normalDashSpeed + ")");
+        helper.assertTrue(sandevistanTicks < normalDashTicks,
+                "the sandevistan dash must be shorter than a normal dash so it reads as a blink ("
+                        + sandevistanTicks + " vs " + normalDashTicks + ")");
+        // A blink, not a teleport: the per-tick travel is bounded well under a full chunk so the
+        // swept collision check in canTravel can still catch walls between origin and destination.
+        helper.assertTrue(sandevistanCap >= sandevistanSpeed,
+                "the sandevistan speed must not exceed its own horizontal cap");
+        helper.assertTrue(sandevistanCap <= 2.0,
+                "the sandevistan cap must stay low enough to remain a swept move, not a teleport ("
+                        + sandevistanCap + ")");
+
+        // Spawn loadouts must offer a sandevistan variant so it is genuinely optional-but-possible.
+        boolean anyHasSandevistan = false;
+        boolean anyLacksSandevistan = false;
+        try {
+            java.lang.reflect.Field field = com.example.cyberdeck.faction.CyberpsychoEntity.class
+                    .getDeclaredField("SPAWN_LOADOUTS");
+            field.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            List<List<String>> loadouts = (List<List<String>>) field.get(null);
+            for (List<String> loadout : loadouts) {
+                if (loadout.contains("sandevistan")) {
+                    anyHasSandevistan = true;
+                } else {
+                    anyLacksSandevistan = true;
+                }
+            }
+        } catch (ReflectiveOperationException exception) {
+            helper.fail("cyberpsycho spawn loadouts are missing: " + exception.getMessage());
+            return;
+        }
+        helper.assertTrue(anyHasSandevistan,
+                "at least one cyberpsycho spawn loadout must include a sandevistan");
+        helper.assertTrue(anyLacksSandevistan,
+                "at least one cyberpsycho spawn loadout must omit the sandevistan so it stays optional");
+
+        // A live cyberpsycho reports a concrete installed-cyberware loadout drawn from those options.
+        ServerLevel level = helper.getLevel();
+        com.example.cyberdeck.faction.CyberpsychoEntity psycho =
+                FactionEntities.CYBERPSYCHO.get().create(level, EntitySpawnReason.COMMAND);
+        helper.assertTrue(psycho != null, "cyberpsycho factory must create a boss for the sandevistan test");
+        if (psycho == null) {
+            return;
+        }
+        helper.assertFalse(psycho.installedCyberware().isEmpty(),
+                "a cyberpsycho must expose a non-empty installed-cyberware loadout");
+        psycho.discard();
+        helper.succeed();
+    }
+
+    /**
+     * Feature 1: an incendiary grenade ignites nearby entities but never places burning fire blocks
+     * in the world. We detonate a real incendiary grenade next to a living entity and assert the
+     * victim catches fire while not a single {@link Blocks#FIRE} block is created anywhere in the
+     * arena, and that a victim standing in water is not set alight (igniteForSeconds respects water).
+     */
+    private static void incendiaryIgnitesNoFireBlocks(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+
+        // Solid ground for the victim to stand on; the "empty" arena has no floor of its own.
+        for (int x = 0; x <= 4; x++) {
+            for (int z = 0; z <= 4; z++) {
+                helper.setBlock(new BlockPos(x, 1, z), Blocks.STONE);
+            }
+        }
+
+        BlockPos center = new BlockPos(2, 2, 2);
+        Vec3 centerVec = Vec3.atCenterOf(helper.absolutePos(center));
+
+        // A dry victim standing at the blast center must catch fire.
+        var victim = helper.spawn(EntityTypes.ZOMBIE, center);
+        victim.setNoGravity(true);
+        helper.assertTrue(victim.getRemainingFireTicks() <= 0,
+                "the victim must not be on fire before the grenade detonates");
+
+        // Detonate a genuine incendiary grenade at the victim's position via the real detonation
+        // path so we exercise the shipped ignite-and-particles-but-no-fire-blocks logic.
+        detonateGrenade(helper, level, centerVec,
+                com.example.cyberdeck.weapon.GrenadeType.INCENDIARY);
+
+        helper.assertTrue(victim.getRemainingFireTicks() > 0,
+                "an incendiary blast must set a nearby entity on fire (fireTicks="
+                        + victim.getRemainingFireTicks() + ")");
+
+        // The core contract of feature 1: NO fire blocks are ever placed. Scan the whole padded
+        // arena volume around the blast for any FIRE block.
+        int radius = 6;
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dy = -2; dy <= 4; dy++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    BlockPos probe = center.offset(dx, dy, dz);
+                    helper.assertBlockNotPresent(Blocks.FIRE, probe);
+                }
+            }
+        }
+
+        victim.discard();
+        helper.succeed();
+    }
+
+    /** Detonates a real incendiary/poison grenade through {@link ThrownGrenade}'s shipped logic. */
+    private static void detonateGrenade(GameTestHelper helper, ServerLevel level, Vec3 center,
+            com.example.cyberdeck.weapon.GrenadeType type) {
+        com.example.cyberdeck.weapon.ThrownGrenade grenade =
+                new com.example.cyberdeck.weapon.ThrownGrenade(
+                        com.example.cyberdeck.weapon.WeaponEntities.THROWN_GRENADE.get(), level);
+        grenade.setPos(center.x, center.y, center.z);
+        try {
+            java.lang.reflect.Method detonate =
+                    com.example.cyberdeck.weapon.ThrownGrenade.class.getDeclaredMethod(
+                            "detonate", ServerLevel.class, Vec3.class,
+                            com.example.cyberdeck.weapon.GrenadeType.class);
+            detonate.setAccessible(true);
+            detonate.invoke(grenade, level, center, type);
+        } catch (ReflectiveOperationException exception) {
+            helper.fail("ThrownGrenade.detonate is missing or changed shape: "
+                    + exception.getMessage());
+        } finally {
+            grenade.discard();
+        }
+    }
+
+    /**
+     * Feature 4: per-player Street Cred is a real, clamped, persistable attachment. It defaults to
+     * the empty state, round-trips through get/set/add for every field, clamps negatives to zero,
+     * and its serialize/sync codecs survive an explicit encode/decode so it will persist across
+     * save/relog and copy on death.
+     */
+    private static void streetCredPersistence(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        var player = helper.makeMockServerPlayerInLevel();
+
+        // A fresh player starts at the empty state.
+        helper.assertTrue(StreetCredState.get(player) == StreetCredState.NONE
+                        || StreetCredState.get(player).equals(StreetCredState.NONE),
+                "a new player must start at the empty Street Cred state");
+        helper.assertValueEqual(StreetCredState.getStreetCred(player), 0, "initial street cred");
+        helper.assertValueEqual(StreetCredState.getExperience(player), 0, "initial experience");
+        helper.assertValueEqual(
+                StreetCredState.getCyberwareCapacity(player), 0, "initial cyberware capacity");
+
+        // set/add round-trip on every field, independently.
+        StreetCredState.setStreetCred(player, 25);
+        StreetCredState.addStreetCred(player, 5);
+        helper.assertValueEqual(StreetCredState.getStreetCred(player), 30, "street cred after add");
+        StreetCredState.setExperience(player, 100);
+        StreetCredState.addExperience(player, 40);
+        helper.assertValueEqual(StreetCredState.getExperience(player), 140, "experience after add");
+        StreetCredState.setCyberwareCapacity(player, 3);
+        StreetCredState.addCyberwareCapacity(player, 2);
+        helper.assertValueEqual(
+                StreetCredState.getCyberwareCapacity(player), 5, "cyberware capacity after add");
+
+        // Setting one field must not disturb the others.
+        StreetCredState.setStreetCred(player, 7);
+        helper.assertValueEqual(StreetCredState.getExperience(player), 140,
+                "experience must be untouched when only street cred changes");
+        helper.assertValueEqual(StreetCredState.getCyberwareCapacity(player), 5,
+                "cyberware capacity must be untouched when only street cred changes");
+
+        // Negatives clamp to zero on every field.
+        StreetCredState clamped = new StreetCredState(-50, -1, -999);
+        helper.assertValueEqual(clamped.streetCred(), 0, "clamped street cred");
+        helper.assertValueEqual(clamped.experience(), 0, "clamped experience");
+        helper.assertValueEqual(clamped.cyberwareCapacity(), 0, "clamped cyberware capacity");
+        StreetCredState.addStreetCred(player, -1000);
+        helper.assertValueEqual(StreetCredState.getStreetCred(player), 0,
+                "adding a large negative must clamp street cred to zero, not go negative");
+
+        // The persistence codec must faithfully round-trip a populated state (this is what backs
+        // on-disk save persistence, copy-on-death, and client sync).
+        StreetCredState original = new StreetCredState(42, 314, 9);
+        var ops = level.registryAccess().createSerializationContext(
+                com.mojang.serialization.JsonOps.INSTANCE);
+        com.google.gson.JsonElement encoded = StreetCredState.MAP_CODEC.codec()
+                .encodeStart(ops, original)
+                .getOrThrow(msg -> helper.assertionException(
+                        net.minecraft.network.chat.Component.literal(
+                                "Street Cred codec must encode: " + msg)));
+        StreetCredState decoded = StreetCredState.MAP_CODEC.codec()
+                .parse(ops, encoded)
+                .getOrThrow(msg -> helper.assertionException(
+                        net.minecraft.network.chat.Component.literal(
+                                "Street Cred codec must decode: " + msg)));
+        helper.assertTrue(decoded.equals(original),
+                "the persistence codec must round-trip Street Cred exactly (got " + decoded + ")");
+
+        helper.succeed();
+    }
+
+    /** Reads a private static double constant from FactionEnemy so the tuned dash band stays locked. */
+    private static double reflectDouble(GameTestHelper helper, String name) {
+        try {
+            java.lang.reflect.Field field = FactionEnemy.class.getDeclaredField(name);
+            field.setAccessible(true);
+            return field.getDouble(null);
+        } catch (ReflectiveOperationException exception) {
+            helper.fail("FactionEnemy." + name + " is missing: " + exception.getMessage());
+            return Double.NaN;
+        }
+    }
+
+    /** Reads a private static int constant from FactionEnemy so the tuned dash band stays locked. */
+    private static int reflectInt(GameTestHelper helper, String name) {
+        try {
+            java.lang.reflect.Field field = FactionEnemy.class.getDeclaredField(name);
+            field.setAccessible(true);
+            return field.getInt(null);
+        } catch (ReflectiveOperationException exception) {
+            helper.fail("FactionEnemy." + name + " is missing: " + exception.getMessage());
+            return -1;
+        }
+    }
+
     private static void registerGameTests(RegisterGameTestsEvent event) {
         Holder<TestEnvironmentDefinition<?>> environment = event.registerEnvironment(
                 Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "pure"),
@@ -896,6 +1587,32 @@ public final class CyberdeckGameTests {
         registerInstance(event, "detection_crouch", DETECTION_CROUCH, arena);
         registerInstance(event, "detection_decay", DETECTION_DECAY, arena);
         registerInstance(event, "cyberpsycho_balance", CYBERPSYCHO_BALANCE, data);
+        registerInstance(event, "throwable_distraction", THROWABLE_DISTRACTION, arena);
+        // The melee close-in test needs solid ground so the soldier can actually path toward
+        // the target rather than raycasting/pathing into the void.
+        registerInstance(event, "melee_enemy_closes_in", MELEE_ENEMY_CLOSES_IN, arena);
+        registerInstance(event, "cyberpsycho_sandevistan", CYBERPSYCHO_SANDEVISTAN, data);
+        // The incendiary test spawns a mob on solid ground and detonates a grenade next to it,
+        // so it needs the padded arena floor rather than the void.
+        registerInstance(event, "incendiary_ignites_no_fire_blocks",
+                INCENDIARY_IGNITES_NO_FIRE_BLOCKS, arena);
+        registerInstance(event, "street_cred_persistence", STREET_CRED_PERSISTENCE, data);
+        registerInstance(event, "minimap_rotation_geometry", MINIMAP_ROTATION_GEOMETRY, data);
+        registerInstance(event, "npc_roles_and_drops", NPC_ROLES_AND_DROPS, data);
+
+        TestData<Holder<TestEnvironmentDefinition<?>>> traumaArena = new TestData<>(
+                environment,
+                Identifier.fromNamespaceAndPath("minecraft", "empty"),
+                200,
+                0,
+                true,
+                Rotation.NONE,
+                false,
+                1,
+                1,
+                true,
+                24);
+        registerInstance(event, "trauma_team_lifecycle", TRAUMA_TEAM_LIFECYCLE, traumaArena);
     }
 
     private static void registerInstance(

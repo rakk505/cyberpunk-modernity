@@ -7,7 +7,9 @@ import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Seeded, finite graph of cultural district blobs.
@@ -22,6 +24,10 @@ public final class MegacityLayout {
     public static final int NOMINAL_CITY_RADIUS = 4_900;
 
     private static final double GOLDEN_ANGLE = Math.PI * (3.0 - Math.sqrt(5.0));
+    public static final double BORDER_SECONDARY_LIMIT = 1.18;
+    public static final double BORDER_GAP_LIMIT = 0.11;
+    private static final int CONNECTION_PROJECTION_SEGMENTS = 12;
+    private static final int CONNECTION_PROJECTION_REFINEMENTS = 5;
     private static final long NODE_SALT = 0x4E4F444553414C54L;
     private static final long EDGE_SALT = 0x4544474553414C54L;
 
@@ -30,8 +36,9 @@ public final class MegacityLayout {
         BACKSTREETS,
         /** Travel-corridor land between blobs; ordinary district land never uses this zone. */
         OUTSKIRTS,
-        BORDER_RIVER,
-        BORDER_HILLS,
+        BORDER_WALLED,
+        BORDER_FOREST,
+        BORDER_CLIFF,
         WILDERNESS
     }
 
@@ -51,12 +58,51 @@ public final class MegacityLayout {
             long identity
     ) {}
 
-    public record Edge(Node first, Node second, ConnectionKind kind, double bend, long identity) {
+    public record Edge(
+            Node first,
+            Node second,
+            ConnectionKind kind,
+            double bend,
+            long identity,
+            boolean elevatedBackbone
+    ) {
         public boolean connects(District left, District right) {
             return (first.district() == left && second.district() == right)
                     || (first.district() == right && second.district() == left);
         }
+
+        /** Prim-tree routes form the backbone; legacy elevated-style chords add optional loops. */
+        public boolean hasElevatedLayer() {
+            return elevatedBackbone || kind == ConnectionKind.ELEVATED_RAIL;
+        }
     }
+
+    /** Position and derivative of one point on a connection's quadratic Bezier curve. */
+    public record CurvePoint(double x, double z, double tangentX, double tangentZ) {}
+
+    /** Closest curve point to a world position, including progress and travel direction. */
+    public record ConnectionProjection(
+            Edge edge,
+            double x,
+            double z,
+            double distance,
+            double progress,
+            double tangentX,
+            double tangentZ
+    ) {}
+
+    /** Pair-stable coordinates across and along one district boundary. */
+    public record BoundaryFrame(
+            District first,
+            District second,
+            double signedGap,
+            double gapRatio,
+            double normalX,
+            double normalZ,
+            double tangentX,
+            double tangentZ,
+            double along
+    ) {}
 
     public record Location(
             Node primary,
@@ -77,12 +123,14 @@ public final class MegacityLayout {
     private final long seed;
     private final List<Node> nodes;
     private final List<Edge> edges;
+    private final List<Edge> elevatedEdges;
     private final Map<District, Node> byDistrict;
 
     private MegacityLayout(long seed, List<Node> nodes, List<Edge> edges) {
         this.seed = seed;
         this.nodes = List.copyOf(nodes);
         this.edges = List.copyOf(edges);
+        this.elevatedEdges = this.edges.stream().filter(Edge::hasElevatedLayer).toList();
         EnumMap<District, Node> index = new EnumMap<>(District.class);
         for (Node node : nodes) index.put(node.district(), node);
         this.byDistrict = Collections.unmodifiableMap(index);
@@ -157,7 +205,7 @@ public final class MegacityLayout {
                     }
                 }
             }
-            addEdge(seed, nodes, edges, pairs, bestA, bestB);
+            addEdge(seed, nodes, edges, pairs, bestA, bestB, true);
             connected[bestB] = true;
             connectedCount++;
         }
@@ -171,7 +219,7 @@ public final class MegacityLayout {
             for (int rank = 0; rank < Math.min(3, nearest.size()); rank++) {
                 int b = nearest.get(rank);
                 if (rank < 2 || floorMod((int) mix(seed, a, b), 3) == 0) {
-                    addEdge(seed, nodes, edges, pairs, a, b);
+                    addEdge(seed, nodes, edges, pairs, a, b, false);
                 }
             }
         }
@@ -179,7 +227,7 @@ public final class MegacityLayout {
     }
 
     private static void addEdge(long seed, List<Node> nodes, List<Edge> edges,
-                                Set<Long> pairs, int a, int b) {
+                                Set<Long> pairs, int a, int b, boolean elevatedBackbone) {
         int low = Math.min(a, b);
         int high = Math.max(a, b);
         long pair = ((long) low << 32) | (high & 0xffffffffL);
@@ -191,7 +239,8 @@ public final class MegacityLayout {
             default -> ConnectionKind.GRAND_BOULEVARD;
         };
         double bend = signedUnit(Long.rotateRight(identity, 21)) * 0.22;
-        edges.add(new Edge(nodes.get(low), nodes.get(high), kind, bend, identity));
+        edges.add(new Edge(
+                nodes.get(low), nodes.get(high), kind, bend, identity, elevatedBackbone));
     }
 
     public Location locate(int worldX, int worldZ) {
@@ -221,12 +270,10 @@ public final class MegacityLayout {
         Edge nearestEdge = null;
         double nearestEdgeDistance = Double.MAX_VALUE;
         if (includeConnections) {
-            for (Edge edge : edges) {
-                double distance = connectionDistance(edge, worldX, worldZ);
-                if (distance < nearestEdgeDistance) {
-                    nearestEdgeDistance = distance;
-                    nearestEdge = edge;
-                }
+            Optional<ConnectionProjection> nearest = nearestConnection(worldX, worldZ);
+            if (nearest.isPresent()) {
+                nearestEdge = nearest.get().edge();
+                nearestEdgeDistance = nearest.get().distance();
             }
         }
 
@@ -249,7 +296,7 @@ public final class MegacityLayout {
             zone = Zone.OUTSKIRTS;
         }
 
-        if (inBlob && secondary.score() <= 1.12 && boundaryGap < 0.055 && !onConnection) {
+        if (isDistrictBorder(primary.score(), secondary.score()) && !onConnection) {
             zone = boundaryZone(primary.node().district(), secondary.node().district());
         }
         return new Location(primary.node(), secondary.node(), zone, primary.score(),
@@ -277,45 +324,163 @@ public final class MegacityLayout {
         long border = mix(seed ^ 0x424F52444552534CL,
                 Math.min(first.ordinal(), second.ordinal()),
                 Math.max(first.ordinal(), second.ordinal()));
-        return floorMod((int) border, 5) <= 1 ? Zone.BORDER_RIVER : Zone.BORDER_HILLS;
+        return switch (floorMod((int) (border ^ (border >>> 32)), 3)) {
+            case 0 -> Zone.BORDER_WALLED;
+            case 1 -> Zone.BORDER_FOREST;
+            default -> Zone.BORDER_CLIFF;
+        };
     }
 
-    private static double connectionDistance(Edge edge, double x, double z) {
+    /** Shared runtime/map predicate for the full widened district-border band. */
+    public static boolean isDistrictBorder(double primaryScore, double secondaryScore) {
+        return primaryScore <= 1.08
+                && secondaryScore <= BORDER_SECONDARY_LIMIT
+                && secondaryScore - primaryScore < BORDER_GAP_LIMIT;
+    }
+
+    /** Stable signed frame used by border walls, trails, structures, and utilities. */
+    public BoundaryFrame boundaryFrame(Location location, int worldX, int worldZ) {
+        District low = location.primary().district().ordinal()
+                <= location.secondary().district().ordinal()
+                ? location.primary().district() : location.secondary().district();
+        District high = low == location.primary().district()
+                ? location.secondary().district() : location.primary().district();
+        Node first = node(low);
+        Node second = node(high);
+        double signedGap = normalizedDistanceTo(first, worldX, worldZ)
+                - normalizedDistanceTo(second, worldX, worldZ);
+        double centerDx = second.x() - first.x();
+        double centerDz = second.z() - first.z();
+        double length = Math.max(1.0, Math.hypot(centerDx, centerDz));
+        double normalX = centerDx / length;
+        double normalZ = centerDz / length;
+        double tangentX = -normalZ;
+        double tangentZ = normalX;
+        return new BoundaryFrame(
+                low,
+                high,
+                signedGap,
+                Math.min(1.0, Math.abs(signedGap) / BORDER_GAP_LIMIT),
+                normalX,
+                normalZ,
+                tangentX,
+                tangentZ,
+                worldX * tangentX + worldZ * tangentZ);
+    }
+
+    /** Evaluate an edge using the same quadratic curve used by generation and map rendering. */
+    public static CurvePoint curvePoint(Edge edge, double progress) {
+        double t = Math.max(0.0, Math.min(1.0, progress));
         Node first = edge.first();
         Node second = edge.second();
-        double midX = (first.x() + second.x()) * 0.5;
-        double midZ = (first.z() + second.z()) * 0.5;
         double dx = second.x() - first.x();
         double dz = second.z() - first.z();
-        double length = Math.max(1.0, Math.hypot(dx, dz));
-        double controlX = midX - dz / length * length * edge.bend();
-        double controlZ = midZ + dx / length * length * edge.bend();
-        double best = Double.MAX_VALUE;
+        double controlX = (first.x() + second.x()) * 0.5 - dz * edge.bend();
+        double controlZ = (first.z() + second.z()) * 0.5 + dx * edge.bend();
+        double inverse = 1.0 - t;
+        double x = inverse * inverse * first.x()
+                + 2.0 * inverse * t * controlX + t * t * second.x();
+        double z = inverse * inverse * first.z()
+                + 2.0 * inverse * t * controlZ + t * t * second.z();
+        double tangentX = 2.0 * inverse * (controlX - first.x())
+                + 2.0 * t * (second.x() - controlX);
+        double tangentZ = 2.0 * inverse * (controlZ - first.z())
+                + 2.0 * t * (second.z() - controlZ);
+        return new CurvePoint(x, z, tangentX, tangentZ);
+    }
+
+    /** Project a world position onto one edge with sub-segment progress. */
+    public static ConnectionProjection projectConnection(Edge edge, double worldX, double worldZ) {
+        Node first = edge.first();
+        Node second = edge.second();
+        double endpointX = second.x() - first.x();
+        double endpointZ = second.z() - first.z();
+        double controlX = (first.x() + second.x()) * 0.5 - endpointZ * edge.bend();
+        double controlZ = (first.z() + second.z()) * 0.5 + endpointX * edge.bend();
+        double quadraticX = first.x() - 2.0 * controlX + second.x();
+        double quadraticZ = first.z() - 2.0 * controlZ + second.z();
+        double linearX = 2.0 * (controlX - first.x());
+        double linearZ = 2.0 * (controlZ - first.z());
+        double bestDistanceSquared = Double.MAX_VALUE;
+        double bestProgress = 0.0;
         double previousX = first.x();
         double previousZ = first.z();
-        for (int segment = 1; segment <= 10; segment++) {
-            double t = segment / 10.0;
-            double inverse = 1.0 - t;
-            double currentX = inverse * inverse * first.x()
-                    + 2.0 * inverse * t * controlX + t * t * second.x();
-            double currentZ = inverse * inverse * first.z()
-                    + 2.0 * inverse * t * controlZ + t * t * second.z();
-            best = Math.min(best, pointSegmentDistance(x, z, previousX, previousZ, currentX, currentZ));
+        for (int segment = 1; segment <= CONNECTION_PROJECTION_SEGMENTS; segment++) {
+            double segmentEndProgress = segment / (double) CONNECTION_PROJECTION_SEGMENTS;
+            double currentX = quadraticX * segmentEndProgress * segmentEndProgress
+                    + linearX * segmentEndProgress + first.x();
+            double currentZ = quadraticZ * segmentEndProgress * segmentEndProgress
+                    + linearZ * segmentEndProgress + first.z();
+            double segmentX = currentX - previousX;
+            double segmentZ = currentZ - previousZ;
+            double segmentLengthSquared = segmentX * segmentX + segmentZ * segmentZ;
+            double localProgress = segmentLengthSquared == 0.0 ? 0.0 : Math.max(0.0, Math.min(1.0,
+                    ((worldX - previousX) * segmentX
+                            + (worldZ - previousZ) * segmentZ) / segmentLengthSquared));
+            double projectedX = previousX + segmentX * localProgress;
+            double projectedZ = previousZ + segmentZ * localProgress;
+            double offsetX = worldX - projectedX;
+            double offsetZ = worldZ - projectedZ;
+            double distanceSquared = offsetX * offsetX + offsetZ * offsetZ;
+            if (distanceSquared < bestDistanceSquared) {
+                bestDistanceSquared = distanceSquared;
+                bestProgress = (segment - 1 + localProgress) / CONNECTION_PROJECTION_SEGMENTS;
+            }
             previousX = currentX;
             previousZ = currentZ;
         }
-        return best;
+
+        double segmentRadius = 1.0 / CONNECTION_PROJECTION_SEGMENTS;
+        double lower = Math.max(0.0, bestProgress - segmentRadius);
+        double upper = Math.min(1.0, bestProgress + segmentRadius);
+        for (int iteration = 0; iteration < CONNECTION_PROJECTION_REFINEMENTS; iteration++) {
+            double curveX = quadraticX * bestProgress * bestProgress
+                    + linearX * bestProgress + first.x();
+            double curveZ = quadraticZ * bestProgress * bestProgress
+                    + linearZ * bestProgress + first.z();
+            double tangentX = 2.0 * quadraticX * bestProgress + linearX;
+            double tangentZ = 2.0 * quadraticZ * bestProgress + linearZ;
+            double offsetX = curveX - worldX;
+            double offsetZ = curveZ - worldZ;
+            double firstDerivative = offsetX * tangentX + offsetZ * tangentZ;
+            double secondDerivative = tangentX * tangentX + tangentZ * tangentZ
+                    + 2.0 * offsetX * quadraticX + 2.0 * offsetZ * quadraticZ;
+            if (Math.abs(secondDerivative) < 1.0e-9) break;
+            double refined = bestProgress - firstDerivative / secondDerivative;
+            bestProgress = Math.max(lower, Math.min(upper, refined));
+        }
+        CurvePoint closest = curvePoint(edge, bestProgress);
+        double distance = Math.hypot(worldX - closest.x(), worldZ - closest.z());
+        return new ConnectionProjection(
+                edge,
+                closest.x(),
+                closest.z(),
+                distance,
+                bestProgress,
+                closest.tangentX(),
+                closest.tangentZ());
     }
 
-    private static double pointSegmentDistance(double px, double pz,
-                                               double ax, double az,
-                                               double bx, double bz) {
-        double dx = bx - ax;
-        double dz = bz - az;
-        double length = dx * dx + dz * dz;
-        if (length == 0.0) return Math.hypot(px - ax, pz - az);
-        double t = Math.max(0.0, Math.min(1.0, ((px - ax) * dx + (pz - az) * dz) / length));
-        return Math.hypot(px - (ax + t * dx), pz - (az + t * dz));
+    /** Nearest ground route; every graph edge is retained in the connected road layer. */
+    public Optional<ConnectionProjection> nearestConnection(double worldX, double worldZ) {
+        return nearestConnection(edges, worldX, worldZ);
+    }
+
+    /** Nearest route in the connected elevated backbone plus elevated-style chord loops. */
+    public Optional<ConnectionProjection> nearestElevatedConnection(double worldX, double worldZ) {
+        return nearestConnection(elevatedEdges, worldX, worldZ);
+    }
+
+    private static Optional<ConnectionProjection> nearestConnection(
+            List<Edge> candidates, double worldX, double worldZ) {
+        ConnectionProjection nearest = null;
+        for (Edge edge : candidates) {
+            ConnectionProjection projection = projectConnection(edge, worldX, worldZ);
+            if (nearest == null || projection.distance() < nearest.distance()) {
+                nearest = projection;
+            }
+        }
+        return Optional.ofNullable(nearest);
     }
 
     private static boolean betweenEndpoints(Edge edge, int x, int z, double slack) {
@@ -333,16 +498,31 @@ public final class MegacityLayout {
 
     public long seed() { return seed; }
     public List<Node> nodes() { return nodes; }
+    public List<Edge> groundEdges() { return edges; }
     public List<Edge> edges() { return edges; }
+    public List<Edge> elevatedEdges() { return elevatedEdges; }
     public Node node(District district) { return byDistrict.get(district); }
 
     public boolean isConnected() {
+        return isGroundConnected();
+    }
+
+    public boolean isGroundConnected() {
+        return isConnectedBy(edge -> true);
+    }
+
+    public boolean isElevatedConnected() {
+        return isConnectedBy(Edge::hasElevatedLayer);
+    }
+
+    private boolean isConnectedBy(Predicate<Edge> included) {
         Set<District> visited = new HashSet<>();
         visited.add(nodes.getFirst().district());
         boolean changed;
         do {
             changed = false;
             for (Edge edge : edges) {
+                if (!included.test(edge)) continue;
                 if (visited.contains(edge.first().district()) && visited.add(edge.second().district())) changed = true;
                 if (visited.contains(edge.second().district()) && visited.add(edge.first().district())) changed = true;
             }

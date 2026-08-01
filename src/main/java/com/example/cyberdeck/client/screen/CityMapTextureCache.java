@@ -253,8 +253,8 @@ public final class CityMapTextureCache {
                 MegacityLayout.Zone zone = distance <= 0.45
                         ? MegacityLayout.Zone.NEST : MegacityLayout.Zone.BACKSTREETS;
                 if (secondDistrict[index] >= 0
-                        && secondDistance[index] <= 1.12
-                        && secondDistance[index] - distance < 0.055) {
+                        && MegacityLayout.isDistrictBorder(
+                                distance, secondDistance[index])) {
                     District other = districts[Byte.toUnsignedInt(secondDistrict[index])];
                     zone = layout.boundaryZone(district, other);
                 }
@@ -356,10 +356,9 @@ public final class CityMapTextureCache {
             int atlasCategory,
             int worldX,
             int worldZ) {
-        if (zone == MegacityLayout.Zone.BORDER_RIVER) {
-            return 0xFF07536E;
-        }
-        if (zone == MegacityLayout.Zone.BORDER_HILLS) return 0xFF34393C;
+        if (zone == MegacityLayout.Zone.BORDER_WALLED) return 0xFF67443C;
+        if (zone == MegacityLayout.Zone.BORDER_FOREST) return 0xFF245C38;
+        if (zone == MegacityLayout.Zone.BORDER_CLIFF) return 0xFF4A4D50;
         int routeColor = districtRouteColor(node, normalizedDistance, worldX, worldZ);
         if (routeColor != 0) return routeColor;
         if (atlasCategory != 0) {
@@ -380,8 +379,9 @@ public final class CityMapTextureCache {
             case NEST -> 0xFF2D101B + (variation << 16);
             case BACKSTREETS -> 0xFF1B0B14 + (variation << 8);
             case OUTSKIRTS -> 0xFF10131A;
-            case BORDER_RIVER -> 0xFF082A3A;
-            case BORDER_HILLS -> 0xFF25282B;
+            case BORDER_WALLED -> 0xFF49302D;
+            case BORDER_FOREST -> 0xFF1D472D;
+            case BORDER_CLIFF -> 0xFF34373A;
             case WILDERNESS -> 0xFF02060B;
         };
     }
@@ -426,30 +426,32 @@ public final class CityMapTextureCache {
 
     private static void drawConnections(NativeImage image, MegacityLayout layout, int extent) {
         for (MegacityLayout.Edge edge : layout.edges()) {
-            double controlX = (edge.first().x() + edge.second().x()) * 0.5
-                    - (edge.second().z() - edge.first().z()) * edge.bend();
-            double controlZ = (edge.first().z() + edge.second().z()) * 0.5
-                    + (edge.second().x() - edge.first().x()) * edge.bend();
             int color = switch (edge.kind()) {
-                case ELEVATED_RAIL -> 0xFF8AF7E8;
-                case GRAND_BOULEVARD -> 0xFF16D4E8;
+                case ELEVATED_RAIL, GRAND_BOULEVARD -> 0xFF16D4E8;
                 case SCENIC_ROAD -> 0xFF39A995;
             };
-            int radius = edge.kind() == MegacityLayout.ConnectionKind.ELEVATED_RAIL ? 1 : 2;
+            drawConnection(image, edge, extent, 2, color);
+            if (edge.hasElevatedLayer()) {
+                drawConnection(image, edge, extent, 1, 0xFF8AF7E8);
+            }
+        }
+    }
+
+    private static void drawConnection(
+            NativeImage image,
+            MegacityLayout.Edge edge,
+            int extent,
+            int radius,
+            int color) {
             for (int step = 0; step <= 192; step++) {
                 double t = step / 192.0;
-                double inverse = 1.0 - t;
-                double x = inverse * inverse * edge.first().x()
-                        + 2.0 * inverse * t * controlX + t * t * edge.second().x();
-                double z = inverse * inverse * edge.first().z()
-                        + 2.0 * inverse * t * controlZ + t * t * edge.second().z();
-                int pixelX = (int) Math.round(CityMapProjection.worldToUnit(x, extent)
+                MegacityLayout.CurvePoint point = MegacityLayout.curvePoint(edge, t);
+                int pixelX = (int) Math.round(CityMapProjection.worldToUnit(point.x(), extent)
                         * (TEXTURE_SIZE - 1));
-                int pixelZ = (int) Math.round(CityMapProjection.worldToUnit(z, extent)
+                int pixelZ = (int) Math.round(CityMapProjection.worldToUnit(point.z(), extent)
                         * (TEXTURE_SIZE - 1));
                 plotDisc(image, pixelX, pixelZ, radius, color);
             }
-        }
     }
 
     private static void plotDisc(NativeImage image, int centerX, int centerY, int radius, int color) {

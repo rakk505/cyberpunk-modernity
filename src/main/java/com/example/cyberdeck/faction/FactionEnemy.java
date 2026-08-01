@@ -35,6 +35,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * A corporation soldier. It is its own hostile entity (a {@link Monster}) — not a zombie — so it
@@ -84,6 +85,8 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
     /** Current detection level, synced so the client HUD can render a detection meter. */
     private static final EntityDataAccessor<Integer> DATA_DETECTION =
             SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Boolean> DATA_TRAUMA_TEAM =
+            SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.BOOLEAN);
 
     private static final int WEAPON_GLITCH_NONE = 0;
     private static final int WEAPON_GLITCH_FIDDLING = 1;
@@ -93,6 +96,18 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
     private static final int SLIDE_TICKS = 10;
     private static final double DASH_SPEED = 0.66;
     private static final double SLIDE_SPEED = 0.48;
+    /**
+     * Sandevistan near-teleport dash: much shorter and faster than a normal dash so it reads as a
+     * blurred blink toward the target, but still a real swept movement (not an instant relocation).
+     */
+    private static final int SANDEVISTAN_DASH_TICKS = 3;
+    private static final double SANDEVISTAN_DASH_SPEED = 1.5;
+    /**
+     * Higher horizontal cap only for the sandevistan dash so it can travel faster than the normal
+     * maneuver cap while still being clamped low enough that the swept collision check in
+     * {@link #canTravel} prevents tunnelling through walls.
+     */
+    private static final double MAX_SANDEVISTAN_HORIZONTAL_SPEED = 1.5;
     private static final double MAX_TACTICAL_HORIZONTAL_SPEED = 0.68;
     private static final double EXIT_HORIZONTAL_SPEED_CAP = 0.28;
     private static final double MIN_DIRECTION_LENGTH_SQR = 1.0E-5;
@@ -136,6 +151,7 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
     /** Which grenade variant this soldier lobs. */
     private com.example.cyberdeck.weapon.GrenadeType grenadeType =
             com.example.cyberdeck.weapon.GrenadeType.INCENDIARY;
+    private UUID traumaTargetId;
 
     public FactionEnemy(EntityType<? extends FactionEnemy> type, Level level) {
         super(type, level);
@@ -169,6 +185,7 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         entityData.define(DATA_TACTICAL_DIRECTION_X, 0.0F);
         entityData.define(DATA_TACTICAL_DIRECTION_Z, 0.0F);
         entityData.define(DATA_DETECTION, 0);
+        entityData.define(DATA_TRAUMA_TEAM, false);
     }
 
     @Override
@@ -181,7 +198,14 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         // No MOVE/LOOK flags: tactical impulses can happen while RangedAttackGoal keeps aiming and
         // firing. The entity owns validation and physics so reload/glitch can cancel immediately.
         this.goalSelector.addGoal(2, new TacticalManeuverGoal(this));
-        this.goalSelector.addGoal(2, new RangedAttackGoal(this, 1.0, 20, 15.0f));
+        // A gun holder shoots at range; a melee holder must actively path in and strike instead. The
+        // ranged goal is gated to gun holders so a sword unit is never held at range doing nothing,
+        // and a melee-priority attack goal (faster speed so it sprints to close the gap) sits above
+        // the ranged slot for melee holders. The plain melee goal remains as a fallback finisher.
+        this.goalSelector.addGoal(2, new FilteredRangedAttackGoal(
+                this, 1.0, 20, 15.0f, this::isGunArmed));
+        this.goalSelector.addGoal(2, new FilteredMeleeAttackGoal(
+                this, 1.35, true, this::isMeleeArmed));
         this.goalSelector.addGoal(3, new MeleeAttackGoal(this, 1.0, false));
         // Idle behavior: patrol a fixed area around the spawn point instead of roaming freely.
         this.goalSelector.addGoal(6, new PatrolAreaGoal(this, 0.8, this::getHome, PATROL_RADIUS));
@@ -211,6 +235,21 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
 
     public boolean isTriggered() {
         return this.getEntityData().get(DATA_TRIGGERED);
+    }
+
+    public boolean isTraumaTeam() {
+        return this.getEntityData().get(DATA_TRAUMA_TEAM);
+    }
+
+    /** Makes this responder persistent and permanently hostile to the requesting player's attacker. */
+    public void deployAsTraumaTeam(net.minecraft.server.level.ServerPlayer target) {
+        this.getEntityData().set(DATA_TRAUMA_TEAM, true);
+        this.traumaTargetId = target.getUUID();
+        this.setPersistenceRequired();
+        this.setTriggered(true);
+        this.setDetection(DETECTION_THRESHOLD);
+        this.setTarget(target);
+        this.setAggressive(true);
     }
 
     private void setTriggered(boolean value) {
@@ -247,6 +286,19 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
 
     public void setGrenadeType(com.example.cyberdeck.weapon.GrenadeType type) {
         this.grenadeType = type;
+    }
+
+    /** True when this soldier's main-hand weapon is a firearm (drives ranged behavior). */
+    public boolean isGunArmed() {
+        return this.getMainHandItem().getItem() instanceof GunItem;
+    }
+
+    /**
+     * True when this soldier fights in melee: its main hand is not a firearm. Sword specialists and
+     * any other non-gun holder path in and strike rather than being held at range.
+     */
+    public boolean isMeleeArmed() {
+        return !isGunArmed();
     }
 
     /**
@@ -291,8 +343,39 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
             tickGunReload(level);
         }
         tickTacticalManeuver(level);
-        accumulateDetection(level);
+        if (isTraumaTeam()) {
+            maintainTraumaAggro(level);
+        } else {
+            accumulateDetection(level);
+        }
         applyTeammateSpacing(level);
+        // --- BEGIN throwable-distraction hook (self-contained; see distraction block below) ---
+        applyDistractionLook();
+        // --- END throwable-distraction hook ---
+    }
+
+    private void maintainTraumaAggro(ServerLevel level) {
+        LivingEntity current = this.getTarget();
+        if (current != null && traumaTargetId != null
+                && current.getUUID().equals(traumaTargetId) && current.isAlive()
+                && (!(current instanceof Player player)
+                || !player.isCreative() && !player.isSpectator())) {
+            setTriggered(true);
+            setDetection(DETECTION_THRESHOLD);
+            this.setAggressive(true);
+            return;
+        }
+        if (traumaTargetId == null) {
+            return;
+        }
+        net.minecraft.server.level.ServerPlayer target =
+                level.getServer().getPlayerList().getPlayer(traumaTargetId);
+        if (target != null && target.isAlive() && !target.isCreative() && !target.isSpectator()) {
+            this.setTarget(target);
+            setTriggered(true);
+            setDetection(DETECTION_THRESHOLD);
+            this.setAggressive(true);
+        }
     }
 
     /**
@@ -449,7 +532,7 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         if (!(this.level() instanceof ServerLevel level)
                 || maneuver == TacticalManeuver.NONE
                 || isTacticalManeuvering()
-                || !canManeuverAgainst(target)
+                || !canManeuverAgainst(target, maneuver)
                 || !this.hasLineOfSight(target)) {
             return false;
         }
@@ -463,11 +546,11 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         Vec3 direction = switch (maneuver) {
             case DASH_LEFT -> new Vec3(forward.z, 0.0, -forward.x);
             case DASH_RIGHT -> new Vec3(-forward.z, 0.0, forward.x);
-            case SLIDE_FORWARD -> forward;
+            case SLIDE_FORWARD, SANDEVISTAN_DASH -> forward;
             case NONE -> Vec3.ZERO;
         };
-        double speed = maneuver.isDash() ? DASH_SPEED : SLIDE_SPEED;
-        if (!canTravel(level, direction, speed)) {
+        double speed = tacticalSpeedFor(maneuver);
+        if (!canTravel(level, direction, speed, maneuver)) {
             return false;
         }
 
@@ -475,11 +558,12 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         this.getEntityData().set(DATA_TACTICAL_MANEUVER, maneuver.id());
         this.getEntityData().set(DATA_TACTICAL_MANEUVER_START_TICK, now);
         this.getEntityData().set(DATA_TACTICAL_MANEUVER_END_TICK,
-                now + (maneuver.isDash() ? DASH_TICKS : SLIDE_TICKS));
+                now + tacticalDurationFor(maneuver));
         this.getEntityData().set(DATA_TACTICAL_DIRECTION_X, (float) direction.x);
         this.getEntityData().set(DATA_TACTICAL_DIRECTION_Z, (float) direction.z);
         this.getNavigation().stop();
-        applyTacticalVelocity(direction, speed);
+        applyTacticalVelocity(direction, speed, maneuver);
+        emitManeuverTrail(level, maneuver);
         return true;
     }
 
@@ -502,14 +586,13 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         clearTacticalManeuverData();
     }
 
-    private boolean canManeuverAgainst(LivingEntity target) {
-        return this.isAlive()
+    private boolean canManeuverAgainst(LivingEntity target, TacticalManeuver maneuver) {
+        boolean baseOk = this.isAlive()
                 && this.isTriggered()
                 && target != null
                 && target.isAlive()
                 && !(target instanceof CityNpc)
                 && this.canAttack(target)
-                && this.getMainHandItem().getItem() instanceof GunItem
                 && !this.isWeaponGlitching()
                 && !this.isGunReloading()
                 && this.onGround()
@@ -517,6 +600,16 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
                 && !this.isPassenger()
                 && !this.isInWater()
                 && !this.isInLava();
+        if (!baseOk) {
+            return false;
+        }
+        // The gunner evasion maneuvers (lateral dashes / forward slide) are only meaningful for a
+        // ranged soldier and stay gated on holding a gun. The sandevistan dash is a cyberware
+        // ability that does not depend on the held weapon.
+        if (maneuver == TacticalManeuver.SANDEVISTAN_DASH) {
+            return true;
+        }
+        return this.getMainHandItem().getItem() instanceof GunItem;
     }
 
     private void tickTacticalManeuver(ServerLevel level) {
@@ -527,7 +620,7 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         LivingEntity target = this.getTarget();
         long now = level.getGameTime();
         if (now >= getTacticalManeuverEndTick()
-                || !canManeuverAgainst(target)) {
+                || !canManeuverAgainst(target, maneuver)) {
             endTacticalManeuver();
             return;
         }
@@ -544,22 +637,28 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
                 getTacticalManeuverEndTick() - getTacticalManeuverStartTick());
         double progress = Math.max(0.0,
                 Math.min(1.0, (now - getTacticalManeuverStartTick()) / duration));
-        double speed = maneuver.isDash()
-                ? DASH_SPEED * (1.0 - 0.22 * progress)
-                : SLIDE_SPEED * (1.0 - 0.55 * progress);
-        if (!canTravel(level, direction, speed)) {
+        double speed = switch (maneuver) {
+            // Keep the sandevistan dash near full speed for its whole brief window so it reads as a
+            // blink rather than a decelerating lunge.
+            case SANDEVISTAN_DASH -> SANDEVISTAN_DASH_SPEED * (1.0 - 0.10 * progress);
+            case DASH_LEFT, DASH_RIGHT -> DASH_SPEED * (1.0 - 0.22 * progress);
+            case SLIDE_FORWARD -> SLIDE_SPEED * (1.0 - 0.55 * progress);
+            case NONE -> 0.0;
+        };
+        if (!canTravel(level, direction, speed, maneuver)) {
             endTacticalManeuver();
             return;
         }
+        emitManeuverTrail(level, maneuver);
 
         // Navigation resumes naturally after the short action; no goal flag is held, so shooting
         // and look control continue throughout the maneuver.
         this.getNavigation().stop();
-        applyTacticalVelocity(direction, speed);
+        applyTacticalVelocity(direction, speed, maneuver);
     }
 
-    private boolean canTravel(ServerLevel level, Vec3 direction, double speed) {
-        double cappedSpeed = Math.min(speed, MAX_TACTICAL_HORIZONTAL_SPEED);
+    private boolean canTravel(ServerLevel level, Vec3 direction, double speed, TacticalManeuver maneuver) {
+        double cappedSpeed = Math.min(speed, maxHorizontalSpeedFor(maneuver));
         Vec3 step = direction.scale(cappedSpeed);
         // Check the swept volume, not only the destination, so a fast dash cannot tunnel through
         // panes, fences or another entity between its current and projected boxes.
@@ -576,11 +675,55 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         return level.isLoaded(support) && level.getBlockState(support).blocksMotion();
     }
 
-    private void applyTacticalVelocity(Vec3 direction, double requestedSpeed) {
-        double speed = Math.min(requestedSpeed, MAX_TACTICAL_HORIZONTAL_SPEED);
+    private void applyTacticalVelocity(Vec3 direction, double requestedSpeed, TacticalManeuver maneuver) {
+        double speed = Math.min(requestedSpeed, maxHorizontalSpeedFor(maneuver));
         Vec3 movement = this.getDeltaMovement();
         this.setDeltaMovement(direction.x * speed, movement.y, direction.z * speed);
         this.hurtMarked = true;
+    }
+
+    /** Per-maneuver base speed. */
+    private static double tacticalSpeedFor(TacticalManeuver maneuver) {
+        return switch (maneuver) {
+            case SANDEVISTAN_DASH -> SANDEVISTAN_DASH_SPEED;
+            case DASH_LEFT, DASH_RIGHT -> DASH_SPEED;
+            case SLIDE_FORWARD -> SLIDE_SPEED;
+            case NONE -> 0.0;
+        };
+    }
+
+    /** Per-maneuver duration in ticks. */
+    private static int tacticalDurationFor(TacticalManeuver maneuver) {
+        return switch (maneuver) {
+            case SANDEVISTAN_DASH -> SANDEVISTAN_DASH_TICKS;
+            case DASH_LEFT, DASH_RIGHT -> DASH_TICKS;
+            case SLIDE_FORWARD -> SLIDE_TICKS;
+            case NONE -> 0;
+        };
+    }
+
+    /** Per-maneuver horizontal speed cap; the sandevistan dash is allowed to travel faster. */
+    private static double maxHorizontalSpeedFor(TacticalManeuver maneuver) {
+        return maneuver == TacticalManeuver.SANDEVISTAN_DASH
+                ? MAX_SANDEVISTAN_HORIZONTAL_SPEED
+                : MAX_TACTICAL_HORIZONTAL_SPEED;
+    }
+
+    /**
+     * Emits a brief motion-blur particle trail behind a sandevistan dash so it visually reads as a
+     * fast blur. Only the sandevistan dash gets a trail; other maneuvers stay unadorned.
+     */
+    private void emitManeuverTrail(ServerLevel level, TacticalManeuver maneuver) {
+        if (maneuver != TacticalManeuver.SANDEVISTAN_DASH) {
+            return;
+        }
+        Vec3 center = this.position().add(0.0, this.getBbHeight() * 0.5, 0.0);
+        level.sendParticles(ParticleTypes.CRIT,
+                center.x, center.y, center.z,
+                3, 0.18, 0.28, 0.18, 0.0);
+        level.sendParticles(ParticleTypes.ELECTRIC_SPARK,
+                center.x, center.y, center.z,
+                2, 0.16, 0.24, 0.16, 0.01);
     }
 
     private void clearTacticalManeuverData() {
@@ -934,6 +1077,10 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         output.putString("Faction", getFaction().id());
         output.putInt("Detection", getDetection());
         output.putBoolean("Triggered", isTriggered());
+        output.putBoolean("TraumaTeam", isTraumaTeam());
+        if (traumaTargetId != null) {
+            output.putString("TraumaTarget", traumaTargetId.toString());
+        }
         output.putInt("Grenades", grenadeCount);
         output.putLong("GunReloadStartTick", getGunReloadStartTick());
         output.putLong("GunReloadEndTick", getGunReloadEndTick());
@@ -965,6 +1112,17 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         }
         setDetection(input.getIntOr("Detection", 0));
         setTriggered(input.getBooleanOr("Triggered", false));
+        boolean traumaTeam = input.getBooleanOr("TraumaTeam", false);
+        this.getEntityData().set(DATA_TRAUMA_TEAM, traumaTeam);
+        String traumaTarget = input.getStringOr("TraumaTarget", "");
+        try {
+            traumaTargetId = traumaTarget.isEmpty() ? null : UUID.fromString(traumaTarget);
+        } catch (IllegalArgumentException ignored) {
+            traumaTargetId = null;
+        }
+        if (traumaTeam) {
+            this.setPersistenceRequired();
+        }
         grenadeCount = input.getIntOr("Grenades", 0);
         this.getEntityData().set(DATA_GUN_RELOAD_START_TICK,
                 input.getLongOr("GunReloadStartTick", -1L));
@@ -997,4 +1155,55 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
                     input.getIntOr("HomeZ", 0));
         }
     }
+
+    // =====================================================================================
+    // BEGIN throwable-distraction block (self-contained; safe to merge independently).
+    // A thrown item (any ThrowableItemProjectile) briefly draws this soldier's gaze toward the
+    // item's position. This only rotates the head/look; it never changes goals, target selection
+    // or tactical movement, so it composes cleanly with the combat AI owned elsewhere.
+    // =====================================================================================
+    /** World position this soldier is momentarily distracted toward, or null when not distracted. */
+    private net.minecraft.world.phys.Vec3 distractionPos;
+    /** Game-tick at which the current distraction expires. */
+    private long distractionEndTick;
+
+    /**
+     * Draw this soldier's attention to {@code pos} for {@code ticks} ticks. A brief look-only
+     * override used when a throwable lands nearby; does not alter the combat target.
+     */
+    public void distractTo(net.minecraft.world.phys.Vec3 pos, int ticks) {
+        if (pos == null || ticks <= 0) {
+            return;
+        }
+        this.distractionPos = pos;
+        this.distractionEndTick = this.level().getGameTime() + ticks;
+    }
+
+    /** True while a throwable distraction is still active. */
+    public boolean isDistracted() {
+        return distractionPos != null && this.level().getGameTime() < distractionEndTick;
+    }
+
+    /** The point this soldier is currently distracted toward, or null when not distracted. */
+    public net.minecraft.world.phys.Vec3 getDistractionPos() {
+        return isDistracted() ? distractionPos : null;
+    }
+
+    /**
+     * While distracted, turn the head toward the distraction point. Enemies already locked onto the
+     * player in melee still glance over, but their look snaps back next tick once the combat AI
+     * runs, so this remains a brief look and never steals a hard-aggro target.
+     */
+    private void applyDistractionLook() {
+        if (!isDistracted()) {
+            distractionPos = null;
+            return;
+        }
+        this.getLookControl().setLookAt(
+                distractionPos.x, distractionPos.y, distractionPos.z,
+                (float) this.getMaxHeadYRot(), (float) this.getMaxHeadXRot());
+    }
+    // =====================================================================================
+    // END throwable-distraction block.
+    // =====================================================================================
 }

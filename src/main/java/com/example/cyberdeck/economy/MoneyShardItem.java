@@ -21,10 +21,26 @@ import java.util.function.Consumer;
  * player's spendable currency balance (server-authoritative).
  */
 public final class MoneyShardItem extends Item {
+    /** Legacy/default shard value retained for existing stacks that predate per-stack credit data. */
     public static final int EMMIES_PER_SHARD = 64;
 
     public MoneyShardItem(Properties properties) {
         super(properties);
+    }
+
+    public static ItemStack create(int credits) {
+        ItemStack stack = new ItemStack(com.example.cyberdeck.CyberdeckItems.MONEY_SHARD.get());
+        stack.set(MoneyShardComponents.CREDITS.get(), clampCredits(credits));
+        return stack;
+    }
+
+    public static int credits(ItemStack stack) {
+        Integer value = stack.get(MoneyShardComponents.CREDITS.get());
+        return value == null ? EMMIES_PER_SHARD : clampCredits(value);
+    }
+
+    private static int clampCredits(int credits) {
+        return Math.max(1, Math.min(10_000, credits));
     }
 
     @Override
@@ -36,12 +52,13 @@ public final class MoneyShardItem extends Item {
     public InteractionResult use(Level level, Player player, InteractionHand hand) {
         ItemStack held = player.getItemInHand(hand);
         if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer) {
-            Emmies.give(serverPlayer, EMMIES_PER_SHARD);
+            int credits = credits(held);
+            Emmies.give(serverPlayer, credits);
             if (!player.getAbilities().instabuild) {
                 held.shrink(1);
             }
             serverPlayer.sendSystemMessage(Component.translatable(
-                    "message.cyberdeck.money_shard.gained", EMMIES_PER_SHARD)
+                    "message.cyberdeck.money_shard.gained", credits)
                     .withStyle(ChatFormatting.GREEN));
             level.playSound(null, player.getX(), player.getY(), player.getZ(),
                     SoundEvents.PLAYER_LEVELUP, SoundSource.PLAYERS, 0.6f, 1.5f);
@@ -52,7 +69,7 @@ public final class MoneyShardItem extends Item {
     @Override
     public void appendHoverText(ItemStack stack, Item.TooltipContext context,
                                 TooltipDisplay display, Consumer<Component> adder, TooltipFlag flag) {
-        adder.accept(Component.translatable("tooltip.cyberdeck.money_shard", EMMIES_PER_SHARD)
+        adder.accept(Component.translatable("tooltip.cyberdeck.money_shard", credits(stack))
                 .withStyle(ChatFormatting.GRAY));
     }
 }

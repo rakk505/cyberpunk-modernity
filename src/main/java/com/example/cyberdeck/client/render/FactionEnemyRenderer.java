@@ -31,6 +31,8 @@ public final class FactionEnemyRenderer
             Identifier.withDefaultNamespace("textures/entity/player/wide/steve.png");
     private static final Identifier CYBERPSYCHO_SKIN = Identifier.fromNamespaceAndPath(
             "cyberdeck", "textures/entity/cyberpsycho.png");
+    private static final Identifier TRAUMA_TEAM_SKIN = Identifier.fromNamespaceAndPath(
+            "cyberdeck", "textures/entity/trauma_team.png");
     private static final float RECOIL_TICKS = 4.0F;
 
     public FactionEnemyRenderer(EntityRendererProvider.Context context) {
@@ -48,6 +50,9 @@ public final class FactionEnemyRenderer
 
     @Override
     public Identifier getTextureLocation(FactionEnemyRenderState state) {
+        if (state.traumaTeam) {
+            return TRAUMA_TEAM_SKIN;
+        }
         return state.cyberpsycho ? CYBERPSYCHO_SKIN : STEVE_SKIN;
     }
 
@@ -67,6 +72,7 @@ public final class FactionEnemyRenderer
                                    float partialTick) {
         super.extractRenderState(enemy, state, partialTick);
         state.cyberpsycho = enemy instanceof CyberpsychoEntity;
+        state.traumaTeam = enemy.isTraumaTeam();
 
         // The off-hand slot is this entity's holster, not a second simultaneously wielded gun.
         // Hide that model so the synchronized hand swap visibly replaces the primary with the
@@ -129,7 +135,8 @@ public final class FactionEnemyRenderer
     private static TacticalPoseData extractTacticalPose(FactionEnemy enemy, double renderTick) {
         TacticalManeuver maneuver = enemy.getTacticalManeuver();
         TacticalAction action = switch (maneuver) {
-            case DASH_LEFT, DASH_RIGHT -> TacticalAction.DASH;
+            // The sandevistan blink reuses the dash animation so the new maneuver id renders cleanly.
+            case DASH_LEFT, DASH_RIGHT, SANDEVISTAN_DASH -> TacticalAction.DASH;
             case SLIDE_FORWARD -> TacticalAction.SLIDE;
             case NONE -> TacticalAction.NONE;
         };

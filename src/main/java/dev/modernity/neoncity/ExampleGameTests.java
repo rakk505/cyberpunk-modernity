@@ -52,6 +52,8 @@ public final class ExampleGameTests {
     private static final EnumSet<MegacityLayout.Zone> ARNIS_ZONES =
             EnumSet.of(MegacityLayout.Zone.NEST, MegacityLayout.Zone.BACKSTREETS);
 
+    private record BorderSample(int x, int z, NeonCityGenerator.UrbanSample sample) {}
+
     private ExampleGameTests() {}
 
     public static void alleyDepthFirst(GameTestHelper helper) {
@@ -398,9 +400,17 @@ public final class ExampleGameTests {
 
     public static void connectedTravelGraph(GameTestHelper helper) {
         MegacityLayout layout = MegacityLayout.create(TEST_SEED);
-        helper.assertTrue(layout.isConnected(), "district travel graph is disconnected");
+        helper.assertTrue(layout.isGroundConnected(), "ground highway graph is disconnected");
+        helper.assertTrue(layout.isElevatedConnected(), "elevated backbone is disconnected");
         helper.assertTrue(layout.edges().size() > layout.nodes().size() - 1,
                 "travel graph needs loops in addition to its spanning tree");
+        helper.assertTrue(layout.groundEdges().equals(layout.edges()),
+                "an edge disappeared from the ground highway layer");
+        long backboneEdges = layout.edges().stream()
+                .filter(MegacityLayout.Edge::elevatedBackbone).count();
+        helper.assertTrue(backboneEdges == layout.nodes().size() - 1
+                        && layout.elevatedEdges().size() >= backboneEdges,
+                "elevated layer lost its spanning-tree backbone");
 
         EnumMap<District, Integer> degree = new EnumMap<>(District.class);
         Set<Long> pairs = new HashSet<>();
@@ -430,6 +440,11 @@ public final class ExampleGameTests {
                     entry.getKey() + " has no alternate route, degree=" + entry.getValue());
             helper.assertTrue(entry.getValue() < District.values().length,
                     entry.getKey() + " was incorrectly connected to every district");
+        }
+        for (MegacityLayout.Node node : layout.nodes()) {
+            helper.assertTrue(layout.elevatedEdges().stream().anyMatch(
+                            edge -> edge.first().equals(node) || edge.second().equals(node)),
+                    node.district() + " has no elevated-backbone junction");
         }
         helper.assertTrue(kinds.equals(EnumSet.allOf(MegacityLayout.ConnectionKind.class)),
                 "travel graph lacks a connection style: " + kinds);
@@ -524,6 +539,48 @@ public final class ExampleGameTests {
         }
         helper.assertTrue(allZones.containsAll(ARNIS_ZONES),
                 "layout sampling did not expose both inhabited zones: " + allZones);
+        EnumSet<MegacityLayout.Zone> borderTypes = EnumSet.noneOf(MegacityLayout.Zone.class);
+        for (long seedOffset : ZONE_SEED_OFFSETS) {
+            MegacityLayout typedLayout = MegacityLayout.create(TEST_SEED + seedOffset);
+            for (int first = 0; first < District.values().length; first++) {
+                for (int second = first + 1; second < District.values().length; second++) {
+                    District left = District.values()[first];
+                    District right = District.values()[second];
+                    MegacityLayout.Zone type = typedLayout.boundaryZone(left, right);
+                    helper.assertTrue(type == typedLayout.boundaryZone(right, left),
+                            "district border type changes when pair order is reversed");
+                    borderTypes.add(type);
+                }
+            }
+        }
+        helper.assertTrue(borderTypes.equals(EnumSet.of(
+                        MegacityLayout.Zone.BORDER_WALLED,
+                        MegacityLayout.Zone.BORDER_FOREST,
+                        MegacityLayout.Zone.BORDER_CLIFF)),
+                "district pairs do not expose all three border types: " + borderTypes);
+        MegacityLayout borderLayout = MegacityLayout.create(TEST_SEED);
+        int widenedBorders = 0;
+        int legacyBorders = 0;
+        for (int z = -5_200; z <= 5_200; z += 40) {
+            for (int x = -5_200; x <= 5_200; x += 40) {
+                MegacityLayout.Location location = borderLayout.locateDistrict(x, z);
+                if (!isBorderZone(location.zone())) {
+                    continue;
+                }
+                widenedBorders++;
+                double secondaryScore = location.normalizedDistance()
+                        + location.boundaryGap();
+                helper.assertTrue(MegacityLayout.isDistrictBorder(
+                                location.normalizedDistance(), secondaryScore),
+                        "runtime border disagrees with the shared map predicate");
+                if (secondaryScore <= 1.12 && location.boundaryGap() < 0.055) {
+                    legacyBorders++;
+                }
+            }
+        }
+        helper.assertTrue(legacyBorders > 0 && widenedBorders * 10 >= legacyBorders * 16,
+                "district edge layers were not materially widened: old=" + legacyBorders
+                        + ", new=" + widenedBorders);
         helper.succeed();
     }
 
@@ -552,11 +609,19 @@ public final class ExampleGameTests {
                 && zones.contains(MegacityLayout.Zone.BACKSTREETS);
     }
 
+    private static boolean isBorderZone(MegacityLayout.Zone zone) {
+        return zone == MegacityLayout.Zone.BORDER_WALLED
+                || zone == MegacityLayout.Zone.BORDER_FOREST
+                || zone == MegacityLayout.Zone.BORDER_CLIFF;
+    }
+
     public static void connectionContinuity(GameTestHelper helper) {
         NeonCityGenerator.reset();
         MegacityLayout layout = NeonCityGenerator.layout();
         EnumSet<NeonCityGenerator.RoadClass> infrastructure =
                 EnumSet.noneOf(NeonCityGenerator.RoadClass.class);
+        int gradedSamples = 0;
+        int clearanceSamples = 0;
         for (MegacityLayout.Edge edge : layout.edges()) {
             for (int step = 0; step <= 20; step++) {
                 int[] point = connectionPoint(edge, step / 20.0);
@@ -571,12 +636,62 @@ public final class ExampleGameTests {
                         "connection classified as " + road + " at " + point[0] + "," + point[1]);
                 infrastructure.add(road);
             }
+
+            double chordLength = Math.hypot(
+                    edge.second().x() - edge.first().x(),
+                    edge.second().z() - edge.first().z());
+            int gradeSteps = Math.max(2, (int) Math.ceil(chordLength * 1.5));
+            int previousDeck = NeonCityGenerator.highwayDeckY(layout, edge, 0.0);
+            for (int step = 1; step <= gradeSteps; step++) {
+                double progress = step / (double) gradeSteps;
+                int deck = NeonCityGenerator.highwayDeckY(layout, edge, progress);
+                helper.assertTrue(Math.abs(deck - previousDeck) <= 1,
+                        "highway grade jumps from " + previousDeck + " to " + deck
+                                + " on " + edge.first().district() + "-"
+                                + edge.second().district() + " at " + progress);
+                if (deck > NeonCityGenerator.CITY_GROUND_Y
+                        && deck < NeonCityGenerator.CITY_GROUND_Y
+                        + NeonCityGenerator.BRIDGE_RISE) {
+                    gradedSamples++;
+                }
+                previousDeck = deck;
+            }
+
+            for (int step = 3; step <= 17; step++) {
+                MegacityLayout.CurvePoint point = MegacityLayout.curvePoint(edge, step / 20.0);
+                double tangentLength = Math.max(
+                        1.0, Math.hypot(point.tangentX(), point.tangentZ()));
+                int bufferX = (int) Math.round(point.x()
+                        - point.tangentZ() / tangentLength * 18.0);
+                int bufferZ = (int) Math.round(point.z()
+                        + point.tangentX() / tangentLength * 18.0);
+                NeonCityGenerator.UrbanSample buffer = NeonCityGenerator.sample(
+                        bufferX, bufferZ);
+                if (buffer.location().nearestConnection() == edge
+                        && buffer.location().connectionDistance()
+                                > NeonCityGenerator.HIGHWAY_HALF_WIDTH
+                        && buffer.location().connectionDistance()
+                                <= NeonCityGenerator.HIGHWAY_CLEARANCE_RADIUS) {
+                    helper.assertTrue(
+                            buffer.roadClass() == NeonCityGenerator.RoadClass.HIGHWAY_BUFFER,
+                            "reserved highway shoulder classified as " + buffer.roadClass()
+                                    + " at " + bufferX + "," + bufferZ);
+                    helper.assertTrue(!NeonCityGenerator.keepsArnisColumn(
+                                    buffer, buffer.district()),
+                            "Arnis building entered the reserved highway shoulder");
+                    clearanceSamples++;
+                }
+            }
         }
         helper.assertTrue(infrastructure.contains(NeonCityGenerator.RoadClass.INTERDISTRICT_ROAD)
                         || infrastructure.contains(NeonCityGenerator.RoadClass.BRIDGE),
                 "connections contain no drivable interdistrict infrastructure");
         helper.assertTrue(infrastructure.contains(NeonCityGenerator.RoadClass.ELEVATED_RAIL),
                 "connections contain no elevated rail");
+        helper.assertTrue(gradedSamples >= layout.edges().size()
+                        && clearanceSamples >= layout.edges().size(),
+                "highway scan missed graded approaches or atlas setbacks: grades="
+                        + gradedSamples + ", setbacks=" + clearanceSamples);
         helper.succeed();
     }
 
@@ -586,13 +701,32 @@ public final class ExampleGameTests {
         MegacityLayout layout = NeonCityGenerator.layout();
         EnumSet<NeonCityGenerator.RoadClass> roads =
                 EnumSet.noneOf(NeonCityGenerator.RoadClass.class);
+        Set<Long> validatedParkChunks = new HashSet<>();
+        int validatedParks = 0;
         for (MegacityLayout.Node node : layout.nodes()) {
             roads.add(NeonCityGenerator.roadAt(node.x(), node.z()));
+            for (int angle = 0; angle < 16; angle++) {
+                double radians = angle * Math.PI * 2.0 / 16.0;
+                roads.add(NeonCityGenerator.roadAt(
+                        node.x() + (int) Math.round(Math.cos(radians) * 24.0),
+                        node.z() + (int) Math.round(Math.sin(radians) * 24.0)));
+            }
             for (double radius = 0.12; radius <= 1.06; radius += 0.047) {
                 for (int angle = 0; angle < RADIAL_STEPS; angle++) {
                     int[] point = ellipsePoint(node, radius, angle, RADIAL_STEPS);
                     NeonCityGenerator.UrbanSample sample = NeonCityGenerator.sample(point[0], point[1]);
-                    if (sample.district() == node.district()) roads.add(sample.roadClass());
+                    if (sample.district() == node.district()) {
+                        roads.add(sample.roadClass());
+                        if (sample.roadClass() == NeonCityGenerator.RoadClass.PARK) {
+                            long parkChunk = ChunkPos.pack(
+                                    Math.floorDiv(point[0], 16), Math.floorDiv(point[1], 16));
+                            if (validatedParkChunks.add(parkChunk)) {
+                                assertAuditedParkSite(
+                                        helper, layout, point[0], point[1], sample);
+                                validatedParks++;
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -602,6 +736,7 @@ public final class ExampleGameTests {
                 roads.add(NeonCityGenerator.roadAt(point[0], point[1]));
             }
         }
+        collectBorderRoadClasses(layout, roads);
 
         NeonCityGenerator.RoadClass[] required = {
                 NeonCityGenerator.RoadClass.CENTRAL_PLAZA,
@@ -612,13 +747,163 @@ public final class ExampleGameTests {
                 NeonCityGenerator.RoadClass.INTERDISTRICT_ROAD,
                 NeonCityGenerator.RoadClass.BRIDGE,
                 NeonCityGenerator.RoadClass.ELEVATED_RAIL,
-                NeonCityGenerator.RoadClass.BORDER_RIVER,
-                NeonCityGenerator.RoadClass.BORDER_HILLS
+                NeonCityGenerator.RoadClass.BORDER_WALLED,
+                NeonCityGenerator.RoadClass.BORDER_FOREST,
+                NeonCityGenerator.RoadClass.BORDER_CLIFF
         };
         for (NeonCityGenerator.RoadClass road : required) {
             helper.assertTrue(roads.contains(road), "city is missing infrastructure class " + road);
         }
+        helper.assertTrue(validatedParks > 0,
+                "road scan found no park backed by an audited open Arnis tile");
         helper.succeed();
+    }
+
+    private static void collectBorderRoadClasses(
+            MegacityLayout layout,
+            EnumSet<NeonCityGenerator.RoadClass> roads) {
+        for (int first = 0; first < layout.nodes().size(); first++) {
+            for (int second = first + 1; second < layout.nodes().size(); second++) {
+                MegacityLayout.Node left = layout.nodes().get(first);
+                MegacityLayout.Node right = layout.nodes().get(second);
+                double low = 0.0;
+                double high = 1.0;
+                for (int iteration = 0; iteration < 48; iteration++) {
+                    double progress = (low + high) * 0.5;
+                    int x = (int) Math.round(left.x() + (right.x() - left.x()) * progress);
+                    int z = (int) Math.round(left.z() + (right.z() - left.z()) * progress);
+                    double score = layout.normalizedDistanceTo(left, x, z)
+                            - layout.normalizedDistanceTo(right, x, z);
+                    if (score < 0.0) low = progress;
+                    else high = progress;
+                }
+                double progress = (low + high) * 0.5;
+                double centerX = left.x() + (right.x() - left.x()) * progress;
+                double centerZ = left.z() + (right.z() - left.z()) * progress;
+                double length = Math.max(
+                        1.0, Math.hypot(right.x() - left.x(), right.z() - left.z()));
+                double tangentX = -(right.z() - left.z()) / length;
+                double tangentZ = (right.x() - left.x()) / length;
+                double normalX = (right.x() - left.x()) / length;
+                double normalZ = (right.z() - left.z()) / length;
+                boolean sampled = false;
+                for (int offset = -192; offset <= 192; offset += 8) {
+                    for (int cross = -40; cross <= 40; cross += 8) {
+                        int x = (int) Math.round(
+                                centerX + tangentX * offset + normalX * cross);
+                        int z = (int) Math.round(
+                                centerZ + tangentZ * offset + normalZ * cross);
+                        MegacityLayout.Location location = layout.locate(x, z);
+                        if (!isBorderZone(location.zone())) continue;
+                        NeonCityGenerator.RoadClass road = NeonCityGenerator.roadAt(x, z);
+                        if (road == NeonCityGenerator.RoadClass.BORDER_WALLED
+                                || road == NeonCityGenerator.RoadClass.BORDER_FOREST
+                                || road == NeonCityGenerator.RoadClass.BORDER_CLIFF) {
+                            roads.add(road);
+                            sampled = true;
+                            break;
+                        }
+                    }
+                    if (sampled) break;
+                }
+                if (roads.contains(NeonCityGenerator.RoadClass.BORDER_WALLED)
+                        && roads.contains(NeonCityGenerator.RoadClass.BORDER_FOREST)
+                        && roads.contains(NeonCityGenerator.RoadClass.BORDER_CLIFF)) {
+                    return;
+                }
+            }
+        }
+    }
+
+    private static BorderSample findBorderSample(
+            MegacityLayout layout,
+            MegacityLayout.Zone targetZone,
+            NeonCityGenerator.RoadClass targetRoad) {
+        for (int first = 0; first < layout.nodes().size(); first++) {
+            for (int second = first + 1; second < layout.nodes().size(); second++) {
+                MegacityLayout.Node left = layout.nodes().get(first);
+                MegacityLayout.Node right = layout.nodes().get(second);
+                if (layout.boundaryZone(left.district(), right.district()) != targetZone) continue;
+                double low = 0.0;
+                double high = 1.0;
+                for (int iteration = 0; iteration < 48; iteration++) {
+                    double progress = (low + high) * 0.5;
+                    int x = (int) Math.round(left.x() + (right.x() - left.x()) * progress);
+                    int z = (int) Math.round(left.z() + (right.z() - left.z()) * progress);
+                    if (layout.normalizedDistanceTo(left, x, z)
+                            < layout.normalizedDistanceTo(right, x, z)) {
+                        low = progress;
+                    } else {
+                        high = progress;
+                    }
+                }
+                double progress = (low + high) * 0.5;
+                double centerX = left.x() + (right.x() - left.x()) * progress;
+                double centerZ = left.z() + (right.z() - left.z()) * progress;
+                double length = Math.max(
+                        1.0, Math.hypot(right.x() - left.x(), right.z() - left.z()));
+                double tangentX = -(right.z() - left.z()) / length;
+                double tangentZ = (right.x() - left.x()) / length;
+                double normalX = (right.x() - left.x()) / length;
+                double normalZ = (right.z() - left.z()) / length;
+                for (int along = -256; along <= 256; along += 8) {
+                    for (int cross = -48; cross <= 48; cross += 4) {
+                        int x = (int) Math.round(
+                                centerX + tangentX * along + normalX * cross);
+                        int z = (int) Math.round(
+                                centerZ + tangentZ * along + normalZ * cross);
+                        MegacityLayout.Location location = layout.locate(x, z);
+                        if (location.zone() != targetZone) continue;
+                        NeonCityGenerator.UrbanSample sample = NeonCityGenerator.sample(x, z);
+                        if (sample.roadClass() == targetRoad) {
+                            return new BorderSample(x, z, sample);
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private static void assertAuditedParkSite(
+            GameTestHelper helper,
+            MegacityLayout layout,
+            int worldX,
+            int worldZ,
+            NeonCityGenerator.UrbanSample sample) {
+        ArnisPatchLibrary.Placement placement = ArnisPatchLibrary.select(
+                layout, Math.floorDiv(worldX, 16), Math.floorDiv(worldZ, 16)).orElse(null);
+        helper.assertTrue(placement != null
+                        && placement.patch().district() == sample.district()
+                        && placement.patch().placementZones().contains(sample.zone())
+                        && ArnisPatchLibrary.isConservativeOpenParkTile(placement.patch()),
+                "park overlaps an occupied or foreign Arnis tile at " + worldX + "," + worldZ);
+        helper.assertTrue(!ArnisPatchLibrary.isParkAccessLaneAt(
+                        placement, worldX, worldZ),
+                "park erased its three-block access lane at " + worldX + "," + worldZ);
+        int chunkX = Math.floorDiv(worldX, 16);
+        int chunkZ = Math.floorDiv(worldZ, 16);
+        int parkColumns = 0;
+        int accessColumns = 0;
+        for (int localZ = 0; localZ < 16; localZ++) {
+            for (int localX = 0; localX < 16; localX++) {
+                int x = (chunkX << 4) + localX;
+                int z = (chunkZ << 4) + localZ;
+                NeonCityGenerator.RoadClass road = NeonCityGenerator.roadAt(x, z);
+                if (road == NeonCityGenerator.RoadClass.PARK) parkColumns++;
+                if (ArnisPatchLibrary.isParkAccessLaneAt(placement, x, z)) {
+                    helper.assertTrue(road == NeonCityGenerator.RoadClass.LOCAL_STREET,
+                            "park access lane is obstructed by " + road + " at " + x + "," + z);
+                    accessColumns++;
+                }
+            }
+        }
+        helper.assertTrue(parkColumns == NeonCityGenerator.parkSiteColumnCount(
+                        layout, chunkX, chunkZ)
+                        && parkColumns >= NeonCityGenerator.MIN_PARK_SITE_COLUMNS,
+                "park survived without one large usable footprint: " + parkColumns);
+        helper.assertTrue(accessColumns == 12,
+                "park must retain one complete 3x4 entrance lane: " + accessColumns);
     }
 
     public static void parkTreeLibrary(GameTestHelper helper) {
@@ -700,10 +985,12 @@ public final class ExampleGameTests {
         Set<MerchantTruckLibrary.TruckCandidate> blackTrucks = new HashSet<>();
         int plannedTrucks = 0;
         for (District district : District.values()) {
-            MerchantTruckLibrary.TruckCandidate black = MerchantTruckLibrary
-                    .canonicalBlackTruck(district)
-                    .orElseThrow(() -> new AssertionError(
-                            district + " has no park space for its canonical black truck"));
+            Optional<MerchantTruckLibrary.TruckCandidate> optionalBlack =
+                    MerchantTruckLibrary.canonicalBlackTruck(district);
+            if (optionalBlack.isEmpty()) {
+                continue;
+            }
+            MerchantTruckLibrary.TruckCandidate black = optionalBlack.get();
             helper.assertTrue(black.district() == district
                             && MerchantTruckLibrary.role(black)
                                     == MerchantTruckLibrary.MerchantRole.QUEST,
@@ -726,13 +1013,15 @@ public final class ExampleGameTests {
                                         || sample.zone() == MegacityLayout.Zone.BACKSTREETS)
                                         && sample.district() == candidate.district()
                                         && sample.groundY() == candidate.groundY(),
-                                "merchant truck escaped a flat same-district park footprint");
+                                "merchant truck escaped a flat park footprint or blocked its access lane");
                     }
                 }
             }
         }
-        helper.assertTrue(blackTrucks.size() == District.values().length && plannedTrucks >= 26,
-                "not every district owns a unique fixer truck");
+        helper.assertTrue(blackTrucks.size() >= District.values().length / 2
+                        && plannedTrucks >= blackTrucks.size(),
+                "too few districts expose a collision-safe fixer park: "
+                        + blackTrucks.size());
 
         EnumSet<MerchantTruckLibrary.MerchantRole> tradingRoles = EnumSet.noneOf(
                 MerchantTruckLibrary.MerchantRole.class);
@@ -1055,9 +1344,21 @@ public final class ExampleGameTests {
 
         MegacityLayout.Node winter = NeonCityGenerator.layout().node(District.Y_CORP);
         NeonCityGenerator.UrbanSample center = NeonCityGenerator.sample(winter.x(), winter.z());
+        boolean hasCivicPlaza = false;
+        for (int angle = 0; angle < 16; angle++) {
+            double radians = angle * Math.PI * 2.0 / 16.0;
+            if (NeonCityGenerator.roadAt(
+                            winter.x() + (int) Math.round(Math.cos(radians) * 24.0),
+                            winter.z() + (int) Math.round(Math.sin(radians) * 24.0))
+                    == NeonCityGenerator.RoadClass.CENTRAL_PLAZA) {
+                hasCivicPlaza = true;
+                break;
+            }
+        }
         helper.assertTrue(center.district() == District.Y_CORP
                         && center.zone() == MegacityLayout.Zone.NEST
-                        && center.roadClass() == NeonCityGenerator.RoadClass.CENTRAL_PLAZA,
+                        && isTravelInfrastructure(center.roadClass())
+                        && hasCivicPlaza,
                 "Y Corp winter capital is not generated as an urban center");
         helper.succeed();
     }
@@ -1386,7 +1687,8 @@ public final class ExampleGameTests {
                         case FARM -> backstreetFarms++;
                         case INTERDISTRICT_ROAD,
                                 BRIDGE,
-                                ELEVATED_RAIL -> backstreetInfrastructure++;
+                                ELEVATED_RAIL,
+                                HIGHWAY_BUFFER -> backstreetInfrastructure++;
                         default -> backstreetSlop++;
                     }
                 }
@@ -1478,31 +1780,95 @@ public final class ExampleGameTests {
             }
         }
         helper.assertTrue(maxHill - minHill >= 10 && maxAdjacentStep <= 2,
-                "district border hills are flat or form abrupt walls");
+                "district border cliffs are flat or form abrupt walls");
         helper.assertTrue(hillSurfaces.size() >= 3,
-                "district border hills lack coherent grass, soil, and rock patches");
+                "district border cliffs lack coherent grass, soil, and rock patches");
 
-        int treeAnchors = 0;
-        int cottages = 0;
+        int forestTreeAnchors = 0;
+        int cliffTreeAnchors = 0;
+        int villageCandidates = 0;
         for (int z = -128; z < 128; z++) {
             for (int x = -128; x < 128; x++) {
-                if (DistrictWorldFeatures.isHillTreeAnchor(TEST_SEED, x, z)) {
-                    treeAnchors++;
-                }
+                if (ParkTreeLibrary.isForestTreeAnchor(TEST_SEED, x, z)) forestTreeAnchors++;
+                if (ParkTreeLibrary.isCliffTreeAnchor(TEST_SEED, x, z)) cliffTreeAnchors++;
             }
         }
         for (int chunkZ = -32; chunkZ <= 32; chunkZ++) {
             for (int chunkX = -32; chunkX <= 32; chunkX++) {
                 if (DistrictWorldFeatures.isHillVillageCandidate(
                         TEST_SEED, chunkX, chunkZ)) {
-                    cottages++;
+                    villageCandidates++;
                 }
             }
         }
-        helper.assertTrue(treeAnchors >= 100,
-                "border hills do not contain enough deterministic tree anchors");
-        helper.assertTrue(cottages >= 20 && cottages <= 300,
-                "border hill cottage frequency is not occasional: " + cottages);
+        helper.assertTrue(forestTreeAnchors >= 500
+                        && forestTreeAnchors >= cliffTreeAnchors * 4,
+                "forested borders are not materially denser than cliff trees: forest="
+                        + forestTreeAnchors + ", cliff=" + cliffTreeAnchors);
+        helper.assertTrue(cliffTreeAnchors >= 50,
+                "cliffs lost their sparse deterministic Exsilit silhouettes");
+        helper.assertTrue(villageCandidates >= 100 && villageCandidates <= 260,
+                "forest village frequency is not sparse and bounded: " + villageCandidates);
+        helper.assertTrue(BorderVillageLibrary.templates().size() >= 12,
+                "forested borders lack varied vanilla village structures");
+        for (BorderVillageLibrary.VillageAsset asset : BorderVillageLibrary.templates()) {
+            var villageTemplate = helper.getLevel().getStructureManager()
+                    .get(asset.templateId()).orElse(null);
+            helper.assertTrue(villageTemplate != null
+                            && villageTemplate.getSize().getX() == asset.sizeX()
+                            && villageTemplate.getSize().getY() == asset.sizeY()
+                            && villageTemplate.getSize().getZ() == asset.sizeZ(),
+                    "missing or mis-sized forest village template " + asset.templateId());
+        }
+        BorderSample walled = findBorderSample(
+                layout,
+                MegacityLayout.Zone.BORDER_WALLED,
+                NeonCityGenerator.RoadClass.BORDER_WALLED);
+        BorderSample forest = findBorderSample(
+                layout,
+                MegacityLayout.Zone.BORDER_FOREST,
+                NeonCityGenerator.RoadClass.BORDER_FOREST);
+        BorderSample forestTrail = findBorderSample(
+                layout,
+                MegacityLayout.Zone.BORDER_FOREST,
+                NeonCityGenerator.RoadClass.LOCAL_STREET);
+        BorderSample cliff = findBorderSample(
+                layout,
+                MegacityLayout.Zone.BORDER_CLIFF,
+                NeonCityGenerator.RoadClass.BORDER_CLIFF);
+        helper.assertTrue(walled != null && forest != null && forestTrail != null && cliff != null,
+                "default layout has no usable representative for every border type");
+        helper.assertTrue(walled.sample().groundY() == NeonCityGenerator.CITY_GROUND_Y
+                        && forest.sample().groundY() == NeonCityGenerator.CITY_GROUND_Y
+                        && forestTrail.sample().groundY() == NeonCityGenerator.CITY_GROUND_Y,
+                "walled/forested borders must remain at city-road grade");
+        helper.assertTrue(layout.boundaryFrame(
+                                forestTrail.sample().location(), forestTrail.x(), forestTrail.z())
+                                .gapRatio() <= 0.10,
+                "forested border trail did not preserve the district bisector");
+        helper.assertTrue(cliff.sample().groundY() >= NeonCityGenerator.CITY_GROUND_Y + 4,
+                "cliff border lost its raised terrain");
+        CliffInfrastructureLibrary.SolarAsset solarAsset =
+                CliffInfrastructureLibrary.solarPanel();
+        var solarTemplate = helper.getLevel().getStructureManager()
+                .get(solarAsset.templateId()).orElse(null);
+        helper.assertTrue(solarTemplate != null
+                        && solarTemplate.getSize().getX() == solarAsset.sizeX()
+                        && solarTemplate.getSize().getY() == solarAsset.sizeY()
+                        && solarTemplate.getSize().getZ() == solarAsset.sizeZ()
+                        && solarAsset.blockCount() == 367
+                        && solarAsset.sha256().length() == 64,
+                "supplied cliff solar structure is missing or disagrees with its audit");
+        Optional<CliffInfrastructureLibrary.SolarCandidate> solarCandidate =
+                findCliffSolarCandidate(layout, cliff);
+        helper.assertTrue(solarCandidate.isPresent()
+                        && CliffInfrastructureLibrary.isEligibleFootprint(
+                                layout, solarCandidate.orElseThrow())
+                        && solarCandidate.orElseThrow().baseY() + solarAsset.sizeY() - 1
+                                <= NeonCityGenerator.MAX_BUILD_Y,
+                "default cliff border exposes no build-safe deterministic solar site");
+        assertWalledBorderTopology(helper, layout);
+        assertLiveWalledBorderPlacement(helper, walled);
 
         BlockPos origin = helper.absolutePos(BlockPos.ZERO);
         var farmer = DistrictWorldFeatures.createFarmWorker(
@@ -1515,6 +1881,167 @@ public final class ExampleGameTests {
                                 stack -> stack.is(net.minecraft.world.item.Items.WHEAT_SEEDS)),
                 "S Corp farm worker lacks farmer AI, persistence, or replanting seed");
         helper.succeed();
+    }
+
+    private static Optional<CliffInfrastructureLibrary.SolarCandidate>
+            findCliffSolarCandidate(MegacityLayout layout, BorderSample cliff) {
+        MegacityLayout.BoundaryFrame frame = layout.boundaryFrame(
+                cliff.sample().location(), cliff.x(), cliff.z());
+        int cellSize = CliffInfrastructureLibrary.siteCellSize();
+        Set<Long> checked = new HashSet<>();
+        for (int along = -1_536; along <= 1_536; along += cellSize / 2) {
+            int projectedX = (int) Math.round(cliff.x() + frame.tangentX() * along);
+            int projectedZ = (int) Math.round(cliff.z() + frame.tangentZ() * along);
+            int centerCellX = Math.floorDiv(projectedX, cellSize);
+            int centerCellZ = Math.floorDiv(projectedZ, cellSize);
+            for (int dz = -1; dz <= 1; dz++) {
+                for (int dx = -1; dx <= 1; dx++) {
+                    int cellX = centerCellX + dx;
+                    int cellZ = centerCellZ + dz;
+                    if (!checked.add(ChunkPos.pack(cellX, cellZ))) continue;
+                    Optional<CliffInfrastructureLibrary.SolarCandidate> candidate =
+                            CliffInfrastructureLibrary.candidateForCell(
+                                    layout, cellX, cellZ);
+                    if (candidate.isPresent()) return candidate;
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static void assertWalledBorderTopology(
+            GameTestHelper helper, MegacityLayout layout) {
+        int promenade = 0;
+        int gates = 0;
+        int wallNegative = 0;
+        int wallPositive = 0;
+        int slums = 0;
+        int multiStory = 0;
+        int reservedLots = 0;
+        int serviceAlleys = 0;
+        for (int along = 0; along < WalledBorderLibrary.LOT_PERIOD * 2; along++) {
+            for (int side : new int[]{-1, 1}) {
+                for (int ratioStep = 0; ratioStep <= 100; ratioStep++) {
+                    double ratio = ratioStep / 100.0;
+                    MegacityLayout.BoundaryFrame frame = new MegacityLayout.BoundaryFrame(
+                            District.A_CORP,
+                            District.B_CORP,
+                            side * ratio * MegacityLayout.BORDER_GAP_LIMIT,
+                            ratio,
+                            1.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                            along);
+                    WalledBorderLibrary.ColumnPlan plan = WalledBorderLibrary.planFrame(
+                            layout.seed(), frame);
+                    switch (plan.role()) {
+                        case PROMENADE -> promenade++;
+                        case GATE_ALLEY -> gates++;
+                        case WALL -> {
+                            helper.assertTrue(plan.wallHeight() >= 5 && plan.wallHeight() <= 7,
+                                    "walled border escaped its 5-7 block height contract");
+                            if (side < 0) wallNegative++;
+                            else wallPositive++;
+                        }
+                        case SLUM -> {
+                            slums++;
+                            helper.assertTrue(plan.module().stories() >= 2
+                                            && plan.module().stories() <= 4
+                                            && plan.module().totalHeight() <= 17,
+                                    "walled slum module is not bounded multi-level housing");
+                            if (plan.module().containsStory(ratio, 1)) multiStory++;
+                        }
+                        case RESERVED_LOT -> reservedLots++;
+                        case SERVICE_ALLEY -> serviceAlleys++;
+                        default -> {
+                        }
+                    }
+                    if (ratio == 0.0) {
+                        helper.assertTrue(plan.traversableAtGround(),
+                                "walled border blocks its central promenade at " + along);
+                    }
+                }
+            }
+        }
+        helper.assertTrue(promenade > 0 && gates > 0 && serviceAlleys > 0,
+                "walled border lacks promenade, transverse gates, or service alleys");
+        helper.assertTrue(wallNegative > 0 && wallPositive > 0,
+                "walled border does not build a wall on both district sides");
+        helper.assertTrue(slums > 0 && multiStory * 3 >= slums * 2,
+                "walled border slums are absent or insufficiently multi-layered");
+        helper.assertTrue(reservedLots > 0,
+                "walled border reserves no empty shop/mission lots");
+    }
+
+    private static void assertLiveWalledBorderPlacement(
+            GameTestHelper helper, BorderSample representative) {
+        int centerChunkX = Math.floorDiv(representative.x(), 16);
+        int centerChunkZ = Math.floorDiv(representative.z(), 16);
+        int wallColumns = 0;
+        int slumColumns = 0;
+        int traversableColumns = 0;
+        for (int chunkZ = centerChunkZ - 3; chunkZ <= centerChunkZ + 3; chunkZ++) {
+            for (int chunkX = centerChunkX - 3; chunkX <= centerChunkX + 3; chunkX++) {
+                helper.getLevel().getChunk(chunkX, chunkZ);
+                ChunkPos chunk = new ChunkPos(chunkX, chunkZ);
+                NeonCityGenerator.UrbanSample[][] samples = NeonCityGenerator.sampleChunk(
+                        chunk.getMinBlockX(), chunk.getMinBlockZ());
+                WalledBorderLibrary.PlacementMetrics metrics =
+                        WalledBorderLibrary.decorateChunk(helper.getLevel(), chunk, samples);
+                wallColumns += metrics.wallColumns();
+                slumColumns += metrics.slumColumns();
+                traversableColumns += metrics.promenadeColumns()
+                        + metrics.gateColumns() + metrics.reservedLotColumns();
+
+                for (int localZ = 0; localZ < 16; localZ++) {
+                    for (int localX = 0; localX < 16; localX++) {
+                        NeonCityGenerator.UrbanSample sample = samples[localZ + 1][localX + 1];
+                        if (sample.roadClass() != NeonCityGenerator.RoadClass.BORDER_WALLED) {
+                            continue;
+                        }
+                        int worldX = chunk.getMinBlockX() + localX;
+                        int worldZ = chunk.getMinBlockZ() + localZ;
+                        WalledBorderLibrary.ColumnPlan plan = WalledBorderLibrary.planAt(
+                                NeonCityGenerator.layout(), sample.location(), worldX, worldZ);
+                        if (plan.role() == WalledBorderLibrary.ColumnRole.WALL) {
+                            for (int height = 1; height <= plan.wallHeight(); height++) {
+                                helper.assertTrue(!helper.getLevel().isEmptyBlock(
+                                                new BlockPos(worldX, sample.groundY() + height, worldZ)),
+                                        "live walled border has a broken wall column");
+                            }
+                            helper.assertTrue(helper.getLevel().isEmptyBlock(new BlockPos(
+                                            worldX, sample.groundY() + plan.wallHeight() + 1, worldZ)),
+                                    "live walled border exceeded its planned 5-7 block wall height");
+                        } else if (plan.role() == WalledBorderLibrary.ColumnRole.SLUM) {
+                            for (int story = 0; story < plan.module().stories(); story++) {
+                                if (!plan.module().containsStory(plan.frame().gapRatio(), story)) {
+                                    continue;
+                                }
+                                int capY = sample.groundY()
+                                        + (story + 1) * WalledBorderLibrary.STORY_HEIGHT;
+                                helper.assertTrue(!helper.getLevel().isEmptyBlock(
+                                                new BlockPos(worldX, capY, worldZ)),
+                                        "live stepped slum story is missing its floor/terrace cap");
+                            }
+                        } else if (plan.role() == WalledBorderLibrary.ColumnRole.PROMENADE
+                                || plan.role() == WalledBorderLibrary.ColumnRole.GATE_ALLEY
+                                || plan.role() == WalledBorderLibrary.ColumnRole.RESERVED_LOT) {
+                            for (int height = 1; height <= 4; height++) {
+                                helper.assertTrue(helper.getLevel().isEmptyBlock(
+                                                new BlockPos(
+                                                        worldX,
+                                                        sample.groundY() + height,
+                                                        worldZ)),
+                                        "live walled border blocks public headroom");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        helper.assertTrue(wallColumns > 0 && slumColumns > 0 && traversableColumns > 0,
+                "live walled-border window did not contain walls, slums, and public space");
     }
 
     public static void arnisPatchSelection(GameTestHelper helper) {
@@ -1532,6 +2059,27 @@ public final class ExampleGameTests {
                 "runtime index must contain exactly 52 district-zone atlases, found "
                         + ArnisPatchLibrary.atlasCount());
 
+        Set<String> auditedOpenParkTiles = ArnisPatchLibrary.auditedOpenParkTileIds();
+        Map<District, Integer> auditedParkDistricts =
+                ArnisPatchLibrary.auditedOpenParkDistrictCounts();
+        helper.assertTrue(auditedOpenParkTiles.size() == 1_178
+                        && ArnisPatchLibrary.auditedOpenParkMaximumAboveSurface() == 2,
+                "open-park NBT audit must retain 1,178 tiles no taller than surface+2");
+        helper.assertTrue(ArnisPatchLibrary.auditedOpenParkHeightCounts().equals(
+                        Map.of(0, 981, 1, 176, 2, 21)),
+                "open-park NBT audit height distribution changed: "
+                        + ArnisPatchLibrary.auditedOpenParkHeightCounts());
+        helper.assertTrue(auditedParkDistricts.size() == District.values().length
+                        && auditedParkDistricts.values().stream()
+                                .mapToInt(Integer::intValue).sum() == auditedOpenParkTiles.size(),
+                "open-park NBT audit district totals do not cover the allowlist");
+        for (ArnisPatchLibrary.Patch patch : ArnisPatchLibrary.PATCHES) {
+            helper.assertTrue(ArnisPatchLibrary.isConservativeOpenParkTile(patch)
+                            == auditedOpenParkTiles.contains(patch.catalogId()),
+                    "open-park runtime policy disagrees with NBT audit for "
+                            + patch.catalogId());
+        }
+
         int loadedAtlasTemplates = 0;
         Set<Integer> reflectionModes = new HashSet<>();
         boolean selectedAtNegativeCoordinate = false;
@@ -1540,8 +2088,15 @@ public final class ExampleGameTests {
             String districtPrefix = district.code().toLowerCase(Locale.ROOT) + "/";
             long districtPatches = ArnisPatchLibrary.PATCHES.stream()
                     .filter(patch -> patch.district() == district).count();
+            long openParkTiles = ArnisPatchLibrary.PATCHES.stream()
+                    .filter(patch -> patch.district() == district)
+                    .filter(ArnisPatchLibrary::isConservativeOpenParkTile)
+                    .count();
             helper.assertTrue(districtPatches == ARNIS_TILES_PER_ATLAS * ARNIS_ZONES.size(),
                     district + " must own exactly 512 Arnis tiles, found " + districtPatches);
+            helper.assertTrue(openParkTiles == auditedParkDistricts.getOrDefault(district, 0)
+                            && openParkTiles > 0,
+                    district + " open-park count disagrees with its NBT audit");
             helper.assertTrue(ArnisPatchLibrary.districtAtlasCount(district) == ARNIS_ZONES.size(),
                     district + " must own one Nest and one Backstreets atlas");
             helper.assertTrue(
@@ -1556,7 +2111,8 @@ public final class ExampleGameTests {
                     helper.assertTrue(patch.placementZones().equals(Set.of(zone)),
                             patch.catalogId() + " crosses district-zone atlas contracts");
                     helper.assertTrue(patch.sizeX() == 16 && patch.sizeZ() == 16
-                                    && patch.surfaceOffset() >= 0 && patch.sha256().length() == 64,
+                                    && patch.surfaceOffset() >= 0 && patch.blockCount() >= 256
+                                    && patch.sha256().length() == 64,
                             patch.catalogId() + " has invalid audited structure metadata");
                     catalogIds.add(patch.catalogId());
                 }

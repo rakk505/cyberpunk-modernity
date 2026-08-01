@@ -16,7 +16,6 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.FarmlandBlock;
-import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.SnowLayerBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.Heightmap;
@@ -26,10 +25,7 @@ import net.minecraft.world.phys.AABB;
 final class DistrictWorldFeatures {
     private static final long SNOW_SALT = 0x59434F5250534E4FL;
     private static final long HILL_SALT = 0x424F524445524849L;
-    private static final long TREE_SALT = 0x48494C4C54524545L;
-    private static final long VILLAGE_SALT = 0x48494C4C48414D4CL;
     private static final long FARMER_SALT = 0x534641524D455253L;
-    private static final int TREE_CELL_SIZE = 10;
     private static final int PLACE_FLAGS =
             Block.UPDATE_SKIP_ALL_SIDEEFFECTS | Block.UPDATE_CLIENTS;
     private static final String S_CORP_FARMER_TAG = "cyberdeck_s_corp_farmer";
@@ -99,21 +95,11 @@ final class DistrictWorldFeatures {
     }
 
     static boolean isHillTreeAnchor(long seed, int x, int z) {
-        int cellX = Math.floorDiv(x, TREE_CELL_SIZE);
-        int cellZ = Math.floorDiv(z, TREE_CELL_SIZE);
-        long hash = MegacityLayout.mix(seed ^ TREE_SALT, cellX, cellZ);
-        if (unit(hash) > 0.62) {
-            return false;
-        }
-        int offsetX = Math.floorMod((int) hash, TREE_CELL_SIZE);
-        int offsetZ = Math.floorMod((int) (hash >>> 32), TREE_CELL_SIZE);
-        return x == cellX * TREE_CELL_SIZE + offsetX
-                && z == cellZ * TREE_CELL_SIZE + offsetZ;
+        return ParkTreeLibrary.isForestTreeAnchor(seed, x, z);
     }
 
     static boolean isHillVillageCandidate(long seed, int chunkX, int chunkZ) {
-        long hash = MegacityLayout.mix(seed ^ VILLAGE_SALT, chunkX, chunkZ);
-        return Math.floorMod((int) (hash ^ (hash >>> 32)), 24) == 0;
+        return BorderVillageLibrary.isCandidateChunk(seed, chunkX, chunkZ);
     }
 
     static boolean isSCorpFarmer(Entity entity) {
@@ -128,8 +114,10 @@ final class DistrictWorldFeatures {
         long seed = NeonCityGenerator.layout().seed();
         MerchantTruckLibrary.decorateChunk(level, chunk, samples);
         ParkTreeLibrary.decorateChunk(level, chunk, samples);
-        placeHillCottage(level, chunk, samples, seed);
-        placeHillTrees(level, chunk, samples, seed);
+        WalledBorderLibrary.decorateChunk(level, chunk, samples);
+        BorderVillageLibrary.decorateChunk(level, chunk, samples);
+        CliffInfrastructureLibrary.decorateChunk(level, chunk);
+        ParkTreeLibrary.decorateBorderChunk(level, chunk, samples);
         placeSnowDrifts(level, chunk, samples, seed);
         placeFarmWorker(level, chunk, samples, seed);
     }
@@ -143,8 +131,7 @@ final class DistrictWorldFeatures {
             for (int localX = 0; localX < 16; localX++) {
                 NeonCityGenerator.UrbanSample sample = samples[localZ + 1][localX + 1];
                 if (sample.district() != District.Y_CORP
-                        || sample.zone() == MegacityLayout.Zone.WILDERNESS
-                        || sample.roadClass() == NeonCityGenerator.RoadClass.BORDER_RIVER) {
+                        || sample.zone() == MegacityLayout.Zone.WILDERNESS) {
                     continue;
                 }
                 int x = chunk.getMinBlockX() + localX;
@@ -161,162 +148,6 @@ final class DistrictWorldFeatures {
                     level.setBlock(snowPos, snow, PLACE_FLAGS);
                 }
             }
-        }
-    }
-
-    private static void placeHillTrees(
-            ServerLevel level,
-            ChunkPos chunk,
-            NeonCityGenerator.UrbanSample[][] samples,
-            long seed) {
-        for (int localZ = 2; localZ <= 13; localZ++) {
-            for (int localX = 2; localX <= 13; localX++) {
-                int x = chunk.getMinBlockX() + localX;
-                int z = chunk.getMinBlockZ() + localZ;
-                if (!isHillTreeAnchor(seed, x, z)
-                        || !hillFootprint(samples, localX, localZ, 2)) {
-                    continue;
-                }
-                int groundY = level.getHeight(
-                        Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z) - 1;
-                BlockState ground = level.getBlockState(new BlockPos(x, groundY, z));
-                if (!ground.is(Blocks.GRASS_BLOCK) && !ground.is(Blocks.COARSE_DIRT)) {
-                    continue;
-                }
-                NeonCityGenerator.UrbanSample sample = samples[localZ + 1][localX + 1];
-                placeTree(level, new BlockPos(x, groundY + 1, z), sample.district(),
-                        MegacityLayout.mix(seed ^ TREE_SALT, x, z));
-            }
-        }
-    }
-
-    private static void placeTree(
-            ServerLevel level,
-            BlockPos base,
-            District district,
-            long hash) {
-        BlockState trunk;
-        BlockState leaves;
-        switch (district.treeStyle()) {
-            case EVERGREEN, ALPINE, WINTER -> {
-                trunk = Blocks.SPRUCE_LOG.defaultBlockState();
-                leaves = Blocks.SPRUCE_LEAVES.defaultBlockState();
-            }
-            case CHERRY -> {
-                trunk = Blocks.CHERRY_LOG.defaultBlockState();
-                leaves = Blocks.CHERRY_LEAVES.defaultBlockState();
-            }
-            default -> {
-                trunk = Blocks.OAK_LOG.defaultBlockState();
-                leaves = Blocks.OAK_LEAVES.defaultBlockState();
-            }
-        }
-        leaves = leaves.setValue(LeavesBlock.PERSISTENT, true);
-        int height = 5 + Math.floorMod((int) hash, 3);
-        for (int dy = 0; dy < height; dy++) {
-            level.setBlock(base.above(dy), trunk, PLACE_FLAGS);
-        }
-        for (int dy = -2; dy <= 1; dy++) {
-            int radius = dy == 1 ? 1 : 2;
-            int canopyY = base.getY() + height + dy;
-            for (int dx = -radius; dx <= radius; dx++) {
-                for (int dz = -radius; dz <= radius; dz++) {
-                    if (radius == 2 && Math.abs(dx) == 2 && Math.abs(dz) == 2) {
-                        continue;
-                    }
-                    BlockPos leafPos = new BlockPos(base.getX() + dx, canopyY, base.getZ() + dz);
-                    if (level.isEmptyBlock(leafPos)) {
-                        level.setBlock(leafPos, leaves, PLACE_FLAGS);
-                    }
-                }
-            }
-        }
-    }
-
-    private static void placeHillCottage(
-            ServerLevel level,
-            ChunkPos chunk,
-            NeonCityGenerator.UrbanSample[][] samples,
-            long seed) {
-        if (!isHillVillageCandidate(seed, chunk.x(), chunk.z())
-                || !hillFootprint(samples, 8, 8, 4)) {
-            return;
-        }
-        int centerX = chunk.getMinBlockX() + 8;
-        int centerZ = chunk.getMinBlockZ() + 8;
-        int minGround = Integer.MAX_VALUE;
-        int maxGround = Integer.MIN_VALUE;
-        for (int dz = -4; dz <= 4; dz++) {
-            for (int dx = -4; dx <= 4; dx++) {
-                int ground = samples[8 + dz + 1][8 + dx + 1].groundY();
-                minGround = Math.min(minGround, ground);
-                maxGround = Math.max(maxGround, ground);
-            }
-        }
-        if (maxGround - minGround > 4) {
-            return;
-        }
-        int floorY = maxGround + 1;
-        for (int dz = -3; dz <= 3; dz++) {
-            for (int dx = -3; dx <= 3; dx++) {
-                int x = centerX + dx;
-                int z = centerZ + dz;
-                int ground = NeonCityGenerator.sample(x, z).groundY();
-                for (int y = ground + 1; y < floorY; y++) {
-                    set(level, x, y, z, Blocks.COBBLESTONE.defaultBlockState());
-                }
-                set(level, x, floorY, z, Blocks.SPRUCE_PLANKS.defaultBlockState());
-                for (int y = floorY + 1; y <= floorY + 7; y++) {
-                    set(level, x, y, z, Blocks.AIR.defaultBlockState());
-                }
-            }
-        }
-        for (int y = floorY + 1; y <= floorY + 3; y++) {
-            for (int dz = -3; dz <= 3; dz++) {
-                for (int dx = -3; dx <= 3; dx++) {
-                    if (Math.abs(dx) != 3 && Math.abs(dz) != 3) {
-                        continue;
-                    }
-                    boolean doorway = dz == 3 && dx == 0 && y <= floorY + 2;
-                    if (doorway) {
-                        continue;
-                    }
-                    boolean corner = Math.abs(dx) == 3 && Math.abs(dz) == 3;
-                    boolean window = y == floorY + 2
-                            && ((Math.abs(dx) == 3 && dz == 0)
-                            || (Math.abs(dz) == 3 && Math.abs(dx) == 1));
-                    BlockState wall = corner
-                            ? Blocks.STRIPPED_SPRUCE_LOG.defaultBlockState()
-                            : window
-                                    ? Blocks.GLASS_PANE.defaultBlockState()
-                                    : y == floorY + 1
-                                            ? Blocks.COBBLESTONE.defaultBlockState()
-                                            : Blocks.SPRUCE_PLANKS.defaultBlockState();
-                    set(level, centerX + dx, y, centerZ + dz, wall);
-                }
-            }
-        }
-        for (int dz = -4; dz <= 4; dz++) {
-            for (int dx = -4; dx <= 4; dx++) {
-                int roofRise = Math.max(0, 2 - Math.abs(dx) / 2);
-                set(level, centerX + dx, floorY + 4 + roofRise, centerZ + dz,
-                        Blocks.SPRUCE_PLANKS.defaultBlockState());
-            }
-        }
-        set(level, centerX + 2, floorY + 6, centerZ,
-                Blocks.COBBLESTONE.defaultBlockState());
-        set(level, centerX + 2, floorY + 7, centerZ,
-                Blocks.COBBLESTONE.defaultBlockState());
-        set(level, centerX - 1, floorY + 1, centerZ - 1,
-                Blocks.BARREL.defaultBlockState());
-        set(level, centerX + 1, floorY + 1, centerZ - 1,
-                Blocks.CRAFTING_TABLE.defaultBlockState());
-        set(level, centerX - 4, floorY, centerZ + 2,
-                Blocks.HAY_BLOCK.defaultBlockState());
-        for (int dz = 4; dz <= 6; dz++) {
-            int z = centerZ + dz;
-            int pathY = NeonCityGenerator.sample(centerX, z).groundY();
-            set(level, centerX, pathY, z, Blocks.DIRT_PATH.defaultBlockState());
         }
     }
 
@@ -399,22 +230,6 @@ final class DistrictWorldFeatures {
         return farmer;
     }
 
-    private static boolean hillFootprint(
-            NeonCityGenerator.UrbanSample[][] samples,
-            int localX,
-            int localZ,
-            int radius) {
-        for (int dz = -radius; dz <= radius; dz++) {
-            for (int dx = -radius; dx <= radius; dx++) {
-                if (samples[localZ + dz + 1][localX + dx + 1].roadClass()
-                        != NeonCityGenerator.RoadClass.BORDER_HILLS) {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-
     private static void set(ServerLevel level, int x, int y, int z, BlockState state) {
         level.setBlock(new BlockPos(x, y, z), state, PLACE_FLAGS);
     }
@@ -423,7 +238,4 @@ final class DistrictWorldFeatures {
         return ((value >>> 11) & 0xFFFF) / 65535.0 * Math.PI * 2.0;
     }
 
-    private static double unit(long value) {
-        return (value >>> 11) * 0x1.0p-53;
-    }
 }
