@@ -220,6 +220,7 @@ public final class TraumaTeamEvents {
                 target.getUUID(),
                 landingCenter,
                 availableDropHeight,
+                allowCreativeTarget,
                 approachTimeoutTicks,
                 boardingWaitTicks);
         if (!state.place(level)) {
@@ -360,13 +361,13 @@ public final class TraumaTeamEvents {
 
     private static ServerPlayer resolveTarget(ServerLevel level, CityNpc exec, Entity attacker) {
         if (attacker instanceof ServerPlayer player
-                && player.isAlive() && !player.isCreative() && !player.isSpectator()) {
+                && isAutomaticTargetEligible(player)) {
             return player;
         }
         ServerPlayer nearest = null;
         double nearestDistance = 96.0 * 96.0;
         for (ServerPlayer player : level.players()) {
-            if (!player.isAlive() || player.isCreative() || player.isSpectator()) {
+            if (!isAutomaticTargetEligible(player)) {
                 continue;
             }
             double distance = exec.distanceToSqr(player);
@@ -376,6 +377,10 @@ public final class TraumaTeamEvents {
             }
         }
         return nearest;
+    }
+
+    public static boolean isAutomaticTargetEligible(ServerPlayer player) {
+        return player.isAlive() && !player.isCreative() && !player.isSpectator();
     }
 
     @SubscribeEvent
@@ -462,6 +467,7 @@ public final class TraumaTeamEvents {
         private final int originZ;
         private final int landingY;
         private final int startY;
+        private final boolean allowCreativeTarget;
         private final int approachTimeoutTicks;
         private final int boardingWaitTicks;
         private final List<UUID> responders = new ArrayList<>();
@@ -476,6 +482,7 @@ public final class TraumaTeamEvents {
 
         private EventState(StructureTemplate template, UUID execId, UUID targetId,
                            BlockPos landingCenter, int dropHeight,
+                           boolean allowCreativeTarget,
                            int approachTimeoutTicks, int boardingWaitTicks) {
             this.template = template;
             this.execId = execId;
@@ -486,6 +493,7 @@ public final class TraumaTeamEvents {
             this.landingY = landingCenter.getY() + AERODYNE_HOVER_CLEARANCE;
             this.startY = landingY + dropHeight;
             this.currentY = startY;
+            this.allowCreativeTarget = allowCreativeTarget;
             this.approachTimeoutTicks = approachTimeoutTicks;
             this.boardingWaitTicks = boardingWaitTicks;
         }
@@ -733,7 +741,7 @@ public final class TraumaTeamEvents {
                 responder.setDropChance(EquipmentSlot.MAINHAND, 0.05F);
                 responder.addEffect(new MobEffectInstance(
                         MobEffects.SLOW_FALLING, 20 * 8, 0, false, false));
-                responder.deployAsTraumaTeam(target);
+                responder.deployAsTraumaTeam(target, allowCreativeTarget);
                 if (level.addFreshEntity(responder)) {
                     responders.add(responder.getUUID());
                 }

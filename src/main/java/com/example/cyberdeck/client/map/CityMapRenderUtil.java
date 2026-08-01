@@ -65,6 +65,20 @@ public final class CityMapRenderUtil {
         graphics.fill(x - 1, y + 1, x + 2, y + 3, VENDOR_SHADOW);
     }
 
+    /** Draws deterministic district merchant markers on the rotating HUD minimap. */
+    public static void drawMerchantMarkers(
+            GuiGraphicsExtractor graphics,
+            CityMapViewport viewport,
+            List<MerchantMarkerClient.Marker> markers) {
+        for (MerchantMarkerClient.Marker marker : markers) {
+            int x = viewport.screenX(marker.x());
+            int y = viewport.screenY(marker.z());
+            if (viewport.contains(x, y)) {
+                drawVendorMarker(graphics, x, y, OpenCityMapPacket.MarkerKind.MERCHANT);
+            }
+        }
+    }
+
     /** Draws the map's compact yellow exclamation signal for a gig. */
     public static void drawGigMarker(GuiGraphicsExtractor graphics, int x, int y) {
         diamond(graphics, x, y, 6, VENDOR_SHADOW);

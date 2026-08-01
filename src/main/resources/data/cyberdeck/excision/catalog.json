@@ -1,6 +1,6 @@
 {
   "skin": {
-    "source": "src/main/resources/assets/cyberdeck/textures/entity/trauma_team.png",
+    "source": "src/main/resources/assets/cyberdeck/textures/entity/excision_agent.png",
     "size": [
       64,
       64
@@ -9,7 +9,7 @@
     "design": "black/navy law-enforcement uniform, blue panels, EX helmet mark, gold badge"
   },
   "aerodyne": {
-    "source": "src/main/resources/data/cyberdeck/structure/trauma_team/aerodyne.nbt",
+    "source": "src/main/resources/data/cyberdeck/structure/excision/aerodyne.nbt",
     "template": "cyberdeck:excision/aerodyne",
     "size": [
       23,

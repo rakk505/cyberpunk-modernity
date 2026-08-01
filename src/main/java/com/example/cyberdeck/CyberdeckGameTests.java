@@ -7,6 +7,7 @@ import com.example.cyberdeck.city.AmmoCacheBlock;
 import com.example.cyberdeck.city.BlackLootCacheBlockEntity;
 import com.example.cyberdeck.city.CityLootBlocks;
 import com.example.cyberdeck.city.CityLootGeneration;
+import com.example.cyberdeck.client.map.MerchantMarkerClient;
 import com.example.cyberdeck.client.map.MinimapGeometry;
 import com.example.cyberdeck.cyberware.BodySlot;
 import com.example.cyberdeck.cyberware.Cyberware;
@@ -20,6 +21,8 @@ import com.example.cyberdeck.effect.SandevistanMechanics;
 import com.example.cyberdeck.effect.SandevistanState;
 import com.example.cyberdeck.effect.CyberwareEffects;
 import com.example.cyberdeck.effect.DoubleJumpGuard;
+import com.example.cyberdeck.defense.DefenseContent;
+import com.example.cyberdeck.defense.KangTaoTurret;
 import com.example.cyberdeck.faction.FactionEnemy;
 import com.example.cyberdeck.faction.FactionEntities;
 import com.example.cyberdeck.faction.FactionSpawns;
@@ -46,6 +49,7 @@ import com.example.cyberdeck.weapon.GunItem;
 import com.example.cyberdeck.weapon.AmmoItem;
 import com.example.cyberdeck.weapon.AmmoItems;
 import com.example.cyberdeck.weapon.AmmoType;
+import dev.modernity.neoncity.MegacityLayout;
 import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.HashSet;
 import java.util.List;
@@ -324,6 +328,18 @@ public final class CyberdeckGameTests {
                         == viewport
                         && MinimapGeometry.rotatedTwoCornerScissorWidth(viewport, 45.0) < 1.0E-9,
                 "rotated two-corner scissors must remain forbidden: they collapse at 45 degrees");
+        MegacityLayout layout = MegacityLayout.create(0x4D45524348414E54L);
+        List<MerchantMarkerClient.Marker> merchantMarkers = MerchantMarkerClient.markers(layout);
+        helper.assertTrue(merchantMarkers.size() == layout.nodes().size(),
+                "live minimap must retain one merchant signal per city district");
+        for (int index = 0; index < merchantMarkers.size(); index++) {
+            MegacityLayout.Node node = layout.nodes().get(index);
+            MerchantMarkerClient.Marker marker = merchantMarkers.get(index);
+            helper.assertTrue(marker.x() == node.x()
+                            && marker.z() == node.z()
+                            && marker.districtCode().equals(node.district().code()),
+                    "merchant minimap marker drifted from its district node");
+        }
         helper.succeed();
     }
 
@@ -477,9 +493,10 @@ public final class CyberdeckGameTests {
         player.setGameMode(GameType.CREATIVE);
         helper.assertTrue(TraumaTeamEvents.isCommandTargetEligible(player),
                 "/cyberdeck trauma must accept a living creative-mode target");
+        helper.assertFalse(TraumaTeamEvents.isAutomaticTargetEligible(player),
+                "automatic Trauma Team targeting must ignore creative-mode players");
         helper.assertTrue(TraumaTeamEvents.requestAt(level, exec, player, landing, 2, 80, 20),
                 "creative-mode Trauma Team request did not start with a valid aerodyne template");
-        player.setGameMode(GameType.SURVIVAL);
 
         int[] deployedResponders = {0};
 
@@ -502,6 +519,9 @@ public final class CyberdeckGameTests {
                                     && responder.getMainHandItem().getItem() instanceof GunItem
                                     && !responder.isInvulnerable()),
                     "responders must arrive armed, killable, and immediately target the player");
+            helper.assertTrue(player.isCreative(),
+                    "creative command target changed mode before responder aggro was verified");
+            player.setGameMode(GameType.SURVIVAL);
             helper.assertTrue(helper.getBlockState(approachObstruction).is(Blocks.STONE),
                     "adaptive descent must not overwrite an overhead approach block");
 
@@ -734,16 +754,12 @@ public final class CyberdeckGameTests {
                 helper.getLevel().getServer(),
                 helper.getLevel(),
                 cookie.gameProfile(),
-                cookie.clientInformation()) {
-            @Override
-            public GameType gameMode() {
-                return GameType.SURVIVAL;
-            }
-        };
+                cookie.clientInformation());
         GameType.SURVIVAL.updatePlayerAbilities(player.getAbilities());
         Connection connection = new Connection(PacketFlow.SERVERBOUND);
         new EmbeddedChannel(connection);
         helper.getLevel().getServer().getPlayerList().placeNewPlayer(connection, player, cookie);
+        player.setGameMode(GameType.SURVIVAL);
         return player;
     }
 
@@ -847,11 +863,13 @@ public final class CyberdeckGameTests {
                 level, EntitySpawnReason.COMMAND);
         FactionEnemy enemy = FactionEntities.FACTION_ENEMY.get().create(
                 level, EntitySpawnReason.COMMAND);
+        KangTaoTurret turret = DefenseContent.KANG_TAO_TURRET.get().create(
+                level, EntitySpawnReason.COMMAND);
         Entity unrelated = EntityTypes.ZOMBIE.create(
                 level, EntitySpawnReason.COMMAND);
-        helper.assertTrue(civilian != null && enemy != null && unrelated != null,
+        helper.assertTrue(civilian != null && enemy != null && turret != null && unrelated != null,
                 "entity factories needed by join compatibility must be available");
-        if (civilian == null || enemy == null || unrelated == null) {
+        if (civilian == null || enemy == null || turret == null || unrelated == null) {
             return;
         }
 
@@ -864,6 +882,11 @@ public final class CyberdeckGameTests {
         CityActorJoinCompatibility.restoreManagedCityActor(enemyJoin, true);
         helper.assertFalse(enemyJoin.isCanceled(),
                 "a faction enemy canceled by a companion generator must be restored");
+
+        EntityJoinLevelEvent turretJoin = canceledJoin(turret, level);
+        CityActorJoinCompatibility.restoreManagedCityActor(turretJoin, true);
+        helper.assertFalse(turretJoin.isCanceled(),
+                "a placed turret canceled by a companion generator must be restored");
 
         EntityJoinLevelEvent unrelatedJoin = canceledJoin(unrelated, level);
         CityActorJoinCompatibility.restoreManagedCityActor(unrelatedJoin, true);

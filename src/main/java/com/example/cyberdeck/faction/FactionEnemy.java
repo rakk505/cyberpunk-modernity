@@ -155,6 +155,7 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
     private com.example.cyberdeck.weapon.GrenadeType grenadeType =
             com.example.cyberdeck.weapon.GrenadeType.INCENDIARY;
     private UUID traumaTargetId;
+    private boolean traumaAllowsCreative;
     private UUID excisionTargetId;
 
     public FactionEnemy(EntityType<? extends FactionEnemy> type, Level level) {
@@ -274,11 +275,26 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         return isExcision() && playerId.equals(excisionTargetId);
     }
 
+    @Override
+    protected LivingEntity asValidTarget(LivingEntity target) {
+        if (target instanceof Player player
+                && player.isAlive()
+                && !player.isSpectator()
+                && (isExcisionTarget(player.getUUID())
+                || isTraumaTeam() && traumaAllowsCreative
+                        && player.getUUID().equals(traumaTargetId))) {
+            return target;
+        }
+        return super.asValidTarget(target);
+    }
+
     /** Makes this responder persistent and permanently hostile to the requesting player's attacker. */
-    public void deployAsTraumaTeam(net.minecraft.server.level.ServerPlayer target) {
+    public void deployAsTraumaTeam(
+            net.minecraft.server.level.ServerPlayer target, boolean allowCreative) {
         this.getEntityData().set(DATA_TRAUMA_TEAM, true);
         this.getEntityData().set(DATA_EXCISION, false);
         this.traumaTargetId = target.getUUID();
+        this.traumaAllowsCreative = allowCreative;
         this.excisionTargetId = null;
         this.setPersistenceRequired();
         this.setTriggered(true);
@@ -293,6 +309,7 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         this.getEntityData().set(DATA_TRAUMA_TEAM, false);
         this.excisionTargetId = target.getUUID();
         this.traumaTargetId = null;
+        this.traumaAllowsCreative = false;
         this.setPersistenceRequired();
         this.setTriggered(true);
         this.setDetection(DETECTION_THRESHOLD);
@@ -394,7 +411,7 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         if (isExcision()) {
             maintainAssignedAggro(level, excisionTargetId, true);
         } else if (isTraumaTeam()) {
-            maintainAssignedAggro(level, traumaTargetId, false);
+            maintainAssignedAggro(level, traumaTargetId, traumaAllowsCreative);
         } else {
             accumulateDetection(level);
         }
@@ -1133,6 +1150,7 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         output.putInt("Detection", getDetection());
         output.putBoolean("Triggered", isTriggered());
         output.putBoolean("TraumaTeam", isTraumaTeam());
+        output.putBoolean("TraumaAllowsCreative", traumaAllowsCreative);
         output.putBoolean("Excision", isExcision());
         if (traumaTargetId != null) {
             output.putString("TraumaTarget", traumaTargetId.toString());
@@ -1176,6 +1194,8 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         setTriggered(input.getBooleanOr("Triggered", false));
         boolean traumaTeam = input.getBooleanOr("TraumaTeam", false);
         this.getEntityData().set(DATA_TRAUMA_TEAM, traumaTeam);
+        traumaAllowsCreative = traumaTeam
+                && input.getBooleanOr("TraumaAllowsCreative", false);
         boolean excision = input.getBooleanOr("Excision", false);
         this.getEntityData().set(DATA_EXCISION, excision);
         String traumaTarget = input.getStringOr("TraumaTarget", "");
