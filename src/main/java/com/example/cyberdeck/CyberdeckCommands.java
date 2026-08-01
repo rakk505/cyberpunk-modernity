@@ -2,6 +2,7 @@ package com.example.cyberdeck;
 
 import com.example.cyberdeck.network.SetCityWaypointPacket;
 import com.example.cyberdeck.trauma.TraumaTeamEvents;
+import com.example.cyberdeck.lifepath.LifepathService;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import dev.modernity.neoncity.CityMapService;
@@ -43,6 +44,8 @@ public final class CyberdeckCommands {
                                 .executes(context -> set(context.getSource(), false)))
                         .then(Commands.literal("toggle")
                                 .executes(context -> toggle(context.getSource()))))
+                .then(Commands.literal("lifepath")
+                        .executes(context -> openLifepath(context.getSource())))
                 .then(Commands.literal("trauma")
                         .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                         .executes(context -> dispatchTrauma(
@@ -61,6 +64,10 @@ public final class CyberdeckCommands {
     private static int openMap(CommandSourceStack source) throws CommandSyntaxException {
         CityMapService.open(source.getPlayerOrException(), true);
         return 1;
+    }
+
+    private static int openLifepath(CommandSourceStack source) throws CommandSyntaxException {
+        return LifepathService.openSelection(source.getPlayerOrException()) ? 1 : 0;
     }
 
     private static int openMap(CommandSourceStack source, int x, int z)

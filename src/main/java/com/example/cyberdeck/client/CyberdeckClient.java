@@ -5,6 +5,7 @@ import com.example.cyberdeck.client.hud.AmmoHudOverlay;
 import com.example.cyberdeck.client.hud.HealingHudOverlay;
 import com.example.cyberdeck.client.hud.CityMinimapOverlay;
 import com.example.cyberdeck.client.hud.MissionTrackerOverlay;
+import com.example.cyberdeck.client.hud.NpcVoicelineOverlay;
 import com.example.cyberdeck.client.hud.QuickhackScannerOverlay;
 import com.example.cyberdeck.client.hud.QuickhackUploadOverlay;
 import com.example.cyberdeck.client.hud.SmartLockOverlay;
@@ -233,6 +234,9 @@ public final class CyberdeckClient {
         event.registerAbove(VanillaGuiLayers.HOTBAR,
                 Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "healing_hud"),
                 new HealingHudOverlay());
+        event.registerAbove(VanillaGuiLayers.ARMOR_LEVEL,
+                Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "npc_voiceline"),
+                new NpcVoicelineOverlay());
         event.registerAbove(VanillaGuiLayers.CROSSHAIR,
                 Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "smart_lock"),
                 new SmartLockOverlay());
