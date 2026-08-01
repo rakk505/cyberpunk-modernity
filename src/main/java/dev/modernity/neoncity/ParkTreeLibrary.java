@@ -38,7 +38,14 @@ final class ParkTreeLibrary {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final String CATALOG_RESOURCE = "/data/neoncity/park_trees/catalog.json";
     private static final long PARK_TREE_SALT = 0x455853494C49544CL;
+    private static final long BORDER_TREE_SALT = 0x48494C4C54524545L;
+    private static final long CLIFF_TREE_SALT = 0x434C494646545245L;
     private static final int EXPECTED_TREE_COUNT = 68;
+    private static final int FOREST_TREE_CELL_SIZE = 9;
+    private static final int CLIFF_TREE_CELL_SIZE = 14;
+    private static final int MAX_BORDER_TREE_AXIS = 7;
+    private static final double FOREST_TREE_DENSITY = 0.82;
+    private static final double CLIFF_TREE_DENSITY = 0.32;
     private static final int PLACE_FLAGS =
             Block.UPDATE_SKIP_ALL_SIDEEFFECTS | Block.UPDATE_CLIENTS;
 
@@ -90,11 +97,11 @@ final class ParkTreeLibrary {
                 }
             }
         }
-        if (parkColumns < 9) {
+        if (parkColumns < NeonCityGenerator.MIN_PARK_SITE_COLUMNS) {
             return 0;
         }
 
-        int targetTrees = parkColumns >= 112 ? 2 : 1;
+        int targetTrees = parkColumns >= 176 ? 2 : 1;
         long chunkHash = MegacityLayout.mix(
                 NeonCityGenerator.layout().seed() ^ PARK_TREE_SALT,
                 chunk.x(), chunk.z());
@@ -156,6 +163,104 @@ final class ParkTreeLibrary {
         return placedCenters.size();
     }
 
+    /** Places dense forest trees and sparse cliff-top silhouettes on district borders. */
+    static int decorateBorderChunk(
+            ServerLevel level,
+            ChunkPos chunk,
+            NeonCityGenerator.UrbanSample[][] samples) {
+        int placed = 0;
+        long seed = NeonCityGenerator.layout().seed();
+        for (int localZ = 0; localZ < 16; localZ++) {
+            for (int localX = 0; localX < 16; localX++) {
+                int worldX = chunk.getMinBlockX() + localX;
+                int worldZ = chunk.getMinBlockZ() + localZ;
+                NeonCityGenerator.UrbanSample centerSample = samples[localZ + 1][localX + 1];
+                boolean forest = centerSample.roadClass()
+                        == NeonCityGenerator.RoadClass.BORDER_FOREST;
+                boolean cliff = centerSample.roadClass()
+                        == NeonCityGenerator.RoadClass.BORDER_CLIFF;
+                if ((!forest || !isForestTreeAnchor(seed, worldX, worldZ))
+                        && (!cliff || !isCliffTreeAnchor(seed, worldX, worldZ))) {
+                    continue;
+                }
+                BlockPos centerGround = new BlockPos(
+                        worldX, centerSample.groundY(), worldZ);
+                BlockState ground = level.getBlockState(centerGround);
+                if (!ground.is(Blocks.GRASS_BLOCK) && !ground.is(Blocks.COARSE_DIRT)) {
+                    continue;
+                }
+
+                long treeHash = MegacityLayout.mix(
+                        seed ^ (forest ? BORDER_TREE_SALT : CLIFF_TREE_SALT), worldX, worldZ);
+                int treeStart = Math.floorMod(
+                        (int) (treeHash ^ (treeHash >>> 32)), TREES.size());
+                TreeForm desiredForm = form(centerSample.district());
+                for (int treeOffset = 0; treeOffset < TREES.size(); treeOffset++) {
+                    TreeAsset tree = TREES.get(Math.floorMod(
+                            treeStart + treeOffset, TREES.size()));
+                    if (tree.form() != desiredForm
+                            || tree.sizeX() > MAX_BORDER_TREE_AXIS
+                            || tree.sizeZ() > MAX_BORDER_TREE_AXIS) {
+                        continue;
+                    }
+                    int minLocalX = localX - tree.sizeX() / 2;
+                    int minLocalZ = localZ - tree.sizeZ() / 2;
+                    if (!isBorderFootprint(
+                            samples,
+                            minLocalX,
+                            minLocalZ,
+                            tree.sizeX(),
+                            tree.sizeZ(),
+                            centerSample.roadClass(),
+                            centerSample.groundY())) {
+                        continue;
+                    }
+                    BlockPos base = new BlockPos(
+                            chunk.getMinBlockX() + minLocalX,
+                            centerSample.groundY() + 1,
+                            chunk.getMinBlockZ() + minLocalZ);
+                    if (!isVolumeClear(level, base, tree)) {
+                        continue;
+                    }
+                    if (placeTree(level, base, centerSample.district(), tree, treeHash)) {
+                        placed++;
+                        LOGGER.debug(
+                                "[NeonCity] placed Exsilit border tree {} for {} at {}",
+                                tree.catalogId(), centerSample.district().label(), base);
+                        break;
+                    }
+                }
+            }
+        }
+        return placed;
+    }
+
+    static boolean isBorderTreeAnchor(long seed, int x, int z) {
+        return isForestTreeAnchor(seed, x, z);
+    }
+
+    static boolean isForestTreeAnchor(long seed, int x, int z) {
+        return isTreeAnchor(
+                seed ^ BORDER_TREE_SALT, x, z, FOREST_TREE_CELL_SIZE, FOREST_TREE_DENSITY);
+    }
+
+    static boolean isCliffTreeAnchor(long seed, int x, int z) {
+        return isTreeAnchor(
+                seed ^ CLIFF_TREE_SALT, x, z, CLIFF_TREE_CELL_SIZE, CLIFF_TREE_DENSITY);
+    }
+
+    private static boolean isTreeAnchor(
+            long seed, int x, int z, int cellSize, double density) {
+        int cellX = Math.floorDiv(x, cellSize);
+        int cellZ = Math.floorDiv(z, cellSize);
+        long hash = MegacityLayout.mix(seed, cellX, cellZ);
+        if (unit(hash) > density) return false;
+        int offsetX = Math.floorMod((int) hash, cellSize);
+        int offsetZ = Math.floorMod((int) (hash >>> 32), cellSize);
+        return x == cellX * cellSize + offsetX
+                && z == cellZ * cellSize + offsetZ;
+    }
+
     static boolean placeTree(
             ServerLevel level,
             BlockPos base,
@@ -215,6 +320,31 @@ final class ParkTreeLibrary {
         return true;
     }
 
+    private static boolean isBorderFootprint(
+            NeonCityGenerator.UrbanSample[][] samples,
+            int minLocalX,
+            int minLocalZ,
+            int sizeX,
+            int sizeZ,
+            NeonCityGenerator.RoadClass borderClass,
+            int groundY) {
+        if (minLocalX < 0
+                || minLocalZ < 0
+                || minLocalX + sizeX > 16
+                || minLocalZ + sizeZ > 16) {
+            return false;
+        }
+        for (int localZ = minLocalZ; localZ < minLocalZ + sizeZ; localZ++) {
+            for (int localX = minLocalX; localX < minLocalX + sizeX; localX++) {
+                NeonCityGenerator.UrbanSample sample = samples[localZ + 1][localX + 1];
+                if (sample.roadClass() != borderClass || sample.groundY() != groundY) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     private static boolean isVolumeClear(ServerLevel level, BlockPos base, TreeAsset tree) {
         BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
         for (int y = 0; y < tree.sizeY(); y++) {
@@ -234,6 +364,10 @@ final class ParkTreeLibrary {
         int dx = first.getX() - second.getX();
         int dz = first.getZ() - second.getZ();
         return dx * dx + dz * dz;
+    }
+
+    private static double unit(long value) {
+        return (value >>> 11) * 0x1.0p-53;
     }
 
     private static List<TreeAsset> loadCatalog() {

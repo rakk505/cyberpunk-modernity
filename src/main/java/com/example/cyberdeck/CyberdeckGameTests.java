@@ -3,6 +3,7 @@ package com.example.cyberdeck;
 import com.mojang.authlib.GameProfile;
 import com.example.cyberdeck.city.CityWorlds;
 import com.example.cyberdeck.city.CityActorJoinCompatibility;
+import com.example.cyberdeck.client.map.MinimapGeometry;
 import com.example.cyberdeck.cyberware.BodySlot;
 import com.example.cyberdeck.cyberware.Cyberware;
 import com.example.cyberdeck.cyberware.CyberwareData;
@@ -19,15 +20,20 @@ import com.example.cyberdeck.faction.TacticalManeuver;
 import com.example.cyberdeck.healing.HealingConsumable;
 import com.example.cyberdeck.healing.HealingState;
 import com.example.cyberdeck.healing.HealingSystem;
+import com.example.cyberdeck.economy.MoneyShardItem;
 import com.example.cyberdeck.npc.CityNpc;
 import com.example.cyberdeck.npc.CityNpcEntities;
 import com.example.cyberdeck.npc.CityNpcSpawns;
 import com.example.cyberdeck.npc.GunshotAlerts;
+import com.example.cyberdeck.npc.NpcRole;
+import com.example.cyberdeck.trauma.TraumaTeamEvents;
 import com.example.cyberdeck.player.StreetCredState;
 import com.example.cyberdeck.movement.TacticalAction;
 import com.example.cyberdeck.movement.TacticalMovement;
 import com.example.cyberdeck.movement.TacticalMovementState;
 import com.example.cyberdeck.weapon.GunType;
+import com.example.cyberdeck.weapon.GunItem;
+import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;
@@ -35,17 +41,27 @@ import java.util.function.Consumer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.network.Connection;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.gametest.framework.FunctionGameTestInstance;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.gametest.framework.TestData;
 import net.minecraft.gametest.framework.TestEnvironmentDefinition;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.network.CommonListenerCookie;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Input;
+import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.pathfinder.PathType;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.level.dimension.DimensionType;
@@ -53,6 +69,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.AABB;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -133,6 +150,15 @@ public final class CyberdeckGameTests {
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             STREET_CRED_PERSISTENCE = register(
                     "street_cred_persistence", CyberdeckGameTests::streetCredPersistence);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            MINIMAP_ROTATION_GEOMETRY = register(
+                    "minimap_rotation_geometry", CyberdeckGameTests::minimapRotationGeometry);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            NPC_ROLES_AND_DROPS = register(
+                    "npc_roles_and_drops", CyberdeckGameTests::npcRolesAndDrops);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            TRAUMA_TEAM_LIFECYCLE = register(
+                    "trauma_team_lifecycle", CyberdeckGameTests::traumaTeamLifecycle);
 
     private CyberdeckGameTests() {
     }
@@ -239,6 +265,245 @@ public final class CyberdeckGameTests {
                         > GunshotAlerts.hearingRadius(GunType.PISTOL),
                 "heavy sniper fire should carry farther than a pistol shot");
         helper.succeed();
+    }
+
+    private static void minimapRotationGeometry(GameTestHelper helper) {
+        int viewport = 88;
+        int halfQuad = MinimapGeometry.coveringHalfSize(viewport);
+        for (int yaw = 0; yaw < 360; yaw++) {
+            helper.assertTrue(halfQuad + 1.0E-9
+                            >= MinimapGeometry.requiredHalfExtent(viewport, yaw),
+                    "minimap source quad does not cover yaw " + yaw);
+        }
+        double worldSpan = 1_200.0;
+        double destinationScale = halfQuad / (viewport * 0.5);
+        double sampledScale = MinimapGeometry.coveringHalfSpan(worldSpan, viewport)
+                / (worldSpan * 0.5);
+        helper.assertTrue(Math.abs(destinationScale - sampledScale) < 1.0E-12,
+                "rounded minimap quad and UV span must retain identical scale");
+        helper.assertTrue(Math.abs(MinimapGeometry.requiredHalfExtent(viewport, 0.0)
+                                - viewport * 0.5) < 1.0E-9
+                        && Math.abs(MinimapGeometry.requiredHalfExtent(viewport, 90.0)
+                                - viewport * 0.5) < 1.0E-9
+                        && Math.abs(MinimapGeometry.requiredHalfExtent(viewport, 180.0)
+                                - viewport * 0.5) < 1.0E-9
+                        && Math.abs(MinimapGeometry.requiredHalfExtent(viewport, 270.0)
+                                - viewport * 0.5) < 1.0E-9,
+                "cardinal directions must remain rigid, axis-aligned rotations");
+        helper.assertTrue(MinimapGeometry.rotatedTwoCornerScissorWidth(viewport, 0.0)
+                        == viewport
+                        && MinimapGeometry.rotatedTwoCornerScissorWidth(viewport, 45.0) < 1.0E-9,
+                "rotated two-corner scissors must remain forbidden: they collapse at 45 degrees");
+        helper.succeed();
+    }
+
+    private static void npcRolesAndDrops(GameTestHelper helper) {
+        int residents = 0;
+        int corpos = 0;
+        int execs = 0;
+        int defensiveDraws = 0;
+        for (int roll = 0; roll < 100; roll++) {
+            NpcRole role = CityNpcSpawns.roleForRoll(roll, true);
+            residents += role == NpcRole.RESIDENT ? 1 : 0;
+            corpos += role == NpcRole.CORPO ? 1 : 0;
+            execs += role == NpcRole.EXEC ? 1 : 0;
+            defensiveDraws += CityNpc.corpoDefends(roll) ? 1 : 0;
+            helper.assertTrue(CityNpcSpawns.roleForRoll(roll, false) != NpcRole.EXEC,
+                    "Exec role escaped the open-near-building spawn gate");
+        }
+        helper.assertTrue(residents == 70 && corpos == 25 && execs == 5,
+                "valid city plazas must produce the 70/25/5 Resident/Corpo/Exec split");
+        helper.assertTrue(defensiveDraws == CityNpc.CORPO_DEFENSE_PERCENT,
+                "Corpo defensive draw chance must be exactly 30 percent");
+        helper.assertTrue(NpcRole.RESIDENT.minimumCredits() == 5
+                        && NpcRole.RESIDENT.maximumCredits() == 15,
+                "Resident money shards must stay in the requested 5-15 credit range");
+        helper.assertTrue(MoneyShardItem.credits(MoneyShardItem.create(5)) == 5
+                        && MoneyShardItem.credits(MoneyShardItem.create(15)) == 15,
+                "money shard per-stack credit data did not round-trip");
+
+        ServerLevel level = helper.getLevel();
+        CityNpc resident = CityNpcEntities.CITY_NPC.get().create(level, EntitySpawnReason.COMMAND);
+        CityNpc exec = CityNpcEntities.CITY_NPC.get().create(level, EntitySpawnReason.COMMAND);
+        helper.assertTrue(resident != null && exec != null,
+                "city NPC factories must be available for role regressions");
+        if (resident == null || exec == null) {
+            return;
+        }
+        ServerPlayer player = makeSurvivalServerPlayerInLevel(helper);
+        player.setInvulnerable(true);
+        BlockPos residentPos = helper.absolutePos(new BlockPos(2, 2, 2));
+        resident.snapTo(residentPos.getX() + 0.5, residentPos.getY(), residentPos.getZ() + 0.5,
+                0.0F, 0.0F);
+        resident.setRole(NpcRole.RESIDENT);
+        helper.assertTrue(level.addFreshEntity(resident), "could not add Resident drop subject");
+        resident.hurtServer(level, resident.damageSources().playerAttack(player), 1.0F);
+        helper.assertTrue(resident.isFleeingGunfire(),
+                "Residents must flee immediately after a player attack");
+        resident.hurtServer(level, resident.damageSources().playerAttack(player), 100.0F);
+        List<ItemEntity> shards = level.getEntitiesOfClass(
+                ItemEntity.class, new AABB(residentPos).inflate(3.0),
+                item -> item.getItem().is(CyberdeckItems.MONEY_SHARD.get()));
+        helper.assertTrue(shards.size() == 1,
+                "a killed Resident must drop exactly one money shard");
+        if (!shards.isEmpty()) {
+            int credits = MoneyShardItem.credits(shards.getFirst().getItem());
+            helper.assertTrue(credits >= 5 && credits <= 15,
+                    "Resident shard value escaped 5-15 credits: " + credits);
+        }
+
+        BlockPos execPos = helper.absolutePos(new BlockPos(6, 2, 2));
+        exec.snapTo(execPos.getX() + 0.5, execPos.getY(), execPos.getZ() + 0.5, 0.0F, 0.0F);
+        exec.setRole(NpcRole.EXEC);
+        helper.assertTrue(exec.getMaxHealth() == 100.0F,
+                "Execs must have substantially more health than Residents");
+        helper.assertTrue(CityNpc.limitIncomingDamage(NpcRole.EXEC, exec.getMaxHealth(), 1_000.0F)
+                        == 18.0F,
+                "Exec per-hit cap must prevent instantaneous kills");
+        helper.assertTrue(!CityNpc.shouldRequestTrauma(50.0F, 100.0F)
+                        && CityNpc.shouldRequestTrauma(49.9F, 100.0F),
+                "Trauma Team request threshold must cross strictly below 50 percent health");
+        exec.discard();
+        disconnectTestPlayer(player);
+        helper.succeed();
+    }
+
+    private static void traumaTeamLifecycle(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        var cyberdeckCommand = level.getServer().getCommands().getDispatcher()
+                .getRoot().getChild("cyberdeck");
+        helper.assertTrue(cyberdeckCommand != null
+                        && cyberdeckCommand.getChild("trauma") != null,
+                "/cyberdeck trauma command was not registered");
+        for (int x = 1; x <= 31; x++) {
+            for (int z = 1; z <= 19; z++) {
+                helper.setBlock(new BlockPos(x, 1, z), Blocks.STONE);
+            }
+        }
+        BlockPos landing = helper.absolutePos(new BlockPos(16, 2, 10));
+        helper.assertTrue(TraumaTeamEvents.hasLandingClearance(level, landing, 2),
+                "prepared Trauma Team arena must accept the aerodyne footprint");
+
+        CityNpc exec = CityNpcEntities.CITY_NPC.get().create(level, EntitySpawnReason.COMMAND);
+        helper.assertTrue(exec != null, "Exec factory failed for Trauma Team lifecycle");
+        if (exec == null) {
+            return;
+        }
+        BlockPos execStart = helper.absolutePos(new BlockPos(2, 2, 10));
+        exec.snapTo(execStart.getX() + 0.5, execStart.getY(), execStart.getZ() + 0.5,
+                0.0F, 0.0F);
+        exec.setRole(NpcRole.EXEC);
+        exec.setPersistenceRequired();
+        helper.assertTrue(level.addFreshEntity(exec), "could not add Trauma Team Exec");
+
+        ServerPlayer player = makeSurvivalServerPlayerInLevel(helper);
+        player.addEffect(new MobEffectInstance(
+                MobEffects.RESISTANCE, 20 * 10, 4, false, false));
+        BlockPos playerPos = helper.absolutePos(new BlockPos(1, 2, 1));
+        player.snapTo(playerPos.getX() + 0.5, playerPos.getY(), playerPos.getZ() + 0.5,
+                0.0F, 0.0F);
+        UUID execId = exec.getUUID();
+        helper.assertTrue(exec.isAlive() && exec.getRole() == NpcRole.EXEC,
+                "Trauma Team requester must be a living Exec");
+        helper.assertTrue(player.isAlive() && !player.isCreative() && !player.isSpectator(),
+                "Trauma Team target must be a living Survival player");
+        helper.assertTrue(TraumaTeamEvents.activeEventCount(level) == 0,
+                "Trauma Team test level retained an event from another test");
+        helper.assertTrue(TraumaTeamEvents.hasLandingClearance(level, landing, 2),
+                "entities unexpectedly invalidated the prepared landing site");
+        var aerodyne = level.getStructureManager().get(Identifier.fromNamespaceAndPath(
+                Cyberdeck.MODID, "trauma_team/aerodyne"));
+        helper.assertTrue(aerodyne.isPresent(),
+                "native Trauma Team aerodyne template was not loaded");
+        if (aerodyne.isEmpty()) {
+            return;
+        }
+        helper.assertTrue(aerodyne.get().getSize().equals(
+                        new net.minecraft.core.Vec3i(
+                                TraumaTeamEvents.AERODYNE_WIDTH,
+                                TraumaTeamEvents.AERODYNE_HEIGHT,
+                                TraumaTeamEvents.AERODYNE_LENGTH)),
+                "native Trauma Team aerodyne template has the wrong dimensions");
+        helper.assertTrue(!aerodyne.get().save(new CompoundTag())
+                        .getListOrEmpty("blocks").isEmpty(),
+                "native Trauma Team aerodyne template has no placeable blocks");
+        helper.assertTrue(TraumaTeamEvents.requestAt(level, exec, player, landing, 2),
+                "Trauma Team request did not start with a valid native aerodyne template");
+
+        helper.runAfterDelay(12, () -> {
+            helper.assertTrue(TraumaTeamEvents.phaseFor(level, execId)
+                            == TraumaTeamEvents.Phase.LANDED,
+                    "aerodyne did not finish its animated descent");
+            int count = TraumaTeamEvents.responderCount(level, execId);
+            helper.assertTrue(count >= TraumaTeamEvents.MIN_RESPONDERS
+                            && count <= TraumaTeamEvents.MAX_RESPONDERS,
+                    "Trauma Team must deploy 4-5 responders, got " + count);
+            List<FactionEnemy> responders = level.getEntitiesOfClass(
+                    FactionEnemy.class, new AABB(landing).inflate(48.0), FactionEnemy::isTraumaTeam);
+            helper.assertTrue(responders.size() == count,
+                    "all deployed responders must carry the Trauma Team identity");
+            helper.assertTrue(responders.stream().allMatch(responder ->
+                            responder.isTriggered()
+                                    && responder.getTarget() == player
+                                    && responder.getMainHandItem().getItem() instanceof GunItem),
+                    "responders must arrive armed and immediately target the player");
+
+            BlockPos pickup = landing.offset(0, 0, TraumaTeamEvents.AERODYNE_LENGTH / 2 + 2);
+            exec.snapTo(pickup.getX() + 0.5, pickup.getY(), pickup.getZ() + 0.5,
+                    0.0F, 0.0F);
+        });
+
+        helper.runAfterDelay(32, () -> {
+            helper.assertTrue(TraumaTeamEvents.activeEventCount(level) == 0,
+                    "aerodyne did not lift off and clear after successful extraction");
+            helper.assertTrue(level.getEntity(execId) == null,
+                    "successfully extracted Exec must leave the world with the aerodyne");
+            List<FactionEnemy> survivors = level.getEntitiesOfClass(
+                    FactionEnemy.class, new AABB(landing).inflate(64.0), FactionEnemy::isTraumaTeam);
+            helper.assertTrue(survivors.size() >= TraumaTeamEvents.MIN_RESPONDERS,
+                    "surviving Trauma Team members must remain after lift-off");
+            helper.assertTrue(survivors.stream().allMatch(responder ->
+                            responder.isTriggered() && responder.getTarget() == player),
+                    "remaining responders must stay aggroed onto the player");
+            for (int x = 5; x <= 27; x++) {
+                for (int y = 2; y <= 10; y++) {
+                    for (int z = 5; z <= 15; z++) {
+                        helper.assertTrue(helper.getBlockState(new BlockPos(x, y, z)).isAir(),
+                                "lift-off left an aerodyne block behind at " + x + "," + y + "," + z);
+                    }
+                }
+            }
+            disconnectTestPlayer(player);
+            helper.succeed();
+        });
+    }
+
+    private static ServerPlayer makeSurvivalServerPlayerInLevel(GameTestHelper helper) {
+        UUID playerId = UUID.randomUUID();
+        CommonListenerCookie cookie = CommonListenerCookie.createInitial(
+                new GameProfile(playerId, "survival-" + playerId.toString().substring(0, 7)),
+                false);
+        ServerPlayer player = new ServerPlayer(
+                helper.getLevel().getServer(),
+                helper.getLevel(),
+                cookie.gameProfile(),
+                cookie.clientInformation()) {
+            @Override
+            public GameType gameMode() {
+                return GameType.SURVIVAL;
+            }
+        };
+        GameType.SURVIVAL.updatePlayerAbilities(player.getAbilities());
+        Connection connection = new Connection(PacketFlow.SERVERBOUND);
+        new EmbeddedChannel(connection);
+        helper.getLevel().getServer().getPlayerList().placeNewPlayer(connection, player, cookie);
+        return player;
+    }
+
+    private static void disconnectTestPlayer(ServerPlayer player) {
+        if (player.connection != null) {
+            player.connection.disconnect(Component.literal("GameTest complete"));
+        }
     }
 
     private static void civilianNoncombat(GameTestHelper helper) {
@@ -1332,6 +1597,22 @@ public final class CyberdeckGameTests {
         registerInstance(event, "incendiary_ignites_no_fire_blocks",
                 INCENDIARY_IGNITES_NO_FIRE_BLOCKS, arena);
         registerInstance(event, "street_cred_persistence", STREET_CRED_PERSISTENCE, data);
+        registerInstance(event, "minimap_rotation_geometry", MINIMAP_ROTATION_GEOMETRY, data);
+        registerInstance(event, "npc_roles_and_drops", NPC_ROLES_AND_DROPS, data);
+
+        TestData<Holder<TestEnvironmentDefinition<?>>> traumaArena = new TestData<>(
+                environment,
+                Identifier.fromNamespaceAndPath("minecraft", "empty"),
+                200,
+                0,
+                true,
+                Rotation.NONE,
+                false,
+                1,
+                1,
+                true,
+                24);
+        registerInstance(event, "trauma_team_lifecycle", TRAUMA_TEAM_LIFECYCLE, traumaArena);
     }
 
     private static void registerInstance(

@@ -4,6 +4,7 @@ import com.example.cyberdeck.client.map.CityMapNavigationClient;
 import com.example.cyberdeck.client.map.CityMapRenderUtil;
 import com.example.cyberdeck.client.map.CityMapViewport;
 import com.example.cyberdeck.client.map.MerchantMarkerClient;
+import com.example.cyberdeck.client.map.MinimapGeometry;
 import com.example.cyberdeck.client.screen.CityMapTextureCache;
 import dev.modernity.neoncity.CityMapProjection;
 import dev.modernity.neoncity.MegacityLayout;
@@ -90,12 +91,14 @@ public final class CityMinimapOverlay implements GuiLayer {
         // visible square. Scaling the destination quad and the sampled UV span by the same factor
         // (the diagonal ratio) keeps pixels-per-world identical, so route/marker/waypoint drawing
         // below -- which uses the unscaled `viewport` -- still lines up exactly.
-        double cover = Math.sqrt(2.0);
-        int halfQuad = (int) Math.ceil(size * 0.5 * cover);
-        double halfUv = unitSpan * 0.5 * cover;
+        int halfQuad = MinimapGeometry.coveringHalfSize(size);
+        double halfUv = MinimapGeometry.coveringHalfSpan(unitSpan, size);
+        // Register the screen-space clip before rotating. GuiGraphicsExtractor transforms a new
+        // scissor through the current pose using only two opposite corners; under rotation that
+        // makes its width collapse near 45 degrees and produces the apparent squeeze/shear.
+        graphics.enableScissor(left, mapTop, left + size, mapTop + size);
         graphics.pose().pushMatrix();
         graphics.pose().rotateAbout(rotation, mapCenterX, mapCenterY);
-        graphics.enableScissor(left, mapTop, left + size, mapTop + size);
         graphics.blit(
                 CityMapTextureCache.TEXTURE,
                 mapCenterX - halfQuad,
@@ -115,8 +118,8 @@ public final class CityMinimapOverlay implements GuiLayer {
             CityMapRenderUtil.drawWaypoint(
                     graphics, viewport, CityMapNavigationClient.waypoint());
         }
-        graphics.disableScissor();
         graphics.pose().popMatrix();
+        graphics.disableScissor();
 
         // The player arrow stays upright at the center because the map beneath it is rotated.
         graphics.fill(mapCenterX - 6, mapCenterY - 1, mapCenterX + 7, mapCenterY + 2, 0xFF031014);

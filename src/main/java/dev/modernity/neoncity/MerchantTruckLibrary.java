@@ -461,6 +461,9 @@ final class MerchantTruckLibrary {
             int sizeX,
             int sizeZ,
             NeonCityGenerator.UrbanSample center) {
+        if (center.roadClass() != NeonCityGenerator.RoadClass.PARK) {
+            return false;
+        }
         for (int localZ = minZ; localZ < minZ + sizeZ; localZ++) {
             for (int localX = minX; localX < minX + sizeX; localX++) {
                 NeonCityGenerator.UrbanSample sample = samples[localZ + 1][localX + 1];

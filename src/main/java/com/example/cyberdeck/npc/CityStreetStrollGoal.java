@@ -23,7 +23,8 @@ final class CityStreetStrollGoal extends Goal {
 
     @Override
     public boolean canUse() {
-        if (npc.isFleeingGunfire() || !npc.getNavigation().isDone()
+        if (npc.isFleeingGunfire() || npc.isEvacuating() || npc.isFightingBack()
+                || !npc.getNavigation().isDone()
                 || npc.getRandom().nextInt(reducedTickDelay(70)) != 0
                 || !(npc.level() instanceof ServerLevel level)) {
             return false;
@@ -47,7 +48,8 @@ final class CityStreetStrollGoal extends Goal {
 
     @Override
     public boolean canContinueToUse() {
-        return !npc.isFleeingGunfire() && !npc.getNavigation().isDone();
+        return !npc.isFleeingGunfire() && !npc.isEvacuating() && !npc.isFightingBack()
+                && !npc.getNavigation().isDone();
     }
 
     @Override

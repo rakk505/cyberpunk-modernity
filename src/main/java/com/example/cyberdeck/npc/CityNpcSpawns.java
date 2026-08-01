@@ -2,6 +2,7 @@ package com.example.cyberdeck.npc;
 
 import com.example.cyberdeck.Cyberdeck;
 import com.example.cyberdeck.city.CityWorlds;
+import com.example.cyberdeck.trauma.TraumaTeamEvents;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -102,7 +103,11 @@ public final class CityNpcSpawns {
             }
             npc.finalizeSpawn(level, level.getCurrentDifficultyAt(position),
                     EntitySpawnReason.NATURAL, null);
-            npc.setSkinVariant(skinVariant(position, managed.size()));
+            int roleRoll = random.nextInt(100);
+            NpcRole role = roleForRoll(roleRoll,
+                    roleRoll < 5 && isExecSpawnSite(level, position));
+            npc.setRole(role);
+            npc.setSkinVariant(skinVariant(position, managed.size(), role));
             npc.setHomeTo(position, 28);
             npc.markPopulationManaged(position);
             if (level.addFreshEntity(npc)) {
@@ -195,10 +200,61 @@ public final class CityNpcSpawns {
     }
 
     public static int skinVariant(BlockPos position, int memberIndex) {
+        return skinVariant(position, memberIndex, NpcRole.RESIDENT);
+    }
+
+    public static int skinVariant(BlockPos position, int memberIndex, NpcRole role) {
         long value = position.asLong() ^ (long) memberIndex * 0x9E3779B97F4A7C15L;
         value = (value ^ (value >>> 30)) * 0xBF58476D1CE4E5B9L;
         value = (value ^ (value >>> 27)) * 0x94D049BB133111EBL;
-        return Math.floorMod((int) (value ^ (value >>> 31)), CityNpc.SKIN_COUNT);
+        int mixed = (int) (value ^ (value >>> 31));
+        return switch (role) {
+            case RESIDENT -> Math.floorMod(mixed, 6);
+            case CORPO -> 6 + Math.floorMod(mixed, 2);
+            case EXEC -> CityNpc.MISSION_TARGET_SKIN;
+        };
+    }
+
+    /** Stable role distribution: 70% Resident, 25% Corpo, and 5% Exec at valid Exec sites. */
+    public static NpcRole roleForRoll(int percentileRoll, boolean execSite) {
+        int roll = Math.floorMod(percentileRoll, 100);
+        if (roll < 5 && execSite) {
+            return NpcRole.EXEC;
+        }
+        return roll < 30 ? NpcRole.CORPO : NpcRole.RESIDENT;
+    }
+
+    /** Execs require an aerodyne-sized plaza with a substantial building close to its edge. */
+    public static boolean isExecSpawnSite(ServerLevel level, BlockPos position) {
+        return TraumaTeamEvents.hasLandingClearance(level, position)
+                && hasNearbyBuilding(level, position);
+    }
+
+    private static boolean hasNearbyBuilding(ServerLevel level, BlockPos position) {
+        for (int radius = 8; radius <= 18; radius += 2) {
+            for (int offset = -radius; offset <= radius; offset += 2) {
+                if (isBuildingColumn(level, position.offset(offset, 0, -radius))
+                        || isBuildingColumn(level, position.offset(offset, 0, radius))
+                        || isBuildingColumn(level, position.offset(-radius, 0, offset))
+                        || isBuildingColumn(level, position.offset(radius, 0, offset))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean isBuildingColumn(ServerLevel level, BlockPos feet) {
+        if (!level.isLoaded(feet)) {
+            return false;
+        }
+        int solid = 0;
+        for (int y = 0; y < 7; y++) {
+            if (level.getBlockState(feet.above(y)).blocksMotion()) {
+                solid++;
+            }
+        }
+        return solid >= 5;
     }
 
     /** Pure population budget shared with regression tests. */

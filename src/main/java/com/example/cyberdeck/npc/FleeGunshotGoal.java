@@ -23,12 +23,12 @@ final class FleeGunshotGoal extends Goal {
 
     @Override
     public boolean canUse() {
-        return npc.isFleeingGunfire() && chooseDestination();
+        return !npc.isEvacuating() && npc.isFleeingGunfire() && chooseDestination();
     }
 
     @Override
     public boolean canContinueToUse() {
-        return npc.isFleeingGunfire()
+        return !npc.isEvacuating() && npc.isFleeingGunfire()
                 && (destination != null || !npc.getNavigation().isDone());
     }
 

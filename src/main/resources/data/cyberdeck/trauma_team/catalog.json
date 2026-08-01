@@ -1,0 +1,19 @@
+{
+  "source": {
+    "name": "zetatechatlus.schem",
+    "sha256": "47ac3731829d6e430aebf5ae500f7f1c5c60ec570eba678850eb3005fd05697b",
+    "format": "Sponge schematic v3 / WorldEdit 7.3.10",
+    "policy": "user-provided; block-entity payloads omitted"
+  },
+  "aerodyne": {
+    "template": "cyberdeck:trauma_team/aerodyne",
+    "size": [
+      23,
+      9,
+      11
+    ],
+    "blocks": 902,
+    "palette_states": 183,
+    "sha256": "d3721d414b23eb27bccb946b9c3a334cb1bf642939618b98b33af010f017d922"
+  }
+}

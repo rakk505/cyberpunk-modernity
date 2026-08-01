@@ -40,7 +40,7 @@ public final class NeonCitySavedData extends SavedData {
     private final Set<Long> generatedChunks;
 
     public NeonCitySavedData() {
-        this(FORMAT_VERSION, NeonCityGenerator.GENERATOR_FINGERPRINT, List.of());
+        this(FORMAT_VERSION, NeonCityGenerator.generatorFingerprint(), List.of());
     }
 
     private NeonCitySavedData(int formatVersion, String generatorFingerprint, List<Long> generatedChunks) {

@@ -1,0 +1,54 @@
+{
+  "source": {
+    "name": "sci-fi-solar-panel.zip",
+    "entry": "solar_panel.litematic",
+    "archive_sha256": "354ef0d8c6bf42e687780bb68e284e6081bdddba17321cd244e51d3e20ae2492",
+    "entry_sha256": "97803dc2bb1698e8df82ae160073abaf1adf61c68e01bffd81dd72d0b137368b",
+    "format": "Litematica v6",
+    "minecraft_data_version": 3120,
+    "policy": "user-provided; air and entities omitted; signed region normalized"
+  },
+  "templates": [
+    {
+      "id": "solar_panel",
+      "template": "neoncity:cliff_infrastructure/solar_panel",
+      "size": [
+        11,
+        19,
+        31
+      ],
+      "blocks": 367,
+      "support_bounds": [
+        6,
+        0,
+        14,
+        8,
+        4,
+        16
+      ],
+      "block_counts": {
+        "minecraft:andesite_wall": 12,
+        "minecraft:blue_stained_glass": 240,
+        "minecraft:end_rod": 40,
+        "minecraft:iron_block": 14,
+        "minecraft:iron_trapdoor": 14,
+        "minecraft:polished_andesite": 15,
+        "minecraft:smooth_quartz_stairs": 27,
+        "minecraft:smooth_stone": 1,
+        "minecraft:stone_button": 4
+      },
+      "sha256": "41593a64013d3ea825bd43517f52be2dbdd031680efeb0503352c316d82e7e1c",
+      "source_region": "Solar Panel",
+      "source_signed_size": [
+        -11,
+        19,
+        31
+      ],
+      "source_position": [
+        10,
+        0,
+        0
+      ]
+    }
+  ]
+}

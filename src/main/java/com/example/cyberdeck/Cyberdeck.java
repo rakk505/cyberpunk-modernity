@@ -9,6 +9,7 @@ import com.example.cyberdeck.faction.FactionEntities;
 import com.example.cyberdeck.faction.FactionSpawns;
 import com.example.cyberdeck.healing.HealingState;
 import com.example.cyberdeck.healing.HealingSystem;
+import com.example.cyberdeck.economy.MoneyShardComponents;
 import com.example.cyberdeck.movement.TacticalMovement;
 import com.example.cyberdeck.network.CyberdeckNetwork;
 import com.example.cyberdeck.npc.CityNpc;
@@ -54,6 +55,7 @@ public class Cyberdeck {
         WeaponItems.ITEMS.register(modEventBus);
         AmmoItems.ITEMS.register(modEventBus);
         WeaponComponents.COMPONENTS.register(modEventBus);
+        MoneyShardComponents.COMPONENTS.register(modEventBus);
         ReloadState.ATTACHMENT_TYPES.register(modEventBus);
         SmartLockState.ATTACHMENT_TYPES.register(modEventBus);
         WeaponEntities.ENTITY_TYPES.register(modEventBus);
@@ -79,6 +81,7 @@ public class Cyberdeck {
         NeoForge.EVENT_BUS.register(new FactionSpawns());
         NeoForge.EVENT_BUS.register(new com.example.cyberdeck.combat.ThrowableDistraction());
         NeoForge.EVENT_BUS.register(new CityNpcSpawns());
+        NeoForge.EVENT_BUS.register(new com.example.cyberdeck.trauma.TraumaTeamEvents());
         NeoForge.EVENT_BUS.register(new CityActorJoinCompatibility());
         NeoForge.EVENT_BUS.register(new com.example.cyberdeck.city.CityBuilder());
     }

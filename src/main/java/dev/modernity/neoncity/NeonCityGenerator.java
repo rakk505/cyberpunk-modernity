@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.QuartPos;
@@ -58,7 +59,7 @@ public final class NeonCityGenerator {
 
     public static final String NAMESPACE = "neoncity";
     public static final String GENERATOR_FINGERPRINT =
-            "project-moon-megacity-v16-u-corp-ocean-arnis-mask-20260731";
+            "project-moon-megacity-v19-three-border-types-20260731";
     public static final int CITY_GROUND_Y = 72;
     public static final int WATER_Y = 67;
     public static final int ENQUEUE_RADIUS_CHUNKS = 7;
@@ -67,7 +68,22 @@ public final class NeonCityGenerator {
 
     private static final int PLACE_FLAGS = Block.UPDATE_SKIP_ALL_SIDEEFFECTS | Block.UPDATE_CLIENTS;
     private static final int MAX_ARNIS_PLAN_CACHE = 32_768;
+    private static final int MAX_PARK_SITE_CACHE = 32_768;
     private static final int MIN_ARNIS_COLUMNS = 32;
+    static final int MIN_PARK_SITE_COLUMNS = 128;
+    private static final int MIN_PARK_SITE_AXIS = 10;
+    static final double HIGHWAY_HALF_WIDTH = 13.0;
+    static final double HIGHWAY_ARNIS_SETBACK = 10.0;
+    static final double HIGHWAY_CLEARANCE_RADIUS = HIGHWAY_HALF_WIDTH + HIGHWAY_ARNIS_SETBACK;
+    static final int BRIDGE_RISE = 8;
+    static final int BRIDGE_GRADE_STEP = 6;
+    private static final int ELEVATED_DECK_Y = CITY_GROUND_Y + 15;
+    private static final double ELEVATED_HALF_WIDTH = 4.5;
+    private static final double ELEVATED_TRACK_HALF_WIDTH = 2.2;
+    private static final double ELEVATED_JUNCTION_RADIUS = 18.0;
+    private static final double ELEVATED_SUPPORT_OFFSET = HIGHWAY_HALF_WIDTH + 2.0;
+    private static final double ELEVATED_SUPPORT_HALF_WIDTH = 0.75;
+    private static final int ELEVATED_SUPPORT_SPACING = 29;
     static final int MAX_BUILD_Y = 318;
     private static final BlockPos DEFAULT_SPAWN = new BlockPos(0, CITY_GROUND_Y + 2, 0);
     private static final ResourceKey<DimensionType> MEGACITY_DIMENSION_TYPE = ResourceKey.create(
@@ -80,6 +96,9 @@ public final class NeonCityGenerator {
     private static final Map<Long, AlleyMaze.Plan> DIAGNOSTIC_ALLEY_PLANS = new HashMap<>();
     private static final Map<Long, Optional<ArnisPatchLibrary.Placement>>
             USABLE_ARNIS_PLACEMENTS = new HashMap<>();
+    private static final Map<Long, BridgeProfile> BRIDGE_PROFILES = new ConcurrentHashMap<>();
+    private static final Map<ParkSiteKey, ParkSitePlan> PARK_SITE_PLANS =
+            new ConcurrentHashMap<>();
     private static MegacityLayout layout = MegacityLayout.create(MegacityLayout.DEFAULT_SEED);
     private static long layoutWorldSeed = Long.MIN_VALUE;
     private static NeonCitySavedData savedData;
@@ -96,6 +115,7 @@ public final class NeonCityGenerator {
         INTERDISTRICT_ROAD,
         BRIDGE,
         ELEVATED_RAIL,
+        HIGHWAY_BUFFER,
         CANAL,
         PARK,
         HARBOR,
@@ -104,8 +124,9 @@ public final class NeonCityGenerator {
         PORTSHIP,
         FARM,
         EXTRACTION_SITE,
-        BORDER_RIVER,
-        BORDER_HILLS,
+        BORDER_WALLED,
+        BORDER_FOREST,
+        BORDER_CLIFF,
         WILDERNESS
     }
 
@@ -138,6 +159,34 @@ public final class NeonCityGenerator {
     private record TreePalette(BlockState trunk, BlockState leaves) {}
 
     private record LocalCoordinates(double u, double v) {}
+
+    private record BridgeProfile(int[] rise) {
+        int riseAt(double progress) {
+            int index = Math.max(0, Math.min(rise.length - 1,
+                    (int) Math.round(progress * (rise.length - 1))));
+            return rise[index];
+        }
+    }
+
+    private record ParkSiteKey(long seed, int chunkX, int chunkZ) {}
+
+    private record ParkSitePlan(
+            ArnisPatchLibrary.Placement placement,
+            boolean[] parkColumns,
+            boolean[] accessColumns,
+            int parkColumnCount
+    ) {
+        boolean parkAt(int worldX, int worldZ) {
+            return parkColumns[parkIndex(worldX, worldZ)];
+        }
+
+        boolean accessAt(int worldX, int worldZ) {
+            return accessColumns[parkIndex(worldX, worldZ)];
+        }
+    }
+
+    private static final ParkSitePlan NO_PARK_SITE = new ParkSitePlan(
+            null, new boolean[256], new boolean[256], 0);
 
     public static boolean initialize(ServerLevel level) {
         clearTransientState();
@@ -175,9 +224,12 @@ public final class NeonCityGenerator {
         GENERATED.clear();
         DIAGNOSTIC_ALLEY_PLANS.clear();
         USABLE_ARNIS_PLACEMENTS.clear();
+        BRIDGE_PROFILES.clear();
+        PARK_SITE_PLANS.clear();
         ArnisPatchLibrary.clearSelectionCache();
         MerchantTruckLibrary.clearCaches();
         UCorpPortGeneration.clearCache();
+        CliffInfrastructureLibrary.clearCaches();
         enabled = false;
     }
 
@@ -530,11 +582,14 @@ public final class NeonCityGenerator {
 
     static boolean overridesArnis(RoadClass roadClass) {
         return switch (roadClass) {
-            case INTERDISTRICT_ROAD,
+            case CENTRAL_PLAZA,
+                    INTERDISTRICT_ROAD,
                     BRIDGE,
                     ELEVATED_RAIL,
-                    BORDER_RIVER,
-                    BORDER_HILLS,
+                    HIGHWAY_BUFFER,
+                    BORDER_WALLED,
+                    BORDER_FOREST,
+                    BORDER_CLIFF,
                     CANAL,
                     PARK,
                     HARBOR,
@@ -667,14 +722,16 @@ public final class NeonCityGenerator {
                             int x, int z, UrbanSample sample) {
         int naturalTop = level.getHeight(Heightmap.Types.WORLD_SURFACE, x, z);
         int ground = sample.groundY();
-        int clearFrom = sample.roadClass() == RoadClass.BRIDGE
+        boolean canalBridge = sample.roadClass() == RoadClass.BRIDGE
+                && !sample.location().onConnection();
+        int clearFrom = canalBridge
                 ? WATER_Y + 1
                 : ground + 1;
         for (int y = clearFrom; y <= Math.min(MAX_BUILD_Y, naturalTop + 2); y++) {
             set(level, pos, x, y, z, Blocks.AIR.defaultBlockState());
         }
 
-        int foundationTop = sample.roadClass() == RoadClass.BRIDGE
+        int foundationTop = canalBridge
                 ? WATER_Y - 1
                 : ground;
         for (int y = Math.min(naturalTop, foundationTop - 5); y <= foundationTop; y++) {
@@ -685,7 +742,7 @@ public final class NeonCityGenerator {
             set(level, pos, x, y, z, state);
         }
 
-        if (isWater(sample.roadClass()) || sample.roadClass() == RoadClass.BRIDGE) {
+        if (isWater(sample.roadClass()) || canalBridge) {
             for (int y = foundationTop + 1; y <= WATER_Y; y++) {
                 set(level, pos, x, y, z, Blocks.WATER.defaultBlockState());
             }
@@ -698,8 +755,7 @@ public final class NeonCityGenerator {
     }
 
     private static boolean isWater(RoadClass road) {
-        return road == RoadClass.BORDER_RIVER
-                || road == RoadClass.CANAL
+        return road == RoadClass.CANAL
                 || road == RoadClass.HARBOR
                 || road == RoadClass.OCEAN
                 || road == RoadClass.PORTSHIP;
@@ -710,8 +766,9 @@ public final class NeonCityGenerator {
             return Blocks.MUD_BRICKS.defaultBlockState();
         }
         return switch (sample.zone()) {
-            case BORDER_HILLS -> Blocks.STONE.defaultBlockState();
-            case BORDER_RIVER -> Blocks.CLAY.defaultBlockState();
+            case BORDER_CLIFF -> Blocks.STONE.defaultBlockState();
+            case BORDER_FOREST -> Blocks.DIRT.defaultBlockState();
+            case BORDER_WALLED -> Blocks.DEEPSLATE.defaultBlockState();
             default -> Blocks.DEEPSLATE.defaultBlockState();
         };
     }
@@ -721,13 +778,16 @@ public final class NeonCityGenerator {
             case CENTRAL_PLAZA -> floorMod(x, 9) == 0 || floorMod(z, 9) == 0
                     ? palette(sample.district()).accent()
                     : Blocks.POLISHED_DEEPSLATE.defaultBlockState();
-            case DISTRICT_BOULEVARD, INTERDISTRICT_ROAD -> laneMark(x, z)
+            case DISTRICT_BOULEVARD, INTERDISTRICT_ROAD, ELEVATED_RAIL -> laneMark(x, z)
                     ? concrete(DyeColor.YELLOW) : concrete(DyeColor.BLACK);
             case LOCAL_STREET -> laneMark(x * 3, z * 5)
                     ? concrete(DyeColor.LIGHT_GRAY) : concrete(DyeColor.GRAY);
             case SERVICE_ALLEY -> Blocks.DEEPSLATE_TILES.defaultBlockState();
-            case BRIDGE, ELEVATED_RAIL -> Blocks.SMOOTH_STONE.defaultBlockState();
-            case CANAL, HARBOR, BORDER_RIVER -> Blocks.CLAY.defaultBlockState();
+            case BRIDGE -> Blocks.SMOOTH_STONE.defaultBlockState();
+            case HIGHWAY_BUFFER -> floorMod(x * 7 + z * 11, 13) == 0
+                    ? Blocks.GRAVEL.defaultBlockState()
+                    : Blocks.SMOOTH_STONE.defaultBlockState();
+            case CANAL, HARBOR -> Blocks.CLAY.defaultBlockState();
             case OCEAN, PORTSHIP -> floorMod(x * 5 + z * 7, 9) <= 2
                     ? Blocks.CLAY.defaultBlockState()
                     : Blocks.GRAVEL.defaultBlockState();
@@ -740,7 +800,11 @@ public final class NeonCityGenerator {
                     ? Blocks.MOSS_BLOCK.defaultBlockState() : Blocks.GRASS_BLOCK.defaultBlockState();
             case FARM -> DistrictWorldFeatures.farmSurface(sample);
             case EXTRACTION_SITE -> Blocks.COARSE_DIRT.defaultBlockState();
-            case BORDER_HILLS -> DistrictWorldFeatures.borderHillSurface(
+            case BORDER_WALLED -> floorMod(x * 7 + z * 13, 17) <= 1
+                    ? Blocks.CRACKED_DEEPSLATE_BRICKS.defaultBlockState()
+                    : Blocks.PACKED_MUD.defaultBlockState();
+            case BORDER_FOREST -> Blocks.GRASS_BLOCK.defaultBlockState();
+            case BORDER_CLIFF -> DistrictWorldFeatures.borderHillSurface(
                     layout.seed(), x, z);
             case NONE -> sidewalk(sample.district());
             case WILDERNESS -> Blocks.GRASS_BLOCK.defaultBlockState();
@@ -753,71 +817,179 @@ public final class NeonCityGenerator {
 
     private static void decorateInfrastructure(ServerLevel level, BlockPos.MutableBlockPos pos,
                                                int x, int z, UrbanSample sample) {
-        if (sample.roadClass() == RoadClass.BRIDGE) {
-            boolean graphBridge = sample.location().onConnection();
-            int deck = graphBridge ? CITY_GROUND_Y + 8 : CITY_GROUND_Y + 1;
+        boolean graphHighway = sample.location().onConnection();
+        if (graphHighway) {
+            int deck = highwayDeckY(layout, sample.location(), x, z);
+            if (floorMod(x * 31 + z * 17, 37) == 0) {
+                for (int y = sample.groundY() + 1; y < deck; y++) {
+                    set(level, pos, x, y, z, Blocks.POLISHED_BASALT.defaultBlockState());
+                }
+            }
+            if (deck > sample.groundY()) {
+                set(level, pos, x, deck - 1, z,
+                        Blocks.POLISHED_BLACKSTONE_BRICKS.defaultBlockState());
+            }
+            set(level, pos, x, deck, z, laneMark(x, z)
+                    ? concrete(DyeColor.YELLOW) : concrete(DyeColor.BLACK));
+            if (sample.location().connectionDistance() > 10.5) {
+                set(level, pos, x, deck + 1, z, Blocks.IRON_BARS.defaultBlockState());
+            }
+        } else if (sample.roadClass() == RoadClass.BRIDGE) {
+            int deck = CITY_GROUND_Y + 1;
             if (floorMod(x * 31 + z * 17, 37) == 0) {
                 for (int y = WATER_Y; y < deck; y++) {
                     set(level, pos, x, y, z, Blocks.POLISHED_BASALT.defaultBlockState());
                 }
             }
-            set(level, pos, x, deck - 1, z, Blocks.POLISHED_BLACKSTONE_BRICKS.defaultBlockState());
+            set(level, pos, x, deck - 1, z,
+                    Blocks.POLISHED_BLACKSTONE_BRICKS.defaultBlockState());
             set(level, pos, x, deck, z, laneMark(x, z)
                     ? concrete(DyeColor.YELLOW) : concrete(DyeColor.BLACK));
-            if (graphBridge && sample.location().connectionDistance() > 10.5) {
-                set(level, pos, x, deck + 1, z, Blocks.IRON_BARS.defaultBlockState());
+        }
+
+        Optional<MegacityLayout.ConnectionProjection> elevated =
+                layout.nearestElevatedConnection(x, z);
+        double elevatedDistance = elevated.map(
+                MegacityLayout.ConnectionProjection::distance).orElse(Double.MAX_VALUE);
+        boolean elevatedRoute = elevated.isPresent()
+                && elevatedDistance <= ELEVATED_HALF_WIDTH;
+        boolean elevatedJunction = isElevatedJunctionAt(layout, x, z);
+        boolean supportStation = elevated.isPresent()
+                && isElevatedSupportStation(elevated.get());
+        boolean supportPillar = supportStation
+                && Math.abs(elevatedDistance - ELEVATED_SUPPORT_OFFSET)
+                <= ELEVATED_SUPPORT_HALF_WIDTH;
+        if (supportPillar) {
+            for (int y = sample.groundY() + 1; y < ELEVATED_DECK_Y; y++) {
+                set(level, pos, x, y, z, Blocks.IRON_BLOCK.defaultBlockState());
             }
         }
-        if (sample.roadClass() == RoadClass.ELEVATED_RAIL) {
-            int deck = CITY_GROUND_Y + 15;
-            if (floorMod(x + 2 * z, 29) == 0) {
-                for (int y = sample.groundY() + 1; y < deck; y++) {
-                    set(level, pos, x, y, z, Blocks.IRON_BLOCK.defaultBlockState());
-                }
-            }
-            set(level, pos, x, deck - 1, z, Blocks.SMOOTH_STONE.defaultBlockState());
-            set(level, pos, x, deck, z, Blocks.SMOOTH_STONE.defaultBlockState());
-            if (sample.location().connectionDistance() <= 2.2) {
-                RailShape railShape = railShape(sample.location().nearestConnection(), x, z);
+        if (supportStation
+                && elevatedDistance <= ELEVATED_SUPPORT_OFFSET + ELEVATED_SUPPORT_HALF_WIDTH) {
+            set(level, pos, x, ELEVATED_DECK_Y - 1, z, Blocks.IRON_BLOCK.defaultBlockState());
+        }
+        if (elevatedRoute || elevatedJunction) {
+            set(level, pos, x, ELEVATED_DECK_Y - 1, z,
+                    Blocks.POLISHED_BLACKSTONE_BRICKS.defaultBlockState());
+            set(level, pos, x, ELEVATED_DECK_Y, z, Blocks.SMOOTH_STONE.defaultBlockState());
+            if (elevatedRoute && elevated.get().distance() <= ELEVATED_TRACK_HALF_WIDTH) {
+                RailShape railShape = railShape(elevated.get());
                 BlockState rail = floorMod(x + z, 3) == 0
                         ? Blocks.POWERED_RAIL.defaultBlockState().setValue(
                                 PoweredRailBlock.SHAPE, railShape)
                         : Blocks.RAIL.defaultBlockState().setValue(RailBlock.SHAPE, railShape);
-                set(level, pos, x, deck, z, rail);
+                set(level, pos, x, ELEVATED_DECK_Y, z, rail);
             }
         }
     }
 
-    private static RailShape railShape(MegacityLayout.Edge edge, int worldX, int worldZ) {
-        if (edge == null) return RailShape.EAST_WEST;
-        MegacityLayout.Node first = edge.first();
-        MegacityLayout.Node second = edge.second();
-        double dx = second.x() - first.x();
-        double dz = second.z() - first.z();
-        double length = Math.max(1.0, Math.hypot(dx, dz));
-        double controlX = (first.x() + second.x()) * 0.5 - dz * edge.bend();
-        double controlZ = (first.z() + second.z()) * 0.5 + dx * edge.bend();
-        double bestDistance = Double.MAX_VALUE;
-        double tangentX = dx;
-        double tangentZ = dz;
-        for (int step = 0; step <= 24; step++) {
-            double t = step / 24.0;
-            double inverse = 1.0 - t;
-            double curveX = inverse * inverse * first.x()
-                    + 2.0 * inverse * t * controlX + t * t * second.x();
-            double curveZ = inverse * inverse * first.z()
-                    + 2.0 * inverse * t * controlZ + t * t * second.z();
-            double distance = Math.hypot(worldX - curveX, worldZ - curveZ);
-            if (distance < bestDistance) {
-                bestDistance = distance;
-                tangentX = 2.0 * inverse * (controlX - first.x())
-                        + 2.0 * t * (second.x() - controlX);
-                tangentZ = 2.0 * inverse * (controlZ - first.z())
-                        + 2.0 * t * (second.z() - controlZ);
+    private static RailShape railShape(MegacityLayout.ConnectionProjection projection) {
+        return Math.abs(projection.tangentX()) >= Math.abs(projection.tangentZ())
+                ? RailShape.EAST_WEST : RailShape.NORTH_SOUTH;
+    }
+
+    private static boolean isElevatedSupportStation(
+            MegacityLayout.ConnectionProjection projection) {
+        double tangentLength = Math.max(
+                1.0, Math.hypot(projection.tangentX(), projection.tangentZ()));
+        double along = (projection.x() * projection.tangentX()
+                + projection.z() * projection.tangentZ()) / tangentLength;
+        return Math.floorMod((int) Math.floor(along), ELEVATED_SUPPORT_SPACING) <= 1;
+    }
+
+    private static boolean isElevatedJunctionAt(
+            MegacityLayout activeLayout, int worldX, int worldZ) {
+        for (MegacityLayout.Node node : activeLayout.nodes()) {
+            if (Math.hypot(worldX - node.x(), worldZ - node.z())
+                    <= ELEVATED_JUNCTION_RADIUS) {
+                return true;
             }
         }
-        return Math.abs(tangentX) >= Math.abs(tangentZ)
-                ? RailShape.EAST_WEST : RailShape.NORTH_SOUTH;
+        return false;
+    }
+
+    static int highwayDeckY(
+            MegacityLayout activeLayout, int worldX, int worldZ) {
+        MegacityLayout.Location location = activeLayout.locate(worldX, worldZ);
+        return highwayDeckY(activeLayout, location, worldX, worldZ);
+    }
+
+    static int highwayDeckY(
+            MegacityLayout activeLayout, MegacityLayout.Edge edge, double progress) {
+        return CITY_GROUND_Y + bridgeProfile(activeLayout, edge).riseAt(progress);
+    }
+
+    private static int highwayDeckY(
+            MegacityLayout activeLayout,
+            MegacityLayout.Location location,
+            int worldX,
+            int worldZ) {
+        if (!location.onConnection() || location.nearestConnection() == null) {
+            return CITY_GROUND_Y;
+        }
+        MegacityLayout.ConnectionProjection projection = MegacityLayout.projectConnection(
+                location.nearestConnection(), worldX, worldZ);
+        BridgeProfile profile = bridgeProfile(activeLayout, location.nearestConnection());
+        return CITY_GROUND_Y + profile.riseAt(projection.progress());
+    }
+
+    private static BridgeProfile bridgeProfile(
+            MegacityLayout activeLayout, MegacityLayout.Edge edge) {
+        long key = activeLayout.seed() ^ Long.rotateLeft(edge.identity(), 17);
+        return BRIDGE_PROFILES.computeIfAbsent(
+                key, ignored -> buildBridgeProfile(activeLayout, edge));
+    }
+
+    private static BridgeProfile buildBridgeProfile(
+            MegacityLayout activeLayout, MegacityLayout.Edge edge) {
+        double curveLength = 0.0;
+        MegacityLayout.CurvePoint previous = MegacityLayout.curvePoint(edge, 0.0);
+        for (int step = 1; step <= 64; step++) {
+            MegacityLayout.CurvePoint current = MegacityLayout.curvePoint(edge, step / 64.0);
+            curveLength += Math.hypot(current.x() - previous.x(), current.z() - previous.z());
+            previous = current;
+        }
+        int sampleCount = Math.max(2, (int) Math.ceil(curveLength) + 1);
+        double[] distanceAlong = new double[sampleCount];
+        boolean[] highSpan = new boolean[sampleCount];
+        previous = MegacityLayout.curvePoint(edge, 0.0);
+        highSpan[0] = rawBridgeAt(activeLayout, previous);
+        for (int index = 1; index < sampleCount; index++) {
+            double progress = index / (double) (sampleCount - 1);
+            MegacityLayout.CurvePoint current = MegacityLayout.curvePoint(edge, progress);
+            distanceAlong[index] = distanceAlong[index - 1]
+                    + Math.hypot(current.x() - previous.x(), current.z() - previous.z());
+            highSpan[index] = rawBridgeAt(activeLayout, current);
+            previous = current;
+        }
+
+        double[] distanceToSpan = new double[sampleCount];
+        double lastSpanDistance = Double.NEGATIVE_INFINITY;
+        for (int index = 0; index < sampleCount; index++) {
+            if (highSpan[index]) lastSpanDistance = distanceAlong[index];
+            distanceToSpan[index] = distanceAlong[index] - lastSpanDistance;
+        }
+        lastSpanDistance = Double.POSITIVE_INFINITY;
+        for (int index = sampleCount - 1; index >= 0; index--) {
+            if (highSpan[index]) lastSpanDistance = distanceAlong[index];
+            distanceToSpan[index] = Math.min(
+                    distanceToSpan[index], lastSpanDistance - distanceAlong[index]);
+        }
+
+        int[] rise = new int[sampleCount];
+        for (int index = 0; index < sampleCount; index++) {
+            double remainingGrade = BRIDGE_RISE * BRIDGE_GRADE_STEP - distanceToSpan[index];
+            rise[index] = Math.max(0, Math.min(BRIDGE_RISE,
+                    (int) Math.ceil(remainingGrade / BRIDGE_GRADE_STEP)));
+        }
+        return new BridgeProfile(rise);
+    }
+
+    private static boolean rawBridgeAt(
+            MegacityLayout activeLayout, MegacityLayout.CurvePoint point) {
+        MegacityLayout.Location district = activeLayout.locateDistrict(
+                (int) Math.round(point.x()), (int) Math.round(point.z()));
+        return district.normalizedDistance() > 0.96 || district.boundaryGap() < 0.085;
     }
 
     private static void decorateOpenGround(ServerLevel level, BlockPos.MutableBlockPos pos,
@@ -825,10 +997,7 @@ public final class NeonCityGenerator {
         int y = sample.groundY() + 1;
         long hash = mix(layout.seed() ^ 0x4445434F52415445L, x, z);
         if (sample.zone() == MegacityLayout.Zone.OUTSKIRTS
-                && sample.roadClass() != RoadClass.CONTAINER_PORT
-                && sample.roadClass() != RoadClass.HARBOR
-                && sample.roadClass() != RoadClass.OCEAN
-                && sample.roadClass() != RoadClass.PORTSHIP
+                && sample.roadClass() == RoadClass.NONE
                 && unit(hash) < sample.district().vegetation() * 0.018) {
             TreePalette trees = treePalette(sample.district());
             int height = 4 + floorMod((int) hash, 3);
@@ -994,6 +1163,11 @@ public final class NeonCityGenerator {
         return sample(mapLayout, worldX, worldZ, null, false);
     }
 
+    /** Full infrastructure sample for deterministic planners bound to an explicit layout. */
+    static UrbanSample topologySample(MegacityLayout activeLayout, int worldX, int worldZ) {
+        return sample(activeLayout, worldX, worldZ, new HashMap<>(), true);
+    }
+
     private static UrbanSample sample(
             MegacityLayout activeLayout,
             int worldX,
@@ -1058,6 +1232,45 @@ public final class NeonCityGenerator {
             int worldZ,
             long hash,
             boolean includeAtlasConnectors) {
+        RoadClass priority = priorityRoadClass(
+                activeLayout,
+                location,
+                marineFeature,
+                local,
+                worldX,
+                worldZ,
+                hash,
+                includeAtlasConnectors);
+        if (priority != null) return priority;
+
+        MegacityLayout.Node node = marineFeature == UCorpPortGeneration.Feature.NONE
+                ? location.primary()
+                : activeLayout.node(District.U_CORP);
+        District district = node.district();
+        ParkSitePlan parkSite = parkSitePlan(
+                activeLayout, Math.floorDiv(worldX, 16), Math.floorDiv(worldZ, 16));
+        if (parkSite.accessAt(worldX, worldZ)) return RoadClass.LOCAL_STREET;
+        if (parkSite.parkAt(worldX, worldZ)) return RoadClass.PARK;
+
+        int parcel = district.parcelSize();
+        double lineU = distanceToGrid(local.u(), parcel);
+        double lineV = distanceToGrid(local.v(), parcel);
+        double width = district == District.H_CORP || district == District.Z_CORP ? 2.8
+                : district == District.U_CORP ? 5.5 : 3.8;
+        if (lineU < width || lineV < width) return RoadClass.LOCAL_STREET;
+        return RoadClass.NONE;
+    }
+
+    /** Infrastructure and cultural circulation that must win before a park is considered. */
+    private static RoadClass priorityRoadClass(
+            MegacityLayout activeLayout,
+            MegacityLayout.Location location,
+            UCorpPortGeneration.Feature marineFeature,
+            LocalCoordinates local,
+            int worldX,
+            int worldZ,
+            long hash,
+            boolean includeAtlasConnectors) {
         MegacityLayout.Node node = marineFeature == UCorpPortGeneration.Feature.NONE
                 ? location.primary()
                 : activeLayout.node(District.U_CORP);
@@ -1065,17 +1278,22 @@ public final class NeonCityGenerator {
         double dz = worldZ - node.z();
         double radius = Math.hypot(dx, dz);
         double angle = Math.atan2(dz, dx);
-        // Preserve a civic heart even when several graph edges meet at the
-        // district node; connectors join the outer edge of this plaza.
-        if (radius < 34.0) return RoadClass.CENTRAL_PLAZA;
         if (location.onConnection()) {
-            if (location.nearestConnection().kind() == MegacityLayout.ConnectionKind.ELEVATED_RAIL) {
+            if (location.nearestConnection().hasElevatedLayer()
+                    && location.connectionDistance() <= ELEVATED_HALF_WIDTH) {
                 return RoadClass.ELEVATED_RAIL;
             }
-            if (location.normalizedDistance() > 0.96 || location.boundaryGap() < 0.085) {
+            if (highwayDeckY(activeLayout, location, worldX, worldZ) > CITY_GROUND_Y) {
                 return RoadClass.BRIDGE;
             }
             return RoadClass.INTERDISTRICT_ROAD;
+        }
+        // The ground routes enter the civic plaza instead of terminating at its rim. The
+        // elevated backbone crosses above this same hub in decorateInfrastructure.
+        if (radius < 34.0) return RoadClass.CENTRAL_PLAZA;
+        if (location.nearestConnection() != null
+                && location.connectionDistance() <= HIGHWAY_CLEARANCE_RADIUS) {
+            return RoadClass.HIGHWAY_BUFFER;
         }
         RoadClass marineRoad = switch (marineFeature) {
             case NONE -> null;
@@ -1085,8 +1303,18 @@ public final class NeonCityGenerator {
             case PORTSHIP -> RoadClass.PORTSHIP;
         };
         if (marineRoad != null) return marineRoad;
-        if (location.zone() == MegacityLayout.Zone.BORDER_RIVER) return RoadClass.BORDER_RIVER;
-        if (location.zone() == MegacityLayout.Zone.BORDER_HILLS) return RoadClass.BORDER_HILLS;
+        if (location.zone() == MegacityLayout.Zone.BORDER_WALLED) {
+            return RoadClass.BORDER_WALLED;
+        }
+        if (location.zone() == MegacityLayout.Zone.BORDER_FOREST) {
+            MegacityLayout.BoundaryFrame frame = activeLayout.boundaryFrame(
+                    location, worldX, worldZ);
+            return frame.gapRatio() <= 0.10
+                    ? RoadClass.LOCAL_STREET : RoadClass.BORDER_FOREST;
+        }
+        if (location.zone() == MegacityLayout.Zone.BORDER_CLIFF) {
+            return RoadClass.BORDER_CLIFF;
+        }
         if (location.district() == District.S_CORP
                 && location.zone() == MegacityLayout.Zone.BACKSTREETS) {
             return RoadClass.FARM;
@@ -1125,20 +1353,166 @@ public final class NeonCityGenerator {
                 && floorMod((int) hash, 4) <= 2) return RoadClass.EXTRACTION_SITE;
 
         RoadClass culturalRoad = culturalRoad(district, local, location, hash);
-        if (culturalRoad != null) return culturalRoad;
+        if (culturalRoad != null && culturalRoad != RoadClass.PARK) return culturalRoad;
+        return null;
+    }
 
-        int parcel = district.parcelSize();
-        double lineU = distanceToGrid(local.u(), parcel);
-        double lineV = distanceToGrid(local.v(), parcel);
-        double width = district == District.H_CORP || district == District.Z_CORP ? 2.8
-                : district == District.U_CORP ? 5.5 : 3.8;
-        if (lineU < width || lineV < width) return RoadClass.LOCAL_STREET;
+    private static ParkSitePlan parkSitePlan(
+            MegacityLayout activeLayout, int chunkX, int chunkZ) {
+        if (PARK_SITE_PLANS.size() > MAX_PARK_SITE_CACHE) PARK_SITE_PLANS.clear();
+        ParkSiteKey key = new ParkSiteKey(activeLayout.seed(), chunkX, chunkZ);
+        return PARK_SITE_PLANS.computeIfAbsent(
+                key, ignored -> buildParkSitePlan(activeLayout, chunkX, chunkZ));
+    }
 
-        long patch = mix(location.primary().identity() ^ 0x5041524B53414C54L,
-                worldX >> 6, worldZ >> 6);
-        double parkChance = district.vegetation() * (location.zone() == MegacityLayout.Zone.OUTSKIRTS ? 0.42 : 0.16);
-        if (unit(patch) < parkChance) return RoadClass.PARK;
-        return RoadClass.NONE;
+    private static ParkSitePlan buildParkSitePlan(
+            MegacityLayout activeLayout, int chunkX, int chunkZ) {
+        ArnisPatchLibrary.Placement placement = ArnisPatchLibrary.select(
+                activeLayout, chunkX, chunkZ).orElse(null);
+        if (placement == null
+                || !ArnisPatchLibrary.isConservativeOpenParkTile(placement.patch())) {
+            return NO_PARK_SITE;
+        }
+
+        boolean[] candidates = new boolean[256];
+        boolean[] access = new boolean[256];
+        int minX = chunkX << 4;
+        int minZ = chunkZ << 4;
+        for (int localZ = 0; localZ < 16; localZ++) {
+            for (int localX = 0; localX < 16; localX++) {
+                int worldX = minX + localX;
+                int worldZ = minZ + localZ;
+                int index = localZ * 16 + localX;
+                boolean accessColumn = ArnisPatchLibrary.isParkAccessLaneAt(
+                        placement, worldX, worldZ);
+                MegacityLayout.Location location = activeLayout.locate(worldX, worldZ);
+                boolean compatible = location.district() == placement.patch().district()
+                        && placement.patch().placementZones().contains(location.zone());
+                if (accessColumn && !compatible) return NO_PARK_SITE;
+                if (!compatible) continue;
+
+                RoadClass priority = priorityRoadAt(
+                        activeLayout, location, worldX, worldZ);
+                if (accessColumn) {
+                    if (priority != null && priority != RoadClass.LOCAL_STREET) {
+                        return NO_PARK_SITE;
+                    }
+                    access[index] = true;
+                } else if (priority == null) {
+                    candidates[index] = true;
+                }
+            }
+        }
+
+        boolean[] parkColumns = connectedParkComponent(candidates, access);
+        int parkColumnCount = 0;
+        for (boolean parkColumn : parkColumns) {
+            if (parkColumn) parkColumnCount++;
+        }
+        if (parkColumnCount < MIN_PARK_SITE_COLUMNS) return NO_PARK_SITE;
+        return new ParkSitePlan(placement, parkColumns, access, parkColumnCount);
+    }
+
+    private static RoadClass priorityRoadAt(
+            MegacityLayout activeLayout,
+            MegacityLayout.Location location,
+            int worldX,
+            int worldZ) {
+        UCorpPortGeneration.Feature marineFeature = UCorpPortGeneration.plan(activeLayout)
+                .featureAt(worldX, worldZ);
+        MegacityLayout.Node parcelNode = marineFeature == UCorpPortGeneration.Feature.NONE
+                ? location.primary()
+                : activeLayout.node(District.U_CORP);
+        LocalCoordinates local = parcelCoordinates(parcelNode, worldX, worldZ);
+        int parcelSize = parcelNode.district().parcelSize();
+        int parcelX = floorDiv(local.u(), parcelSize);
+        int parcelZ = floorDiv(local.v(), parcelSize);
+        long hash = mix(activeLayout.seed() ^ parcelNode.identity(), parcelX, parcelZ);
+        return priorityRoadClass(
+                activeLayout,
+                location,
+                marineFeature,
+                local,
+                worldX,
+                worldZ,
+                hash,
+                true);
+    }
+
+    /** Retain only one large, entrance-connected component; smaller remnants are not parks. */
+    private static boolean[] connectedParkComponent(
+            boolean[] candidates, boolean[] access) {
+        boolean[] visited = new boolean[256];
+        boolean[] best = new boolean[256];
+        int[] queue = new int[256];
+        int bestCount = 0;
+        for (int start = 0; start < candidates.length; start++) {
+            if (!candidates[start] || visited[start]) continue;
+            int head = 0;
+            int tail = 0;
+            int minX = 16;
+            int minZ = 16;
+            int maxX = -1;
+            int maxZ = -1;
+            boolean touchesAccess = false;
+            visited[start] = true;
+            queue[tail++] = start;
+            while (head < tail) {
+                int index = queue[head++];
+                int x = index & 15;
+                int z = index >>> 4;
+                minX = Math.min(minX, x);
+                minZ = Math.min(minZ, z);
+                maxX = Math.max(maxX, x);
+                maxZ = Math.max(maxZ, z);
+                if (x > 0) {
+                    touchesAccess |= access[index - 1];
+                    if (candidates[index - 1] && !visited[index - 1]) {
+                        visited[index - 1] = true;
+                        queue[tail++] = index - 1;
+                    }
+                }
+                if (x < 15) {
+                    touchesAccess |= access[index + 1];
+                    if (candidates[index + 1] && !visited[index + 1]) {
+                        visited[index + 1] = true;
+                        queue[tail++] = index + 1;
+                    }
+                }
+                if (z > 0) {
+                    touchesAccess |= access[index - 16];
+                    if (candidates[index - 16] && !visited[index - 16]) {
+                        visited[index - 16] = true;
+                        queue[tail++] = index - 16;
+                    }
+                }
+                if (z < 15) {
+                    touchesAccess |= access[index + 16];
+                    if (candidates[index + 16] && !visited[index + 16]) {
+                        visited[index + 16] = true;
+                        queue[tail++] = index + 16;
+                    }
+                }
+            }
+            int width = maxX - minX + 1;
+            int depth = maxZ - minZ + 1;
+            if (touchesAccess && tail >= MIN_PARK_SITE_COLUMNS
+                    && width >= MIN_PARK_SITE_AXIS && depth >= MIN_PARK_SITE_AXIS
+                    && tail > bestCount) {
+                best = new boolean[256];
+                for (int index = 0; index < tail; index++) best[queue[index]] = true;
+                bestCount = tail;
+            }
+        }
+        return best;
+    }
+
+    private static int parkIndex(int worldX, int worldZ) {
+        return Math.floorMod(worldZ, 16) * 16 + Math.floorMod(worldX, 16);
+    }
+
+    static int parkSiteColumnCount(MegacityLayout activeLayout, int chunkX, int chunkZ) {
+        return parkSitePlan(activeLayout, chunkX, chunkZ).parkColumnCount();
     }
 
     /** A second, culture-specific circulation layer below the shared civic rings. */
@@ -1239,10 +1613,10 @@ public final class NeonCityGenerator {
             return UCorpPortGeneration.OCEAN_FLOOR_MIN_Y
                     + floorMod((int) mix(activeLayout.seed() ^ 0x554F4345414E464CL, x, z), 6);
         }
-        if (road == RoadClass.BORDER_RIVER || road == RoadClass.CANAL || road == RoadClass.HARBOR) {
+        if (road == RoadClass.CANAL || road == RoadClass.HARBOR) {
             return WATER_Y - 1;
         }
-        if (road == RoadClass.BORDER_HILLS) {
+        if (road == RoadClass.BORDER_CLIFF) {
             return DistrictWorldFeatures.borderHillHeight(activeLayout.seed(), x, z);
         }
         if (road == RoadClass.FARM) {
@@ -1330,6 +1704,7 @@ public final class NeonCityGenerator {
     }
 
     public static MegacityLayout layout() { return layout; }
+    static String generatorFingerprint() { return GENERATOR_FINGERPRINT; }
     public static District districtAt(int worldX, int worldZ) {
         return UCorpPortGeneration.plan(layout).isManagedAt(worldX, worldZ)
                 ? District.U_CORP

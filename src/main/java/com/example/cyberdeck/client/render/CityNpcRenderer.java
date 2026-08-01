@@ -2,12 +2,14 @@ package com.example.cyberdeck.client.render;
 
 import com.example.cyberdeck.Cyberdeck;
 import com.example.cyberdeck.npc.CityNpc;
+import com.example.cyberdeck.weapon.GunItem;
 import java.util.List;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.model.geom.ModelLayers;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.entity.HumanoidMobRenderer;
 import net.minecraft.resources.Identifier;
+import net.minecraft.world.entity.HumanoidArm;
 
 /** Player-shaped renderer with civilian variants plus the gold-trimmed mission target. */
 public final class CityNpcRenderer
@@ -25,6 +27,14 @@ public final class CityNpcRenderer
     @Override
     public CityNpcRenderState createRenderState() {
         return new CityNpcRenderState();
+    }
+
+    @Override
+    protected HumanoidModel.ArmPose getArmPose(CityNpc npc, HumanoidArm arm) {
+        if (npc.getMainHandItem().getItem() instanceof GunItem && arm == npc.getMainArm()) {
+            return HumanoidModel.ArmPose.CROSSBOW_HOLD;
+        }
+        return super.getArmPose(npc, arm);
     }
 
     @Override

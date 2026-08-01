@@ -35,6 +35,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * A corporation soldier. It is its own hostile entity (a {@link Monster}) — not a zombie — so it
@@ -84,6 +85,8 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
     /** Current detection level, synced so the client HUD can render a detection meter. */
     private static final EntityDataAccessor<Integer> DATA_DETECTION =
             SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Boolean> DATA_TRAUMA_TEAM =
+            SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.BOOLEAN);
 
     private static final int WEAPON_GLITCH_NONE = 0;
     private static final int WEAPON_GLITCH_FIDDLING = 1;
@@ -148,6 +151,7 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
     /** Which grenade variant this soldier lobs. */
     private com.example.cyberdeck.weapon.GrenadeType grenadeType =
             com.example.cyberdeck.weapon.GrenadeType.INCENDIARY;
+    private UUID traumaTargetId;
 
     public FactionEnemy(EntityType<? extends FactionEnemy> type, Level level) {
         super(type, level);
@@ -181,6 +185,7 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         entityData.define(DATA_TACTICAL_DIRECTION_X, 0.0F);
         entityData.define(DATA_TACTICAL_DIRECTION_Z, 0.0F);
         entityData.define(DATA_DETECTION, 0);
+        entityData.define(DATA_TRAUMA_TEAM, false);
     }
 
     @Override
@@ -230,6 +235,21 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
 
     public boolean isTriggered() {
         return this.getEntityData().get(DATA_TRIGGERED);
+    }
+
+    public boolean isTraumaTeam() {
+        return this.getEntityData().get(DATA_TRAUMA_TEAM);
+    }
+
+    /** Makes this responder persistent and permanently hostile to the requesting player's attacker. */
+    public void deployAsTraumaTeam(net.minecraft.server.level.ServerPlayer target) {
+        this.getEntityData().set(DATA_TRAUMA_TEAM, true);
+        this.traumaTargetId = target.getUUID();
+        this.setPersistenceRequired();
+        this.setTriggered(true);
+        this.setDetection(DETECTION_THRESHOLD);
+        this.setTarget(target);
+        this.setAggressive(true);
     }
 
     private void setTriggered(boolean value) {
@@ -323,11 +343,39 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
             tickGunReload(level);
         }
         tickTacticalManeuver(level);
-        accumulateDetection(level);
+        if (isTraumaTeam()) {
+            maintainTraumaAggro(level);
+        } else {
+            accumulateDetection(level);
+        }
         applyTeammateSpacing(level);
         // --- BEGIN throwable-distraction hook (self-contained; see distraction block below) ---
         applyDistractionLook();
         // --- END throwable-distraction hook ---
+    }
+
+    private void maintainTraumaAggro(ServerLevel level) {
+        LivingEntity current = this.getTarget();
+        if (current != null && traumaTargetId != null
+                && current.getUUID().equals(traumaTargetId) && current.isAlive()
+                && (!(current instanceof Player player)
+                || !player.isCreative() && !player.isSpectator())) {
+            setTriggered(true);
+            setDetection(DETECTION_THRESHOLD);
+            this.setAggressive(true);
+            return;
+        }
+        if (traumaTargetId == null) {
+            return;
+        }
+        net.minecraft.server.level.ServerPlayer target =
+                level.getServer().getPlayerList().getPlayer(traumaTargetId);
+        if (target != null && target.isAlive() && !target.isCreative() && !target.isSpectator()) {
+            this.setTarget(target);
+            setTriggered(true);
+            setDetection(DETECTION_THRESHOLD);
+            this.setAggressive(true);
+        }
     }
 
     /**
@@ -1029,6 +1077,10 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         output.putString("Faction", getFaction().id());
         output.putInt("Detection", getDetection());
         output.putBoolean("Triggered", isTriggered());
+        output.putBoolean("TraumaTeam", isTraumaTeam());
+        if (traumaTargetId != null) {
+            output.putString("TraumaTarget", traumaTargetId.toString());
+        }
         output.putInt("Grenades", grenadeCount);
         output.putLong("GunReloadStartTick", getGunReloadStartTick());
         output.putLong("GunReloadEndTick", getGunReloadEndTick());
@@ -1060,6 +1112,17 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         }
         setDetection(input.getIntOr("Detection", 0));
         setTriggered(input.getBooleanOr("Triggered", false));
+        boolean traumaTeam = input.getBooleanOr("TraumaTeam", false);
+        this.getEntityData().set(DATA_TRAUMA_TEAM, traumaTeam);
+        String traumaTarget = input.getStringOr("TraumaTarget", "");
+        try {
+            traumaTargetId = traumaTarget.isEmpty() ? null : UUID.fromString(traumaTarget);
+        } catch (IllegalArgumentException ignored) {
+            traumaTargetId = null;
+        }
+        if (traumaTeam) {
+            this.setPersistenceRequired();
+        }
         grenadeCount = input.getIntOr("Grenades", 0);
         this.getEntityData().set(DATA_GUN_RELOAD_START_TICK,
                 input.getLongOr("GunReloadStartTick", -1L));

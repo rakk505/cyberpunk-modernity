@@ -1,11 +1,13 @@
 package com.example.cyberdeck;
 
 import com.example.cyberdeck.network.SetCityWaypointPacket;
+import com.example.cyberdeck.trauma.TraumaTeamEvents;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import dev.modernity.neoncity.CityMapService;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
@@ -40,7 +42,15 @@ public final class CyberdeckCommands {
                         .then(Commands.literal("off")
                                 .executes(context -> set(context.getSource(), false)))
                         .then(Commands.literal("toggle")
-                                .executes(context -> toggle(context.getSource())))));
+                                .executes(context -> toggle(context.getSource()))))
+                .then(Commands.literal("trauma")
+                        .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .executes(context -> dispatchTrauma(
+                                context.getSource(), context.getSource().getPlayerOrException()))
+                        .then(Commands.argument("target", EntityArgument.player())
+                                .executes(context -> dispatchTrauma(
+                                        context.getSource(),
+                                        EntityArgument.getPlayer(context, "target"))))));
     }
 
     private static int toggle(CommandSourceStack source) throws CommandSyntaxException {
@@ -78,6 +88,22 @@ public final class CyberdeckCommands {
         CyberdeckState.setActive(player, active);
         source.sendSuccess(() -> Component.literal(
                 active ? "Cyberdeck scanner online" : "Cyberdeck scanner offline"), false);
+        return 1;
+    }
+
+    private static int dispatchTrauma(CommandSourceStack source, ServerPlayer target) {
+        if (!target.isAlive() || target.isCreative() || target.isSpectator()) {
+            source.sendFailure(Component.translatable(
+                    "command.cyberdeck.trauma.target_invalid", target.getDisplayName()));
+            return 0;
+        }
+        if (!TraumaTeamEvents.requestForCommand(target)) {
+            source.sendFailure(Component.translatable(
+                    "command.cyberdeck.trauma.no_landing", target.getDisplayName()));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.translatable(
+                "command.cyberdeck.trauma.dispatched", target.getDisplayName()), true);
         return 1;
     }
 }
