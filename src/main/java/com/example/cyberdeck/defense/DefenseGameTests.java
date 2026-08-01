@@ -3,6 +3,7 @@ package com.example.cyberdeck.defense;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.item.ItemStack;
@@ -69,15 +70,24 @@ final class DefenseGameTests {
 
         BlockPos absoluteFloor = helper.absolutePos(floor);
         ItemStack turretItem = new ItemStack(DefenseContent.KANG_TAO_TURRET_ITEM.get());
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        BlockPos absolutePlacement = helper.absolutePos(placement);
+        player.snapTo(
+                absolutePlacement.getX() + 0.5,
+                absolutePlacement.getY(),
+                absolutePlacement.getZ() + 0.5,
+                0.0F,
+                0.0F);
+        player.setItemInHand(InteractionHand.MAIN_HAND, turretItem);
         UseOnContext context = new UseOnContext(
-                helper.getLevel(),
-                null,
+                player,
                 InteractionHand.MAIN_HAND,
-                turretItem,
                 new BlockHitResult(
                         Vec3.atCenterOf(absoluteFloor), Direction.UP, absoluteFloor, false));
         InteractionResult result = DefenseContent.KANG_TAO_TURRET_ITEM.get().useOn(context);
-        helper.assertTrue(result.consumesAction(), "turret item must deploy on a valid floor");
+        helper.assertTrue(result.consumesAction(),
+                "turret item must deploy even when the player stands close to the target");
+        player.discard();
 
         KangTaoTurret turret = helper.getLevel().getEntitiesOfClass(
                         KangTaoTurret.class,

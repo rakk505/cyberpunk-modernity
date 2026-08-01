@@ -39,7 +39,7 @@ public final class KangTaoTurretItem extends Item {
 
         BlockPos pos = new BlockPlaceContext(context).getClickedPos();
         BlockPos support = pos.below();
-        if (!level.getBlockState(support).isFaceSturdy(level, support, Direction.UP)) {
+        if (level.getBlockState(support).getCollisionShape(level, support).isEmpty()) {
             return fail(context.getPlayer(), "message.cyberdeck.turret.invalid_surface");
         }
         if (!canPlaceAt(level, pos)) {
@@ -51,7 +51,7 @@ public final class KangTaoTurretItem extends Item {
                 level, context.getItemInHand(), context.getPlayer());
         KangTaoTurret turret = type.create(
                 level, config, pos, EntitySpawnReason.SPAWN_ITEM_USE, true, true);
-        if (turret == null || !level.noCollision(turret)) {
+        if (turret == null || !level.noBlockCollision(turret, turret.getBoundingBox())) {
             if (turret != null) {
                 turret.discard();
             }
@@ -66,6 +66,7 @@ public final class KangTaoTurretItem extends Item {
                 SoundEvents.ARMOR_STAND_PLACE, SoundSource.BLOCKS, 0.8F, 0.75F);
         turret.gameEvent(GameEvent.ENTITY_PLACE, context.getPlayer());
         context.getItemInHand().consume(1, context.getPlayer());
+        notify(context.getPlayer(), "message.cyberdeck.turret.deployed");
         return InteractionResult.SUCCESS_SERVER;
     }
 
@@ -73,13 +74,17 @@ public final class KangTaoTurretItem extends Item {
         EntityType<KangTaoTurret> type = DefenseContent.KANG_TAO_TURRET.get();
         Vec3 center = Vec3.atBottomCenterOf(pos);
         AABB bounds = type.getDimensions().makeBoundingBox(center.x(), center.y(), center.z());
-        return level.noCollision(null, bounds) && level.getEntities(null, bounds).isEmpty();
+        return level.noBlockCollision(null, bounds);
     }
 
     private static InteractionResult fail(Player player, String messageKey) {
+        notify(player, messageKey);
+        return InteractionResult.FAIL;
+    }
+
+    private static void notify(Player player, String messageKey) {
         if (player instanceof ServerPlayer serverPlayer) {
             serverPlayer.sendSystemMessage(Component.translatable(messageKey), true);
         }
-        return InteractionResult.FAIL;
     }
 }
