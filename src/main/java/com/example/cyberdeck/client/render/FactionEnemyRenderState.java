@@ -8,6 +8,7 @@ import net.minecraft.client.renderer.entity.state.HumanoidRenderState;
 public final class FactionEnemyRenderState extends HumanoidRenderState {
     public boolean cyberpsycho;
     public boolean traumaTeam;
+    public boolean excision;
     public TacticalPoseData tacticalPose = new TacticalPoseData(
             TacticalAction.NONE,
             0.0F,

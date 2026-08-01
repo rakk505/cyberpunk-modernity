@@ -380,9 +380,22 @@ public final class CyberdeckGameTests {
                 helper.setBlock(new BlockPos(x, 1, z), Blocks.STONE);
             }
         }
+        helper.setBlock(new BlockPos(5, 1, 5), Blocks.AIR);
         BlockPos landing = helper.absolutePos(new BlockPos(16, 2, 10));
+        BlockPos underbodyObstruction = new BlockPos(16, 4, 10);
+        helper.setBlock(underbodyObstruction, Blocks.STONE);
+        helper.assertTrue(!TraumaTeamEvents.hasLandingClearance(level, landing, 2),
+                "Aerodyne clearance must reject blocks in the three-block hover gap");
+        helper.setBlock(underbodyObstruction, Blocks.AIR);
+        BlockPos hullObstruction = new BlockPos(16, 5, 10);
+        helper.setBlock(hullObstruction, Blocks.STONE);
+        helper.assertTrue(!TraumaTeamEvents.hasLandingClearance(level, landing, 2),
+                "Aerodyne clearance must reject blocks inside the full structure volume");
+        helper.setBlock(hullObstruction, Blocks.AIR);
+        BlockPos approachObstruction = new BlockPos(16, 14, 10);
+        helper.setBlock(approachObstruction, Blocks.STONE);
         helper.assertTrue(TraumaTeamEvents.hasLandingClearance(level, landing, 2),
-                "prepared Trauma Team arena must accept the aerodyne footprint");
+                "landing clearance must allow uneven ground and ignore overhead approach blocks");
 
         CityNpc exec = CityNpcEntities.CITY_NPC.get().create(level, EntitySpawnReason.COMMAND);
         helper.assertTrue(exec != null, "Exec factory failed for Trauma Team lifecycle");
@@ -427,8 +440,12 @@ public final class CyberdeckGameTests {
         helper.assertTrue(!aerodyne.get().save(new CompoundTag())
                         .getListOrEmpty("blocks").isEmpty(),
                 "native Trauma Team aerodyne template has no placeable blocks");
+        player.setGameMode(GameType.CREATIVE);
+        helper.assertTrue(TraumaTeamEvents.isCommandTargetEligible(player),
+                "/cyberdeck trauma must accept a living creative-mode target");
         helper.assertTrue(TraumaTeamEvents.requestAt(level, exec, player, landing, 2),
-                "Trauma Team request did not start with a valid native aerodyne template");
+                "creative-mode Trauma Team request did not start with a valid aerodyne template");
+        player.setGameMode(GameType.SURVIVAL);
 
         helper.runAfterDelay(12, () -> {
             helper.assertTrue(TraumaTeamEvents.phaseFor(level, execId)
@@ -447,6 +464,8 @@ public final class CyberdeckGameTests {
                                     && responder.getTarget() == player
                                     && responder.getMainHandItem().getItem() instanceof GunItem),
                     "responders must arrive armed and immediately target the player");
+            helper.assertTrue(helper.getBlockState(approachObstruction).is(Blocks.STONE),
+                    "adaptive descent must not overwrite an overhead approach block");
 
             BlockPos pickup = landing.offset(0, 0, TraumaTeamEvents.AERODYNE_LENGTH / 2 + 2);
             exec.snapTo(pickup.getX() + 0.5, pickup.getY(), pickup.getZ() + 0.5,
@@ -466,13 +485,15 @@ public final class CyberdeckGameTests {
                             responder.isTriggered() && responder.getTarget() == player),
                     "remaining responders must stay aggroed onto the player");
             for (int x = 5; x <= 27; x++) {
-                for (int y = 2; y <= 10; y++) {
+                for (int y = 2; y <= 13; y++) {
                     for (int z = 5; z <= 15; z++) {
                         helper.assertTrue(helper.getBlockState(new BlockPos(x, y, z)).isAir(),
                                 "lift-off left an aerodyne block behind at " + x + "," + y + "," + z);
                     }
                 }
             }
+            helper.assertTrue(helper.getBlockState(approachObstruction).is(Blocks.STONE),
+                    "lift-off must preserve the overhead approach block");
             disconnectTestPlayer(player);
             helper.succeed();
         });
@@ -1086,7 +1107,7 @@ public final class CyberdeckGameTests {
 
     /**
      * Feature 4: cyberpsychos are rebalanced. Their live attributes must match the tuned-down
-     * health/armour band and their self-heal must recharge 3x slower than the original cadence.
+     * health/armour band and their self-heal must stay sharply below the original values.
      */
     private static void cyberpsychoBalance(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
@@ -1098,26 +1119,28 @@ public final class CyberdeckGameTests {
         }
         helper.assertTrue(
                 psycho.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH)
-                        == 110.0,
-                "cyberpsycho max health must be rebalanced to 110");
+                        == 75.0,
+                "cyberpsycho max health must be rebalanced to 75");
         helper.assertTrue(
                 psycho.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ARMOR)
-                        == 10.0,
-                "cyberpsycho armour must be rebalanced to 10");
+                        == 7.0,
+                "cyberpsycho armour must be rebalanced to 7");
         helper.assertTrue(
                 psycho.getAttributeValue(
                                 net.minecraft.world.entity.ai.attributes.Attributes.ARMOR_TOUGHNESS)
-                        == 4.0,
-                "cyberpsycho armour toughness must be rebalanced to 4");
+                        == 2.0,
+                "cyberpsycho armour toughness must be rebalanced to 2");
 
         int healRecharge = cyberpsychoHealRecharge(helper);
-        helper.assertTrue(healRecharge == 300,
-                "cyberpsycho self-heal must recharge every 300 ticks (3x the original 100)");
+        helper.assertTrue(healRecharge == 400,
+                "cyberpsycho self-heal must recharge every 400 ticks");
+        helper.assertTrue(cyberpsychoHealAmount(helper) == 1.0F,
+                "cyberpsycho blood pump must restore only one health point");
         psycho.discard();
         helper.succeed();
     }
 
-    /** Reads the private HEAL_RECHARGE_TICKS constant so the 3x nerf stays locked in. */
+    /** Reads the private heal cadence so the balance regression stays locked in. */
     private static int cyberpsychoHealRecharge(GameTestHelper helper) {
         try {
             java.lang.reflect.Field field = com.example.cyberdeck.faction.CyberpsychoEntity.class
@@ -1127,6 +1150,18 @@ public final class CyberdeckGameTests {
         } catch (ReflectiveOperationException exception) {
             helper.fail("cyberpsycho heal recharge constant is missing: " + exception.getMessage());
             return -1;
+        }
+    }
+
+    private static float cyberpsychoHealAmount(GameTestHelper helper) {
+        try {
+            java.lang.reflect.Field field = com.example.cyberdeck.faction.CyberpsychoEntity.class
+                    .getDeclaredField("HEAL_AMOUNT");
+            field.setAccessible(true);
+            return field.getFloat(null);
+        } catch (ReflectiveOperationException exception) {
+            helper.fail("cyberpsycho heal amount is missing: " + exception.getMessage());
+            return -1.0F;
         }
     }
 

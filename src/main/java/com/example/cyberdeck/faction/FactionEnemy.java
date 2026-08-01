@@ -87,6 +87,8 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
             SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Boolean> DATA_TRAUMA_TEAM =
             SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Boolean> DATA_EXCISION =
+            SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.BOOLEAN);
 
     private static final int WEAPON_GLITCH_NONE = 0;
     private static final int WEAPON_GLITCH_FIDDLING = 1;
@@ -153,6 +155,7 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
     private com.example.cyberdeck.weapon.GrenadeType grenadeType =
             com.example.cyberdeck.weapon.GrenadeType.INCENDIARY;
     private UUID traumaTargetId;
+    private UUID excisionTargetId;
 
     public FactionEnemy(EntityType<? extends FactionEnemy> type, Level level) {
         super(type, level);
@@ -187,6 +190,7 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         entityData.define(DATA_TACTICAL_DIRECTION_Z, 0.0F);
         entityData.define(DATA_DETECTION, 0);
         entityData.define(DATA_TRAUMA_TEAM, false);
+        entityData.define(DATA_EXCISION, false);
     }
 
     @Override
@@ -262,10 +266,33 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         return this.getEntityData().get(DATA_TRAUMA_TEAM);
     }
 
+    public boolean isExcision() {
+        return this.getEntityData().get(DATA_EXCISION);
+    }
+
+    public boolean isExcisionTarget(UUID playerId) {
+        return isExcision() && playerId.equals(excisionTargetId);
+    }
+
     /** Makes this responder persistent and permanently hostile to the requesting player's attacker. */
     public void deployAsTraumaTeam(net.minecraft.server.level.ServerPlayer target) {
         this.getEntityData().set(DATA_TRAUMA_TEAM, true);
+        this.getEntityData().set(DATA_EXCISION, false);
         this.traumaTargetId = target.getUUID();
+        this.excisionTargetId = null;
+        this.setPersistenceRequired();
+        this.setTriggered(true);
+        this.setDetection(DETECTION_THRESHOLD);
+        this.setTarget(target);
+        this.setAggressive(true);
+    }
+
+    /** Marks this soldier as an Excision agent assigned to one wanted player. */
+    public void deployAsExcision(net.minecraft.server.level.ServerPlayer target) {
+        this.getEntityData().set(DATA_EXCISION, true);
+        this.getEntityData().set(DATA_TRAUMA_TEAM, false);
+        this.excisionTargetId = target.getUUID();
+        this.traumaTargetId = null;
         this.setPersistenceRequired();
         this.setTriggered(true);
         this.setDetection(DETECTION_THRESHOLD);
@@ -364,8 +391,10 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
             tickGunReload(level);
         }
         tickTacticalManeuver(level);
-        if (isTraumaTeam()) {
-            maintainTraumaAggro(level);
+        if (isExcision()) {
+            maintainAssignedAggro(level, excisionTargetId, true);
+        } else if (isTraumaTeam()) {
+            maintainAssignedAggro(level, traumaTargetId, false);
         } else {
             accumulateDetection(level);
         }
@@ -375,27 +404,32 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         // --- END throwable-distraction hook ---
     }
 
-    private void maintainTraumaAggro(ServerLevel level) {
+    private void maintainAssignedAggro(ServerLevel level, UUID assignedTargetId,
+                                       boolean allowCreative) {
         LivingEntity current = this.getTarget();
-        if (current != null && traumaTargetId != null
-                && current.getUUID().equals(traumaTargetId) && current.isAlive()
+        if (current != null && assignedTargetId != null
+                && current.getUUID().equals(assignedTargetId) && current.isAlive()
                 && (!(current instanceof Player player)
-                || !player.isCreative() && !player.isSpectator())) {
+                || (allowCreative || !player.isCreative()) && !player.isSpectator())) {
             setTriggered(true);
             setDetection(DETECTION_THRESHOLD);
             this.setAggressive(true);
             return;
         }
-        if (traumaTargetId == null) {
+        if (assignedTargetId == null) {
             return;
         }
         net.minecraft.server.level.ServerPlayer target =
-                level.getServer().getPlayerList().getPlayer(traumaTargetId);
-        if (target != null && target.isAlive() && !target.isCreative() && !target.isSpectator()) {
+                level.getServer().getPlayerList().getPlayer(assignedTargetId);
+        if (target != null && target.isAlive()
+                && (allowCreative || !target.isCreative()) && !target.isSpectator()) {
             this.setTarget(target);
             setTriggered(true);
             setDetection(DETECTION_THRESHOLD);
             this.setAggressive(true);
+        } else {
+            this.setTarget(null);
+            this.setAggressive(false);
         }
     }
 
@@ -1099,8 +1133,12 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         output.putInt("Detection", getDetection());
         output.putBoolean("Triggered", isTriggered());
         output.putBoolean("TraumaTeam", isTraumaTeam());
+        output.putBoolean("Excision", isExcision());
         if (traumaTargetId != null) {
             output.putString("TraumaTarget", traumaTargetId.toString());
+        }
+        if (excisionTargetId != null) {
+            output.putString("ExcisionTarget", excisionTargetId.toString());
         }
         output.putInt("Grenades", grenadeCount);
         output.putLong("GunReloadStartTick", getGunReloadStartTick());
@@ -1138,13 +1176,21 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         setTriggered(input.getBooleanOr("Triggered", false));
         boolean traumaTeam = input.getBooleanOr("TraumaTeam", false);
         this.getEntityData().set(DATA_TRAUMA_TEAM, traumaTeam);
+        boolean excision = input.getBooleanOr("Excision", false);
+        this.getEntityData().set(DATA_EXCISION, excision);
         String traumaTarget = input.getStringOr("TraumaTarget", "");
         try {
             traumaTargetId = traumaTarget.isEmpty() ? null : UUID.fromString(traumaTarget);
         } catch (IllegalArgumentException ignored) {
             traumaTargetId = null;
         }
-        if (traumaTeam) {
+        String excisionTarget = input.getStringOr("ExcisionTarget", "");
+        try {
+            excisionTargetId = excisionTarget.isEmpty() ? null : UUID.fromString(excisionTarget);
+        } catch (IllegalArgumentException ignored) {
+            excisionTargetId = null;
+        }
+        if (traumaTeam || excision) {
             this.setPersistenceRequired();
         }
         grenadeCount = input.getIntOr("Grenades", 0);

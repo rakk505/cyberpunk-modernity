@@ -24,15 +24,10 @@ import org.jspecify.annotations.Nullable;
 
 /** Dedicated gun-and-grenade boss entity with configurable installed cyberware. */
 public final class CyberpsychoEntity extends FactionEnemy {
-    // Balance: previously 160 HP with 14 armour / 6 toughness made the psycho a bullet sponge.
-    // Player guns are hitscan and only deal 5.5-22 base per hit (assault rifle 5.5, sniper 18,
-    // grad 22) before armour reduction, so a fair miniboss should die to roughly a full magazine
-    // of aimed hits or ~8-9 sniper rounds. 110 HP with 10 armour / 4 toughness lands in that band.
-    // (The mission datapack also spawns the psycho at 110 HP via configure().)
-    private static final float DEFAULT_HEALTH = 110.0F;
-    // Balance: blood_pump self-heal now recharges 3x slower (was every 100 ticks / 5s) so the
-    // psycho heals roughly a third as often; the heal amount is unchanged.
-    private static final int HEAL_RECHARGE_TICKS = 300;
+    private static final float DEFAULT_HEALTH = 75.0F;
+    private static final int MAX_CONFIGURED_HEALTH = 90;
+    private static final int HEAL_RECHARGE_TICKS = 400;
+    private static final float HEAL_AMOUNT = 1.0F;
     /**
      * Cooldown (ticks) between sandevistan near-teleport dashes so it blinks in bursts rather than
      * teleport-locking the player. ~2.5s at 20 tps.
@@ -68,14 +63,12 @@ public final class CyberpsychoEntity extends FactionEnemy {
     }
 
     public static AttributeSupplier.Builder createAttributes() {
-        // Balance: armour lowered from 14/6 to 10/4 so hitscan bullets retain more of their listed
-        // damage against the psycho while it still shrugs off chip damage from weak sidearms.
         return createMonsterAttributes()
                 .add(Attributes.MAX_HEALTH, DEFAULT_HEALTH)
                 .add(Attributes.MOVEMENT_SPEED, 0.31)
                 .add(Attributes.ATTACK_DAMAGE, 8.0)
-                .add(Attributes.ARMOR, 10.0)
-                .add(Attributes.ARMOR_TOUGHNESS, 4.0)
+                .add(Attributes.ARMOR, 7.0)
+                .add(Attributes.ARMOR_TOUGHNESS, 2.0)
                 .add(Attributes.KNOCKBACK_RESISTANCE, 0.55)
                 .add(Attributes.FOLLOW_RANGE, 56.0);
     }
@@ -88,15 +81,19 @@ public final class CyberpsychoEntity extends FactionEnemy {
 
     public void configure(int health, List<String> cyberware) {
         explicitlyConfigured = true;
-        double maximum = Math.max(40, health);
+        double maximum = balancedHealth(health);
         getAttribute(Attributes.MAX_HEALTH).setBaseValue(maximum);
         setHealth((float) maximum);
         installedCyberware = List.copyOf(cyberware);
         getAttribute(Attributes.ARMOR).setBaseValue(
-                installedCyberware.contains("subdermal_armor") ? 10.0 : 5.0);
+                installedCyberware.contains("subdermal_armor") ? 7.0 : 4.0);
         getAttribute(Attributes.ARMOR_TOUGHNESS).setBaseValue(
-                installedCyberware.contains("subdermal_armor") ? 4.0 : 2.0);
+                installedCyberware.contains("subdermal_armor") ? 2.0 : 1.0);
         bossEvent.setName(getDisplayName());
+    }
+
+    public static int balancedHealth(int requestedHealth) {
+        return Math.max(40, Math.min(MAX_CONFIGURED_HEALTH, requestedHealth));
     }
 
     /**
@@ -113,9 +110,9 @@ public final class CyberpsychoEntity extends FactionEnemy {
             List<String> loadout = SPAWN_LOADOUTS.get(getRandom().nextInt(SPAWN_LOADOUTS.size()));
             installedCyberware = List.copyOf(loadout);
             getAttribute(Attributes.ARMOR).setBaseValue(
-                    installedCyberware.contains("subdermal_armor") ? 10.0 : 5.0);
+                    installedCyberware.contains("subdermal_armor") ? 7.0 : 4.0);
             getAttribute(Attributes.ARMOR_TOUGHNESS).setBaseValue(
-                    installedCyberware.contains("subdermal_armor") ? 4.0 : 2.0);
+                    installedCyberware.contains("subdermal_armor") ? 2.0 : 1.0);
             bossEvent.setName(getDisplayName());
         }
         return result;
@@ -146,7 +143,7 @@ public final class CyberpsychoEntity extends FactionEnemy {
         }
         if (installedCyberware.contains("blood_pump")
                 && getHealth() < getMaxHealth() && tickCount % HEAL_RECHARGE_TICKS == 0) {
-            heal(3.0F);
+            heal(HEAL_AMOUNT);
             level.sendParticles(ParticleTypes.HEART,
                     getX(), getY() + getBbHeight() * 0.7, getZ(),
                     4, 0.25, 0.3, 0.25, 0.02);
@@ -184,6 +181,14 @@ public final class CyberpsychoEntity extends FactionEnemy {
         installedCyberware = saved.isBlank()
                 ? List.of("sandevistan", "subdermal_armor", "blood_pump")
                 : List.of(saved.split(","));
+        double maximum = Math.max(40.0, Math.min(MAX_CONFIGURED_HEALTH,
+                getAttribute(Attributes.MAX_HEALTH).getBaseValue()));
+        getAttribute(Attributes.MAX_HEALTH).setBaseValue(maximum);
+        getAttribute(Attributes.ARMOR).setBaseValue(
+                installedCyberware.contains("subdermal_armor") ? 7.0 : 4.0);
+        getAttribute(Attributes.ARMOR_TOUGHNESS).setBaseValue(
+                installedCyberware.contains("subdermal_armor") ? 2.0 : 1.0);
+        setHealth(Math.min(getHealth(), (float) maximum));
         bossEvent.setName(getDisplayName());
     }
 }

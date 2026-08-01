@@ -2,6 +2,8 @@ package com.example.cyberdeck;
 
 import com.example.cyberdeck.cyberware.CyberwareAttachments;
 import com.example.cyberdeck.cyberware.CyberwareItems;
+import com.example.cyberdeck.defense.DefenseContent;
+import com.example.cyberdeck.defense.KangTaoTurret;
 import com.example.cyberdeck.city.CityActorJoinCompatibility;
 import com.example.cyberdeck.faction.FactionEnemy;
 import com.example.cyberdeck.faction.CyberpsychoEntity;
@@ -23,6 +25,9 @@ import com.example.cyberdeck.weapon.SmartLockState;
 import com.example.cyberdeck.weapon.WeaponComponents;
 import com.example.cyberdeck.weapon.WeaponEntities;
 import com.example.cyberdeck.weapon.WeaponItems;
+import com.example.cyberdeck.wanted.WantedState;
+import com.example.cyberdeck.wanted.WantedGameTests;
+import com.example.cyberdeck.wanted.WantedSystem;
 import com.mojang.logging.LogUtils;
 import dev.modernity.neoncity.ProjectMoonCityModule;
 import dev.modernity.neoncity.MissionBlocks;
@@ -50,6 +55,8 @@ public class Cyberdeck {
         TacticalMovement.ATTACHMENT_TYPES.register(modEventBus);
         HealingState.ATTACHMENT_TYPES.register(modEventBus);
         StreetCredState.ATTACHMENT_TYPES.register(modEventBus);
+        WantedState.ATTACHMENT_TYPES.register(modEventBus);
+        DefenseContent.register(modEventBus);
 
         // Guns, ammo, grenades, ballistic armor and their entities.
         WeaponItems.ITEMS.register(modEventBus);
@@ -62,6 +69,7 @@ public class Cyberdeck {
         FactionEntities.ENTITY_TYPES.register(modEventBus);
         CityNpcEntities.ENTITY_TYPES.register(modEventBus);
         CyberdeckGameTests.bootstrap(modEventBus);
+        WantedGameTests.bootstrap(modEventBus);
         QuicktimeBlocks.register(modEventBus);
         MissionBlocks.register(modEventBus);
         ProjectMoonCityModule.bootstrap(modEventBus);
@@ -70,6 +78,8 @@ public class Cyberdeck {
         modEventBus.addListener(CyberdeckItems::addCreative);
         modEventBus.addListener(CyberwareItems::addToTab);
         modEventBus.addListener(WeaponItems::addToTab);
+        modEventBus.addListener(DefenseContent::addToTab);
+        modEventBus.addListener(DefenseContent::registerTests);
         modEventBus.addListener(Cyberdeck::registerEntityAttributes);
 
         NeoForge.EVENT_BUS.register(new ServerEvents());
@@ -82,6 +92,7 @@ public class Cyberdeck {
         NeoForge.EVENT_BUS.register(new com.example.cyberdeck.combat.ThrowableDistraction());
         NeoForge.EVENT_BUS.register(new CityNpcSpawns());
         NeoForge.EVENT_BUS.register(new com.example.cyberdeck.trauma.TraumaTeamEvents());
+        NeoForge.EVENT_BUS.register(new WantedSystem());
         NeoForge.EVENT_BUS.register(new CityActorJoinCompatibility());
         NeoForge.EVENT_BUS.register(new com.example.cyberdeck.city.CityBuilder());
     }
@@ -90,5 +101,6 @@ public class Cyberdeck {
         event.put(FactionEntities.FACTION_ENEMY.get(), FactionEnemy.createAttributes().build());
         event.put(FactionEntities.CYBERPSYCHO.get(), CyberpsychoEntity.createAttributes().build());
         event.put(CityNpcEntities.CITY_NPC.get(), CityNpc.createAttributes().build());
+        event.put(DefenseContent.KANG_TAO_TURRET.get(), KangTaoTurret.createAttributes().build());
     }
 }

@@ -58,6 +58,7 @@ public final class TraumaTeamEvents {
     public static final int AERODYNE_WIDTH = 23;
     public static final int AERODYNE_HEIGHT = 9;
     public static final int AERODYNE_LENGTH = 11;
+    public static final int AERODYNE_HOVER_CLEARANCE = 3;
     public static final int DEFAULT_DROP_HEIGHT = 24;
     public static final int MIN_RESPONDERS = 4;
     public static final int MAX_RESPONDERS = 5;
@@ -101,7 +102,7 @@ public final class TraumaTeamEvents {
 
     /** Administrative dispatch used by /cyberdeck trauma. */
     public static boolean requestForCommand(ServerPlayer target) {
-        if (!target.isAlive() || target.isCreative() || target.isSpectator()) {
+        if (!isCommandTargetEligible(target)) {
             return false;
         }
         ServerLevel level = target.level();
@@ -140,7 +141,7 @@ public final class TraumaTeamEvents {
             exec.discard();
             return false;
         }
-        if (!start(level, exec, target, landingCenter, DEFAULT_DROP_HEIGHT)) {
+        if (!start(level, exec, target, landingCenter, DEFAULT_DROP_HEIGHT, true)) {
             exec.discard();
             return false;
         }
@@ -155,18 +156,29 @@ public final class TraumaTeamEvents {
                 exec.getUUID(), landingCenter, target.getScoreboardName());
     }
 
-    /** Explicit landing hook used by deterministic GameTests. */
+    public static boolean isCommandTargetEligible(ServerPlayer target) {
+        return target.isAlive() && !target.isSpectator();
+    }
+
+    /** Explicit landing hook used by deterministic GameTests; mirrors command eligibility. */
     public static boolean requestAt(ServerLevel level, CityNpc exec, ServerPlayer target,
                                     BlockPos landingCenter, int dropHeight) {
-        return start(level, exec, target, landingCenter, Math.max(0, dropHeight));
+        return start(level, exec, target, landingCenter, Math.max(0, dropHeight), true);
     }
 
     private static boolean start(ServerLevel level, CityNpc exec, ServerPlayer target,
                                  BlockPos landingCenter, int dropHeight) {
+        return start(level, exec, target, landingCenter, dropHeight, false);
+    }
+
+    private static boolean start(ServerLevel level, CityNpc exec, ServerPlayer target,
+                                 BlockPos landingCenter, int dropHeight,
+                                 boolean allowCreativeTarget) {
         if (!exec.isAlive() || exec.getRole() != NpcRole.EXEC
-                || !target.isAlive() || target.isCreative() || target.isSpectator()
+                || !target.isAlive() || target.isSpectator()
+                || (!allowCreativeTarget && target.isCreative())
                 || hasEvent(level, exec.getUUID())
-                || !hasLandingClearance(level, landingCenter, dropHeight)) {
+                || !hasLandingClearance(level, landingCenter)) {
             return false;
         }
         StructureTemplate template = level.getStructureManager().get(AERODYNE).orElse(null);
@@ -175,12 +187,13 @@ public final class TraumaTeamEvents {
             return false;
         }
 
+        int availableDropHeight = availableDropHeight(level, landingCenter, dropHeight);
         EventState state = new EventState(
                 template,
                 exec.getUUID(),
                 target.getUUID(),
                 landingCenter,
-                dropHeight);
+                availableDropHeight);
         if (!state.place(level)) {
             return false;
         }
@@ -198,45 +211,71 @@ public final class TraumaTeamEvents {
     }
 
     public static boolean hasLandingClearance(ServerLevel level, BlockPos center) {
-        return hasLandingClearance(level, center, DEFAULT_DROP_HEIGHT);
+        if (!isSafeFeet(level, center)) {
+            return false;
+        }
+        int minX = center.getX() - AERODYNE_WIDTH / 2;
+        int minZ = center.getZ() - AERODYNE_LENGTH / 2;
+        int structureY = center.getY() + AERODYNE_HOVER_CLEARANCE;
+        return isEmptyVolume(
+                level,
+                minX,
+                center.getY(),
+                minZ,
+                minX + AERODYNE_WIDTH - 1,
+                structureY + AERODYNE_HEIGHT - 1,
+                minZ + AERODYNE_LENGTH - 1);
     }
 
+    /** Compatibility overload: approach height no longer affects landing-site acceptance. */
     public static boolean hasLandingClearance(ServerLevel level, BlockPos center, int dropHeight) {
+        return hasLandingClearance(level, center);
+    }
+
+    private static int availableDropHeight(
+            ServerLevel level, BlockPos center, int requestedDropHeight) {
         int minX = center.getX() - AERODYNE_WIDTH / 2;
         int minZ = center.getZ() - AERODYNE_LENGTH / 2;
         int maxX = minX + AERODYNE_WIDTH - 1;
         int maxZ = minZ + AERODYNE_LENGTH - 1;
-        BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
-
-        for (int x = minX; x <= maxX; x += 2) {
-            for (int z = minZ; z <= maxZ; z += 2) {
-                cursor.set(x, center.getY() - 1, z);
-                if (!level.isLoaded(cursor) || !level.getWorldBorder().isWithinBounds(cursor)
-                        || !level.getBlockState(cursor).blocksMotion()) {
-                    return false;
-                }
+        int structureTopY = center.getY()
+                + AERODYNE_HOVER_CLEARANCE
+                + AERODYNE_HEIGHT - 1;
+        int allowedDropHeight = 0;
+        for (int offsetY = 1; offsetY <= Math.max(0, requestedDropHeight); offsetY++) {
+            if (!isEmptyVolume(
+                    level,
+                    minX,
+                    structureTopY + offsetY,
+                    minZ,
+                    maxX,
+                    structureTopY + offsetY,
+                    maxZ)) {
+                break;
             }
+            allowedDropHeight = offsetY;
         }
+        return allowedDropHeight;
+    }
+
+    private static boolean isEmptyVolume(
+            ServerLevel level,
+            int minX,
+            int minY,
+            int minZ,
+            int maxX,
+            int maxY,
+            int maxZ) {
+        BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
         for (int x = minX; x <= maxX; x++) {
             for (int z = minZ; z <= maxZ; z++) {
-                for (int y = 0; y < AERODYNE_HEIGHT + Math.max(0, dropHeight); y++) {
-                    cursor.set(x, center.getY() + y, z);
-                    if (!level.isLoaded(cursor) || !level.getWorldBorder().isWithinBounds(cursor)
+                for (int y = minY; y <= maxY; y++) {
+                    cursor.set(x, y, z);
+                    if (!level.isLoaded(cursor)
+                            || !level.getWorldBorder().isWithinBounds(cursor)
                             || !level.isEmptyBlock(cursor)) {
                         return false;
                     }
-                }
-            }
-        }
-        for (int[] offset : RESPONDER_OFFSETS) {
-            BlockPos feet = resolveFeet(
-                    level, center.getX() + offset[0], center.getZ() + offset[1], center.getY());
-            if (feet == null || feet.getY() != center.getY()) {
-                return false;
-            }
-            for (int y = 0; y < 8; y++) {
-                if (!level.isEmptyBlock(feet.above(y))) {
-                    return false;
                 }
             }
         }
@@ -244,7 +283,7 @@ public final class TraumaTeamEvents {
     }
 
     private static BlockPos findLandingCenter(ServerLevel level, BlockPos origin, RandomSource random) {
-        BlockPos direct = resolveFeet(level, origin.getX(), origin.getZ(), origin.getY());
+        BlockPos direct = resolveLandingAnchor(level, origin.getX(), origin.getZ(), origin.getY());
         if (direct != null && hasLandingClearance(level, direct)) {
             return direct;
         }
@@ -252,7 +291,7 @@ public final class TraumaTeamEvents {
             double offset = random.nextDouble() * Math.PI * 2.0;
             for (int sample = 0; sample < 16; sample++) {
                 double angle = offset + sample * Math.PI * 2.0 / 16.0;
-                BlockPos candidate = resolveFeet(
+                BlockPos candidate = resolveLandingAnchor(
                         level,
                         origin.getX() + (int) Math.round(Math.cos(angle) * radius),
                         origin.getZ() + (int) Math.round(Math.sin(angle) * radius),
@@ -263,6 +302,15 @@ public final class TraumaTeamEvents {
             }
         }
         return null;
+    }
+
+    private static BlockPos resolveLandingAnchor(ServerLevel level, int x, int z, int preferredY) {
+        BlockPos probe = new BlockPos(x, preferredY, z);
+        if (!level.isLoaded(probe)) {
+            return null;
+        }
+        BlockPos candidate = level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, probe);
+        return isSafeFeet(level, candidate) ? candidate : null;
     }
 
     private static BlockPos resolveFeet(ServerLevel level, int x, int z, int preferredY) {
@@ -386,7 +434,7 @@ public final class TraumaTeamEvents {
             this.landingCenter = landingCenter.immutable();
             this.originX = landingCenter.getX() - AERODYNE_WIDTH / 2;
             this.originZ = landingCenter.getZ() - AERODYNE_LENGTH / 2;
-            this.landingY = landingCenter.getY();
+            this.landingY = landingCenter.getY() + AERODYNE_HOVER_CLEARANCE;
             this.startY = landingY + dropHeight;
             this.currentY = startY;
         }
@@ -497,6 +545,16 @@ public final class TraumaTeamEvents {
         }
 
         private boolean place(ServerLevel level) {
+            if (!isEmptyVolume(
+                    level,
+                    originX,
+                    currentY,
+                    originZ,
+                    originX + AERODYNE_WIDTH - 1,
+                    currentY + AERODYNE_HEIGHT - 1,
+                    originZ + AERODYNE_LENGTH - 1)) {
+                return false;
+            }
             StructurePlaceSettings settings = settings();
             boolean placed = template.placeInWorld(
                     level, origin(), origin(), settings, level.getRandom(), BLOCK_UPDATE_FLAGS);
@@ -547,7 +605,7 @@ public final class TraumaTeamEvents {
                         level,
                         landingCenter.getX() + offset[0],
                         landingCenter.getZ() + offset[1],
-                        landingY);
+                        landingCenter.getY());
                 if (feet == null) {
                     continue;
                 }

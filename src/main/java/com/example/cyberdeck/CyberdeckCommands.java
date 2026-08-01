@@ -92,7 +92,7 @@ public final class CyberdeckCommands {
     }
 
     private static int dispatchTrauma(CommandSourceStack source, ServerPlayer target) {
-        if (!target.isAlive() || target.isCreative() || target.isSpectator()) {
+        if (!TraumaTeamEvents.isCommandTargetEligible(target)) {
             source.sendFailure(Component.translatable(
                     "command.cyberdeck.trauma.target_invalid", target.getDisplayName()));
             return 0;

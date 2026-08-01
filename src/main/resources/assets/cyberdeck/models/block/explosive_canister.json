@@ -1,0 +1,82 @@
+{
+  "ambientocclusion": true,
+  "textures": {
+    "particle": "minecraft:block/red_concrete",
+    "red": "minecraft:block/red_concrete",
+    "white": "minecraft:block/white_concrete"
+  },
+  "elements": [
+    {
+      "from": [5, 0, 5],
+      "to": [11, 1, 11],
+      "faces": {
+        "down": {"texture": "#white"},
+        "up": {"texture": "#white"},
+        "north": {"texture": "#white"},
+        "south": {"texture": "#white"},
+        "west": {"texture": "#white"},
+        "east": {"texture": "#white"}
+      }
+    },
+    {
+      "from": [3, 1, 3],
+      "to": [13, 3, 13],
+      "faces": {
+        "down": {"texture": "#red"},
+        "up": {"texture": "#red"},
+        "north": {"texture": "#red"},
+        "south": {"texture": "#red"},
+        "west": {"texture": "#red"},
+        "east": {"texture": "#red"}
+      }
+    },
+    {
+      "from": [2, 3, 2],
+      "to": [14, 13, 14],
+      "faces": {
+        "down": {"texture": "#red"},
+        "up": {"texture": "#red"},
+        "north": {"texture": "#red"},
+        "south": {"texture": "#red"},
+        "west": {"texture": "#red"},
+        "east": {"texture": "#red"}
+      }
+    },
+    {
+      "from": [1.9, 7, 1.9],
+      "to": [14.1, 9, 14.1],
+      "faces": {
+        "down": {"texture": "#white"},
+        "up": {"texture": "#white"},
+        "north": {"texture": "#white"},
+        "south": {"texture": "#white"},
+        "west": {"texture": "#white"},
+        "east": {"texture": "#white"}
+      }
+    },
+    {
+      "from": [4, 13, 4],
+      "to": [12, 15, 12],
+      "faces": {
+        "down": {"texture": "#red"},
+        "up": {"texture": "#red"},
+        "north": {"texture": "#red"},
+        "south": {"texture": "#red"},
+        "west": {"texture": "#red"},
+        "east": {"texture": "#red"}
+      }
+    },
+    {
+      "from": [3, 15, 3],
+      "to": [13, 16, 13],
+      "faces": {
+        "down": {"texture": "#white"},
+        "up": {"texture": "#white"},
+        "north": {"texture": "#white"},
+        "south": {"texture": "#white"},
+        "west": {"texture": "#white"},
+        "east": {"texture": "#white"}
+      }
+    }
+  ]
+}

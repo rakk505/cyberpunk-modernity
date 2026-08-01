@@ -27,7 +27,7 @@
       "guards": 0,
       "objective_radius": 32,
       "cyberpsycho": {
-        "health": 110,
+        "health": 75,
         "gun": "ajax",
         "grenades": 3,
         "cyberware": ["sandevistan", "subdermal_armor", "blood_pump", "optical_camo"]

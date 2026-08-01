@@ -1,6 +1,7 @@
 package com.example.cyberdeck.weapon;
 
 import com.example.cyberdeck.effect.SandevistanMechanics;
+import com.example.cyberdeck.defense.ExplosiveCanisterBlock;
 import com.example.cyberdeck.faction.FactionEnemy;
 import com.example.cyberdeck.movement.TacticalMovement;
 import com.example.cyberdeck.npc.CityNpc;
@@ -110,6 +111,8 @@ public final class GunFiring {
                 }
             }
 
+            detonateReachedCanisters(level, shooter, eye, impact, path);
+
             if (path.penetrationEntry() != null
                     && eye.distanceToSqr(impact) >= eye.distanceToSqr(path.penetrationEntry())) {
                 spawnPenetrationEffect(level, path.penetrationEntry());
@@ -174,28 +177,49 @@ public final class GunFiring {
         BlockHitResult first = level.clipIncludingBorder(new ClipContext(
                 start, end, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, shooter));
         if (first.getType() == HitResult.Type.MISS) {
-            return new ShotPath(end, null, null);
+            return new ShotPath(end, null, null, null, null);
         }
         if (!gun.isTech() || first.isWorldBorderHit()
                 || level.getBlockState(first.getBlockPos())
                         .getDestroySpeed(level, first.getBlockPos()) < 0.0F) {
-            return new ShotPath(first.getLocation(), null, null);
+            return new ShotPath(first.getLocation(), null, null, first, null);
         }
 
         Vec3 entry = first.getLocation();
         Vec3 exit = new AABB(first.getBlockPos()).clip(end, entry).orElse(null);
         if (exit == null) {
-            return new ShotPath(entry, null, null);
+            return new ShotPath(entry, null, null, first, null);
         }
         Vec3 resumed = exit.add(direction.scale(PENETRATION_EPSILON));
         if (resumed.distanceToSqr(end) >= exit.distanceToSqr(end)) {
-            return new ShotPath(exit, entry, exit);
+            return new ShotPath(exit, entry, exit, first, null);
         }
 
         BlockHitResult second = level.clipIncludingBorder(new ClipContext(
                 resumed, end, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, shooter));
         Vec3 rayEnd = second.getType() == HitResult.Type.MISS ? end : second.getLocation();
-        return new ShotPath(rayEnd, entry, exit);
+        return new ShotPath(rayEnd, entry, exit, first,
+                second.getType() == HitResult.Type.MISS ? null : second);
+    }
+
+    private static void detonateReachedCanisters(
+            ServerLevel level, LivingEntity shooter, Vec3 eye, Vec3 impact, ShotPath path) {
+        detonateReachedCanister(level, shooter, eye, impact, path.firstBlockHit());
+        BlockHitResult second = path.secondBlockHit();
+        if (second != null && (path.firstBlockHit() == null
+                || !second.getBlockPos().equals(path.firstBlockHit().getBlockPos()))) {
+            detonateReachedCanister(level, shooter, eye, impact, second);
+        }
+    }
+
+    private static void detonateReachedCanister(
+            ServerLevel level, LivingEntity shooter, Vec3 eye, Vec3 impact,
+            BlockHitResult blockHit) {
+        if (blockHit != null
+                && eye.distanceToSqr(blockHit.getLocation())
+                        <= eye.distanceToSqr(impact) + IMPACT_DISTANCE_EPSILON) {
+            ExplosiveCanisterBlock.detonate(level, blockHit.getBlockPos(), shooter);
+        }
     }
 
     private static EntityHitResult findEntityHit(LivingEntity shooter, Vec3 start, Vec3 end) {
@@ -226,8 +250,14 @@ public final class GunFiring {
     private static final DustParticleOptions TECH_PARTICLE =
             new DustParticleOptions(0x26E6FF, 0.9F);
     private static final double PENETRATION_EPSILON = 1.0E-4;
+    private static final double IMPACT_DISTANCE_EPSILON = 1.0E-7;
 
-    private record ShotPath(Vec3 rayEnd, Vec3 penetrationEntry, Vec3 penetrationExit) {
+    private record ShotPath(
+            Vec3 rayEnd,
+            Vec3 penetrationEntry,
+            Vec3 penetrationExit,
+            BlockHitResult firstBlockHit,
+            BlockHitResult secondBlockHit) {
     }
 
     private static Vec3 applySpread(Vec3 dir, float spreadDegrees, RandomSource rng) {

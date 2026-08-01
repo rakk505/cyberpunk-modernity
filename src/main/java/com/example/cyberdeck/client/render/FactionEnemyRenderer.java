@@ -33,6 +33,8 @@ public final class FactionEnemyRenderer
             "cyberdeck", "textures/entity/cyberpsycho.png");
     private static final Identifier TRAUMA_TEAM_SKIN = Identifier.fromNamespaceAndPath(
             "cyberdeck", "textures/entity/trauma_team.png");
+    private static final Identifier EXCISION_SKIN = Identifier.fromNamespaceAndPath(
+            "cyberdeck", "textures/entity/excision_agent.png");
     private static final float RECOIL_TICKS = 4.0F;
 
     public FactionEnemyRenderer(EntityRendererProvider.Context context) {
@@ -50,6 +52,9 @@ public final class FactionEnemyRenderer
 
     @Override
     public Identifier getTextureLocation(FactionEnemyRenderState state) {
+        if (state.excision) {
+            return EXCISION_SKIN;
+        }
         if (state.traumaTeam) {
             return TRAUMA_TEAM_SKIN;
         }
@@ -73,6 +78,7 @@ public final class FactionEnemyRenderer
         super.extractRenderState(enemy, state, partialTick);
         state.cyberpsycho = enemy instanceof CyberpsychoEntity;
         state.traumaTeam = enemy.isTraumaTeam();
+        state.excision = enemy.isExcision();
 
         // The off-hand slot is this entity's holster, not a second simultaneously wielded gun.
         // Hide that model so the synchronized hand swap visibly replaces the primary with the

@@ -224,7 +224,8 @@ public final class MissionCatalog {
         int cargoCount = 0;
         if (type == MissionType.NEUTRALIZE_CYBERPSYCHO) {
             JsonObject psycho = object(value, "cyberpsycho");
-            health = range(integer(psycho, "health"), 40, 1024, "cyberpsycho health");
+            health = com.example.cyberdeck.faction.CyberpsychoEntity.balancedHealth(
+                    range(integer(psycho, "health"), 40, 1024, "cyberpsycho health"));
             gun = parseGun(text(psycho, "gun"));
             grenades = range(integer(psycho, "grenades"), 0, 16,
                     "cyberpsycho grenades");
