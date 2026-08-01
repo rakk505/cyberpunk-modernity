@@ -117,6 +117,7 @@
   "message.cyberdeck.berserk_recharging": "Berserk recharging",
   "message.cyberdeck.blood_pump": "Blood Pump activated",
   "message.cyberdeck.cyberdeck_required": "Install a Cyberdeck operating system to quickhack",
+  "message.cyberdeck.scanner_implant_required": "Install a Cyberdeck or ocular implant to scan",
   "message.cyberdeck.no_ram": "Requires %s RAM; %s available",
   "message.cyberdeck.quickhack_queued": "%s queued (%s/%s)",
   "message.cyberdeck.quickhack_queue_full": "Quickhack queue full (%s maximum)",

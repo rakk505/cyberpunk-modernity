@@ -49,7 +49,7 @@ public final class CyberdeckClient {
     public static final KeyMapping.Category CATEGORY =
             new KeyMapping.Category(Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "main"));
 
-    // Bound to TAB by default. Toggles the scanner when a cyberdeck OS is installed.
+    // Bound to TAB by default. Toggles quickhacking for a deck or read-only scanning for optics.
     public static final KeyMapping TOGGLE_KEY = new KeyMapping(
             "key.cyberdeck.toggle",
             InputConstants.Type.KEYSYM,

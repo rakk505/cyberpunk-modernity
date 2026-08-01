@@ -400,6 +400,10 @@ public final class CyberdeckGameTests {
 
     private static void traumaTeamLifecycle(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
+        helper.assertTrue(TraumaTeamEvents.EXEC_BOARDING_WAIT_TICKS == 3_000,
+                "Exec boarding hold must last exactly 2.5 minutes");
+        helper.assertTrue(TraumaTeamEvents.MAX_LANDED_TICKS == 6_000,
+                "a landed aerodyne must have a bounded five-minute lifecycle");
         var cyberdeckCommand = level.getServer().getCommands().getDispatcher()
                 .getRoot().getChild("cyberdeck");
         helper.assertTrue(cyberdeckCommand != null
@@ -428,7 +432,7 @@ public final class CyberdeckGameTests {
 
         ServerPlayer player = makeSurvivalServerPlayerInLevel(helper);
         player.addEffect(new MobEffectInstance(
-                MobEffects.RESISTANCE, 20 * 10, 4, false, false));
+                MobEffects.RESISTANCE, 20 * 20, 4, false, false));
         BlockPos playerPos = helper.absolutePos(new BlockPos(1, 2, 1));
         player.snapTo(playerPos.getX() + 0.5, playerPos.getY(), playerPos.getZ() + 0.5,
                 0.0F, 0.0F);
@@ -457,14 +461,17 @@ public final class CyberdeckGameTests {
         helper.assertTrue(!aerodyne.get().save(new CompoundTag())
                         .getListOrEmpty("blocks").isEmpty(),
                 "native Trauma Team aerodyne template has no placeable blocks");
-        helper.assertTrue(TraumaTeamEvents.requestAt(level, exec, player, landing, 2),
+        helper.assertTrue(TraumaTeamEvents.requestAt(level, exec, player, landing, 2, 80, 20),
                 "Trauma Team request did not start with a valid native aerodyne template");
+
+        int[] deployedResponders = {0};
 
         helper.runAfterDelay(12, () -> {
             helper.assertTrue(TraumaTeamEvents.phaseFor(level, execId)
                             == TraumaTeamEvents.Phase.LANDED,
                     "aerodyne did not finish its animated descent");
             int count = TraumaTeamEvents.responderCount(level, execId);
+            deployedResponders[0] = count;
             helper.assertTrue(count >= TraumaTeamEvents.MIN_RESPONDERS
                             && count <= TraumaTeamEvents.MAX_RESPONDERS,
                     "Trauma Team must deploy 4-5 responders, got " + count);
@@ -475,26 +482,215 @@ public final class CyberdeckGameTests {
             helper.assertTrue(responders.stream().allMatch(responder ->
                             responder.isTriggered()
                                     && responder.getTarget() == player
-                                    && responder.getMainHandItem().getItem() instanceof GunItem),
-                    "responders must arrive armed and immediately target the player");
+                                    && responder.getMainHandItem().getItem() instanceof GunItem
+                                    && !responder.isInvulnerable()),
+                    "responders must arrive armed, killable, and immediately target the player");
 
             BlockPos pickup = landing.offset(0, 0, TraumaTeamEvents.AERODYNE_LENGTH / 2 + 2);
             exec.snapTo(pickup.getX() + 0.5, pickup.getY(), pickup.getZ() + 0.5,
                     0.0F, 0.0F);
         });
 
-        helper.runAfterDelay(32, () -> {
+        helper.runAfterDelay(16, () -> {
+            helper.assertTrue(TraumaTeamEvents.phaseFor(level, execId)
+                            == TraumaTeamEvents.Phase.BOARDING,
+                    "Exec did not enter the visible boarding hold beside the aerodyne");
+            helper.assertTrue(exec.isAlive() && !exec.isEvacuating() && !exec.isInvulnerable(),
+                    "boarding Exec must remain present, stationary, and killable");
+            List<FactionEnemy> responders = level.getEntitiesOfClass(
+                    FactionEnemy.class, new AABB(landing).inflate(48.0),
+                    responder -> responder.isTraumaTeam() && responder.isAlive());
+            helper.assertTrue(!responders.isEmpty(),
+                    "boarding event lost all Trauma Team responders unexpectedly");
+            FactionEnemy casualty = responders.getFirst();
+            casualty.setHealth(1.0F);
+            helper.assertTrue(casualty.hurtServer(
+                            level, level.damageSources().playerAttack(player), 100.0F)
+                            && !casualty.isAlive(),
+                    "Trauma Team responder could not be killed during boarding");
+        });
+
+        helper.runAfterDelay(28, () -> {
+            helper.assertTrue(TraumaTeamEvents.phaseFor(level, execId)
+                            == TraumaTeamEvents.Phase.BOARDING
+                            && level.getEntity(execId) != null,
+                    "aerodyne extracted the Exec before the boarding hold elapsed");
+        });
+
+        helper.runAfterDelay(36, () -> {
+            helper.assertTrue(TraumaTeamEvents.phaseFor(level, execId)
+                            == TraumaTeamEvents.Phase.ASCENDING,
+                    "aerodyne did not use its ascent after the boarding hold elapsed");
+            helper.assertTrue(level.getEntity(execId) == null,
+                    "successfully boarded Exec must leave the world at lift-off");
+        });
+
+        UUID[] strandedExecId = {null};
+        CityNpc[] strandedExec = {null};
+        helper.runAfterDelay(48, () -> {
             helper.assertTrue(TraumaTeamEvents.activeEventCount(level) == 0,
                     "aerodyne did not lift off and clear after successful extraction");
-            helper.assertTrue(level.getEntity(execId) == null,
-                    "successfully extracted Exec must leave the world with the aerodyne");
             List<FactionEnemy> survivors = level.getEntitiesOfClass(
-                    FactionEnemy.class, new AABB(landing).inflate(64.0), FactionEnemy::isTraumaTeam);
-            helper.assertTrue(survivors.size() >= TraumaTeamEvents.MIN_RESPONDERS,
+                    FactionEnemy.class, new AABB(landing).inflate(64.0),
+                    responder -> responder.isTraumaTeam() && responder.isAlive());
+            helper.assertTrue(survivors.size() >= deployedResponders[0] - 1,
                     "surviving Trauma Team members must remain after lift-off");
             helper.assertTrue(survivors.stream().allMatch(responder ->
                             responder.isTriggered() && responder.getTarget() == player),
                     "remaining responders must stay aggroed onto the player");
+
+            CityNpc stranded = CityNpcEntities.CITY_NPC.get().create(
+                    level, EntitySpawnReason.COMMAND);
+            helper.assertTrue(stranded != null,
+                    "Exec factory failed for responder-wipe Trauma Team lifecycle");
+            if (stranded == null) {
+                return;
+            }
+            stranded.snapTo(execStart.getX() + 0.5, execStart.getY(), execStart.getZ() + 0.5,
+                    0.0F, 0.0F);
+            stranded.setRole(NpcRole.EXEC);
+            stranded.setPersistenceRequired();
+            helper.assertTrue(level.addFreshEntity(stranded),
+                    "could not add responder-wipe Trauma Team Exec");
+            strandedExec[0] = stranded;
+            strandedExecId[0] = stranded.getUUID();
+            helper.assertTrue(TraumaTeamEvents.requestAt(
+                            level, stranded, player, landing, 2, 80, 20),
+                    "could not start responder-wipe Trauma Team event");
+        });
+
+        helper.runAfterDelay(60, () -> {
+            helper.assertTrue(TraumaTeamEvents.phaseFor(level, strandedExecId[0])
+                            == TraumaTeamEvents.Phase.LANDED,
+                    "second aerodyne did not land for the responder-wipe lifecycle");
+            BlockPos pickup = landing.offset(0, 0, TraumaTeamEvents.AERODYNE_LENGTH / 2 + 2);
+            strandedExec[0].snapTo(
+                    pickup.getX() + 0.5, pickup.getY(), pickup.getZ() + 0.5, 0.0F, 0.0F);
+        });
+
+        helper.runAfterDelay(64, () -> {
+            helper.assertTrue(TraumaTeamEvents.phaseFor(level, strandedExecId[0])
+                            == TraumaTeamEvents.Phase.BOARDING,
+                    "second Exec did not enter the boarding hold");
+            List<FactionEnemy> responders = level.getEntitiesOfClass(
+                    FactionEnemy.class, new AABB(landing).inflate(128.0),
+                    responder -> responder.isTraumaTeam() && responder.isAlive());
+            helper.assertTrue(responders.size() >= TraumaTeamEvents.MIN_RESPONDERS,
+                    "responder-wipe lifecycle did not deploy a full Trauma Team");
+            for (FactionEnemy responder : responders) {
+                responder.setHealth(1.0F);
+                helper.assertTrue(responder.hurtServer(
+                                level, level.damageSources().playerAttack(player), 100.0F)
+                                && !responder.isAlive(),
+                        "Trauma Team responder survived the wipe setup");
+            }
+            helper.assertTrue(strandedExec[0].isAlive(),
+                    "responder wipe unexpectedly killed the boarding Exec");
+        });
+
+        helper.runAfterDelay(67, () -> {
+            helper.assertTrue(TraumaTeamEvents.phaseFor(level, strandedExecId[0])
+                            == TraumaTeamEvents.Phase.ASCENDING,
+                    "full responder wipe did not trigger the normal ascent immediately");
+            helper.assertTrue(strandedExec[0].isAlive()
+                            && level.getEntity(strandedExecId[0]) != null
+                            && !strandedExec[0].isEvacuating(),
+                    "responder-wipe departure must leave the living Exec behind");
+        });
+
+        UUID[] doomedExecId = {null};
+        CityNpc[] doomedExec = {null};
+        helper.runAfterDelay(82, () -> {
+            helper.assertTrue(TraumaTeamEvents.activeEventCount(level) == 0,
+                    "responder-wipe aerodyne did not finish its ascent");
+            strandedExec[0].discard();
+
+            CityNpc doomed = CityNpcEntities.CITY_NPC.get().create(
+                    level, EntitySpawnReason.COMMAND);
+            helper.assertTrue(doomed != null,
+                    "Exec factory failed for death-triggered Trauma Team lifecycle");
+            if (doomed == null) {
+                return;
+            }
+            doomed.snapTo(execStart.getX() + 0.5, execStart.getY(), execStart.getZ() + 0.5,
+                    0.0F, 0.0F);
+            doomed.setRole(NpcRole.EXEC);
+            doomed.setPersistenceRequired();
+            helper.assertTrue(level.addFreshEntity(doomed),
+                    "could not add death-triggered Trauma Team Exec");
+            doomedExec[0] = doomed;
+            doomedExecId[0] = doomed.getUUID();
+            helper.assertTrue(TraumaTeamEvents.requestAt(
+                            level, doomed, player, landing, 2, 80, 20),
+                    "could not start death-triggered Trauma Team event");
+        });
+
+        helper.runAfterDelay(94, () -> {
+            helper.assertTrue(TraumaTeamEvents.phaseFor(level, doomedExecId[0])
+                            == TraumaTeamEvents.Phase.LANDED,
+                    "third aerodyne did not land for the death-triggered lifecycle");
+            BlockPos pickup = landing.offset(0, 0, TraumaTeamEvents.AERODYNE_LENGTH / 2 + 2);
+            doomedExec[0].snapTo(
+                    pickup.getX() + 0.5, pickup.getY(), pickup.getZ() + 0.5, 0.0F, 0.0F);
+        });
+
+        helper.runAfterDelay(98, () -> {
+            CityNpc doomed = doomedExec[0];
+            helper.assertTrue(TraumaTeamEvents.phaseFor(level, doomedExecId[0])
+                            == TraumaTeamEvents.Phase.BOARDING,
+                    "third Exec did not enter the boarding hold");
+            doomed.setHealth(1.0F);
+            helper.assertTrue(doomed.hurtServer(
+                            level, level.damageSources().playerAttack(player), 100.0F)
+                            && !doomed.isAlive(),
+                    "boarding Exec could not be killed");
+        });
+
+        helper.runAfterDelay(101, () -> {
+            helper.assertTrue(TraumaTeamEvents.phaseFor(level, doomedExecId[0])
+                            == TraumaTeamEvents.Phase.ASCENDING,
+                    "Exec death did not trigger the normal ascent immediately");
+        });
+
+        UUID[] descentDeathExecId = {null};
+        helper.runAfterDelay(116, () -> {
+            helper.assertTrue(TraumaTeamEvents.activeEventCount(level) == 0,
+                    "death-triggered aerodyne did not finish its ascent");
+
+            CityNpc descending = CityNpcEntities.CITY_NPC.get().create(
+                    level, EntitySpawnReason.COMMAND);
+            helper.assertTrue(descending != null,
+                    "Exec factory failed for descent-death Trauma Team lifecycle");
+            if (descending == null) {
+                return;
+            }
+            descending.snapTo(
+                    execStart.getX() + 0.5, execStart.getY(), execStart.getZ() + 0.5,
+                    0.0F, 0.0F);
+            descending.setRole(NpcRole.EXEC);
+            descending.setPersistenceRequired();
+            helper.assertTrue(level.addFreshEntity(descending),
+                    "could not add descent-death Trauma Team Exec");
+            descentDeathExecId[0] = descending.getUUID();
+            helper.assertTrue(TraumaTeamEvents.requestAt(
+                            level, descending, player, landing, 2, 80, 20),
+                    "could not start descent-death Trauma Team event");
+            descending.setHealth(1.0F);
+            helper.assertTrue(descending.hurtServer(
+                            level, level.damageSources().playerAttack(player), 100.0F)
+                            && !descending.isAlive(),
+                    "descending Trauma Team Exec could not be killed");
+        });
+
+        helper.runAfterDelay(118, () -> {
+            helper.assertTrue(TraumaTeamEvents.phaseFor(level, descentDeathExecId[0])
+                            == TraumaTeamEvents.Phase.ASCENDING,
+                    "Exec death during descent did not reverse the aerodyne immediately");
+        });
+
+        helper.runAfterDelay(130, () -> {
+            helper.assertTrue(TraumaTeamEvents.activeEventCount(level) == 0,
+                    "descent-death aerodyne did not finish its ascent");
             for (int x = 5; x <= 27; x++) {
                 for (int y = 2; y <= 10; y++) {
                     for (int z = 5; z <= 15; z++) {
@@ -852,6 +1048,9 @@ public final class CyberdeckGameTests {
         CyberdeckState.setActive(player, true);
 
         QuickhackHotbar stashed = player.getData(QuickhackAttachments.STASHED_HOTBAR.get());
+        helper.assertTrue(QuickhackAttachments.isQuickhacking(player)
+                        && !QuickhackAttachments.isScanning(player),
+                "a cyberdeck must open the full quickhack interface, not scan-only mode");
         helper.assertTrue(stashed.present() && stashed.items().size() == QuickhackHotbar.SIZE,
                 "scanner activation must create a complete durable hotbar snapshot");
         var ops = helper.getLevel().registryAccess().createSerializationContext(
@@ -873,6 +1072,44 @@ public final class CyberdeckGameTests {
                 "slot four must survive scanner crash recovery");
         helper.assertFalse(player.getData(QuickhackAttachments.STASHED_HOTBAR.get()).present(),
                 "successful recovery must clear the durable stash");
+
+        Cyberware optics = Cyberware.byId("basic_kiroshi_optics_t1");
+        Cyberware faceplate = Cyberware.byId("behavioral_imprint_synced_faceplate_t5");
+        helper.assertTrue(optics != null && faceplate != null,
+                "scanner capability test cyberware must exist");
+        if (optics == null || faceplate == null) {
+            return;
+        }
+
+        CyberwareData opticsOnly = new CyberwareData();
+        opticsOnly.install(optics, 0);
+        helper.assertTrue(CyberwareEffects.canScan(opticsOnly)
+                        && !CyberwareEffects.canQuickhack(opticsOnly),
+                "ocular implants must scan without granting quickhacks");
+        player.setData(CyberwareAttachments.CYBERWARE.get(), opticsOnly);
+        CyberdeckState.setScannerActive(player, true);
+        helper.assertTrue(CyberdeckState.isScanOnlyActive(player)
+                        && CyberdeckState.isScannerActive(player)
+                        && !CyberdeckState.isActive(player),
+                "eye-only loadouts must enter read-only scanner mode");
+        helper.assertTrue(QuickhackAttachments.isScanning(player)
+                        && !QuickhackAttachments.isQuickhacking(player)
+                        && !player.getData(QuickhackAttachments.STASHED_HOTBAR.get()).present(),
+                "scan-only mode must not create a quickhack hotbar session");
+        helper.assertTrue(player.getInventory().getItem(0).is(net.minecraft.world.item.Items.DIAMOND)
+                        && player.getInventory().getItem(0).getCount() == 7
+                        && player.getInventory().getItem(4).is(net.minecraft.world.item.Items.REDSTONE)
+                        && player.getInventory().getItem(4).getCount() == 23,
+                "scan-only activation must leave the real hotbar untouched");
+        CyberdeckState.deactivate(player);
+        helper.assertTrue(player.getInventory().getItem(0).is(net.minecraft.world.item.Items.DIAMOND)
+                        && player.getInventory().getItem(4).is(net.minecraft.world.item.Items.REDSTONE),
+                "scan-only deactivation must preserve the real hotbar");
+
+        CyberwareData faceplateOnly = new CyberwareData();
+        faceplateOnly.install(faceplate, 0);
+        helper.assertFalse(CyberwareEffects.canScan(faceplateOnly),
+                "the identity faceplate must not count as an ocular scanner");
         helper.succeed();
     }
 

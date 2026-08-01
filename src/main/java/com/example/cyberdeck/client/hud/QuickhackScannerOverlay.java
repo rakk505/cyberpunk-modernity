@@ -3,6 +3,8 @@ package com.example.cyberdeck.client.hud;
 import com.example.cyberdeck.client.QuickhackScannerClient;
 import com.example.cyberdeck.client.QuickhackUploadClient;
 import com.example.cyberdeck.faction.FactionEnemy;
+import com.example.cyberdeck.npc.CityNpc;
+import com.example.cyberdeck.npc.NpcRole;
 import com.example.cyberdeck.ram.RamAttachments;
 import com.example.cyberdeck.skill.Skill;
 
@@ -58,10 +60,13 @@ public final class QuickhackScannerOverlay implements GuiLayer {
         Font font = minecraft.font;
         LivingEntity lockedTarget = QuickhackScannerClient.target(minecraft.level);
         float panelProgress = updatePanelVisibility(lockedTarget, deltaTracker);
+        boolean quickhacking = QuickhackScannerClient.isQuickhacking();
 
         drawScannerBackdrop(graphics, font, screenWidth, screenHeight,
                 minecraft.level.getGameTime());
-        drawRamRail(graphics, font, player, screenWidth, screenHeight);
+        if (quickhacking) {
+            drawRamRail(graphics, font, player, screenWidth, screenHeight);
+        }
 
         boolean compact = screenWidth < 560;
         int leftX = compact ? 9 : Math.max(18, Math.round(screenWidth * 0.055F));
@@ -84,15 +89,17 @@ public final class QuickhackScannerOverlay implements GuiLayer {
         }
 
         float eased = smoothstep(panelProgress);
-        int leftClipRight = Math.round((leftX + leftWidth + 12) * eased);
-        int leftOffset = -Math.round(12.0F * (1.0F - eased));
-        graphics.enableScissor(0, 0, leftClipRight, screenHeight);
-        graphics.pose().pushMatrix();
-        graphics.pose().translate(leftOffset, 0.0F);
-        drawQuickhackMenu(graphics, font, player, animatedTarget,
-                leftX, leftY, leftWidth, screenHeight);
-        graphics.pose().popMatrix();
-        graphics.disableScissor();
+        if (quickhacking && animatedTarget instanceof Enemy) {
+            int leftClipRight = Math.round((leftX + leftWidth + 12) * eased);
+            int leftOffset = -Math.round(12.0F * (1.0F - eased));
+            graphics.enableScissor(0, 0, leftClipRight, screenHeight);
+            graphics.pose().pushMatrix();
+            graphics.pose().translate(leftOffset, 0.0F);
+            drawQuickhackMenu(graphics, font, player, animatedTarget,
+                    leftX, leftY, leftWidth, screenHeight);
+            graphics.pose().popMatrix();
+            graphics.disableScissor();
+        }
 
         int rightClipLeft = Math.round(screenWidth
                 - (screenWidth - rightX + 12) * eased);
@@ -310,7 +317,7 @@ public final class QuickhackScannerOverlay implements GuiLayer {
 
     private static void drawIntelPanel(GuiGraphicsExtractor graphics, Font font, Player player,
                                        LivingEntity target, int x, int y, int width) {
-        int height = 86;
+        int height = 128;
         fillCutRect(graphics, x, y, width, height, PANEL);
         drawCutBorder(graphics, x, y, width, height, CYAN_DIM);
         graphics.fill(x, y, x + 38, y + 2, RED);
@@ -320,6 +327,7 @@ public final class QuickhackScannerOverlay implements GuiLayer {
         graphics.text(font, name, x + 7, y + 18, CYAN_BRIGHT, false);
         String affiliation = target instanceof FactionEnemy enemy
                 ? formatId(enemy.getFaction().id())
+                : target instanceof CityNpc ? "CITY DATABASE"
                 : target.getType().getDescription().getString().toUpperCase(Locale.ROOT);
         graphics.text(font, trim(font, affiliation, width - 14), x + 7, y + 29,
                 AMBER, false);
@@ -334,10 +342,56 @@ public final class QuickhackScannerOverlay implements GuiLayer {
         graphics.fill(x + 7, y + 54, x + 7 + Math.round(barWidth * healthRatio), y + 58,
                 healthColor(target));
 
+        boolean armed = isArmed(target);
+        boolean exec = isExec(target);
+        drawIntelLine(graphics, font, "TYPE", npcType(target), x, y + 65, width, AMBER);
+        drawIntelLine(graphics, font, "DROP", expectedMoneyDrop(target), x, y + 76, width, CYAN);
+        drawIntelLine(graphics, font, "ARMED", armed ? "YES" : "NO",
+                x, y + 87, width, armed ? RED : CYAN);
+        drawIntelLine(graphics, font, "EXEC", exec ? "YES" : "NO",
+                x, y + 98, width, exec ? RED : CYAN_DIM);
+
         String distance = String.format(Locale.ROOT, "%.0f M", player.distanceTo(target));
-        graphics.text(font, distance, x + 7, y + 67, WHITE, false);
+        graphics.text(font, distance, x + 7, y + 113, WHITE, false);
         String status = targetStatus(target);
-        graphics.text(font, status, x + width - 7 - font.width(status), y + 67, RED, false);
+        graphics.text(font, status, x + width - 7 - font.width(status), y + 113, RED, false);
+    }
+
+    private static void drawIntelLine(GuiGraphicsExtractor graphics, Font font, String label,
+                                      String value, int x, int y, int width, int valueColor) {
+        graphics.text(font, label, x + 7, y, CYAN_DIM, false);
+        int available = width - 17 - font.width(label);
+        String fitted = trim(font, value, available);
+        graphics.text(font, fitted, x + width - 7 - font.width(fitted), y, valueColor, false);
+    }
+
+    private static String npcType(LivingEntity target) {
+        if (target instanceof CityNpc npc) {
+            return formatId(npc.getRole().id());
+        }
+        if (target instanceof FactionEnemy) {
+            return "FACTION SOLDIER";
+        }
+        return target.getType().getDescription().getString().toUpperCase(Locale.ROOT);
+    }
+
+    private static String expectedMoneyDrop(LivingEntity target) {
+        if (!(target instanceof CityNpc npc)) {
+            return "E$ 0";
+        }
+        NpcRole role = npc.getRole();
+        return role.minimumCredits() == role.maximumCredits()
+                ? "E$ " + role.minimumCredits()
+                : "E$ " + role.minimumCredits() + "-" + role.maximumCredits();
+    }
+
+    private static boolean isArmed(LivingEntity target) {
+        return !target.getMainHandItem().isEmpty()
+                || !target.getOffhandItem().isEmpty();
+    }
+
+    private static boolean isExec(LivingEntity target) {
+        return target instanceof CityNpc npc && npc.getRole() == NpcRole.EXEC;
     }
 
     private static void edgeBand(GuiGraphicsExtractor graphics, int width, int height, int inset,

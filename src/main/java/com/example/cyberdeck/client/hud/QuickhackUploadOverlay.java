@@ -1,5 +1,6 @@
 package com.example.cyberdeck.client.hud;
 
+import com.example.cyberdeck.client.QuickhackScannerClient;
 import com.example.cyberdeck.client.QuickhackUploadClient;
 import com.example.cyberdeck.network.QuickhackUploadPacket;
 import com.example.cyberdeck.skill.Skill;
@@ -27,7 +28,8 @@ public final class QuickhackUploadOverlay implements GuiLayer {
 
     @Override
     public void render(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker) {
-        if (!QuickhackUploadClient.isUploading()) {
+        if (!QuickhackUploadClient.isUploading()
+                || QuickhackScannerClient.isActive() && !QuickhackScannerClient.isQuickhacking()) {
             return;
         }
 

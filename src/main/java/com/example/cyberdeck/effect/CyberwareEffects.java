@@ -4,6 +4,7 @@ import com.example.cyberdeck.cyberware.Cyberware;
 import com.example.cyberdeck.cyberware.CyberwareAttachments;
 import com.example.cyberdeck.cyberware.CyberwareData;
 import com.example.cyberdeck.cyberware.CyberwareUnlocks;
+import com.example.cyberdeck.cyberware.BodySlot;
 import com.example.cyberdeck.ram.RamAttachments;
 import com.example.cyberdeck.skill.Skill;
 
@@ -83,6 +84,27 @@ public final class CyberwareEffects {
     /** Capability query shared by server authorization and the owner-synced client UI. */
     public static boolean canQuickhack(CyberwareData data) {
         return data != null && data.findFlag("cyberdeck") != null;
+    }
+
+    public static boolean canScan(ServerPlayer player) {
+        return canScan(data(player));
+    }
+
+    /**
+     * Every Face-slot family except the identity faceplate is an ocular implant. Scanner-highlight
+     * flags describe optional through-wall bonuses, not the baseline scanner capability.
+     */
+    public static boolean canScan(CyberwareData data) {
+        if (data == null) {
+            return false;
+        }
+        for (Cyberware cyberware : data.sockets(BodySlot.FACE)) {
+            if (cyberware != null
+                    && !"behavioral_imprint_synced_faceplate".equals(cyberware.familyId())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static int cooldownTicks(ServerPlayer player, Cyberware cyberware, String key) {

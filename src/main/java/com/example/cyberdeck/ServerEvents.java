@@ -44,11 +44,16 @@ public final class ServerEvents {
         // Smart Link target acquisition is independent of the cyberdeck operating system/interface.
         com.example.cyberdeck.weapon.SmartTargeting.tick(player, level);
 
-        // Deactivate immediately if the installed operating system no longer supports quickhacks.
-        if (player.getPersistentData().getBoolean("cyberdeck_active").orElse(false)
+        // Capability removal closes either interface immediately; a removed deck also releases RAM.
+        if (CyberdeckState.hasQuickhackSession(player)
                 && !CyberdeckState.hasInstalledCyberdeck(player)) {
             CyberdeckState.deactivate(player);
             com.example.cyberdeck.skill.QuickhackUploads.cancel(player);
+            return;
+        }
+        if (CyberdeckState.hasScanOnlySession(player)
+                && !CyberdeckState.hasInstalledEyeImplant(player)) {
+            CyberdeckState.deactivate(player);
             return;
         }
 
@@ -56,11 +61,11 @@ public final class ServerEvents {
         // itself still cancels for death, deck removal, target loss, or excessive distance.
         com.example.cyberdeck.skill.QuickhackUploads.tick(player, level);
 
-        if (!CyberdeckState.isActive(player)) {
+        if (!CyberdeckState.isScannerActive(player)) {
             return;
         }
 
-        // Outline valid entities within the player's field of view while the cyberdeck is active.
+        // Outline valid entities within the player's field of view while either scanner is active.
         Vec3 eye = player.getEyePosition();
         Vec3 look = player.getLookAngle().normalize();
         AABB scanBox = player.getBoundingBox().inflate(SCAN_RANGE);
@@ -106,7 +111,7 @@ public final class ServerEvents {
     }
 
     private static boolean isTargetable(LivingEntity entity) {
-        return entity.isAlive() && entity instanceof Enemy;
+        return entity.isAlive() && (entity instanceof Enemy || entity instanceof CityNpc);
     }
 
     /** No hostile AI, vanilla or modded, may select a city civilian as an attack target. */

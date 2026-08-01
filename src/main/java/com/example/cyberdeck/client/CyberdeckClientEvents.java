@@ -48,7 +48,7 @@ public final class CyberdeckClientEvents {
             quickhackUseLatched = false;
         }
         while (CyberdeckClient.QUEUE_QUICKHACK_KEY.consumeClick()) {
-            if (!QuickhackScannerClient.isActive() || mc.player == null) {
+            if (!QuickhackScannerClient.isQuickhacking() || mc.player == null) {
                 continue;
             }
             if (mc.options.keySwapOffhand.same(CyberdeckClient.QUEUE_QUICKHACK_KEY)) {
@@ -102,18 +102,19 @@ public final class CyberdeckClientEvents {
 
         // The owner-synced cyberware attachment keeps TAB available when no cyberdeck OS is installed.
         while (CyberdeckClient.TOGGLE_KEY.consumeClick()) {
-            if (CyberwareEffects.canQuickhack(CyberwareAttachments.get(mc.player))) {
+            var cyberware = CyberwareAttachments.get(mc.player);
+            if (CyberwareEffects.canQuickhack(cyberware) || CyberwareEffects.canScan(cyberware)) {
                 ClientPacketDistributor.sendToServer(new ToggleInterfacePacket());
             }
         }
 
         while (CyberdeckClient.PREVIOUS_QUICKHACK_KEY.consumeClick()) {
-            if (QuickhackScannerClient.isActive()) {
+            if (QuickhackScannerClient.isQuickhacking()) {
                 QuickhackScannerClient.cycle(mc.player, -1);
             }
         }
         while (CyberdeckClient.NEXT_QUICKHACK_KEY.consumeClick()) {
-            if (QuickhackScannerClient.isActive()) {
+            if (QuickhackScannerClient.isQuickhacking()) {
                 QuickhackScannerClient.cycle(mc.player, 1);
             }
         }
@@ -159,10 +160,9 @@ public final class CyberdeckClientEvents {
             }
         }
 
-        // Stealth takedown: F is shared with the quickhack queue key, so only act when the scanner
-        // is not active AND a valid crouch-behind target exists. The server re-validates the kill.
+        // Stealth takedown: F is reserved only by full quickhacking, not by the read-only scanner.
         while (CyberdeckClient.STEALTH_TAKEDOWN_KEY.consumeClick()) {
-            if (QuickhackScannerClient.isActive()) {
+            if (QuickhackScannerClient.isQuickhacking()) {
                 continue;
             }
             com.example.cyberdeck.faction.FactionEnemy takedownTarget =
@@ -235,7 +235,7 @@ public final class CyberdeckClientEvents {
         if (mc.player == null) {
             return;
         }
-        if (!QuickhackScannerClient.isActive()) {
+        if (!QuickhackScannerClient.isQuickhacking()) {
             return;
         }
         if (!quickhackUseLatched) {
@@ -281,6 +281,9 @@ public final class CyberdeckClientEvents {
     }
 
     private static boolean queueSelectedQuickhack(Minecraft minecraft) {
+        if (!QuickhackScannerClient.isQuickhacking()) {
+            return false;
+        }
         LivingEntity target = QuickhackScannerClient.actionTarget(minecraft.level);
         if (target == null) {
             return false;

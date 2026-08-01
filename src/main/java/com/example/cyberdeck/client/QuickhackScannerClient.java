@@ -1,6 +1,7 @@
 package com.example.cyberdeck.client;
 
 import com.example.cyberdeck.QuickhackAttachments;
+import com.example.cyberdeck.npc.CityNpc;
 import com.example.cyberdeck.skill.Skill;
 import com.example.cyberdeck.skill.QuickhackUploads;
 
@@ -18,7 +19,7 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
 
-/** Client-owned selection and crosshair target state for the quickhack scanner HUD. */
+/** Client-owned selection and crosshair target state shared by both scanner modes. */
 public final class QuickhackScannerClient {
     /** Long-range scanner reach, capped at the practical ten-chunk entity tracking radius. */
     public static final double TARGET_RANGE = QuickhackUploads.MAX_TARGET_RANGE;
@@ -28,6 +29,7 @@ public final class QuickhackScannerClient {
     private static final int TARGET_RELEASE_TICKS = 3;
 
     private static boolean active;
+    private static boolean quickhacking;
     private static int selectedSkill;
     private static int targetId = -1;
     private static int directTargetId = -1;
@@ -43,10 +45,11 @@ public final class QuickhackScannerClient {
     public static void tick(Minecraft minecraft) {
         Player player = minecraft.player;
         ClientLevel level = minecraft.level;
+        boolean nextQuickhacking = player != null && QuickhackAttachments.isQuickhacking(player);
         boolean nextActive = player != null
                 && level != null
                 && minecraft.gui.screen() == null
-                && QuickhackAttachments.isQuickhacking(player);
+                && QuickhackAttachments.isScannerActive(player);
 
         if (level != lastLevel) {
             reset();
@@ -61,11 +64,17 @@ public final class QuickhackScannerClient {
         }
 
         active = true;
+        quickhacking = nextQuickhacking;
         updateTargetLock(findTarget(player));
     }
 
     public static boolean isActive() {
         return active;
+    }
+
+    /** True only when the open scanner is backed by a quickhack-capable cyberdeck. */
+    public static boolean isQuickhacking() {
+        return active && quickhacking;
     }
 
     public static int selectedSkillOrdinal() {
@@ -95,17 +104,20 @@ public final class QuickhackScannerClient {
 
     /** The entity directly under the reticle right now; stale display locks cannot queue hacks. */
     public static @Nullable LivingEntity actionTarget(@Nullable ClientLevel level) {
-        if (level == null || directTargetId < 0 || directTargetId != targetId) {
+        if (!isQuickhacking() || level == null || directTargetId < 0
+                || directTargetId != targetId) {
             return null;
         }
-        return level.getEntity(directTargetId) instanceof LivingEntity living && living.isAlive()
+        return level.getEntity(directTargetId) instanceof LivingEntity living
+                && living instanceof Enemy
+                && living.isAlive()
                 ? living
                 : null;
     }
 
     /** Wraps over the seven executable presets and repairs vanilla's number-key hotbar selection. */
     public static void cycle(Player player, int direction) {
-        if (!active || targetId < 0 || direction == 0) {
+        if (!isQuickhacking() || targetId < 0 || direction == 0) {
             return;
         }
         selectedSkill = Math.floorMod(selectedSkill + Integer.signum(direction), SKILL_COUNT);
@@ -114,6 +126,7 @@ public final class QuickhackScannerClient {
 
     public static void reset() {
         active = false;
+        quickhacking = false;
         selectedSkill = FIRST_SKILL;
         targetId = -1;
         directTargetId = -1;
@@ -185,7 +198,7 @@ public final class QuickhackScannerClient {
                 search,
                 entity -> entity instanceof LivingEntity living
                         && living != player
-                        && living instanceof Enemy
+                        && (living instanceof Enemy || living instanceof CityNpc)
                         && living.isAlive()
                         && !living.isSpectator()
                         && living.isPickable(),

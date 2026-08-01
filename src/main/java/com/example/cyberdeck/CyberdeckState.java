@@ -27,16 +27,44 @@ public final class CyberdeckState {
         return CyberwareEffects.canQuickhack(player);
     }
 
+    /** True when an installed ocular implant grants the read-only scanner. */
+    public static boolean hasInstalledEyeImplant(ServerPlayer player) {
+        return CyberwareEffects.canScan(player);
+    }
+
     public static boolean isActive(ServerPlayer player) {
         return player.getPersistentData().getBoolean(ACTIVE_KEY).orElse(false)
                 && hasInstalledCyberdeck(player);
     }
 
+    /** True for either the full cyberdeck interface or the read-only ocular scanner. */
+    public static boolean isScannerActive(ServerPlayer player) {
+        return isActive(player)
+                || QuickhackAttachments.isScanning(player) && hasInstalledEyeImplant(player);
+    }
+
+    public static boolean isScanOnlyActive(ServerPlayer player) {
+        return QuickhackAttachments.isScanning(player) && hasInstalledEyeImplant(player);
+    }
+
+    /** Includes stale state so capability removal can still trigger hotbar recovery. */
+    public static boolean hasQuickhackSession(ServerPlayer player) {
+        return player.getPersistentData().getBoolean(ACTIVE_KEY).orElse(false)
+                || QuickhackAttachments.isQuickhacking(player)
+                || player.getData(QuickhackAttachments.STASHED_HOTBAR.get()).present();
+    }
+
+    public static boolean hasScanOnlySession(ServerPlayer player) {
+        return QuickhackAttachments.isScanning(player);
+    }
+
     public static void toggle(ServerPlayer player) {
-        if (isActive(player)) {
+        if (hasQuickhackSession(player) || hasScanOnlySession(player)) {
             deactivate(player);
         } else if (hasInstalledCyberdeck(player)) {
             activate(player);
+        } else if (hasInstalledEyeImplant(player)) {
+            activateScanner(player);
         }
     }
 
@@ -51,7 +79,22 @@ public final class CyberdeckState {
         }
     }
 
+    /** Explicit read-only scanner control, primarily useful to deterministic integration tests. */
+    public static void setScannerActive(ServerPlayer player, boolean active) {
+        if (!active) {
+            deactivate(player);
+        } else if (!isScannerActive(player)
+                && (hasInstalledCyberdeck(player) || hasInstalledEyeImplant(player))) {
+            if (hasInstalledCyberdeck(player)) {
+                activate(player);
+            } else {
+                activateScanner(player);
+            }
+        }
+    }
+
     private static void activate(ServerPlayer player) {
+        QuickhackAttachments.setScanning(player, false);
         // Persist the real hotbar before replacing any slot. Saving the player then atomically
         // stores both the scanner items and this recovery snapshot.
         List<ItemStack> saved = new ArrayList<>(HOTBAR_SIZE);
@@ -71,20 +114,29 @@ public final class CyberdeckState {
         syncInventory(player);
     }
 
+    private static void activateScanner(ServerPlayer player) {
+        player.getPersistentData().putBoolean(ACTIVE_KEY, false);
+        QuickhackAttachments.set(player, false);
+        QuickhackAttachments.setScanning(player, true);
+    }
+
     public static void deactivate(ServerPlayer player) {
         QuickhackHotbar saved = player.getData(QuickhackAttachments.STASHED_HOTBAR.get());
         boolean markedActive = player.getPersistentData().getBoolean(ACTIVE_KEY).orElse(false);
-        if (!markedActive && !saved.present()) {
+        boolean quickhacking = QuickhackAttachments.isQuickhacking(player);
+        boolean scanning = QuickhackAttachments.isScanning(player);
+        if (!markedActive && !quickhacking && !scanning && !saved.present()) {
             return;
         }
         player.getPersistentData().putBoolean(ACTIVE_KEY, false);
         QuickhackAttachments.set(player, false);
+        QuickhackAttachments.setScanning(player, false);
 
         if (saved.present()) {
             for (int i = 0; i < HOTBAR_SIZE; i++) {
                 player.getInventory().setItem(i, saved.items().get(i).copy());
             }
-        } else {
+        } else if (markedActive || quickhacking) {
             // Legacy saves may have an active flag but no durable stash. Remove only synthetic
             // skill items and leave every unrelated slot untouched.
             for (int i = 0; i < HOTBAR_SIZE; i++) {
@@ -95,7 +147,9 @@ public final class CyberdeckState {
             }
         }
         player.setData(QuickhackAttachments.STASHED_HOTBAR.get(), QuickhackHotbar.NONE);
-        syncInventory(player);
+        if (markedActive || quickhacking || saved.present()) {
+            syncInventory(player);
+        }
     }
 
     /** Restores an interrupted scanner session during login or respawn. */

@@ -55,7 +55,7 @@ public final class CyberdeckCommands {
 
     private static int toggle(CommandSourceStack source) throws CommandSyntaxException {
         ServerPlayer player = source.getPlayerOrException();
-        return set(source, !CyberdeckState.isActive(player));
+        return set(source, !CyberdeckState.isScannerActive(player));
     }
 
     private static int openMap(CommandSourceStack source) throws CommandSyntaxException {
@@ -80,14 +80,16 @@ public final class CyberdeckCommands {
 
     private static int set(CommandSourceStack source, boolean active) throws CommandSyntaxException {
         ServerPlayer player = source.getPlayerOrException();
-        if (active && !CyberdeckState.hasInstalledCyberdeck(player)) {
-            source.sendFailure(Component.translatable("message.cyberdeck.cyberdeck_required"));
+        if (active && !CyberdeckState.hasInstalledCyberdeck(player)
+                && !CyberdeckState.hasInstalledEyeImplant(player)) {
+            source.sendFailure(Component.translatable(
+                    "message.cyberdeck.scanner_implant_required"));
             return 0;
         }
 
-        CyberdeckState.setActive(player, active);
+        CyberdeckState.setScannerActive(player, active);
         source.sendSuccess(() -> Component.literal(
-                active ? "Cyberdeck scanner online" : "Cyberdeck scanner offline"), false);
+                active ? "Scanner online" : "Scanner offline"), false);
         return 1;
     }
 
