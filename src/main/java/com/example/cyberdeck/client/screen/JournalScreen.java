@@ -2,6 +2,7 @@ package com.example.cyberdeck.client.screen;
 
 import com.example.cyberdeck.client.map.CityMapNavigationClient;
 import com.example.cyberdeck.client.mission.GigJournalClient;
+import com.example.cyberdeck.client.mission.MissionTrackerClient;
 import com.example.cyberdeck.network.GigJournalPacket;
 import com.mojang.blaze3d.platform.cursor.CursorTypes;
 import dev.modernity.neoncity.District;
@@ -314,8 +315,17 @@ public final class JournalScreen extends Screen {
             }
             if (MAP_ACTION.contains(mouseX, mouseY)) {
                 confirmAbandonId = null;
+                MissionTrackerClient.Snapshot active = MissionTrackerClient.active();
+                int navigationX = active != null
+                                && active.targetX() == selected.targetX()
+                                && active.targetZ() == selected.targetZ()
+                        ? active.navigationX() : selected.targetX();
+                int navigationZ = active != null
+                                && active.targetX() == selected.targetX()
+                                && active.targetZ() == selected.targetZ()
+                        ? active.navigationZ() : selected.targetZ();
                 CityMapNavigationClient.setMissionWaypoint(
-                        selected.targetX(), selected.targetZ(),
+                        navigationX, navigationZ,
                         selected.districtOrdinal(), selected.title());
                 CityMapNavigationClient.requestOpen();
                 return true;

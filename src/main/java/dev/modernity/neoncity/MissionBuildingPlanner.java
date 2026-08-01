@@ -1,5 +1,6 @@
 package dev.modernity.neoncity;
 
+import com.example.cyberdeck.city.CityWorlds;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -13,7 +14,9 @@ import java.util.Set;
 import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.DyeColor;
@@ -57,6 +60,12 @@ public final class MissionBuildingPlanner {
     private static final int MIN_STAIR_HORIZONTAL_GAP = 3;
     private static final int MAX_STAIR_CANDIDATES = 64;
     private static final int MAX_SITE_VOLUME = 40_000;
+    private static final int LARGE_OFFICE_CELLS = 120;
+    private static final int MAX_EXTERIOR_PATH_NODES = 4_096;
+    private static final int EXTERIOR_SEARCH_MARGIN = 40;
+    private static final int CORRIDOR_CLEARANCE = 1;
+    private static final int MAX_EXPLOSIVE_CANISTERS_PER_SITE = 2;
+    private static final int MAX_DECORATIONS = 256;
     private static final int PLACE_FLAGS =
             Block.UPDATE_SKIP_ALL_SIDEEFFECTS | Block.UPDATE_CLIENTS;
 
@@ -73,7 +82,14 @@ public final class MissionBuildingPlanner {
         RECEPTION_DESK,
         PLANTER,
         CUBICLE_DESK,
-        COUCH
+        COUCH,
+        ROOM_PARTITION,
+        CUBICLE_POD,
+        CONFERENCE_TABLE,
+        SERVER_RACK,
+        FILING_CABINET,
+        WATER_COOLER,
+        EXPLOSIVE_CANISTER
     }
 
     public record Entrance(BlockPos position, Direction outward, int wallDepth, boolean existing) {
@@ -146,6 +162,7 @@ public final class MissionBuildingPlanner {
             decorations = decorations == null ? List.of() : List.copyOf(decorations);
             if (stairs.size() != floorYs.size() - 1
                     || patrolRoutes.size() != floorYs.size()
+                    || decorations.size() > MAX_DECORATIONS
                     || !stairFloorsMatch(floorYs, stairs)
                     || !patrolRoutes.stream().map(PatrolRoute::floorY)
                             .collect(java.util.stream.Collectors.toSet())
@@ -352,7 +369,8 @@ public final class MissionBuildingPlanner {
         if (!stairsHaveHorizontalClearance(site.stairs())) {
             return false;
         }
-        for (Edit edit : edits(site)) {
+        List<Edit> edits = edits(site);
+        for (Edit edit : edits) {
             BlockState current = level.getBlockState(edit.position());
             if (!edit.matches(current) && !edit.policy().accepts(level, edit.position(), current)) {
                 return false;
@@ -367,7 +385,34 @@ public final class MissionBuildingPlanner {
                 Entity.class, new AABB(site.target()), Entity::isAlive).isEmpty()) {
             return false;
         }
-        return routeCellsRemainClear(level, site);
+        return routeCellsRemainClear(level, site)
+                && circulationRemainsAccessible(level, site, edits);
+    }
+
+    /** Verifies the installed interior has a player-sized route to every floor and objective. */
+    public static boolean hasAccessibleObjectivePath(ServerLevel level, Site site) {
+        return level != null && site != null
+                && circulationRemainsAccessible(level, site, List.of())
+                && objectiveApproach(level, site).isPresent();
+    }
+
+    /** Returns a clear floor cell from which a player can interact with the objective. */
+    public static Optional<BlockPos> objectiveApproach(ServerLevel level, Site site) {
+        if (level == null || site == null) return Optional.empty();
+        Set<BlockPos> reachable = reachableFloorCells(
+                level, site, site.target().getY(), List.of());
+        return java.util.Arrays.stream(HORIZONTAL)
+                .map(site.target()::relative)
+                .filter(reachable::contains)
+                .filter(position -> isPassage(level, position))
+                .findFirst();
+    }
+
+    /** Exterior endpoint used by road navigation while the objective remains inside the site. */
+    public static BlockPos navigationTarget(Site site) {
+        Entrance entrance = site.entrance();
+        return entrance.position().relative(
+                entrance.outward(), Math.max(0, entrance.wallDepth()));
     }
 
     /** Applies the exact site plan once; subsequent calls leave the installed geometry unchanged. */
@@ -392,6 +437,13 @@ public final class MissionBuildingPlanner {
                 return InstallationResult.UNSAFE;
             }
             changed = true;
+        }
+        if (!circulationRemainsAccessible(level, site, List.of())) {
+            for (int index = changedStates.size() - 1; index >= 0; index--) {
+                OriginalState original = changedStates.get(index);
+                level.setBlock(original.position(), original.state(), PLACE_FLAGS);
+            }
+            return InstallationResult.UNSAFE;
         }
         return changed ? InstallationResult.INSTALLED : InstallationResult.ALREADY_INSTALLED;
     }
@@ -654,33 +706,44 @@ public final class MissionBuildingPlanner {
         if (!isPassage(level, first)) {
             return false;
         }
-        int minX = floor.bounds().minX - 8;
-        int maxX = floor.bounds().maxX + 8;
-        int minZ = floor.bounds().minZ - 8;
-        int maxZ = floor.bounds().maxZ + 8;
+        int minX = floor.bounds().minX - EXTERIOR_SEARCH_MARGIN;
+        int maxX = floor.bounds().maxX + EXTERIOR_SEARCH_MARGIN;
+        int minZ = floor.bounds().minZ - EXTERIOR_SEARCH_MARGIN;
+        int maxZ = floor.bounds().maxZ + EXTERIOR_SEARCH_MARGIN;
         Set<BlockPos> visited = new HashSet<>();
         ArrayDeque<BlockPos> queue = new ArrayDeque<>();
         visited.add(first);
         queue.add(first);
-        while (!queue.isEmpty() && visited.size() <= 512) {
+        while (!queue.isEmpty() && visited.size() <= MAX_EXTERIOR_PATH_NODES) {
             BlockPos current = queue.removeFirst();
-            if (!hasCeiling(level, current, 8) || level.canSeeSky(current)) {
+            if (outsideBuildingApproach(floor, current)
+                    && CityWorlds.isWalkableStreet(level, current)) {
                 return true;
             }
             for (Direction direction : HORIZONTAL) {
-                BlockPos next = current.relative(direction);
-                if (next.getX() < minX || next.getX() > maxX
-                        || next.getZ() < minZ || next.getZ() > maxZ
-                        || floor.cells().contains(next)
-                        || !visited.add(next)) {
-                    continue;
-                }
-                if (isPassage(level, next)) {
-                    queue.addLast(next);
+                BlockPos horizontal = current.relative(direction);
+                for (int dy : new int[] {0, 1, -1}) {
+                    BlockPos next = horizontal.above(dy);
+                    if (next.getX() < minX || next.getX() > maxX
+                            || next.getZ() < minZ || next.getZ() > maxZ
+                            || Math.abs(next.getY() - floor.y()) > 4
+                            || floor.cells().contains(next.atY(floor.y()))) {
+                        continue;
+                    }
+                    if (isPassage(level, next) && visited.add(next)) {
+                        queue.addLast(next);
+                    }
                 }
             }
         }
         return false;
+    }
+
+    private static boolean outsideBuildingApproach(FloorProfile floor, BlockPos position) {
+        return position.getX() <= floor.bounds().minX - 3
+                || position.getX() >= floor.bounds().maxX + 3
+                || position.getZ() <= floor.bounds().minZ - 3
+                || position.getZ() >= floor.bounds().maxZ + 3;
     }
 
     private static int doorwayDepth(
@@ -708,7 +771,7 @@ public final class MissionBuildingPlanner {
                 }
                 BlockPos outside = wall.relative(outward, depth);
                 validWall &= isPassage(level, outside)
-                        && (!hasCeiling(level, outside, 8) || level.canSeeSky(outside));
+                        && existingAccess(level, floor, outside);
             }
             if (validWall) {
                 return depth;
@@ -949,6 +1012,10 @@ public final class MissionBuildingPlanner {
             FloorProfile top, Entrance entrance, long seed, Set<BlockPos> exclusions) {
         return top.cells().stream()
                 .filter(position -> !exclusions.contains(position))
+                .filter(position -> java.util.Arrays.stream(HORIZONTAL)
+                        .filter(direction -> top.cells().contains(position.relative(direction)))
+                        .filter(direction -> !exclusions.contains(position.relative(direction)))
+                        .count() >= 2)
                 .max(Comparator.comparingDouble(
                                 (BlockPos position) -> position.distSqr(entrance.position()))
                         .thenComparingLong(position -> positionScore(
@@ -963,64 +1030,324 @@ public final class MissionBuildingPlanner {
             List<PatrolRoute> routes,
             BlockPos target,
             long seed) {
-        Set<BlockPos> reserved = new HashSet<>();
-        reserve(reserved, target, 2);
-        reserve(reserved, entrance.position(), 2);
-        for (PatrolRoute route : routes) {
-            for (BlockPos waypoint : route.waypoints()) {
-                reserve(reserved, waypoint, 1);
-            }
-        }
+        List<Decoration> result = new ArrayList<>();
+        Set<BlockPos> occupied = new HashSet<>();
+        Set<BlockPos> blockedCells = new HashSet<>();
+        reserve(occupied, target, 2);
+        reserve(occupied, entrance.position(), 2);
         for (StairRun stair : stairs) {
             Direction across = stair.ascending().getClockWise();
             for (int step = 0; step <= stair.rise(); step++) {
                 for (int lane = 0; lane < STAIR_WIDTH; lane++) {
-                    reserve(reserved, stair.start().relative(stair.ascending(), step)
+                    reserve(occupied, stair.start().relative(stair.ascending(), step)
                             .relative(across, lane).above(step), 1);
                 }
             }
             for (BlockPos landing : stairFloorClearanceCells(stair)) {
-                reserve(reserved, landing, 1);
+                reserve(occupied, landing, 1);
             }
         }
 
-        List<Decoration> result = new ArrayList<>();
-        Set<BlockPos> occupied = new HashSet<>(reserved);
-        Set<BlockPos> blockedCells = new HashSet<>();
+        int explosiveCanisters = 0;
         for (int floorIndex = 0; floorIndex < floors.size(); floorIndex++) {
             FloorProfile floor = floors.get(floorIndex);
+            PatrolRoute route = routes.stream()
+                    .filter(value -> value.floorY() == floor.y()).findFirst().orElseThrow();
+            Set<BlockPos> circulation = circulationSpine(
+                    floor, entrance, stairs, route, target);
+            for (BlockPos position : circulation) {
+                reserve(occupied, position, CORRIDOR_CLEARANCE);
+            }
+
+            Direction longAxis = floor.bounds().width() >= floor.bounds().depth()
+                    ? Direction.EAST : Direction.SOUTH;
+            Direction across = longAxis.getClockWise();
+            if (floorIndex == 0) {
+                BlockPos inside = entrance.position().relative(entrance.outward().getOpposite());
+                Direction inward = entrance.outward().getOpposite();
+                Direction lobbyAcross = inward.getClockWise();
+                addFirstDecoration(
+                        result, occupied, blockedCells, floor,
+                        List.of(
+                                inside.relative(inward, 3).relative(lobbyAcross, -3),
+                                inside.relative(inward, 3).relative(lobbyAcross, 2),
+                                inside.relative(inward, 5).relative(lobbyAcross, -3),
+                                inside.relative(inward, 5).relative(lobbyAcross, 2)),
+                        DecorKind.RECEPTION_DESK, entrance.outward(),
+                        entrance, stairs, routes, target, 1);
+                addDecoration(result, occupied, blockedCells, floor,
+                        new Decoration(
+                                inside.relative(inward, 2).relative(lobbyAcross, -4),
+                                DecorKind.PLANTER, entrance.outward()),
+                        entrance, stairs, routes, target, 1);
+                addDecoration(result, occupied, blockedCells, floor,
+                        new Decoration(
+                                inside.relative(inward, 2).relative(lobbyAcross, 4),
+                                DecorKind.PLANTER, entrance.outward()),
+                        entrance, stairs, routes, target, 1);
+                addDecoration(result, occupied, blockedCells, floor,
+                        new Decoration(
+                                inside.relative(inward, 6).relative(lobbyAcross, 3),
+                                DecorKind.COUCH, inward),
+                        entrance, stairs, routes, target, 1);
+            }
+
+            if (floor.cells().size() >= LARGE_OFFICE_CELLS) {
+                addRoomPartitions(
+                        result, occupied, blockedCells, floor, longAxis,
+                        entrance, stairs, routes, target);
+                int wantedPods = Math.min(8, Math.max(2, floor.cells().size() / 48));
+                int pods = 0;
+                for (int z = floor.bounds().minZ + 2;
+                        z <= floor.bounds().maxZ - 2 && pods < wantedPods; z += 4) {
+                    for (int x = floor.bounds().minX + 2;
+                            x <= floor.bounds().maxX - 2 && pods < wantedPods; x += 4) {
+                        if (addDecoration(result, occupied, blockedCells, floor,
+                                new Decoration(
+                                        new BlockPos(x, floor.y(), z),
+                                        DecorKind.CUBICLE_POD, longAxis),
+                                entrance, stairs, routes, target, 1)) {
+                            pods++;
+                        }
+                    }
+                }
+                List<BlockPos> roomAnchors = List.of(
+                        new BlockPos(
+                                floor.bounds().minX + 2, floor.y(), floor.bounds().maxZ - 3),
+                        new BlockPos(
+                                floor.bounds().maxX - 3, floor.y(), floor.bounds().minZ + 2),
+                        new BlockPos(
+                                floor.bounds().maxX - 3, floor.y(), floor.bounds().maxZ - 3));
+                addFirstDecoration(result, occupied, blockedCells, floor, roomAnchors,
+                        DecorKind.CONFERENCE_TABLE, longAxis,
+                        entrance, stairs, routes, target, 1);
+
+                int racks = 0;
+                for (int offset = 2; offset < Math.max(
+                        floor.bounds().width(), floor.bounds().depth()) - 2 && racks < 3;
+                        offset += 2) {
+                    BlockPos rack = longAxis.getAxis() == Direction.Axis.X
+                            ? new BlockPos(
+                                    floor.bounds().maxX - 1, floor.y(), floor.bounds().minZ + offset)
+                            : new BlockPos(
+                                    floor.bounds().minX + offset, floor.y(), floor.bounds().maxZ - 1);
+                    if (addDecoration(result, occupied, blockedCells, floor,
+                            new Decoration(rack, DecorKind.SERVER_RACK, longAxis.getOpposite()),
+                            entrance, stairs, routes, target, 0)) {
+                        racks++;
+                    }
+                }
+                addFirstDecoration(result, occupied, blockedCells, floor, roomAnchors.reversed(),
+                        DecorKind.WATER_COOLER, across,
+                        entrance, stairs, routes, target, 1);
+
+                if (explosiveCanisters < MAX_EXPLOSIVE_CANISTERS_PER_SITE) {
+                    for (BlockPos anchor : roomAnchors.reversed()) {
+                        if (!safeCanisterPosition(anchor, entrance, stairs, routes, target)) {
+                            continue;
+                        }
+                        if (addDecoration(result, occupied, blockedCells, floor,
+                                new Decoration(
+                                        anchor, DecorKind.EXPLOSIVE_CANISTER,
+                                        longAxis.getOpposite()),
+                                entrance, stairs, routes, target, 1)) {
+                            explosiveCanisters++;
+                            break;
+                        }
+                    }
+                }
+            }
+
             int wanted = floorIndex == 0 ? 3 : 4;
-            List<BlockPos> candidates = ordered(
-                    floor.cells(), seed ^ (long) floor.y() * 0xD1B54A32D192ED03L);
-            for (BlockPos candidate : candidates) {
-                if (result.stream().filter(value -> value.position().getY() == floor.y()).count()
-                        >= wanted) {
-                    break;
-                }
-                Direction facing = HORIZONTAL[Math.floorMod(
-                        (int) positionScore(seed, candidate.getX(), candidate.getZ()),
-                        HORIZONTAL.length)];
-                Direction across = facing.getClockWise();
-                DecorKind kind = floorIndex == 0
-                        ? result.stream().noneMatch(value -> value.position().getY() == floor.y())
-                                ? DecorKind.RECEPTION_DESK : DecorKind.PLANTER
-                        : (result.size() & 1) == 0
-                                ? DecorKind.CUBICLE_DESK : DecorKind.COUCH;
-                List<BlockPos> footprint = decorationFootprint(candidate, kind, across);
-                if (footprint.stream().anyMatch(occupied::contains)
-                        || footprint.stream().anyMatch(position -> !floor.cells().contains(position))
-                        || !preservesFloorConnectivity(
-                                floor, footprint, blockedCells, entrance, stairs, routes, target)) {
-                    continue;
-                }
-                result.add(new Decoration(candidate, kind, facing));
-                blockedCells.addAll(footprint);
-                for (BlockPos position : footprint) {
-                    reserve(occupied, position, 1);
+            if (decorationsOnFloor(result, floor.y()) < wanted) {
+                for (BlockPos candidate : structuredFloorCandidates(floor, longAxis)) {
+                    if (decorationsOnFloor(result, floor.y()) >= wanted) break;
+                    DecorKind kind = floorIndex == 0
+                            ? DecorKind.FILING_CABINET : DecorKind.CUBICLE_DESK;
+                    addDecoration(result, occupied, blockedCells, floor,
+                            new Decoration(candidate, kind, longAxis),
+                            entrance, stairs, routes, target, 1);
                 }
             }
         }
         return List.copyOf(result);
+    }
+
+    private static Set<BlockPos> circulationSpine(
+            FloorProfile floor,
+            Entrance entrance,
+            List<StairRun> stairs,
+            PatrolRoute route,
+            BlockPos target) {
+        LinkedHashSet<BlockPos> portals = new LinkedHashSet<>(route.waypoints());
+        BlockPos entranceInside = entrance.position().relative(entrance.outward().getOpposite());
+        if (entranceInside.getY() == floor.y()) {
+            portals.add(entranceInside);
+            portals.add(entranceInside.relative(entrance.outward().getClockWise()));
+        }
+        for (StairRun stair : stairs) {
+            for (BlockPos landing : stairFloorClearanceCells(stair)) {
+                if (landing.getY() == floor.y()) portals.add(landing);
+            }
+        }
+        if (target.getY() == floor.y()) portals.add(target);
+        portals.retainAll(floor.cells());
+        LinkedHashSet<BlockPos> spine = new LinkedHashSet<>();
+        BlockPos root = portals.stream().findFirst().orElse(null);
+        if (root == null) return spine;
+        spine.add(root);
+        for (BlockPos portal : portals) {
+            spine.addAll(shortestFloorPath(floor.cells(), root, portal));
+        }
+        return spine;
+    }
+
+    private static List<BlockPos> shortestFloorPath(
+            Set<BlockPos> cells, BlockPos start, BlockPos target) {
+        if (start.equals(target)) return List.of(start);
+        Map<BlockPos, BlockPos> previous = new HashMap<>();
+        ArrayDeque<BlockPos> queue = new ArrayDeque<>();
+        previous.put(start, start);
+        queue.add(start);
+        while (!queue.isEmpty() && !previous.containsKey(target)) {
+            BlockPos current = queue.removeFirst();
+            for (Direction direction : HORIZONTAL) {
+                BlockPos next = current.relative(direction);
+                if (cells.contains(next) && !previous.containsKey(next)) {
+                    previous.put(next, current);
+                    queue.addLast(next);
+                }
+            }
+        }
+        if (!previous.containsKey(target)) return List.of();
+        ArrayList<BlockPos> path = new ArrayList<>();
+        BlockPos cursor = target;
+        while (!cursor.equals(start)) {
+            path.add(cursor);
+            cursor = previous.get(cursor);
+        }
+        path.add(start);
+        java.util.Collections.reverse(path);
+        return List.copyOf(path);
+    }
+
+    private static void addRoomPartitions(
+            List<Decoration> result,
+            Set<BlockPos> occupied,
+            Set<BlockPos> blocked,
+            FloorProfile floor,
+            Direction longAxis,
+            Entrance entrance,
+            List<StairRun> stairs,
+            List<PatrolRoute> routes,
+            BlockPos target) {
+        boolean splitAlongX = longAxis.getAxis() == Direction.Axis.X;
+        int fixed = splitAlongX
+                ? (floor.bounds().minX + floor.bounds().maxX()) / 2
+                : (floor.bounds().minZ + floor.bounds().maxZ()) / 2;
+        int start = splitAlongX ? floor.bounds().minZ + 1 : floor.bounds().minX + 1;
+        int end = splitAlongX ? floor.bounds().maxZ - 1 : floor.bounds().maxX - 1;
+        Direction facing = splitAlongX ? Direction.EAST : Direction.SOUTH;
+        for (int variable = start; variable <= end; variable++) {
+            BlockPos position = splitAlongX
+                    ? new BlockPos(fixed, floor.y(), variable)
+                    : new BlockPos(variable, floor.y(), fixed);
+            addDecoration(result, occupied, blocked, floor,
+                    new Decoration(position, DecorKind.ROOM_PARTITION, facing),
+                    entrance, stairs, routes, target, 0);
+        }
+    }
+
+    private static boolean addFirstDecoration(
+            List<Decoration> result,
+            Set<BlockPos> occupied,
+            Set<BlockPos> blocked,
+            FloorProfile floor,
+            List<BlockPos> candidates,
+            DecorKind kind,
+            Direction facing,
+            Entrance entrance,
+            List<StairRun> stairs,
+            List<PatrolRoute> routes,
+            BlockPos target,
+            int clearance) {
+        for (BlockPos candidate : candidates) {
+            if (addDecoration(result, occupied, blocked, floor,
+                    new Decoration(candidate, kind, facing),
+                    entrance, stairs, routes, target, clearance)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean addDecoration(
+            List<Decoration> result,
+            Set<BlockPos> occupied,
+            Set<BlockPos> blocked,
+            FloorProfile floor,
+            Decoration decoration,
+            Entrance entrance,
+            List<StairRun> stairs,
+            List<PatrolRoute> routes,
+            BlockPos target,
+            int clearance) {
+        if (result.size() >= MAX_DECORATIONS) return false;
+        Direction across = decoration.facing().getClockWise();
+        List<BlockPos> footprint = decorationFootprint(
+                decoration.position(), decoration.kind(), across);
+        if (footprint.stream().anyMatch(occupied::contains)
+                || footprint.stream().anyMatch(position -> !floor.cells().contains(position))
+                || !preservesFloorConnectivity(
+                        floor, footprint, blocked, entrance, stairs, routes, target)) {
+            return false;
+        }
+        result.add(decoration);
+        blocked.addAll(footprint);
+        for (BlockPos position : footprint) reserve(occupied, position, clearance);
+        return true;
+    }
+
+    private static long decorationsOnFloor(List<Decoration> decorations, int floorY) {
+        return decorations.stream()
+                .filter(decoration -> decoration.position().getY() == floorY)
+                .count();
+    }
+
+    private static List<BlockPos> structuredFloorCandidates(
+            FloorProfile floor, Direction longAxis) {
+        ArrayList<BlockPos> candidates = new ArrayList<>();
+        int xStep = longAxis.getAxis() == Direction.Axis.X ? 3 : 2;
+        int zStep = longAxis.getAxis() == Direction.Axis.Z ? 3 : 2;
+        for (int z = floor.bounds().minZ + 1; z <= floor.bounds().maxZ - 1; z += zStep) {
+            for (int x = floor.bounds().minX + 1; x <= floor.bounds().maxX - 1; x += xStep) {
+                candidates.add(new BlockPos(x, floor.y(), z));
+            }
+        }
+        return List.copyOf(candidates);
+    }
+
+    private static boolean safeCanisterPosition(
+            BlockPos position,
+            Entrance entrance,
+            List<StairRun> stairs,
+            List<PatrolRoute> routes,
+            BlockPos target) {
+        if (horizontalDistance(position, entrance.position()) < 6
+                || horizontalDistance(position, target) < 6
+                || stairs.stream().anyMatch(stair ->
+                        horizontalDistance(position, stair.start()) < 5)
+                || routes.stream().flatMap(route -> route.waypoints().stream()).anyMatch(
+                        waypoint -> waypoint.getY() == position.getY()
+                                && horizontalDistance(position, waypoint) < 4)) {
+            return false;
+        }
+        return true;
+    }
+
+    private static int horizontalDistance(BlockPos first, BlockPos second) {
+        return Math.abs(first.getX() - second.getX())
+                + Math.abs(first.getZ() - second.getZ());
     }
 
     private static boolean hasRequiredDecorations(
@@ -1032,6 +1359,19 @@ public final class MissionBuildingPlanner {
                     .filter(decoration -> decoration.position().getY() == floorY)
                     .count();
             if (actual < required) {
+                return false;
+            }
+            if (floorIndex == 0 && decorations.stream().noneMatch(decoration ->
+                    decoration.position().getY() == floorY
+                            && decoration.kind() == DecorKind.RECEPTION_DESK)) {
+                return false;
+            }
+            if (floorIndex > 0 && decorations.stream().noneMatch(decoration ->
+                    decoration.position().getY() == floorY
+                            && switch (decoration.kind()) {
+                                case CUBICLE_DESK, CUBICLE_POD, CONFERENCE_TABLE, SERVER_RACK -> true;
+                                default -> false;
+                            })) {
                 return false;
             }
         }
@@ -1167,6 +1507,7 @@ public final class MissionBuildingPlanner {
 
     private static void addDecorationEdits(List<Edit> edits, Decoration decoration) {
         Direction across = decoration.facing().getClockWise();
+        Direction forward = decoration.facing().getOpposite();
         BlockPos second = decoration.position().relative(across);
         switch (decoration.kind()) {
             case RECEPTION_DESK -> {
@@ -1189,6 +1530,8 @@ public final class MissionBuildingPlanner {
                 edits.add(new Edit(second,
                         Blocks.CONCRETE.pick(DyeColor.LIGHT_GRAY).defaultBlockState(),
                         EditPolicy.AIR_ONLY));
+                edits.add(new Edit(second.above(),
+                        Blocks.GLASS_PANE.defaultBlockState(), EditPolicy.AIR_ONLY));
             }
             case COUCH -> {
                 BlockState couch = Blocks.POLISHED_BLACKSTONE_STAIRS.defaultBlockState()
@@ -1196,7 +1539,67 @@ public final class MissionBuildingPlanner {
                 edits.add(new Edit(decoration.position(), couch, EditPolicy.AIR_ONLY));
                 edits.add(new Edit(second, couch, EditPolicy.AIR_ONLY));
             }
+            case ROOM_PARTITION -> {
+                edits.add(new Edit(decoration.position(),
+                        Blocks.CONCRETE.pick(DyeColor.LIGHT_GRAY).defaultBlockState(),
+                        EditPolicy.AIR_ONLY));
+                edits.add(new Edit(decoration.position().above(),
+                        Blocks.GLASS_PANE.defaultBlockState(), EditPolicy.AIR_ONLY));
+            }
+            case CUBICLE_POD -> {
+                BlockPos back = decoration.position().relative(forward);
+                BlockPos backSecond = back.relative(across);
+                edits.add(new Edit(decoration.position(),
+                        Blocks.SMOOTH_QUARTZ.defaultBlockState(), EditPolicy.AIR_ONLY));
+                edits.add(new Edit(second,
+                        Blocks.SMOOTH_QUARTZ.defaultBlockState(), EditPolicy.AIR_ONLY));
+                edits.add(new Edit(back,
+                        Blocks.CONCRETE.pick(DyeColor.LIGHT_GRAY).defaultBlockState(),
+                        EditPolicy.AIR_ONLY));
+                edits.add(new Edit(backSecond,
+                        Blocks.CONCRETE.pick(DyeColor.LIGHT_GRAY).defaultBlockState(),
+                        EditPolicy.AIR_ONLY));
+                edits.add(new Edit(back.above(),
+                        Blocks.GLASS_PANE.defaultBlockState(), EditPolicy.AIR_ONLY));
+                edits.add(new Edit(backSecond.above(),
+                        Blocks.GLASS_PANE.defaultBlockState(), EditPolicy.AIR_ONLY));
+            }
+            case CONFERENCE_TABLE -> {
+                BlockState table = Blocks.POLISHED_BLACKSTONE_SLAB.defaultBlockState();
+                for (BlockPos position : decorationFootprint(
+                        decoration.position(), decoration.kind(), across)) {
+                    edits.add(new Edit(position, table, EditPolicy.AIR_ONLY));
+                }
+            }
+            case SERVER_RACK -> {
+                edits.add(new Edit(decoration.position(),
+                        Blocks.CONCRETE.pick(DyeColor.BLACK).defaultBlockState(),
+                        EditPolicy.AIR_ONLY));
+                edits.add(new Edit(decoration.position().above(),
+                        Blocks.GLAZED_TERRACOTTA.pick(DyeColor.CYAN).defaultBlockState(),
+                        EditPolicy.AIR_ONLY));
+            }
+            case FILING_CABINET -> edits.add(new Edit(
+                    decoration.position(), Blocks.IRON_BLOCK.defaultBlockState(),
+                    EditPolicy.AIR_ONLY));
+            case WATER_COOLER -> {
+                edits.add(new Edit(decoration.position(),
+                        Blocks.IRON_BLOCK.defaultBlockState(), EditPolicy.AIR_ONLY));
+                edits.add(new Edit(decoration.position().above(),
+                        Blocks.STAINED_GLASS.pick(DyeColor.LIGHT_BLUE).defaultBlockState(),
+                        EditPolicy.AIR_ONLY));
+            }
+            case EXPLOSIVE_CANISTER -> edits.add(new Edit(
+                    decoration.position(), explosiveCanisterState(), EditPolicy.AIR_ONLY));
         }
+    }
+
+    private static BlockState explosiveCanisterState() {
+        net.minecraft.world.level.block.Block canister = BuiltInRegistries.BLOCK.getValue(
+                Identifier.fromNamespaceAndPath("cyberdeck", "explosive_canister"));
+        return canister == null || canister == Blocks.AIR
+                ? Blocks.GLAZED_TERRACOTTA.pick(DyeColor.RED).defaultBlockState()
+                : canister.defaultBlockState();
     }
 
     private static boolean routeCellsRemainClear(ServerLevel level, Site site) {
@@ -1230,6 +1633,100 @@ public final class MissionBuildingPlanner {
                 && isPassage(level, site.target());
     }
 
+    private static boolean circulationRemainsAccessible(
+            ServerLevel level, Site site, List<Edit> plannedEdits) {
+        for (int floorY : site.floorYs()) {
+            Set<BlockPos> reachable = reachableFloorCells(level, site, floorY, plannedEdits);
+            if (reachable.isEmpty()) return false;
+            LinkedHashSet<BlockPos> required = new LinkedHashSet<>();
+            site.patrolRoute(floorY).ifPresent(route -> required.addAll(route.waypoints()));
+            if (site.target().getY() == floorY) {
+                Map<BlockPos, BlockState> overlay = new HashMap<>();
+                for (Edit edit : plannedEdits) overlay.put(edit.position(), edit.state());
+                BlockState targetState = plannedState(level, site.target(), overlay);
+                boolean objectiveOccupiesTarget = targetState.is(
+                                MissionBlocks.DELIVERY_TERMINAL.get())
+                        || !isPassable(targetState)
+                                && plannedState(level, site.target().above(), overlay)
+                                        .is(MissionBlocks.DATA_TERMINAL.get());
+                if (!objectiveOccupiesTarget) required.add(site.target());
+                long approaches = java.util.Arrays.stream(HORIZONTAL)
+                        .map(site.target()::relative)
+                        .filter(reachable::contains)
+                        .count();
+                if (approaches < 1) return false;
+            }
+            BlockPos entranceInside = site.entrance().position()
+                    .relative(site.entrance().outward().getOpposite());
+            if (entranceInside.getY() == floorY) {
+                required.add(entranceInside);
+                if (!site.entrance().existing()) {
+                    required.add(entranceInside.relative(
+                            site.entrance().outward().getClockWise()));
+                }
+            }
+            for (StairRun stair : site.stairs()) {
+                for (BlockPos landing : stairLandingCells(stair)) {
+                    if (landing.getY() == floorY) required.add(landing);
+                }
+            }
+            if (!reachable.containsAll(required)) return false;
+        }
+        return true;
+    }
+
+    private static Set<BlockPos> reachableFloorCells(
+            ServerLevel level, Site site, int floorY, List<Edit> plannedEdits) {
+        Map<BlockPos, BlockState> overlay = new HashMap<>();
+        for (Edit edit : plannedEdits) overlay.put(edit.position(), edit.state());
+        BlockPos start = floorStart(site, floorY);
+        if (start == null || !plannedPassage(level, start, overlay)) return Set.of();
+        Set<BlockPos> visited = new HashSet<>();
+        ArrayDeque<BlockPos> queue = new ArrayDeque<>();
+        visited.add(start);
+        queue.add(start);
+        while (!queue.isEmpty()) {
+            BlockPos current = queue.removeFirst();
+            for (Direction direction : HORIZONTAL) {
+                BlockPos next = current.relative(direction);
+                if (next.getX() < site.bounds().minX() || next.getX() > site.bounds().maxX()
+                        || next.getZ() < site.bounds().minZ()
+                        || next.getZ() > site.bounds().maxZ()
+                        || next.getY() != floorY || visited.contains(next)
+                        || !plannedPassage(level, next, overlay)) {
+                    continue;
+                }
+                visited.add(next);
+                queue.addLast(next);
+            }
+        }
+        return Set.copyOf(visited);
+    }
+
+    private static BlockPos floorStart(Site site, int floorY) {
+        BlockPos entranceInside = site.entrance().position()
+                .relative(site.entrance().outward().getOpposite());
+        if (entranceInside.getY() == floorY) return entranceInside;
+        for (StairRun stair : site.stairs()) {
+            for (BlockPos landing : stairLandingCells(stair)) {
+                if (landing.getY() == floorY) return landing;
+            }
+        }
+        return site.patrolRoute(floorY).map(route -> route.waypoints().getFirst()).orElse(null);
+    }
+
+    private static boolean plannedPassage(
+            ServerLevel level, BlockPos feet, Map<BlockPos, BlockState> overlay) {
+        return isPassable(plannedState(level, feet, overlay))
+                && isPassable(plannedState(level, feet.above(), overlay))
+                && plannedState(level, feet.below(), overlay).blocksMotion();
+    }
+
+    private static BlockState plannedState(
+            ServerLevel level, BlockPos position, Map<BlockPos, BlockState> overlay) {
+        return overlay.getOrDefault(position, level.getBlockState(position));
+    }
+
     private static boolean loadSiteChunks(ServerLevel level, BoundingBox bounds) {
         int minChunkX = Math.floorDiv(bounds.minX(), 16);
         int maxChunkX = Math.floorDiv(bounds.maxX(), 16);
@@ -1261,7 +1758,9 @@ public final class MissionBuildingPlanner {
     }
 
     private static boolean isPassable(BlockState state) {
-        return state.isAir() || state.canBeReplaced() || state.getBlock() instanceof DoorBlock;
+        return state.isAir() || state.canBeReplaced()
+                || state.getBlock() instanceof DoorBlock
+                        && state.getValue(DoorBlock.OPEN);
     }
 
     private static boolean hasCeiling(ServerLevel level, BlockPos feet, int maxDistance) {
@@ -1294,9 +1793,19 @@ public final class MissionBuildingPlanner {
 
     private static List<BlockPos> decorationFootprint(
             BlockPos position, DecorKind kind, Direction across) {
-        return kind == DecorKind.PLANTER
-                ? List.of(position)
-                : List.of(position, position.relative(across));
+        return switch (kind) {
+            case PLANTER, ROOM_PARTITION, SERVER_RACK, FILING_CABINET,
+                    WATER_COOLER, EXPLOSIVE_CANISTER -> List.of(position);
+            case CUBICLE_POD, CONFERENCE_TABLE -> {
+                Direction forward = across.getClockWise();
+                yield List.of(
+                        position,
+                        position.relative(across),
+                        position.relative(forward),
+                        position.relative(forward).relative(across));
+            }
+            default -> List.of(position, position.relative(across));
+        };
     }
 
     private static void reserve(Set<BlockPos> positions, BlockPos center, int radius) {
@@ -1394,13 +1903,21 @@ public final class MissionBuildingPlanner {
             for (BlockPos position : decorationFootprint(
                     decoration.position(), decoration.kind(), across)) {
                 if (!contains(bounds, position)
-                        || decoration.kind() == DecorKind.PLANTER
+                        || decorationUsesUpperBlock(decoration.kind())
                                 && !contains(bounds, position.above())) {
                     return false;
                 }
             }
         }
         return true;
+    }
+
+    private static boolean decorationUsesUpperBlock(DecorKind kind) {
+        return switch (kind) {
+            case PLANTER, CUBICLE_DESK, ROOM_PARTITION, CUBICLE_POD,
+                    SERVER_RACK, WATER_COOLER -> true;
+            default -> false;
+        };
     }
 
     private static boolean stairFloorsMatch(
@@ -1534,7 +2051,7 @@ public final class MissionBuildingPlanner {
         if (encoded == null || encoded.isBlank()) return result;
         for (String entry : encoded.split(";")) {
             String[] fields = entry.split(",", -1);
-            if (fields.length != 5 || result.size() >= 32) continue;
+            if (fields.length != 5 || result.size() >= MAX_DECORATIONS) continue;
             result.add(new Decoration(
                     new BlockPos(Integer.parseInt(fields[0]), Integer.parseInt(fields[1]),
                             Integer.parseInt(fields[2])),

@@ -21,6 +21,8 @@ public record MissionSyncPacket(
         int districtOrdinal,
         int targetX,
         int targetZ,
+        int navigationX,
+        int navigationZ,
         int reward,
         int streetCred,
         boolean deployed) implements CustomPacketPayload {
@@ -36,7 +38,8 @@ public record MissionSyncPacket(
     }
 
     public static MissionSyncPacket inactive() {
-        return new MissionSyncPacket(false, -1, -1, "", "", -1, 0, 0, 0, 0, false);
+        return new MissionSyncPacket(
+                false, -1, -1, "", "", -1, 0, 0, 0, 0, 0, 0, false);
     }
 
     public static MissionSyncPacket active(
@@ -47,12 +50,15 @@ public record MissionSyncPacket(
             int district,
             int targetX,
             int targetZ,
+            int navigationX,
+            int navigationZ,
             int reward,
             int streetCred,
             boolean deployed) {
         return new MissionSyncPacket(
                 true, kind.ordinal(), type.ordinal(), title, objective,
-                district, targetX, targetZ, reward, streetCred, deployed);
+                district, targetX, targetZ, navigationX, navigationZ,
+                reward, streetCred, deployed);
     }
 
     private void encode(RegistryFriendlyByteBuf buffer) {
@@ -65,6 +71,8 @@ public record MissionSyncPacket(
         buffer.writeVarInt(districtOrdinal);
         buffer.writeInt(targetX);
         buffer.writeInt(targetZ);
+        buffer.writeInt(navigationX);
+        buffer.writeInt(navigationZ);
         buffer.writeVarInt(reward);
         buffer.writeVarInt(streetCred);
         buffer.writeBoolean(deployed);
@@ -87,6 +95,8 @@ public record MissionSyncPacket(
                 buffer.readUtf(MAX_TEXT),
                 buffer.readUtf(MAX_TEXT),
                 buffer.readVarInt(),
+                buffer.readInt(),
+                buffer.readInt(),
                 buffer.readInt(),
                 buffer.readInt(),
                 buffer.readVarInt(),

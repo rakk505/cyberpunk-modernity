@@ -1394,21 +1394,26 @@ public final class ExampleGameTests {
                 dataSource.id(), dataSource.type(), dataSource.title(), dataSource.briefing(),
                 dataSource.targetName(), dataSource.targetDistricts(), 7, 7, 0,
                 dataSource.objectiveRadius(), 0, null, 0, List.of(), null, 0);
-        BlockPos terminalPos = origin.offset(0, 0, 3);
+        BlockPos terminalSupport = origin.offset(0, 0, 3);
+        BlockPos terminalPos = terminalSupport.above();
         MissionService.ActiveMission dataMission = testMission(dataDefinition, terminalPos, 7, "");
         MissionService.save(player, dataMission);
         helper.assertTrue(MissionService.installDataObjective(
                         helper.getLevel(), player, dataDefinition, dataMission) != null
                         && helper.getLevel().getBlockState(terminalPos)
-                        .is(MissionBlocks.DATA_TERMINAL.get()),
-                "steal-data mission did not install its secured terminal");
+                                .is(MissionBlocks.DATA_TERMINAL.get())
+                        && helper.getLevel().getBlockState(terminalSupport)
+                                .is(Blocks.POLISHED_DEEPSLATE),
+                "steal-data mission did not install its terminal on a solid pedestal");
         emeralds = inventoryCount(player, CyberdeckItems.EMMIES.get());
         helper.assertTrue(MissionService.activateDataTerminal(player, terminalPos)
                         && MissionService.activeMission(player).isEmpty()
                         && helper.getLevel().isEmptyBlock(terminalPos)
+                        && helper.getLevel().getBlockState(terminalSupport)
+                                .is(Blocks.POLISHED_DEEPSLATE)
                         && inventoryCount(player, CyberdeckItems.EMMIES.get())
                                 == emeralds + dataMission.reward(),
-                "secured terminal interaction did not complete and clean up the data mission");
+                "secured terminal interaction did not complete or preserve its pedestal");
 
         MissionCatalog.MissionDefinition shipping = definitions.stream()
                 .filter(value -> value.type() == MissionCatalog.MissionType.SHIP_ITEM)
@@ -1655,9 +1660,10 @@ public final class ExampleGameTests {
                 delayedMission.acceptedTick());
         MissionJournalData journal = MissionJournalData.get(helper.getLevel());
         long legacyUpdatedTick = helper.getLevel().getGameTime() + 1_000;
+        BlockPos canonicalNavigation = canonicalTarget.offset(-4, 0, 2);
         journal.accept(
                 delayedContext.participants(), delayedContext, canonicalMission,
-                legacyUpdatedTick);
+                canonicalNavigation, legacyUpdatedTick);
         journal.accept(
                 delayedContext.participants(), delayedContext, delayedMission,
                 delayedMission.acceptedTick());
@@ -1669,12 +1675,40 @@ public final class ExampleGameTests {
                                 .filter(mission -> mission.target().equals(canonicalTarget)).isPresent()
                         && MissionService.contractContext(player)
                                 .filter(MissionService.ContractContext::deployed).isPresent()
+                        && MissionService.activeMarker(player).filter(marker ->
+                                marker.x() == canonicalNavigation.getX()
+                                        && marker.z() == canonicalNavigation.getZ()).isPresent()
                         && MissionService.journalEntries(player).stream().anyMatch(entry ->
                                 entry.instanceId().equals(delayedContext.instanceId())
                                         && entry.deployed()
+                                        && entry.navigationX() == canonicalNavigation.getX()
+                                        && entry.navigationZ() == canonicalNavigation.getZ()
                                         && entry.targetY() == canonicalTarget.getY()
                                         && entry.updatedTick() == legacyUpdatedTick),
                 "offline participant did not restore the canonical deployed objective");
+
+        MissionBuildingPlanner.Site legacySite = syntheticSingleFloorSite(
+                helper.absolutePos(new BlockPos(44, 4, 44)));
+        BlockPos migratedNavigation = MissionBuildingPlanner.navigationTarget(legacySite);
+        MissionPlayerData.persisted(player).put("cyberdeck_mission_site", legacySite.save());
+        MissionPlayerData.persisted(player).remove("cyberdeck_mission_navigation_x");
+        MissionPlayerData.persisted(player).remove("cyberdeck_mission_navigation_z");
+        MissionService.ActiveMission recoveredMission = MissionService.activeMission(player)
+                .orElseThrow();
+        MissionService.ContractContext recoveredContext = MissionService.contractContext(player)
+                .orElseThrow();
+        journal.accept(
+                recoveredContext.participants(), recoveredContext, recoveredMission,
+                recoveredMission.target(), legacyUpdatedTick + 1_000);
+        MissionService.onPlayerLogin(player);
+        helper.assertTrue(MissionService.activeMarker(player).filter(marker ->
+                                marker.x() == migratedNavigation.getX()
+                                        && marker.z() == migratedNavigation.getZ()).isPresent()
+                        && MissionService.journalEntries(player).stream().anyMatch(entry ->
+                                entry.instanceId().equals(delayedContext.instanceId())
+                                        && entry.navigationX() == migratedNavigation.getX()
+                                        && entry.navigationZ() == migratedNavigation.getZ()),
+                "legacy deployed journal did not migrate navigation from its saved building site");
         helper.assertTrue(MissionService.abandon(player)
                         && !legacyReservations.hasReservation(delayedContext.instanceId()),
                 "delayed contract could not be cleanly abandoned or release its site");
@@ -1716,6 +1750,28 @@ public final class ExampleGameTests {
         helper.assertTrue(MissionBuildingPlanner.install(helper.getLevel(), restored)
                         == MissionBuildingPlanner.InstallationResult.ALREADY_INSTALLED,
                 "mission building installation was not idempotent");
+        helper.assertTrue(MissionBuildingPlanner.hasAccessibleObjectivePath(
+                        helper.getLevel(), restored)
+                        && MissionBuildingPlanner.objectiveApproach(
+                                helper.getLevel(), restored).isPresent(),
+                "installed mission interior did not retain a player-sized objective route");
+        helper.getLevel().setBlock(restored.target(),
+                MissionBlocks.DELIVERY_TERMINAL.get().defaultBlockState(), Block.UPDATE_ALL);
+        helper.assertTrue(MissionBuildingPlanner.hasAccessibleObjectivePath(
+                        helper.getLevel(), restored),
+                "delivery terminal obstructed its own reachable interaction approach");
+        helper.getLevel().setBlock(restored.target(),
+                Blocks.POLISHED_DEEPSLATE.defaultBlockState(), Block.UPDATE_ALL);
+        helper.getLevel().setBlock(restored.target().above(),
+                MissionBlocks.DATA_TERMINAL.get().defaultBlockState(), Block.UPDATE_ALL);
+        helper.assertTrue(MissionBuildingPlanner.hasAccessibleObjectivePath(
+                        helper.getLevel(), restored),
+                "pedestal data terminal obstructed its reachable interaction approach");
+        helper.getLevel().setBlock(
+                restored.target(), Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+        helper.getLevel().setBlock(
+                restored.target().above(), Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+        assertStructuredOfficeDecor(helper, restored);
 
         Direction entranceAcross = restored.entrance().outward().getClockWise();
         helper.assertTrue(helper.getLevel().getBlockState(restored.entrance().position())
@@ -1783,6 +1839,25 @@ public final class ExampleGameTests {
                         && helper.getLevel().isEmptyBlock(restored.target().above()),
                 "mission decoration obstructed the objective cell");
 
+        List<BlockPos> objectiveApproaches = List.of(
+                restored.target().north(), restored.target().south(),
+                restored.target().east(), restored.target().west());
+        List<BlockState> originalApproachStates = objectiveApproaches.stream()
+                .map(helper.getLevel()::getBlockState).toList();
+        objectiveApproaches.forEach(position -> helper.getLevel().setBlock(
+                position, Blocks.BEDROCK.defaultBlockState(), Block.UPDATE_ALL));
+        helper.assertTrue(!MissionBuildingPlanner.hasAccessibleObjectivePath(
+                        helper.getLevel(), restored),
+                "mission accessibility check accepted an objective blocked on every side");
+        for (int index = 0; index < objectiveApproaches.size(); index++) {
+            helper.getLevel().setBlock(
+                    objectiveApproaches.get(index), originalApproachStates.get(index),
+                    Block.UPDATE_ALL);
+        }
+        helper.assertTrue(MissionBuildingPlanner.hasAccessibleObjectivePath(
+                        helper.getLevel(), restored),
+                "mission objective route did not recover after its approaches were restored");
+
         BlockPos compactOrigin = origin.offset(26, 0, 0);
         MissionBuildingPlanner.Site compactSite = syntheticSingleFloorSite(compactOrigin);
         prepareMissionSite(helper, compactSite);
@@ -1792,6 +1867,34 @@ public final class ExampleGameTests {
                         && MissionBuildingPlanner.install(helper.getLevel(), compactSite)
                                 == MissionBuildingPlanner.InstallationResult.INSTALLED,
                 "large single-floor building was not accepted as a safe mission fallback");
+
+        Direction compactAcross = compactSite.entrance().outward().getClockWise();
+        helper.getLevel().setBlock(compactSite.entrance().position(),
+                Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+        helper.getLevel().setBlock(compactSite.entrance().position().above(),
+                Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+        for (int y = 0; y < 3; y++) {
+            helper.getLevel().setBlock(
+                    compactSite.entrance().position().relative(compactAcross).above(y),
+                    Blocks.STONE.defaultBlockState(), Block.UPDATE_ALL);
+        }
+        MissionBuildingPlanner.Site oneWideEntrance = new MissionBuildingPlanner.Site(
+                "test:existing-one-wide-office",
+                compactSite.district(),
+                compactSite.bounds(),
+                compactSite.floorYs(),
+                compactSite.target(),
+                new MissionBuildingPlanner.Entrance(
+                        compactSite.entrance().position(),
+                        compactSite.entrance().outward(), 0, true),
+                compactSite.stairs(),
+                compactSite.patrolRoutes(),
+                compactSite.decorations(),
+                compactSite.planSeed());
+        helper.assertTrue(MissionBuildingPlanner.preflight(helper.getLevel(), oneWideEntrance)
+                        && MissionBuildingPlanner.install(helper.getLevel(), oneWideEntrance)
+                                == MissionBuildingPlanner.InstallationResult.ALREADY_INSTALLED,
+                "existing one-wide building entrance was incorrectly rejected as unsafe");
 
         MissionBuildingPlanner.StairRun lower = restored.stairs().getFirst();
         MissionBuildingPlanner.StairRun overlapping = new MissionBuildingPlanner.StairRun(
@@ -1881,6 +1984,84 @@ public final class ExampleGameTests {
                 description + " is not a two-block-high passage at " + position);
     }
 
+    private static void assertStructuredOfficeDecor(
+            GameTestHelper helper, MissionBuildingPlanner.Site site) {
+        Set<MissionBuildingPlanner.DecorKind> installedKinds = site.decorations().stream()
+                .map(MissionBuildingPlanner.Decoration::kind)
+                .collect(java.util.stream.Collectors.toSet());
+        Set<MissionBuildingPlanner.DecorKind> expectedKinds = EnumSet.of(
+                MissionBuildingPlanner.DecorKind.ROOM_PARTITION,
+                MissionBuildingPlanner.DecorKind.CUBICLE_POD,
+                MissionBuildingPlanner.DecorKind.CONFERENCE_TABLE,
+                MissionBuildingPlanner.DecorKind.SERVER_RACK,
+                MissionBuildingPlanner.DecorKind.FILING_CABINET,
+                MissionBuildingPlanner.DecorKind.WATER_COOLER,
+                MissionBuildingPlanner.DecorKind.EXPLOSIVE_CANISTER);
+        helper.assertTrue(installedKinds.containsAll(expectedKinds),
+                "synthetic corporate office did not exercise every structured decor type");
+
+        for (MissionBuildingPlanner.Decoration decoration : site.decorations()) {
+            BlockPos position = decoration.position();
+            Direction across = decoration.facing().getClockWise();
+            Direction forward = decoration.facing().getOpposite();
+            switch (decoration.kind()) {
+                case ROOM_PARTITION -> helper.assertTrue(
+                        helper.getLevel().getBlockState(position)
+                                        .is(Blocks.CONCRETE.pick(DyeColor.LIGHT_GRAY))
+                                && helper.getLevel().getBlockState(position.above())
+                                        .is(Blocks.GLASS_PANE),
+                        "corporate room partition did not install its glazed divider");
+                case CUBICLE_POD -> {
+                    BlockPos second = position.relative(across);
+                    BlockPos back = position.relative(forward);
+                    BlockPos backSecond = back.relative(across);
+                    helper.assertTrue(
+                            helper.getLevel().getBlockState(position).is(Blocks.SMOOTH_QUARTZ)
+                                    && helper.getLevel().getBlockState(second)
+                                            .is(Blocks.SMOOTH_QUARTZ)
+                                    && helper.getLevel().getBlockState(back)
+                                            .is(Blocks.CONCRETE.pick(DyeColor.LIGHT_GRAY))
+                                    && helper.getLevel().getBlockState(backSecond)
+                                            .is(Blocks.CONCRETE.pick(DyeColor.LIGHT_GRAY))
+                                    && helper.getLevel().getBlockState(back.above())
+                                            .is(Blocks.GLASS_PANE)
+                                    && helper.getLevel().getBlockState(backSecond.above())
+                                            .is(Blocks.GLASS_PANE),
+                            "corporate cubicle pod did not install as a coherent workstation");
+                }
+                case CONFERENCE_TABLE -> {
+                    List<BlockPos> table = List.of(
+                            position,
+                            position.relative(across),
+                            position.relative(forward),
+                            position.relative(forward).relative(across));
+                    helper.assertTrue(table.stream().allMatch(cell -> helper.getLevel()
+                                    .getBlockState(cell).is(Blocks.POLISHED_BLACKSTONE_SLAB)),
+                            "corporate conference table did not install as a four-block surface");
+                }
+                case SERVER_RACK -> helper.assertTrue(
+                        helper.getLevel().getBlockState(position)
+                                        .is(Blocks.CONCRETE.pick(DyeColor.BLACK))
+                                && helper.getLevel().getBlockState(position.above())
+                                        .is(Blocks.GLAZED_TERRACOTTA.pick(DyeColor.CYAN)),
+                        "corporate server rack lost its stacked equipment blocks");
+                case FILING_CABINET -> helper.assertTrue(
+                        helper.getLevel().getBlockState(position).is(Blocks.IRON_BLOCK),
+                        "corporate filing cabinet did not install");
+                case WATER_COOLER -> helper.assertTrue(
+                        helper.getLevel().getBlockState(position).is(Blocks.IRON_BLOCK)
+                                && helper.getLevel().getBlockState(position.above())
+                                        .is(Blocks.STAINED_GLASS.pick(DyeColor.LIGHT_BLUE)),
+                        "corporate water cooler lost its stacked tank");
+                case EXPLOSIVE_CANISTER -> helper.assertTrue(
+                        !helper.getLevel().isEmptyBlock(position),
+                        "explosive container decor did not install");
+                default -> {
+                }
+            }
+        }
+    }
+
     private static boolean stairsHaveTestClearance(
             List<MissionBuildingPlanner.StairRun> stairs) {
         for (int first = 0; first < stairs.size(); first++) {
@@ -1950,6 +2131,18 @@ public final class ExampleGameTests {
                         MissionBuildingPlanner.DecorKind.PLANTER,
                         Direction.NORTH),
                 new MissionBuildingPlanner.Decoration(
+                        origin.offset(10, 0, 12),
+                        MissionBuildingPlanner.DecorKind.CONFERENCE_TABLE,
+                        Direction.NORTH),
+                new MissionBuildingPlanner.Decoration(
+                        origin.offset(17, 0, 3),
+                        MissionBuildingPlanner.DecorKind.WATER_COOLER,
+                        Direction.NORTH),
+                new MissionBuildingPlanner.Decoration(
+                        origin.offset(2, 0, 15),
+                        MissionBuildingPlanner.DecorKind.FILING_CABINET,
+                        Direction.NORTH),
+                new MissionBuildingPlanner.Decoration(
                         origin.offset(3, 5, 3),
                         MissionBuildingPlanner.DecorKind.CUBICLE_DESK,
                         Direction.NORTH),
@@ -1964,6 +2157,22 @@ public final class ExampleGameTests {
                 new MissionBuildingPlanner.Decoration(
                         origin.offset(18, 5, 10),
                         MissionBuildingPlanner.DecorKind.PLANTER,
+                        Direction.NORTH),
+                new MissionBuildingPlanner.Decoration(
+                        origin.offset(6, 5, 3),
+                        MissionBuildingPlanner.DecorKind.ROOM_PARTITION,
+                        Direction.NORTH),
+                new MissionBuildingPlanner.Decoration(
+                        origin.offset(10, 5, 3),
+                        MissionBuildingPlanner.DecorKind.CUBICLE_POD,
+                        Direction.NORTH),
+                new MissionBuildingPlanner.Decoration(
+                        origin.offset(18, 5, 17),
+                        MissionBuildingPlanner.DecorKind.SERVER_RACK,
+                        Direction.NORTH),
+                new MissionBuildingPlanner.Decoration(
+                        origin.offset(3, 5, 17),
+                        MissionBuildingPlanner.DecorKind.EXPLOSIVE_CANISTER,
                         Direction.NORTH),
                 new MissionBuildingPlanner.Decoration(
                         origin.offset(3, 10, 8),

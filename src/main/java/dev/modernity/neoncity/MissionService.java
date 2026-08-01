@@ -44,6 +44,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
@@ -63,6 +64,8 @@ public final class MissionService {
     private static final String TARGET_X = PREFIX + "target_x";
     private static final String TARGET_Y = PREFIX + "target_y";
     private static final String TARGET_Z = PREFIX + "target_z";
+    private static final String NAVIGATION_X = PREFIX + "navigation_x";
+    private static final String NAVIGATION_Z = PREFIX + "navigation_z";
     private static final String REWARD = PREFIX + "reward";
     private static final String ACTOR_UUID = PREFIX + "actor_uuid";
     private static final String CARGO_ITEM = PREFIX + "cargo_item";
@@ -140,6 +143,8 @@ public final class MissionService {
             int targetX,
             int targetY,
             int targetZ,
+            int navigationX,
+            int navigationZ,
             boolean deployed,
             int reward,
             int streetCred,
@@ -162,15 +167,22 @@ public final class MissionService {
         JournalEntry withStatus(JournalStatus nextStatus, long tick) {
             return new JournalEntry(
                     instanceId, kind, type, definitionId, title, briefing, objective, targetDistrict,
-                    targetX, targetY, targetZ, deployed, reward, streetCred, acceptedTick,
-                    nextStatus, tick);
+                    targetX, targetY, targetZ, navigationX, navigationZ, deployed,
+                    reward, streetCred, acceptedTick, nextStatus, tick);
         }
 
         JournalEntry withUpdatedTick(long tick) {
             return new JournalEntry(
                     instanceId, kind, type, definitionId, title, briefing, objective, targetDistrict,
-                    targetX, targetY, targetZ, deployed, reward, streetCred, acceptedTick,
-                    status, tick);
+                    targetX, targetY, targetZ, navigationX, navigationZ, deployed,
+                    reward, streetCred, acceptedTick, status, tick);
+        }
+
+        JournalEntry withNavigation(int x, int z) {
+            return new JournalEntry(
+                    instanceId, kind, type, definitionId, title, briefing, objective, targetDistrict,
+                    targetX, targetY, targetZ, x, z, deployed, reward, streetCred,
+                    acceptedTick, status, updatedTick);
         }
     }
 
@@ -735,7 +747,9 @@ public final class MissionService {
                 siteData.releaseIfOwned(reservationKey, context.instanceId());
                 continue;
             }
-            BlockPos target = candidate.target();
+            BlockPos target = mission.type() == MissionCatalog.MissionType.STEAL_DATA
+                    ? candidate.target().above()
+                    : candidate.target();
             ActiveMission prepared = new ActiveMission(
                     mission.definitionId(), mission.type(), mission.title(), mission.briefing(),
                     mission.objective(), mission.targetDistrict(), target, mission.reward(), "",
@@ -743,6 +757,7 @@ public final class MissionService {
             for (ServerPlayer member : PartyService.onlineMembers(
                     level.getServer(), context.participants())) {
                 saveSite(member, candidate);
+                saveNavigationTarget(member, MissionBuildingPlanner.navigationTarget(candidate));
             }
             ActiveMission spawned = switch (prepared.type()) {
                 case ASSASSINATE_TARGET -> spawnAssassination(level, owner, definition, prepared);
@@ -754,6 +769,7 @@ public final class MissionService {
                 for (ServerPlayer member : PartyService.onlineMembers(
                         level.getServer(), context.participants())) {
                     clearSite(member);
+                    clearNavigationTarget(member);
                 }
                 siteData.releaseIfOwned(reservationKey, context.instanceId());
                 continue;
@@ -766,7 +782,8 @@ public final class MissionService {
             }
             clearDeploymentRetry(context.instanceId());
             MissionJournalData.get(level).accept(
-                    context.participants(), deployed, spawned, level.getGameTime());
+                    context.participants(), deployed, spawned,
+                    MissionBuildingPlanner.navigationTarget(candidate), level.getGameTime());
             syncParticipants(level, deployed);
             return spawned;
         }
@@ -883,10 +900,16 @@ public final class MissionService {
     }
 
     public static Optional<OpenCityMapPacket.Marker> activeMarker(ServerPlayer player) {
-        return activeMission(player).map(mission -> new OpenCityMapPacket.Marker(
-                OpenCityMapPacket.MarkerKind.ACTIVE_MISSION,
-                mission.target().getX(), mission.target().getZ(),
-                mission.targetDistrict().ordinal(), "literal:" + mission.title()));
+        return activeMission(player).map(mission -> {
+            BlockPos navigation = navigationTarget(player, mission);
+            String referenceId = contractContext(player)
+                    .map(context -> context.instanceId().toString()).orElse("");
+            return new OpenCityMapPacket.Marker(
+                    OpenCityMapPacket.MarkerKind.ACTIVE_MISSION,
+                    navigation.getX(), navigation.getZ(),
+                    mission.targetDistrict().ordinal(), "literal:" + mission.title(),
+                    referenceId);
+        });
     }
 
     public static boolean isMissionActor(Entity entity) {
@@ -992,9 +1015,14 @@ public final class MissionService {
                 save(player, localMission);
                 saveContext(player, localContext);
                 clearSite(player);
+                saveNavigationTarget(player, new BlockPos(
+                        canonical.navigationX(), recovered.target().getY(),
+                        canonical.navigationZ()));
                 clearDeploymentRetry(localContext.instanceId());
                 MissionJournalData.get(level).accept(
                         localContext.participants(), localContext, localMission,
+                        new BlockPos(canonical.navigationX(), recovered.target().getY(),
+                                canonical.navigationZ()),
                         level.getGameTime());
             }
         }
@@ -1017,6 +1045,7 @@ public final class MissionService {
                 save(player, remoteMission);
                 saveContext(player, remoteContext);
                 clearSite(player);
+                clearNavigationTarget(player);
                 localMission = remoteMission;
                 localContext = remoteContext;
             }
@@ -1026,8 +1055,15 @@ public final class MissionService {
                 MissionBuildingPlanner.Site remoteSite = site(member).orElse(null);
                 if (remoteSite != null) {
                     saveSite(player, remoteSite);
+                    saveNavigationTarget(
+                            player, MissionBuildingPlanner.navigationTarget(remoteSite));
                     copiedSite = true;
                 }
+            }
+            if (localContext != null && localContext.deployed()
+                    && persistedNavigationTarget(player).isEmpty()) {
+                persistedNavigationTarget(member).ifPresent(
+                        navigation -> saveNavigationTarget(player, navigation));
             }
             if (adopted || copiedSite) break;
         }
@@ -1037,9 +1073,26 @@ public final class MissionService {
         ActiveMission reconciledMission = activeMission(player).orElse(null);
         ContractContext reconciledContext = contractContext(player).orElse(null);
         if (reconciledMission != null && reconciledContext != null) {
-            MissionJournalData.get(level).accept(
-                    reconciledContext.participants(), reconciledContext, reconciledMission,
-                    reconciledMission.acceptedTick());
+            if (reconciledContext.deployed()) {
+                if (persistedNavigationTarget(player).isEmpty()) {
+                    MissionJournalData.get(level).entries(player.getUUID()).stream()
+                            .filter(entry -> entry.instanceId().equals(reconciledContext.instanceId()))
+                            .filter(JournalEntry::deployed)
+                            .findFirst()
+                            .ifPresent(entry -> saveNavigationTarget(player, new BlockPos(
+                                    entry.navigationX(), reconciledMission.target().getY(),
+                                    entry.navigationZ())));
+                }
+                BlockPos reconciledNavigation = navigationTarget(player, reconciledMission);
+                saveNavigationTarget(player, reconciledNavigation);
+                MissionJournalData.get(level).accept(
+                        reconciledContext.participants(), reconciledContext, reconciledMission,
+                        reconciledNavigation, reconciledMission.acceptedTick());
+            } else {
+                MissionJournalData.get(level).accept(
+                        reconciledContext.participants(), reconciledContext, reconciledMission,
+                        reconciledMission.acceptedTick());
+            }
         }
         forceSync(player);
     }
@@ -1148,12 +1201,23 @@ public final class MissionService {
             ServerPlayer player,
             MissionCatalog.MissionDefinition definition,
             ActiveMission mission) {
-        if (!level.setBlock(mission.target(), MissionBlocks.DATA_TERMINAL.get().defaultBlockState(), 3)) {
+        BlockPos support = mission.target().below();
+        BlockState originalSupport = level.getBlockState(support);
+        BlockState originalTerminal = level.getBlockState(mission.target());
+        if ((!originalSupport.isAir() && !originalSupport.canBeReplaced())
+                || (!originalTerminal.isAir() && !originalTerminal.canBeReplaced())
+                || !level.setBlock(
+                        support, Blocks.POLISHED_DEEPSLATE.defaultBlockState(), 3)
+                || !level.setBlock(
+                        mission.target(), MissionBlocks.DATA_TERMINAL.get().defaultBlockState(), 3)) {
+            level.setBlock(support, originalSupport, 3);
+            level.setBlock(mission.target(), originalTerminal, 3);
             return null;
         }
         Entity marker = EntityTypes.MARKER.create(level, EntitySpawnReason.EVENT);
         if (marker == null) {
-            level.setBlock(mission.target(), Blocks.AIR.defaultBlockState(), 3);
+            level.setBlock(support, originalSupport, 3);
+            level.setBlock(mission.target(), originalTerminal, 3);
             return null;
         }
         marker.snapTo(
@@ -1165,7 +1229,15 @@ public final class MissionService {
         marker.setInvulnerable(true);
         tagActor(marker, player, definition, ROLE_DATA_TERMINAL);
         if (!level.addFreshEntity(marker)) {
-            level.setBlock(mission.target(), Blocks.AIR.defaultBlockState(), 3);
+            level.setBlock(support, originalSupport, 3);
+            level.setBlock(mission.target(), originalTerminal, 3);
+            return null;
+        }
+        MissionBuildingPlanner.Site site = site(player).orElse(null);
+        if (site != null && !MissionBuildingPlanner.hasAccessibleObjectivePath(level, site)) {
+            marker.discard();
+            level.setBlock(support, originalSupport, 3);
+            level.setBlock(mission.target(), originalTerminal, 3);
             return null;
         }
         spawnGuards(level, player, definition, nearestStreet(level, mission.target()));
@@ -1177,13 +1249,16 @@ public final class MissionService {
             ServerPlayer player,
             MissionCatalog.MissionDefinition definition,
             ActiveMission mission) {
-        if (!level.setBlock(
-                mission.target(), MissionBlocks.DELIVERY_TERMINAL.get().defaultBlockState(), 3)) {
+        BlockState original = level.getBlockState(mission.target());
+        if ((!original.isAir() && !original.canBeReplaced())
+                || !level.setBlock(
+                        mission.target(),
+                        MissionBlocks.DELIVERY_TERMINAL.get().defaultBlockState(), 3)) {
             return null;
         }
         Entity marker = EntityTypes.MARKER.create(level, EntitySpawnReason.EVENT);
         if (marker == null) {
-            level.setBlock(mission.target(), Blocks.AIR.defaultBlockState(), 3);
+            level.setBlock(mission.target(), original, 3);
             return null;
         }
         marker.snapTo(
@@ -1195,7 +1270,13 @@ public final class MissionService {
         marker.setInvulnerable(true);
         tagActor(marker, player, definition, ROLE_DELIVERY_TERMINAL);
         if (!level.addFreshEntity(marker)) {
-            level.setBlock(mission.target(), Blocks.AIR.defaultBlockState(), 3);
+            level.setBlock(mission.target(), original, 3);
+            return null;
+        }
+        MissionBuildingPlanner.Site site = site(player).orElse(null);
+        if (site != null && !MissionBuildingPlanner.hasAccessibleObjectivePath(level, site)) {
+            marker.discard();
+            level.setBlock(mission.target(), original, 3);
             return null;
         }
         spawnGuards(level, player, definition, mission.target());
@@ -1540,13 +1621,15 @@ public final class MissionService {
 
     private static void syncIfChanged(ServerPlayer player, ActiveMission mission) {
         ContractContext context = contractContext(player).orElse(null);
+        BlockPos navigation = mission == null ? null : navigationTarget(player, mission);
         MissionSyncPacket packet = mission == null
                 ? MissionSyncPacket.inactive()
                 : MissionSyncPacket.active(
                         context == null ? ContractKind.GIG : context.kind(),
                         mission.type(), mission.title(), mission.clientObjective(player),
                         mission.targetDistrict().ordinal(), mission.target().getX(),
-                        mission.target().getZ(), mission.reward(),
+                        mission.target().getZ(), navigation.getX(), navigation.getZ(),
+                        mission.reward(),
                         context == null ? 0 : context.streetCred(),
                         context == null || context.deployed());
         int hash = packet.hashCode();
@@ -1556,6 +1639,12 @@ public final class MissionService {
             PacketDistributor.sendToPlayer(player, packet);
             LAST_SYNC.put(player.getUUID(), hash);
         }
+    }
+
+    private static BlockPos navigationTarget(ServerPlayer player, ActiveMission mission) {
+        return site(player).map(MissionBuildingPlanner::navigationTarget)
+                .or(() -> persistedNavigationTarget(player))
+                .orElse(mission.target());
     }
 
     static void save(ServerPlayer player, ActiveMission mission) {
@@ -1602,7 +1691,7 @@ public final class MissionService {
     private static List<String> persistentKeys() {
         return List.of(
                 ACTIVE, DEFINITION, TYPE, TITLE, BRIEFING, OBJECTIVE, DISTRICT,
-                TARGET_X, TARGET_Y, TARGET_Z, REWARD, ACTOR_UUID,
+                TARGET_X, TARGET_Y, TARGET_Z, NAVIGATION_X, NAVIGATION_Z, REWARD, ACTOR_UUID,
                 CARGO_ITEM, CARGO_COUNT, ACCEPTED_TICK, CONTRACT_KIND, STREET_CRED,
                 INSTANCE_ID, PARTY_ID, PARTICIPANTS, DEPLOYED, COMPLETING, SITE_PLAN);
     }
@@ -1618,6 +1707,24 @@ public final class MissionService {
 
     private static void clearSite(ServerPlayer player) {
         MissionPlayerData.persisted(player).remove(SITE_PLAN);
+    }
+
+    private static void saveNavigationTarget(ServerPlayer player, BlockPos navigation) {
+        CompoundTag data = MissionPlayerData.persisted(player);
+        data.putInt(NAVIGATION_X, navigation.getX());
+        data.putInt(NAVIGATION_Z, navigation.getZ());
+    }
+
+    private static Optional<BlockPos> persistedNavigationTarget(ServerPlayer player) {
+        CompoundTag data = MissionPlayerData.persisted(player);
+        return data.getInt(NAVIGATION_X).flatMap(x -> data.getInt(NAVIGATION_Z)
+                .map(z -> new BlockPos(x, player.blockPosition().getY(), z)));
+    }
+
+    private static void clearNavigationTarget(ServerPlayer player) {
+        CompoundTag data = MissionPlayerData.persisted(player);
+        data.remove(NAVIGATION_X);
+        data.remove(NAVIGATION_Z);
     }
 
     private static void clearParticipants(ServerLevel level, ContractContext context) {

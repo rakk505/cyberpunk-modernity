@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
@@ -74,13 +75,23 @@ final class MissionJournalData extends SavedData {
             long updatedTick) {
     }
 
-    private record Deployment(UUID instanceId, int targetX, int targetY, int targetZ) {
+    private record Deployment(
+            UUID instanceId,
+            int targetX,
+            int targetY,
+            int targetZ,
+            int navigationX,
+            int navigationZ) {
         private static final Codec<Deployment> CODEC = RecordCodecBuilder.create(instance ->
                 instance.group(
                         UUIDUtil.CODEC.fieldOf("instance").forGetter(Deployment::instanceId),
                         Codec.INT.fieldOf("x").forGetter(Deployment::targetX),
                         Codec.INT.fieldOf("y").forGetter(Deployment::targetY),
-                        Codec.INT.fieldOf("z").forGetter(Deployment::targetZ))
+                        Codec.INT.fieldOf("z").forGetter(Deployment::targetZ),
+                        Codec.INT.optionalFieldOf("navigation_x", Integer.MIN_VALUE)
+                                .forGetter(Deployment::navigationX),
+                        Codec.INT.optionalFieldOf("navigation_z", Integer.MIN_VALUE)
+                                .forGetter(Deployment::navigationZ))
                         .apply(instance, Deployment::new));
     }
 
@@ -119,19 +130,54 @@ final class MissionJournalData extends SavedData {
             MissionService.ContractContext context,
             MissionService.ActiveMission mission,
             long updatedTick) {
+        accept(participants, context, mission, mission.target(), false, updatedTick);
+    }
+
+    void accept(
+            PartyService.ParticipantSnapshot participants,
+            MissionService.ContractContext context,
+            MissionService.ActiveMission mission,
+            BlockPos navigation,
+            long updatedTick) {
+        accept(participants, context, mission, navigation, true, updatedTick);
+    }
+
+    private void accept(
+            PartyService.ParticipantSnapshot participants,
+            MissionService.ContractContext context,
+            MissionService.ActiveMission mission,
+            BlockPos navigation,
+            boolean navigationKnown,
+            long updatedTick) {
         MissionService.JournalEntry entry = new MissionService.JournalEntry(
                 context.instanceId(), context.kind(), mission.type(),
                 mission.definitionId(), mission.title(),
                 mission.briefing(), mission.objective(), mission.targetDistrict(),
                 mission.target().getX(), mission.target().getY(), mission.target().getZ(),
-                context.deployed(), mission.reward(),
+                navigation.getX(), navigation.getZ(), context.deployed(), mission.reward(),
                 context.streetCred(), mission.acceptedTick(), MissionService.JournalStatus.ACTIVE,
                 updatedTick);
         for (UUID participant : participants.playerIds()) {
-            boolean terminal = entriesByPlayer.getOrDefault(participant, List.of()).stream()
-                    .filter(current -> current.instanceId().equals(context.instanceId()))
-                    .anyMatch(current -> current.status() != MissionService.JournalStatus.ACTIVE);
-            if (!terminal) put(participant, entry, true);
+            MissionService.JournalEntry current = entriesByPlayer
+                    .getOrDefault(participant, List.of()).stream()
+                    .filter(value -> value.instanceId().equals(context.instanceId()))
+                    .findFirst().orElse(null);
+            boolean terminal = current != null
+                    && current.status() != MissionService.JournalStatus.ACTIVE;
+            MissionService.JournalEntry candidate;
+            if (current != null && current.deployed() && context.deployed()) {
+                if (!navigationKnown) {
+                    candidate = entry.withNavigation(
+                            current.navigationX(), current.navigationZ());
+                } else if (current.updatedTick() > entry.updatedTick()) {
+                    candidate = current.withNavigation(navigation.getX(), navigation.getZ());
+                } else {
+                    candidate = entry;
+                }
+            } else {
+                candidate = entry;
+            }
+            if (!terminal) put(participant, candidate, true);
         }
     }
 
@@ -209,7 +255,7 @@ final class MissionJournalData extends SavedData {
                             entry.instanceId(),
                             new Deployment(
                                     entry.instanceId(), entry.targetX(), entry.targetY(),
-                                    entry.targetZ()));
+                                    entry.targetZ(), entry.navigationX(), entry.navigationZ()));
                 }
             }
         }
@@ -225,12 +271,18 @@ final class MissionJournalData extends SavedData {
             int targetY = deployment == null
                     ? NeonCityGenerator.CITY_GROUND_Y + 1 : deployment.targetY();
             int targetZ = deployment == null ? stored.targetZ() : deployment.targetZ();
+            int navigationX = deployment == null
+                    || deployment.navigationX() == Integer.MIN_VALUE
+                    ? targetX : deployment.navigationX();
+            int navigationZ = deployment == null
+                    || deployment.navigationZ() == Integer.MIN_VALUE
+                    ? targetZ : deployment.navigationZ();
             return java.util.Optional.of(new MissionService.JournalEntry(
                     stored.instanceId(), MissionService.ContractKind.valueOf(stored.kind()),
                     missionType(stored.type(), stored.definitionId()), stored.definitionId(),
                     stored.title(), stored.briefing(), stored.objective(),
                     District.valueOf(stored.district()), targetX, targetY, targetZ,
-                    deployment != null, Math.max(1, stored.reward()),
+                    navigationX, navigationZ, deployment != null, Math.max(1, stored.reward()),
                     Math.max(0, stored.streetCred()),
                     stored.acceptedTick(), MissionService.JournalStatus.valueOf(stored.status()),
                     stored.updatedTick()));
