@@ -916,6 +916,17 @@ public final class MissionService {
         return entity.getPersistentData().getBoolean(ACTOR_TAG).orElse(false);
     }
 
+    /** Returns whether an entity belongs to an active main-story encounter. */
+    public static boolean isStoryMissionActor(Entity entity) {
+        if (!isMissionActor(entity)) {
+            return false;
+        }
+        String definitionId = entity.getPersistentData()
+                .getString(ACTOR_DEFINITION).orElse("");
+        return !definitionId.isBlank() && StoryMissionCatalog.definitions().stream()
+                .anyMatch(definition -> definition.id().equals(definitionId));
+    }
+
     /** Rejects a persisted mission actor when its terminal contract's chunk loads later. */
     public static boolean removeIfTerminal(ServerLevel level, Entity entity) {
         if (!isMissionActor(entity)) return false;

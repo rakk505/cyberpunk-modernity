@@ -36,6 +36,8 @@ import com.example.cyberdeck.npc.CityNpcEntities;
 import com.example.cyberdeck.npc.CityNpcSpawns;
 import com.example.cyberdeck.npc.GunshotAlerts;
 import com.example.cyberdeck.npc.NpcRole;
+import com.example.cyberdeck.npc.NpcVoicelineCatalog;
+import com.example.cyberdeck.npc.NpcVoicelineService;
 import com.example.cyberdeck.trauma.TraumaTeamEvents;
 import com.example.cyberdeck.player.StreetCredState;
 import com.example.cyberdeck.skill.QuickhackUploads;
@@ -50,6 +52,8 @@ import com.example.cyberdeck.weapon.AmmoItem;
 import com.example.cyberdeck.weapon.AmmoItems;
 import com.example.cyberdeck.weapon.AmmoType;
 import dev.modernity.neoncity.MegacityLayout;
+import dev.modernity.neoncity.District;
+import dev.modernity.neoncity.NeonCityGenerator;
 import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.HashSet;
 import java.util.List;
@@ -175,6 +179,9 @@ public final class CyberdeckGameTests {
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             NPC_ROLES_AND_DROPS = register(
                     "npc_roles_and_drops", CyberdeckGameTests::npcRolesAndDrops);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            NPC_VOICELINE_POOLS = register(
+                    "npc_voiceline_pools", CyberdeckGameTests::npcVoicelinePools);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             TRAUMA_TEAM_LIFECYCLE = register(
                     "trauma_team_lifecycle", CyberdeckGameTests::traumaTeamLifecycle);
@@ -411,6 +418,52 @@ public final class CyberdeckGameTests {
                 "Trauma Team request threshold must cross strictly below 50 percent health");
         exec.discard();
         disconnectTestPlayer(player);
+        helper.succeed();
+    }
+
+    private static void npcVoicelinePools(GameTestHelper helper) {
+        for (NpcVoicelineCatalog.LocationPool location
+                : NpcVoicelineCatalog.LocationPool.values()) {
+            for (NpcVoicelineCatalog.RolePool role : NpcVoicelineCatalog.RolePool.values()) {
+                helper.assertFalse(NpcVoicelineCatalog.lines(location, role).isEmpty(),
+                        "voiceline pool must not be empty: " + location.id() + "/" + role.id());
+            }
+        }
+
+        helper.assertTrue(NpcVoicelineService.classifyLocation(
+                        District.O_CORP,
+                        MegacityLayout.Zone.NEST,
+                        NeonCityGenerator.RoadClass.LOCAL_STREET)
+                        == NpcVoicelineCatalog.LocationPool.DISTRICT_O,
+                "supported district did not select its authored pool");
+        helper.assertTrue(NpcVoicelineService.classifyLocation(
+                        District.O_CORP,
+                        MegacityLayout.Zone.NEST,
+                        NeonCityGenerator.RoadClass.INTERDISTRICT_ROAD)
+                        == NpcVoicelineCatalog.LocationPool.GREAT_HIGHWAY,
+                "Great Highway must override the surrounding district pool");
+        helper.assertTrue(NpcVoicelineService.classifyLocation(
+                        District.O_CORP,
+                        MegacityLayout.Zone.BORDER_WALLED,
+                        NeonCityGenerator.RoadClass.INTERDISTRICT_ROAD)
+                        == NpcVoicelineCatalog.LocationPool.BORDER_SLUMS,
+                "border slums must override both highway and district pools");
+        helper.assertTrue(NpcVoicelineService.classifyLocation(
+                        District.A_CORP,
+                        MegacityLayout.Zone.NEST,
+                        NeonCityGenerator.RoadClass.LOCAL_STREET)
+                        == NpcVoicelineCatalog.LocationPool.GENERIC_UNSUPPORTED_DISTRICTS,
+                "unsupported districts must use the generic pool");
+
+        List<String> alternatives = List.of("first", "second", "third");
+        RandomSource random = RandomSource.create(0x564F494345L);
+        String previous = "first";
+        for (int attempt = 0; attempt < 24; attempt++) {
+            String selected = NpcVoicelineService.selectLine(alternatives, previous, random);
+            helper.assertFalse(selected.equals(previous),
+                    "multi-line selection repeated the immediately previous bark");
+            previous = selected;
+        }
         helper.succeed();
     }
 
@@ -1402,6 +1455,9 @@ public final class CyberdeckGameTests {
 
     private static void healingConsumableState(GameTestHelper helper) {
         long useTick = 100L;
+        helper.assertTrue(HealingConsumable.BOUNCE_BACK.cooldownTicks() == 15 * 20
+                        && HealingConsumable.MAXDOC.cooldownTicks() == 15 * 20,
+                "both healing consumables must use the fifteen-second cooldown");
         HealingState bounceBack = HealingState.NONE.afterUse(
                 HealingConsumable.BOUNCE_BACK, useTick);
         helper.assertFalse(bounceBack.ready(HealingConsumable.BOUNCE_BACK, useTick),
@@ -2149,6 +2205,7 @@ public final class CyberdeckGameTests {
         registerInstance(event, "street_cred_persistence", STREET_CRED_PERSISTENCE, data);
         registerInstance(event, "minimap_rotation_geometry", MINIMAP_ROTATION_GEOMETRY, data);
         registerInstance(event, "npc_roles_and_drops", NPC_ROLES_AND_DROPS, data);
+        registerInstance(event, "npc_voiceline_pools", NPC_VOICELINE_POOLS, data);
         registerInstance(event, "quickhack_long_range", QUICKHACK_LONG_RANGE, data);
         registerInstance(event, "quickhack_multi_target", QUICKHACK_MULTI_TARGET, data);
         registerInstance(event, "quickhack_hotbar_recovery", QUICKHACK_HOTBAR_RECOVERY, data);

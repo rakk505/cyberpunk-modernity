@@ -4,8 +4,8 @@ import java.util.Optional;
 
 /** Infinite quick-slot healing consumables with distinct recovery profiles. */
 public enum HealingConsumable {
-    BOUNCE_BACK("bounce_back", 2.0F, 1.0F, 10 * 20, 25 * 20),
-    MAXDOC("maxdoc", 10.0F, 0.0F, 0, 30 * 20);
+    BOUNCE_BACK("bounce_back", 2.0F, 1.0F, 10 * 20, 15 * 20),
+    MAXDOC("maxdoc", 10.0F, 0.0F, 0, 15 * 20);
 
     public static final int REGENERATION_INTERVAL_TICKS = 20;
     public static final HealingConsumable[] VALUES = values();

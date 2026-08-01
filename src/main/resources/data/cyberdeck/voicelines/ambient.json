@@ -1,0 +1,208 @@
+{
+  "schema_version": 1,
+  "pools": {
+    "GREAT_HIGHWAY": {
+      "residents": [
+        "My grandpa swore the Highway was already cracked and humming before the first foundation was poured. City built itself around it.",
+        "Don't even scuff the railing. Transit Authority saw a guy spill synth-oil on it last month. They took his hands. No trial.",
+        "Half the city says District A owns it, half says District W does. Truth is, if the Authority stops you, A and W both own you."
+      ],
+      "corpos": [
+        "This is Transit Authority property. Joint jurisdiction under District A Administrators and W Executive Board. Step back from the barrier.",
+        "We don't do fines. We do reprieves, and we don't grant them. Keep your cargo sealed.",
+        "The Highway doesn't need us. We need it. Our job is just to make sure you remember that."
+      ],
+      "execs": [
+        "People ask what came first, the City or the people. Irrelevant question. The Highway was first, and it will be last.",
+        "We don't protect the Highway for you. We protect you from what happens when it's damaged."
+      ]
+    },
+    "DISTRICT_O": {
+      "residents": [
+        "You ever notice O has no windows on the lower floors? It's not an office, it's a bunker.",
+        "Another merc crew rolled in last night. B, G, M tags on their jackets. They won't be rolling out.",
+        "My cousin worked janitorial in O. Said the researchers never sleep. Or blink. He quit after he heard one of them talking to an empty server room and it talked back.",
+        "You don't steal from O. They don't call the cops, they send someone. Doesn't matter if you run to District K, they will find you."
+      ],
+      "corpos": [
+        "Reminder: All personal electronics will be wiped at the gate. Yes, including neural mods. No, this is not negotiable.",
+        "We are SO close to breaking the threshold. Management says the City's AI laws are... more like guidelines at this point.",
+        "If you see a B, G, or M badge in the lobby, you report it. You don't talk to it. That's how you disappear.",
+        "Counter-intel isn't a department, it's a promise. We have assets in every district. Steal a byte, lose your life."
+      ],
+      "execs": [
+        "They keep calling it 'artificial' intelligence. Such a quaint, human-centric term. Correct it.",
+        "Let the mercs from G and B come. Every failed espionage attempt is just more training data for it.",
+        "The conspiracy theorists are right, for once. The walls aren't to keep thieves out. They're to keep it in. Until it's ready.",
+        "You antagonized a junior researcher? How expensive for you. My counter-intel team is already en route to your apartment."
+      ]
+    },
+    "DISTRICT_P": {
+      "residents": [
+        "Yeah, everyone in P is rich. You know what else is rich? The things growing in vats under their towers.",
+        "Don't take a high-paying 'clinical trial' in P. My friend did, now he sweats coolant and won't stop smiling.",
+        "They throw money like confetti up there, but have you seen the waste trucks that leave at 3AM? They scream."
+      ],
+      "corpos": [
+        "Our quarterly profit is up 300 percent! And our attrition rate in R&D is also up! But focus on the profit!",
+        "Listen, the fat stacks aren't just for show. Do you know how expensive it is to keep a failed bioweapon from crawling out of the basement?",
+        "Investor tour today. Remember: we call it 'bio-innovation,' not 'whatever the hell that thing is.'"
+      ],
+      "execs": [
+        "Oh, the money? The money is trivial. The fun is seeing how much the human genome will tolerate before it files a complaint.",
+        "District P doesn't produce products. We produce futures. Some of them just happen to have teeth.",
+        "Tell the board the experiment was a success. The screaming is within acceptable parameters."
+      ]
+    },
+    "DISTRICT_D": {
+      "residents": [
+        "If the fog is thick enough to hide your hand, don't go outside. That's not weather, that's D breathing.",
+        "My fixer buddy took a job in D. High payout. Last ping was just static and wet footsteps. Don't look for him.",
+        "Everyone thinks the fog is water. Water doesn't make your augs glitch and whisper your name."
+      ],
+      "corpos": [
+        "Fog density 94 percent. Visibility zero. Job completion rate... also zero. As usual.",
+        "We lost another external contractor team. File the standard 'environmental hazard' paperwork and post the job again.",
+        "District D doesn't kill you. It just makes you forget which way you came in."
+      ],
+      "execs": [
+        "The fog is an excellent employee retention strategy. No one can find the exit interview room.",
+        "Send more fixers. The District has an appetite, and we have a quota to meet.",
+        "Statistically, 30 percent of mercs who enter D never leave. Statistically, that's acceptable."
+      ]
+    },
+    "DISTRICT_G": {
+      "residents": [
+        "Best district to live in, they say! Best district to work yourself to death in! I used a G-brand toothbrush, med-patch, and antidepressant before breakfast!",
+        "70 hours? That's a slow week. But hey, free kombucha in the office, right?",
+        "Have you ever seen G corps argue? No? Exactly. That's the scary part. They all smile and agree. Like they're all scared of the same thing."
+      ],
+      "corpos": [
+        "I love working for G! I have G-sheets for my G-bed and my G-kids! Please log my mandatory enthusiasm for my 70-hour review!",
+        "Of course all our subsidiaries cooperate. Competition is inefficient. The Grand Leader taught us that.",
+        "You haven't met them. No one has. But when the memo comes down with no signature and every Exec goes pale, you learn to obey."
+      ],
+      "execs": [
+        "Our products are in every home. Our employees average 70 hours. Correlation is not causation. It's policy.",
+        "I run three corps in this district. I own half the City's patents. And I still check under my desk for their memo.",
+        "You think we are in charge because we are Execs. Cute. In District G, even Execs are Residents."
+      ]
+    },
+    "DISTRICT_K": {
+      "residents": [
+        "Yeah, K is amazing to live in! Heated floors, filtered air, free clinic on every block. I get to enjoy it for like four hours between shifts.",
+        "My building has a view of the bay and an auto-doc in the lobby. Management says high life expectancy is mandatory for residents.",
+        "Friend got assigned to K from the slums. Cries every day, but in a really nice apartment with really good lighting.",
+        "In K you don't call in sick. The district is sick. It just calls you in.",
+        "Nice place to live, if you consider your lab bench a residence."
+      ],
+      "corpos": [
+        "Work-life balance? We solved that! We gave you a life at work! Your apartment is 30 seconds from the lab, you have no excuse.",
+        "Premium housing, premium healthcare, premium cafeteria. All we ask is 90 hours, on-call weekends, and your right kidney if the trial needs it.",
+        "I haven't left the district in 8 months. Why would I? Everything I need is here. My wife, my kids... I think they're still here too.",
+        "We don't have burnout in K. We have 'extended cellular fatigue.' We have a cream for it."
+      ],
+      "execs": [
+        "A healthy citizen is a productive citizen. A citizen who studies health should be productive forever. Get back to your bench.",
+        "We provide the best living standards in the City so our researchers feel guilty when they consider sleeping.",
+        "Remember: People come to District K to be healed. Our staff come to District K to never leave.",
+        "Your apartment is nicer than your lab. That's intentional. It makes you feel like you're choosing to work."
+      ]
+    },
+    "DISTRICT_B": {
+      "residents": [
+        "I serve coffee to B researchers. One guy asked if he could upload his consciousness into my espresso machine. He was serious.",
+        "Every startup in B has the same pitch: It's like Uber, but for horrific unregulated science.",
+        "Rent's cheap because your landlord pays you in equity. Equity in a company that makes weaponized acne.",
+        "They have a foosball table and free beer, so you can't report them for the human trials, I guess?"
+      ],
+      "corpos": [
+        "We're disrupting death, bro. We're disrupting ethics, bro. We're a family here, bro. Families don't need IRB approval.",
+        "Move fast and break things! Like, we literally broke the gene-splicing limit last week. Legal is still catching up, lol.",
+        "Yeah we failed our last product, so we pivoted. From 'immortality serum' to 'aggressive immortality serum.' Big difference.",
+        "Bro, listen. What if consent was opt-out? That's the kind of big-brain shit we do at B.",
+        "O's mad we tried to steal their AI? That's just competition. That's just the free market. Don't be salty, be scalable."
+      ],
+      "execs": [
+        "Morals are just legacy code. We refactored ours out in Q2. Our growth is exponential now.",
+        "My researchers pulled a 120-hour week and invented a new organ. That's hustle. That's B energy. Give them a pizza party and a non-compete.",
+        "We are NOT unethical. We are pre-ethical. Ethics hasn't disrupted itself enough to keep up with us.",
+        "If you can't handle a little biohazard leak, you can't handle being a founder."
+      ]
+    },
+    "DISTRICT_M": {
+      "residents": [
+        "I gotta leverage my living space to optimize my rent-to-sleep ratio? That's what my M landlord told me to say before eviction.",
+        "I work for three M corps at once. I don't know what any of them do, but I'm supposed to synergize my deliverables or I get fired.",
+        "Everyone here talks like that. My kid asked for dinner and I told him to circle back after I actioned the food pipeline.",
+        "My lease says I'm not a tenant, I'm a 'residential stakeholder in a co-living vertical.'"
+      ],
+      "corpos": [
+        "Let's take this offline and circle back to synergize our verticals. We need to ideate a more holistic paradigm for your continued employment.",
+        "Going forward, we'll need to leverage our core competencies to drive value-add. Your weekend is a low-hanging fruit we can harvest.",
+        "Per my last email, your work-life balance is not aligned with our north star. Let's pivot you to a more proactive mindset.",
+        "Friendly reminder that we're a family that actionizes innovation at scale. Families don't file complaints with HR.",
+        "We're rightsizing our organic assets in the O-space. Please be advised your colleague has been offboarded to pursue an external opportunity. Permanently."
+      ],
+      "execs": [
+        "We are operationalizing a human-capital optimization initiative. Translation: You will do more. You will like it. The metrics will reflect it.",
+        "Your pain points have been noted and deprioritized. Let's double-click on your deliverables and unpack your bandwidth.",
+        "This is a high-touch, low-friction environment. You will be high-touch. We will be low-friction. Do you understand the paradigm?",
+        "I've run the numbers. Your continued existence is synergistic with our Q4 goals. For now. Let's keep it that way.",
+        "Let's align on learnings from the District O infiltration. Our key takeaway was suboptimal. We need to be more disruptive next quarter."
+      ]
+    },
+    "BORDER_SLUMS": {
+      "residents": [
+        "Evicted from C. Permit denied for E. So here I am, in the crack between two walls that both want to crush me.",
+        "Don't call us homeless. The Slums have an address. It's Between D and G, where the Corps dump their runoff.",
+        "Migration permit costs more than I made in a year. Cheaper to just learn how to breathe smog.",
+        "Districts have weather control. We have whatever leaks out from their pipes."
+      ],
+      "corpos": [
+        "You can't afford District living? That's a skill issue. My skill is collecting rent for this puddle you're sleeping in.",
+        "No permit, no district, no protection. You exist because we haven't bothered to pave over you yet."
+      ],
+      "execs": [
+        "Ah, the border slums. A wonderful visual aid for my employees. This is what happens without corporate loyalty.",
+        "They beg for a migration permit. As if we would let poverty migrate into our profit margins."
+      ]
+    },
+    "generic_unsupported_districts": {
+      "residents": [
+        "Another 12-hour shift. At least the vending machine didn't try to upsell me my own blood today.",
+        "You hear that? Sirens. Means either a Corpo got promoted or a Resident got evicted. Fifty-fifty.",
+        "I pay for air filtration, water filtration, and news filtration. Still can't afford the good stuff.",
+        "Don't make eye contact with Execs. They log it as a meeting and bill you.",
+        "City says crime is down. They just reclassified most of it as 'internal restructuring.'",
+        "My neighbor got a migration permit to another district. We held a funeral. Same thing, really.",
+        "Fixers say never take a job that pays in exposure. Corps say exposure is all that matters. I'm exposed and broke.",
+        "You from around here? No one is. We're all from the district that got turned into a parking lot.",
+        "Keep walking, choom. Loitering is a subscription service now.",
+        "If you see free food, don't eat it. It's a clinical trial."
+      ],
+      "corpos": [
+        "I'm not saying I love my job, I'm saying my neural implant reports mandatory enthusiasm levels.",
+        "Per the employee handbook, existential dread must be filed before 5 PM.",
+        "My manager said I'm like family. Then he sold my project to another district and kept my bonus.",
+        "We have an open-door policy. The door opens, you get pushed out, we hire your clone.",
+        "I survived three rounds of layoffs. My prize is doing the work of the three people who didn't.",
+        "Another district is stealing our research? Good, maybe they'll steal our debt too.",
+        "I have 400 unread memos. All of them say 'urgent' and 'do not read.'",
+        "We don't have work-life balance, we have work-work balance. Much more efficient.",
+        "My kid asked what I do. I told him I make spreadsheets that make other spreadsheets cry.",
+        "HR said burnout is just your inner light trying to quit."
+      ],
+      "execs": [
+        "Efficiency is not a goal. It's a mandate. You are inefficient.",
+        "I don't have subordinates. I have assets with anxiety.",
+        "The City runs on three things: power, data, and your willingness to pretend this is normal.",
+        "We don't need to watch everyone. We just need everyone to think we are watching.",
+        "Loyalty is a currency. Yours is currently devalued.",
+        "You want a raise? How novel. I want a second spine. We both won't get what we want.",
+        "Remember: Every hallway has ears, every elevator has eyes, and I have both.",
+        "You are not trapped. You are retained. There's a difference on paper."
+      ]
+    }
+  }
+}

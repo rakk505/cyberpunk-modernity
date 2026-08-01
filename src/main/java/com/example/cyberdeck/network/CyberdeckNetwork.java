@@ -10,7 +10,7 @@ public final class CyberdeckNetwork {
     }
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        PayloadRegistrar registrar = event.registrar(Cyberdeck.MODID).versioned("12");
+        PayloadRegistrar registrar = event.registrar(Cyberdeck.MODID).versioned("13");
         registrar.playToServer(
                 ToggleInterfacePacket.TYPE,
                 ToggleInterfacePacket.STREAM_CODEC,
@@ -107,5 +107,21 @@ public final class CyberdeckNetwork {
                 TravelQuicktimePacket.TYPE,
                 TravelQuicktimePacket.STREAM_CODEC,
                 TravelQuicktimePacket::handle);
+        registrar.playToClient(
+                OpenLifepathPacket.TYPE,
+                OpenLifepathPacket.STREAM_CODEC,
+                OpenLifepathPacket::handle);
+        registrar.playToServer(
+                SelectLifepathPacket.TYPE,
+                SelectLifepathPacket.STREAM_CODEC,
+                SelectLifepathPacket::handle);
+        registrar.playToClient(
+                LifepathSelectionResultPacket.TYPE,
+                LifepathSelectionResultPacket.STREAM_CODEC,
+                LifepathSelectionResultPacket::handle);
+        registrar.playToClient(
+                NpcVoicelinePacket.TYPE,
+                NpcVoicelinePacket.STREAM_CODEC,
+                NpcVoicelinePacket::handle);
     }
 }

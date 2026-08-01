@@ -18,6 +18,9 @@ import com.example.cyberdeck.network.CyberdeckNetwork;
 import com.example.cyberdeck.npc.CityNpc;
 import com.example.cyberdeck.npc.CityNpcEntities;
 import com.example.cyberdeck.npc.CityNpcSpawns;
+import com.example.cyberdeck.lifepath.LifepathEvents;
+import com.example.cyberdeck.lifepath.LifepathGameTests;
+import com.example.cyberdeck.lifepath.LifepathState;
 import com.example.cyberdeck.player.StreetCredState;
 import com.example.cyberdeck.ram.RamAttachments;
 import com.example.cyberdeck.weapon.AmmoItems;
@@ -57,6 +60,7 @@ public class Cyberdeck {
         HealingState.ATTACHMENT_TYPES.register(modEventBus);
         StreetCredState.ATTACHMENT_TYPES.register(modEventBus);
         WantedState.ATTACHMENT_TYPES.register(modEventBus);
+        LifepathState.ATTACHMENT_TYPES.register(modEventBus);
         DefenseContent.register(modEventBus);
 
         // Guns, ammo, grenades, ballistic armor and their entities.
@@ -71,6 +75,7 @@ public class Cyberdeck {
         CityNpcEntities.ENTITY_TYPES.register(modEventBus);
         CyberdeckGameTests.bootstrap(modEventBus);
         WantedGameTests.bootstrap(modEventBus);
+        LifepathGameTests.bootstrap(modEventBus);
         QuicktimeBlocks.register(modEventBus);
         MissionBlocks.register(modEventBus);
         ProjectMoonCityModule.bootstrap(modEventBus);
@@ -95,6 +100,7 @@ public class Cyberdeck {
         NeoForge.EVENT_BUS.register(new CityNpcSpawns());
         NeoForge.EVENT_BUS.register(new com.example.cyberdeck.trauma.TraumaTeamEvents());
         NeoForge.EVENT_BUS.register(new WantedSystem());
+        NeoForge.EVENT_BUS.register(new LifepathEvents());
         NeoForge.EVENT_BUS.register(new CityActorJoinCompatibility());
         NeoForge.EVENT_BUS.register(new com.example.cyberdeck.city.CityBuilder());
     }
