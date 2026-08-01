@@ -28,6 +28,7 @@ import com.example.cyberdeck.npc.GunshotAlerts;
 import com.example.cyberdeck.npc.NpcRole;
 import com.example.cyberdeck.trauma.TraumaTeamEvents;
 import com.example.cyberdeck.player.StreetCredState;
+import com.example.cyberdeck.skill.QuickhackUploads;
 import com.example.cyberdeck.movement.TacticalAction;
 import com.example.cyberdeck.movement.TacticalMovement;
 import com.example.cyberdeck.movement.TacticalMovementState;
@@ -159,6 +160,9 @@ public final class CyberdeckGameTests {
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             TRAUMA_TEAM_LIFECYCLE = register(
                     "trauma_team_lifecycle", CyberdeckGameTests::traumaTeamLifecycle);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            QUICKHACK_LONG_RANGE = register(
+                    "quickhack_long_range", CyberdeckGameTests::quickhackLongRange);
 
     private CyberdeckGameTests() {
     }
@@ -753,6 +757,14 @@ public final class CyberdeckGameTests {
                 "85% player slow should map to Slowness VI");
         helper.assertTrue(SandevistanMechanics.slownessAmplifier(0.20) == 0,
                 "20% player slow should map to Slowness I");
+        helper.succeed();
+    }
+
+    private static void quickhackLongRange(GameTestHelper helper) {
+        helper.assertTrue(QuickhackUploads.MAX_TARGET_RANGE >= 128.0,
+                "quickhacks must reach at least eight chunks");
+        helper.assertTrue(QuickhackUploads.MAX_TARGET_RANGE <= 192.0,
+                "quickhack reach must stay within practical entity tracking distance");
         helper.succeed();
     }
 
@@ -1599,6 +1611,7 @@ public final class CyberdeckGameTests {
         registerInstance(event, "street_cred_persistence", STREET_CRED_PERSISTENCE, data);
         registerInstance(event, "minimap_rotation_geometry", MINIMAP_ROTATION_GEOMETRY, data);
         registerInstance(event, "npc_roles_and_drops", NPC_ROLES_AND_DROPS, data);
+        registerInstance(event, "quickhack_long_range", QUICKHACK_LONG_RANGE, data);
 
         TestData<Holder<TestEnvironmentDefinition<?>>> traumaArena = new TestData<>(
                 environment,

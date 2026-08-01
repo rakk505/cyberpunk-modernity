@@ -263,7 +263,9 @@ public final class CyberdeckClientEvents {
                 || layer.equals(VanillaGuiLayers.CONTEXTUAL_INFO_BAR_BACKGROUND)
                 || layer.equals(VanillaGuiLayers.EXPERIENCE_LEVEL)
                 || layer.equals(VanillaGuiLayers.CONTEXTUAL_INFO_BAR)
-                || layer.equals(VanillaGuiLayers.TAB_LIST)) {
+                || layer.equals(VanillaGuiLayers.TAB_LIST)
+                || layer.equals(net.minecraft.resources.Identifier.fromNamespaceAndPath(
+                        Cyberdeck.MODID, "detection_meter"))) {
             event.setCanceled(true);
         }
     }

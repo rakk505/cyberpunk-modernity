@@ -6,6 +6,7 @@ import com.example.cyberdeck.client.hud.HealingHudOverlay;
 import com.example.cyberdeck.client.hud.MissionTrackerOverlay;
 import com.example.cyberdeck.client.hud.CityMinimapOverlay;
 import com.example.cyberdeck.client.hud.QuickhackScannerOverlay;
+import com.example.cyberdeck.client.hud.QuickhackUploadOverlay;
 import com.example.cyberdeck.client.hud.SmartLockOverlay;
 import com.example.cyberdeck.client.hud.DetectionHudOverlay;
 import com.example.cyberdeck.client.hud.StealthTakedownOverlay;
@@ -219,9 +220,13 @@ public final class CyberdeckClient {
         event.registerAbove(VanillaGuiLayers.CROSSHAIR,
                 Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "smart_lock"),
                 new SmartLockOverlay());
-        event.registerAbove(VanillaGuiLayers.EFFECTS,
-                Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "quickhack_scanner"),
+        Identifier quickhackScanner =
+                Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "quickhack_scanner");
+        event.registerAbove(VanillaGuiLayers.EFFECTS, quickhackScanner,
                 new QuickhackScannerOverlay());
+        event.registerAbove(quickhackScanner,
+                Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "quickhack_upload"),
+                new QuickhackUploadOverlay());
         // Track B (Combat AI): stealth detection meter above the crosshair.
         event.registerAbove(VanillaGuiLayers.CROSSHAIR,
                 Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "detection_meter"),

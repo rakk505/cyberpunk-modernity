@@ -53,12 +53,16 @@ public final class QuickhackUploadClient {
     }
 
     public static float uploadProgress(long gameTime) {
+        return uploadProgress((double) gameTime);
+    }
+
+    public static float uploadProgress(double gameTime) {
         QuickhackUploadPacket packet = current;
         long duration = packet.endTick() - packet.startTick();
         if (duration <= 0L || packet.activeSkillOrdinal() < 0) {
             return 0.0F;
         }
         return Math.max(0.0F, Math.min(1.0F,
-                (gameTime - packet.startTick()) / (float) duration));
+                (float) ((gameTime - packet.startTick()) / duration)));
     }
 }

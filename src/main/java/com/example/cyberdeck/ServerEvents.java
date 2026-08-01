@@ -7,10 +7,7 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.Mob;
-import net.minecraft.world.entity.animal.golem.IronGolem;
 import net.minecraft.world.entity.monster.Enemy;
-import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -28,7 +25,8 @@ import java.util.List;
  */
 public final class ServerEvents {
     // How far the scan reaches and how wide the "field of view" cone is (dot-product threshold).
-    private static final double SCAN_RANGE = 48.0;
+    private static final double SCAN_RANGE =
+            com.example.cyberdeck.skill.QuickhackUploads.MAX_TARGET_RANGE;
     private static final double FOV_DOT = 0.5; // ~120 degree cone
 
     @SubscribeEvent
@@ -50,17 +48,17 @@ public final class ServerEvents {
         if (player.getPersistentData().getBoolean("cyberdeck_active").orElse(false)
                 && !CyberdeckState.hasInstalledCyberdeck(player)) {
             CyberdeckState.deactivate(player);
-            return;
-        }
-
-        if (!CyberdeckState.isActive(player)) {
             com.example.cyberdeck.skill.QuickhackUploads.cancel(player);
             return;
         }
 
-        // Uploads are advanced only after mode and OS validation, preventing a completion on the
-        // same tick that quickhacking is deactivated.
+        // Uploads are committed server-side and continue after scanner mode is closed. The queue
+        // itself still cancels for death, deck removal, target loss, or excessive distance.
         com.example.cyberdeck.skill.QuickhackUploads.tick(player, level);
+
+        if (!CyberdeckState.isActive(player)) {
+            return;
+        }
 
         // Outline valid entities within the player's field of view while the cyberdeck is active.
         Vec3 eye = player.getEyePosition();
@@ -108,10 +106,7 @@ public final class ServerEvents {
     }
 
     private static boolean isTargetable(LivingEntity entity) {
-        if (!entity.isAlive()) {
-            return false;
-        }
-        return entity instanceof Mob || entity instanceof Villager || entity instanceof IronGolem;
+        return entity.isAlive() && entity instanceof Enemy;
     }
 
     /** No hostile AI, vanilla or modded, may select a city civilian as an attack target. */

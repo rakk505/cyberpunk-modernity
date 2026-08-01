@@ -75,9 +75,6 @@ public final class CyberdeckState {
     }
 
     public static void deactivate(ServerPlayer player) {
-        // Release queue reservations immediately. Waiting for the next player tick would allow a
-        // head that completes on the toggle tick to execute after quickhacking was switched off.
-        com.example.cyberdeck.skill.QuickhackUploads.cancel(player);
         if (!player.getPersistentData().getBoolean(ACTIVE_KEY).orElse(false)) {
             return;
         }

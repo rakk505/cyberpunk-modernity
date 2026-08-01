@@ -141,6 +141,7 @@ public final class CyberwareInstaller {
     private static void reconcileQuickhackAccess(ServerPlayer player, CyberwareData data) {
         if (!CyberwareEffects.canQuickhack(data)) {
             CyberdeckState.deactivate(player);
+            com.example.cyberdeck.skill.QuickhackUploads.cancel(player);
         }
     }
 }

@@ -2,6 +2,7 @@ package com.example.cyberdeck.client;
 
 import com.example.cyberdeck.QuickhackAttachments;
 import com.example.cyberdeck.skill.Skill;
+import com.example.cyberdeck.skill.QuickhackUploads;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -19,7 +20,8 @@ import org.jspecify.annotations.Nullable;
 
 /** Client-owned selection and crosshair target state for the quickhack scanner HUD. */
 public final class QuickhackScannerClient {
-    public static final double TARGET_RANGE = 48.0;
+    /** Long-range scanner reach, capped at the practical ten-chunk entity tracking radius. */
+    public static final double TARGET_RANGE = QuickhackUploads.MAX_TARGET_RANGE;
     private static final int FIRST_SKILL = 0;
     private static final int SKILL_COUNT = Skill.STANDBY.ordinal();
     private static final int TARGET_CONFIRM_TICKS = 4;

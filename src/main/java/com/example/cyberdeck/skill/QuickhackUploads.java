@@ -21,7 +21,8 @@ import java.util.UUID;
 /** Server-authoritative, per-caster FIFO of quickhacks reserved against one target. */
 public final class QuickhackUploads {
     public static final int MAX_QUEUE_SIZE = 4;
-    public static final double MAX_TARGET_RANGE = 48.0;
+    /** Ten chunks: substantially beyond combat range while retaining client entity tracking. */
+    public static final double MAX_TARGET_RANGE = 160.0;
     private static final double MAX_TARGET_RANGE_SQR = MAX_TARGET_RANGE * MAX_TARGET_RANGE;
 
     public enum EnqueueStatus {
@@ -126,7 +127,9 @@ public final class QuickhackUploads {
         if (queue == null) {
             return;
         }
-        if (!caster.isAlive() || !CyberdeckState.isActive(caster)) {
+        // Scanner mode is only required to enqueue. Once reserved, an upload keeps running while
+        // the player returns to normal movement and combat, provided the deck remains installed.
+        if (!caster.isAlive() || !CyberdeckState.hasInstalledCyberdeck(caster)) {
             cancel(caster);
             return;
         }
