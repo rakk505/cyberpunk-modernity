@@ -45,7 +45,9 @@ final class MissionJournalData extends SavedData {
                     Codec.INT.optionalFieldOf("format_version", FORMAT_VERSION)
                             .forGetter(ignored -> FORMAT_VERSION),
                     ENTRY_CODEC.listOf().optionalFieldOf("entries", List.of())
-                            .forGetter(MissionJournalData::serializedEntries))
+                            .forGetter(MissionJournalData::serializedEntries),
+                    Deployment.CODEC.listOf().optionalFieldOf("deployments", List.of())
+                            .forGetter(MissionJournalData::serializedDeployments))
                     .apply(instance, MissionJournalData::new));
 
     static final SavedDataType<MissionJournalData> TYPE = new SavedDataType<>(
@@ -72,15 +74,31 @@ final class MissionJournalData extends SavedData {
             long updatedTick) {
     }
 
+    private record Deployment(UUID instanceId, int targetX, int targetY, int targetZ) {
+        private static final Codec<Deployment> CODEC = RecordCodecBuilder.create(instance ->
+                instance.group(
+                        UUIDUtil.CODEC.fieldOf("instance").forGetter(Deployment::instanceId),
+                        Codec.INT.fieldOf("x").forGetter(Deployment::targetX),
+                        Codec.INT.fieldOf("y").forGetter(Deployment::targetY),
+                        Codec.INT.fieldOf("z").forGetter(Deployment::targetZ))
+                        .apply(instance, Deployment::new));
+    }
+
     private final Map<UUID, List<MissionService.JournalEntry>> entriesByPlayer = new HashMap<>();
 
     private MissionJournalData() {
-        this(FORMAT_VERSION, List.of());
+        this(FORMAT_VERSION, List.of(), List.of());
     }
 
-    private MissionJournalData(int ignoredVersion, List<StoredEntry> entries) {
+    private MissionJournalData(
+            int ignoredVersion, List<StoredEntry> entries, List<Deployment> deployments) {
+        Map<UUID, Deployment> deploymentsByInstance = new HashMap<>();
+        for (Deployment deployment : deployments) {
+            deploymentsByInstance.putIfAbsent(deployment.instanceId(), deployment);
+        }
         for (StoredEntry stored : entries) {
-            decode(stored).ifPresent(entry -> put(stored.playerId(), entry, false));
+            decode(stored, deploymentsByInstance.get(stored.instanceId()))
+                    .ifPresent(entry -> put(stored.playerId(), entry, false));
         }
     }
 
@@ -105,7 +123,8 @@ final class MissionJournalData extends SavedData {
                 context.instanceId(), context.kind(), mission.type(),
                 mission.definitionId(), mission.title(),
                 mission.briefing(), mission.objective(), mission.targetDistrict(),
-                mission.target().getX(), mission.target().getZ(), mission.reward(),
+                mission.target().getX(), mission.target().getY(), mission.target().getZ(),
+                context.deployed(), mission.reward(),
                 context.streetCred(), mission.acceptedTick(), MissionService.JournalStatus.ACTIVE,
                 updatedTick);
         for (UUID participant : participants.playerIds()) {
@@ -138,7 +157,20 @@ final class MissionJournalData extends SavedData {
     private void put(UUID playerId, MissionService.JournalEntry entry, boolean dirty) {
         ArrayList<MissionService.JournalEntry> entries = new ArrayList<>(
                 entriesByPlayer.getOrDefault(playerId, List.of()));
-        entries.removeIf(current -> current.instanceId().equals(entry.instanceId()));
+        UUID instanceId = entry.instanceId();
+        MissionService.JournalEntry current = entries.stream()
+                .filter(value -> value.instanceId().equals(instanceId))
+                .findFirst().orElse(null);
+        boolean deploymentUpgrade = current != null && !current.deployed() && entry.deployed();
+        if (current != null && (current.status() != MissionService.JournalStatus.ACTIVE
+                || current.deployed() && !entry.deployed()
+                || current.updatedTick() > entry.updatedTick() && !deploymentUpgrade)) {
+            return;
+        }
+        if (deploymentUpgrade && current.updatedTick() > entry.updatedTick()) {
+            entry = entry.withUpdatedTick(current.updatedTick());
+        }
+        entries.removeIf(value -> value.instanceId().equals(instanceId));
         entries.add(entry);
         entriesByPlayer.put(playerId, trim(entries));
         if (dirty) setDirty();
@@ -168,14 +200,38 @@ final class MissionJournalData extends SavedData {
         return List.copyOf(stored);
     }
 
-    private static java.util.Optional<MissionService.JournalEntry> decode(StoredEntry stored) {
+    private List<Deployment> serializedDeployments() {
+        Map<UUID, Deployment> deployments = new HashMap<>();
+        for (List<MissionService.JournalEntry> entries : entriesByPlayer.values()) {
+            for (MissionService.JournalEntry entry : entries) {
+                if (entry.deployed()) {
+                    deployments.putIfAbsent(
+                            entry.instanceId(),
+                            new Deployment(
+                                    entry.instanceId(), entry.targetX(), entry.targetY(),
+                                    entry.targetZ()));
+                }
+            }
+        }
+        return deployments.values().stream()
+                .sorted(Comparator.comparing(Deployment::instanceId))
+                .toList();
+    }
+
+    private static java.util.Optional<MissionService.JournalEntry> decode(
+            StoredEntry stored, Deployment deployment) {
         try {
+            int targetX = deployment == null ? stored.targetX() : deployment.targetX();
+            int targetY = deployment == null
+                    ? NeonCityGenerator.CITY_GROUND_Y + 1 : deployment.targetY();
+            int targetZ = deployment == null ? stored.targetZ() : deployment.targetZ();
             return java.util.Optional.of(new MissionService.JournalEntry(
                     stored.instanceId(), MissionService.ContractKind.valueOf(stored.kind()),
                     missionType(stored.type(), stored.definitionId()), stored.definitionId(),
                     stored.title(), stored.briefing(), stored.objective(),
-                    District.valueOf(stored.district()), stored.targetX(), stored.targetZ(),
-                    Math.max(1, stored.reward()), Math.max(0, stored.streetCred()),
+                    District.valueOf(stored.district()), targetX, targetY, targetZ,
+                    deployment != null, Math.max(1, stored.reward()),
+                    Math.max(0, stored.streetCred()),
                     stored.acceptedTick(), MissionService.JournalStatus.valueOf(stored.status()),
                     stored.updatedTick()));
         } catch (RuntimeException ignored) {

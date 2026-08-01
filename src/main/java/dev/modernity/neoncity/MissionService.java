@@ -91,7 +91,10 @@ public final class MissionService {
     private static final long OFFER_SALT = 0x4D495353494F4E53L;
     private static final int TARGET_OFFSET = 144;
     private static final int DELIVERY_HANDOFF_RADIUS = 8;
+    private static final long DEPLOY_RETRY_DELAY_TICKS = 20L * 15L;
+    private static final int MAX_SITE_SEARCH_RADIUS_CHUNKS = 16;
     private static final Map<UUID, Integer> LAST_SYNC = new HashMap<>();
+    private static final Map<UUID, DeploymentRetry> DEPLOYMENT_RETRIES = new HashMap<>();
 
     private MissionService() {
     }
@@ -118,6 +121,12 @@ public final class MissionService {
         ABANDONED
     }
 
+    private record DeploymentRetry(long nextTick, int cycle) {
+    }
+
+    private record RecoveredDeployment(BlockPos target, String actorUuid) {
+    }
+
     /** Immutable accepted-contract history entry used by the Journal UI. */
     public record JournalEntry(
             UUID instanceId,
@@ -129,7 +138,9 @@ public final class MissionService {
             String objective,
             District targetDistrict,
             int targetX,
+            int targetY,
             int targetZ,
+            boolean deployed,
             int reward,
             int streetCred,
             long acceptedTick,
@@ -151,7 +162,15 @@ public final class MissionService {
         JournalEntry withStatus(JournalStatus nextStatus, long tick) {
             return new JournalEntry(
                     instanceId, kind, type, definitionId, title, briefing, objective, targetDistrict,
-                    targetX, targetZ, reward, streetCred, acceptedTick, nextStatus, tick);
+                    targetX, targetY, targetZ, deployed, reward, streetCred, acceptedTick,
+                    nextStatus, tick);
+        }
+
+        JournalEntry withUpdatedTick(long tick) {
+            return new JournalEntry(
+                    instanceId, kind, type, definitionId, title, briefing, objective, targetDistrict,
+                    targetX, targetY, targetZ, deployed, reward, streetCred, acceptedTick,
+                    status, tick);
         }
     }
 
@@ -415,6 +434,7 @@ public final class MissionService {
 
         MissionJournalData.get(level).status(
                 context.instanceId(), JournalStatus.ABANDONED, level.getGameTime());
+        clearDeploymentRetry(context.instanceId());
         cleanup(level, player, mission);
         clearParticipants(level, context);
         for (ServerPlayer member : PartyService.onlineMembers(
@@ -492,13 +512,11 @@ public final class MissionService {
         }
         ActiveMission spawned = active;
         if (kind == ContractKind.STORY_MISSION) {
-            spawned = activate(player, definition, active, context);
-            if (spawned == null) {
-                clearParticipants(level, context);
-                player.sendSystemMessage(Component.literal(
-                                "Story mission deployment failed; no progress was consumed.")
-                        .withStyle(ChatFormatting.RED));
-                return false;
+            ActiveMission activated = activate(player, definition, active, context);
+            if (activated != null) {
+                spawned = activated;
+            } else {
+                scheduleDeploymentRetry(level, context);
             }
         }
         PartyService.registerContract(level, context.instanceId(), participants);
@@ -625,6 +643,7 @@ public final class MissionService {
         if (PartyService.isContractCompleted(level, context.instanceId())
                 || PartyService.requiresContractClear(
                         level, context.instanceId(), player.getUUID())) {
+            clearDeploymentRetry(context.instanceId());
             if (context.completing()) {
                 MissionJournalData.get(level).status(
                         context.instanceId(), JournalStatus.COMPLETED, level.getGameTime());
@@ -647,14 +666,26 @@ public final class MissionService {
             syncIfChanged(player, mission);
             return;
         }
+        if (!context.deployed()
+                && MissionSiteData.get(level).hasReservation(context.instanceId())) {
+            syncIfChanged(player, mission);
+            return;
+        }
         if (!context.deployed() && participantNear(
                 level, context.participants(), mission.target(),
-                definition.activationRadius())) {
+                definition.activationRadius())
+                && deploymentAttemptReady(level, context)) {
             ActiveMission activated = activate(player, definition, mission, context);
             if (activated == null) {
-                fail(player, mission, "The reserved objective building is no longer safe.");
+                scheduleDeploymentRetry(level, context);
+                player.sendSystemMessage(Component.literal(
+                                "Objective setup delayed; contract retained while another "
+                                        + "building is located.")
+                        .withStyle(ChatFormatting.YELLOW), true);
+                syncIfChanged(player, mission);
                 return;
             }
+            clearDeploymentRetry(context.instanceId());
             mission = activated;
             context = contractContext(player).orElse(context.withDeployed(true));
         }
@@ -668,59 +699,97 @@ public final class MissionService {
             ContractContext context) {
         ServerLevel level = (ServerLevel) owner.level();
         MissionSiteData siteData = MissionSiteData.get(level);
-        MissionBuildingPlanner.Site site = null;
+        DeploymentRetry retry = DEPLOYMENT_RETRIES.get(context.instanceId());
+        int retryCycle = retry == null ? 0 : retry.cycle();
         long selectionSalt = context.instanceId().getMostSignificantBits()
-                ^ context.instanceId().getLeastSignificantBits();
-        for (int attempt = 0; attempt < 8 && site == null; attempt++) {
+                ^ context.instanceId().getLeastSignificantBits()
+                ^ (long) retryCycle * 0xD1B54A32D192ED03L;
+        int baseRadius = context.kind() == ContractKind.STORY_MISSION ? 16 : 10;
+        int searchRadius = Math.min(
+                MAX_SITE_SEARCH_RADIUS_CHUNKS, baseRadius + retryCycle * 2);
+        Set<String> rejectedSites = new HashSet<>();
+        for (int attempt = 0; attempt < 8; attempt++) {
             MissionBuildingPlanner.Site candidate = MissionBuildingPlanner.findSite(
                     level,
                     mission.targetDistrict(),
                     mission.target(),
-                    context.kind() == ContractKind.STORY_MISSION ? 16 : 10,
-                    selectionSalt + attempt * 0x9E3779B97F4A7C15L).orElse(null);
-            if (candidate != null && siteData.reserve(
-                    siteReservationKey(candidate), context.instanceId())) {
-                site = candidate;
+                    searchRadius,
+                    selectionSalt + attempt * 0x9E3779B97F4A7C15L,
+                    1,
+                    site -> {
+                        String key = siteReservationKey(site);
+                        return !rejectedSites.contains(key)
+                                && !siteData.isReservedByOther(key, context.instanceId());
+                    }).orElse(null);
+            if (candidate == null) {
+                continue;
             }
+            String reservationKey = siteReservationKey(candidate);
+            if (!rejectedSites.add(reservationKey)
+                    || !siteData.reserve(reservationKey, context.instanceId())) {
+                continue;
+            }
+            MissionBuildingPlanner.InstallationResult installation =
+                    MissionBuildingPlanner.install(level, candidate);
+            if (installation == MissionBuildingPlanner.InstallationResult.UNSAFE) {
+                siteData.releaseIfOwned(reservationKey, context.instanceId());
+                continue;
+            }
+            BlockPos target = candidate.target();
+            ActiveMission prepared = new ActiveMission(
+                    mission.definitionId(), mission.type(), mission.title(), mission.briefing(),
+                    mission.objective(), mission.targetDistrict(), target, mission.reward(), "",
+                    mission.cargoItem(), mission.cargoCount(), mission.acceptedTick());
+            for (ServerPlayer member : PartyService.onlineMembers(
+                    level.getServer(), context.participants())) {
+                saveSite(member, candidate);
+            }
+            ActiveMission spawned = switch (prepared.type()) {
+                case ASSASSINATE_TARGET -> spawnAssassination(level, owner, definition, prepared);
+                case NEUTRALIZE_CYBERPSYCHO -> spawnCyberpsycho(level, owner, definition, prepared);
+                case STEAL_DATA -> installDataObjective(level, owner, definition, prepared);
+                case SHIP_ITEM -> installDeliveryObjective(level, owner, definition, prepared);
+            };
+            if (spawned == null) {
+                for (ServerPlayer member : PartyService.onlineMembers(
+                        level.getServer(), context.participants())) {
+                    clearSite(member);
+                }
+                siteData.releaseIfOwned(reservationKey, context.instanceId());
+                continue;
+            }
+            ContractContext deployed = context.withDeployed(true);
+            for (ServerPlayer member : PartyService.onlineMembers(
+                    level.getServer(), context.participants())) {
+                save(member, spawned);
+                saveContext(member, deployed);
+            }
+            clearDeploymentRetry(context.instanceId());
+            MissionJournalData.get(level).accept(
+                    context.participants(), deployed, spawned, level.getGameTime());
+            syncParticipants(level, deployed);
+            return spawned;
         }
-        if (site == null) {
-            return null;
-        }
-        MissionBuildingPlanner.InstallationResult installation =
-                MissionBuildingPlanner.install(level, site);
-        if (installation == MissionBuildingPlanner.InstallationResult.UNSAFE) {
-            siteData.releaseIfOwned(siteReservationKey(site), context.instanceId());
-            return null;
-        }
-        for (ServerPlayer member : PartyService.onlineMembers(
-                level.getServer(), context.participants())) {
-            saveSite(member, site);
-        }
-        BlockPos target = site.target();
-        ActiveMission prepared = new ActiveMission(
-                mission.definitionId(), mission.type(), mission.title(), mission.briefing(),
-                mission.objective(), mission.targetDistrict(), target, mission.reward(), "",
-                mission.cargoItem(), mission.cargoCount(), mission.acceptedTick());
-        ActiveMission spawned = switch (prepared.type()) {
-            case ASSASSINATE_TARGET -> spawnAssassination(level, owner, definition, prepared);
-            case NEUTRALIZE_CYBERPSYCHO -> spawnCyberpsycho(level, owner, definition, prepared);
-            case STEAL_DATA -> installDataObjective(level, owner, definition, prepared);
-            case SHIP_ITEM -> installDeliveryObjective(level, owner, definition, prepared);
-        };
-        if (spawned == null) {
-            cleanupContractWorld(level.getServer(), context.instanceId());
-            return null;
-        }
-        ContractContext deployed = context.withDeployed(true);
-        for (ServerPlayer member : PartyService.onlineMembers(
-                level.getServer(), context.participants())) {
-            save(member, spawned);
-            saveContext(member, deployed);
-        }
-        MissionJournalData.get(level).accept(
-                context.participants(), deployed, spawned, level.getGameTime());
-        syncParticipants(level, deployed);
-        return spawned;
+        return null;
+    }
+
+    private static boolean deploymentAttemptReady(
+            ServerLevel level, ContractContext context) {
+        DeploymentRetry retry = DEPLOYMENT_RETRIES.get(context.instanceId());
+        return retry == null || level.getGameTime() >= retry.nextTick();
+    }
+
+    private static void scheduleDeploymentRetry(
+            ServerLevel level, ContractContext context) {
+        DeploymentRetry previous = DEPLOYMENT_RETRIES.get(context.instanceId());
+        int cycle = previous == null ? 1 : Math.min(64, previous.cycle() + 1);
+        DEPLOYMENT_RETRIES.put(
+                context.instanceId(),
+                new DeploymentRetry(level.getGameTime() + DEPLOY_RETRY_DELAY_TICKS, cycle));
+    }
+
+    private static void clearDeploymentRetry(UUID instanceId) {
+        DEPLOYMENT_RETRIES.remove(instanceId);
     }
 
     public static boolean activateDataTerminal(ServerPlayer player, BlockPos position) {
@@ -896,6 +965,39 @@ public final class MissionService {
         }
         ActiveMission localMission = activeMission(player).orElse(null);
         ContractContext localContext = contractContext(player).orElse(null);
+        if (localMission != null && localContext != null && !localContext.deployed()) {
+            UUID localInstanceId = localContext.instanceId();
+            String localDefinitionId = localMission.definitionId();
+            JournalEntry canonical = MissionJournalData.get(level).entries(player.getUUID()).stream()
+                    .filter(entry -> entry.instanceId().equals(localInstanceId))
+                    .filter(entry -> entry.status() == JournalStatus.ACTIVE)
+                    .filter(entry -> entry.definitionId().equals(localDefinitionId))
+                    .findFirst().orElse(null);
+            boolean legacyReservation = MissionSiteData.get(level).hasReservation(localInstanceId);
+            if (canonical != null && (canonical.deployed() || legacyReservation)) {
+                RecoveredDeployment recovered = canonical.deployed()
+                        ? new RecoveredDeployment(
+                                new BlockPos(
+                                        canonical.targetX(), canonical.targetY(),
+                                        canonical.targetZ()),
+                                localMission.actorUuid())
+                        : recoverLegacyDeployment(level, localContext, localMission, canonical);
+                localMission = new ActiveMission(
+                        canonical.definitionId(), canonical.type(), canonical.title(),
+                        canonical.briefing(), canonical.objective(), canonical.targetDistrict(),
+                        recovered.target(), canonical.reward(), recovered.actorUuid(),
+                        localMission.cargoItem(),
+                        localMission.cargoCount(), canonical.acceptedTick());
+                localContext = localContext.withDeployed(true);
+                save(player, localMission);
+                saveContext(player, localContext);
+                clearSite(player);
+                clearDeploymentRetry(localContext.instanceId());
+                MissionJournalData.get(level).accept(
+                        localContext.participants(), localContext, localMission,
+                        level.getGameTime());
+            }
+        }
         PartyService.ParticipantSnapshot searchParticipants = localContext == null
                 ? PartyService.participantSnapshot(player) : localContext.participants();
         for (ServerPlayer member : PartyService.onlineMembers(
@@ -906,17 +1008,28 @@ public final class MissionService {
             if (remoteMission == null || remoteContext == null
                     || !remoteContext.participants().playerIds().contains(player.getUUID())
                     || localContext != null
-                            && !remoteContext.instanceId().equals(localContext.instanceId())
-                    || localContext != null && (localContext.deployed() || !remoteContext.deployed())) {
+                            && !remoteContext.instanceId().equals(localContext.instanceId())) {
                 continue;
             }
-            save(player, remoteMission);
-            saveContext(player, remoteContext);
-            MissionPlayerData.persisted(player).remove(SITE_PLAN);
-            site(member).ifPresent(value -> saveSite(player, value));
-            localMission = remoteMission;
-            localContext = remoteContext;
-            break;
+            boolean adopted = localContext == null
+                    || !localContext.deployed() && remoteContext.deployed();
+            if (adopted) {
+                save(player, remoteMission);
+                saveContext(player, remoteContext);
+                clearSite(player);
+                localMission = remoteMission;
+                localContext = remoteContext;
+            }
+            boolean copiedSite = false;
+            if (localContext != null && localContext.deployed() && remoteContext.deployed()
+                    && site(player).isEmpty()) {
+                MissionBuildingPlanner.Site remoteSite = site(member).orElse(null);
+                if (remoteSite != null) {
+                    saveSite(player, remoteSite);
+                    copiedSite = true;
+                }
+            }
+            if (adopted || copiedSite) break;
         }
         if (activeMission(player).isEmpty()) {
             PartyService.acknowledgeMissingContracts(player);
@@ -931,6 +1044,44 @@ public final class MissionService {
         forceSync(player);
     }
 
+    private static RecoveredDeployment recoverLegacyDeployment(
+            ServerLevel level,
+            ContractContext context,
+            ActiveMission localMission,
+            JournalEntry journal) {
+        BlockPos horizontalTarget = new BlockPos(
+                journal.targetX(), localMission.target().getY(), journal.targetZ());
+        level.getChunkAt(horizontalTarget);
+        String instanceId = context.instanceId().toString();
+        for (Entity entity : level.getAllEntities()) {
+            CompoundTag data = entity.getPersistentData();
+            String role = data.getString(ACTOR_ROLE).orElse("");
+            if (!entity.isRemoved()
+                    && instanceId.equals(data.getString(ACTOR_INSTANCE).orElse(""))
+                    && (ROLE_TARGET.equals(role)
+                            || ROLE_DATA_TERMINAL.equals(role)
+                            || ROLE_DELIVERY_TERMINAL.equals(role))) {
+                return new RecoveredDeployment(
+                        entity.blockPosition(), entity.getUUID().toString());
+            }
+        }
+        if (localMission.type() == MissionCatalog.MissionType.STEAL_DATA
+                || localMission.type() == MissionCatalog.MissionType.SHIP_ITEM) {
+            for (int y = level.getMinY(); y < level.getMaxY(); y++) {
+                BlockPos position = new BlockPos(journal.targetX(), y, journal.targetZ());
+                if ((localMission.type() == MissionCatalog.MissionType.STEAL_DATA
+                                && level.getBlockState(position)
+                                        .is(MissionBlocks.DATA_TERMINAL.get()))
+                        || (localMission.type() == MissionCatalog.MissionType.SHIP_ITEM
+                                && level.getBlockState(position)
+                                        .is(MissionBlocks.DELIVERY_TERMINAL.get()))) {
+                    return new RecoveredDeployment(position, localMission.actorUuid());
+                }
+            }
+        }
+        return new RecoveredDeployment(horizontalTarget, localMission.actorUuid());
+    }
+
     public static void onPlayerClone(
             net.minecraft.world.entity.player.Player original,
             net.minecraft.world.entity.player.Player replacement) {
@@ -939,6 +1090,7 @@ public final class MissionService {
 
     public static void reset() {
         LAST_SYNC.clear();
+        DEPLOYMENT_RETRIES.clear();
         AmbientGigService.reset();
     }
 
@@ -1298,6 +1450,7 @@ public final class MissionService {
 
         MissionJournalData.get(level).status(
                 context.instanceId(), JournalStatus.COMPLETED, level.getGameTime());
+        clearDeploymentRetry(context.instanceId());
         AmbientGigService.recordCompletion(
                 level, context.instanceId(), context.participants(), mission.targetDistrict());
 
@@ -1327,6 +1480,7 @@ public final class MissionService {
         }
         MissionJournalData.get(level).status(
                 context.instanceId(), JournalStatus.FAILED, level.getGameTime());
+        clearDeploymentRetry(context.instanceId());
         PartyService.markContractCompleted(level, context.instanceId());
         for (ServerPlayer member : PartyService.onlineMembers(
                 level.getServer(), context.participants())) {
@@ -1460,6 +1614,10 @@ public final class MissionService {
 
     private static void saveSite(ServerPlayer player, MissionBuildingPlanner.Site site) {
         MissionPlayerData.persisted(player).put(SITE_PLAN, site.save());
+    }
+
+    private static void clearSite(ServerPlayer player) {
+        MissionPlayerData.persisted(player).remove(SITE_PLAN);
     }
 
     private static void clearParticipants(ServerLevel level, ContractContext context) {

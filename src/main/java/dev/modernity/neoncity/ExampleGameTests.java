@@ -1609,6 +1609,75 @@ public final class ExampleGameTests {
                 "abandon did not clean delivery state without payment or ordinary-item loss");
         PartyService.acknowledgeContractClear(
                 helper.getLevel(), abandonedInstance, contractLeader);
+
+        BlockPos unavailableTarget = new BlockPos(
+                100_000, NeonCityGenerator.CITY_GROUND_Y + 1, 100_000);
+        MissionService.ActiveMission delayedMission = testMission(
+                assassinDefinition, unavailableTarget, 9, "");
+        MissionService.ContractContext delayedContext = new MissionService.ContractContext(
+                MissionService.ContractKind.GIG,
+                assassinDefinition.streetCred(),
+                UUID.randomUUID(),
+                PartyService.participantSnapshot(player),
+                false,
+                false);
+        MissionService.save(player, delayedMission);
+        MissionService.saveContext(player, delayedContext);
+        PartyService.registerContract(
+                helper.getLevel(), delayedContext.instanceId(), delayedContext.participants());
+        MissionJournalData.get(helper.getLevel()).accept(
+                delayedContext.participants(), delayedContext, delayedMission,
+                helper.getLevel().getGameTime());
+        player.snapTo(
+                unavailableTarget.getX() + 0.5,
+                unavailableTarget.getY(),
+                unavailableTarget.getZ() + 0.5,
+                0.0F,
+                0.0F);
+        MissionService.tickPlayer(
+                player, layout.locate(unavailableTarget.getX(), unavailableTarget.getZ()));
+        helper.assertTrue(MissionService.activeMission(player).isPresent()
+                        && MissionService.contractContext(player)
+                                .filter(context -> !context.deployed()).isPresent()
+                        && !PartyService.isContractTerminal(
+                                helper.getLevel(), delayedContext.instanceId())
+                        && MissionService.journalEntries(player).stream().anyMatch(entry ->
+                                entry.instanceId().equals(delayedContext.instanceId())
+                                        && entry.status()
+                                        == MissionService.JournalStatus.ACTIVE),
+                "unavailable mission building incorrectly failed the accepted contract");
+        BlockPos canonicalTarget = unavailableTarget.offset(7, 0, 9);
+        MissionService.ActiveMission canonicalMission = new MissionService.ActiveMission(
+                delayedMission.definitionId(), delayedMission.type(), delayedMission.title(),
+                delayedMission.briefing(), delayedMission.objective(),
+                delayedMission.targetDistrict(), canonicalTarget, delayedMission.reward(), "",
+                delayedMission.cargoItem(), delayedMission.cargoCount(),
+                delayedMission.acceptedTick());
+        MissionJournalData journal = MissionJournalData.get(helper.getLevel());
+        long legacyUpdatedTick = helper.getLevel().getGameTime() + 1_000;
+        journal.accept(
+                delayedContext.participants(), delayedContext, canonicalMission,
+                legacyUpdatedTick);
+        journal.accept(
+                delayedContext.participants(), delayedContext, delayedMission,
+                delayedMission.acceptedTick());
+        MissionSiteData legacyReservations = MissionSiteData.get(helper.getLevel());
+        legacyReservations.reserve(
+                "test:legacy:" + delayedContext.instanceId(), delayedContext.instanceId());
+        MissionService.onPlayerLogin(player);
+        helper.assertTrue(MissionService.activeMission(player)
+                                .filter(mission -> mission.target().equals(canonicalTarget)).isPresent()
+                        && MissionService.contractContext(player)
+                                .filter(MissionService.ContractContext::deployed).isPresent()
+                        && MissionService.journalEntries(player).stream().anyMatch(entry ->
+                                entry.instanceId().equals(delayedContext.instanceId())
+                                        && entry.deployed()
+                                        && entry.targetY() == canonicalTarget.getY()
+                                        && entry.updatedTick() == legacyUpdatedTick),
+                "offline participant did not restore the canonical deployed objective");
+        helper.assertTrue(MissionService.abandon(player)
+                        && !legacyReservations.hasReservation(delayedContext.instanceId()),
+                "delayed contract could not be cleanly abandoned or release its site");
         MissionFeatureGameTests.disconnect(player);
         helper.succeed();
     }
@@ -1632,11 +1701,18 @@ public final class ExampleGameTests {
                         && restored.planSeed() == site.planSeed(),
                 "mission building site did not survive its NBT round trip");
 
+        BlockPos untouchedBlockEntity = origin.offset(2, 0, 2);
+        helper.getLevel().setBlock(
+                untouchedBlockEntity, Blocks.CHEST.defaultBlockState(), Block.UPDATE_ALL);
         helper.assertTrue(MissionBuildingPlanner.preflight(helper.getLevel(), restored),
-                "valid synthetic mission building failed preflight");
+                "untouched block entity rejected an otherwise valid mission building");
         helper.assertTrue(MissionBuildingPlanner.install(helper.getLevel(), restored)
                         == MissionBuildingPlanner.InstallationResult.INSTALLED,
                 "valid synthetic mission building was not installed");
+        helper.assertTrue(helper.getLevel().getBlockState(untouchedBlockEntity).is(Blocks.CHEST),
+                "mission installation modified an untouched block entity");
+        helper.getLevel().setBlock(
+                untouchedBlockEntity, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
         helper.assertTrue(MissionBuildingPlanner.install(helper.getLevel(), restored)
                         == MissionBuildingPlanner.InstallationResult.ALREADY_INSTALLED,
                 "mission building installation was not idempotent");
@@ -1707,6 +1783,16 @@ public final class ExampleGameTests {
                         && helper.getLevel().isEmptyBlock(restored.target().above()),
                 "mission decoration obstructed the objective cell");
 
+        BlockPos compactOrigin = origin.offset(26, 0, 0);
+        MissionBuildingPlanner.Site compactSite = syntheticSingleFloorSite(compactOrigin);
+        prepareMissionSite(helper, compactSite);
+        helper.assertTrue(compactSite.floorYs().size() == 1
+                        && compactSite.stairs().isEmpty()
+                        && MissionBuildingPlanner.preflight(helper.getLevel(), compactSite)
+                        && MissionBuildingPlanner.install(helper.getLevel(), compactSite)
+                                == MissionBuildingPlanner.InstallationResult.INSTALLED,
+                "large single-floor building was not accepted as a safe mission fallback");
+
         MissionBuildingPlanner.StairRun lower = restored.stairs().getFirst();
         MissionBuildingPlanner.StairRun overlapping = new MissionBuildingPlanner.StairRun(
                 lower.start().above(lower.rise()), lower.ascending(), lower.rise());
@@ -1739,13 +1825,16 @@ public final class ExampleGameTests {
                 "completed mission site reservation was not reusable");
         reservations.releaseOwned(nextContract);
 
-        BlockPos blockEntity = origin.offset(2, 0, 2);
+        BlockPos blockEntity = restored.decorations().getFirst().position();
         helper.getLevel().setBlock(blockEntity, Blocks.CHEST.defaultBlockState(), Block.UPDATE_ALL);
         helper.assertTrue(!MissionBuildingPlanner.preflight(helper.getLevel(), restored)
                         && MissionBuildingPlanner.install(helper.getLevel(), restored)
                                 == MissionBuildingPlanner.InstallationResult.UNSAFE,
-                "mission building accepted a block entity inside its edit envelope");
+                "mission building accepted a block entity on a planned edit cell");
         helper.getLevel().setBlock(blockEntity, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+        helper.assertTrue(MissionBuildingPlanner.install(helper.getLevel(), restored)
+                        == MissionBuildingPlanner.InstallationResult.INSTALLED,
+                "mission building could not recover after an edit cell became safe again");
         helper.getLevel().setBlock(
                 restored.entrance().position(), Blocks.BEDROCK.defaultBlockState(), Block.UPDATE_ALL);
         helper.assertTrue(!MissionBuildingPlanner.preflight(helper.getLevel(), restored)
@@ -1903,6 +1992,46 @@ public final class ExampleGameTests {
                 routes,
                 decorations,
                 TEST_SEED);
+    }
+
+    private static MissionBuildingPlanner.Site syntheticSingleFloorSite(BlockPos origin) {
+        int floorY = origin.getY();
+        BoundingBox bounds = new BoundingBox(
+                origin.getX(), floorY - 1, origin.getZ(),
+                origin.getX() + 13, floorY + 3, origin.getZ() + 13);
+        MissionBuildingPlanner.Entrance entrance = new MissionBuildingPlanner.Entrance(
+                origin.offset(6, 0, 0), Direction.NORTH, 1, false);
+        MissionBuildingPlanner.PatrolRoute route = new MissionBuildingPlanner.PatrolRoute(
+                floorY,
+                List.of(
+                        origin.offset(2, 0, 4),
+                        origin.offset(3, 0, 11),
+                        origin.offset(10, 0, 10),
+                        origin.offset(11, 0, 4)));
+        List<MissionBuildingPlanner.Decoration> decorations = List.of(
+                new MissionBuildingPlanner.Decoration(
+                        origin.offset(5, 0, 3),
+                        MissionBuildingPlanner.DecorKind.RECEPTION_DESK,
+                        Direction.NORTH),
+                new MissionBuildingPlanner.Decoration(
+                        origin.offset(2, 0, 8),
+                        MissionBuildingPlanner.DecorKind.PLANTER,
+                        Direction.NORTH),
+                new MissionBuildingPlanner.Decoration(
+                        origin.offset(10, 0, 8),
+                        MissionBuildingPlanner.DecorKind.PLANTER,
+                        Direction.NORTH));
+        return new MissionBuildingPlanner.Site(
+                "test:single-floor-office",
+                District.A_CORP,
+                bounds,
+                List.of(floorY),
+                origin.offset(11, 0, 11),
+                entrance,
+                List.of(),
+                List.of(route),
+                decorations,
+                TEST_SEED ^ 0x51A61EF100L);
     }
 
     private static void prepareMissionSite(

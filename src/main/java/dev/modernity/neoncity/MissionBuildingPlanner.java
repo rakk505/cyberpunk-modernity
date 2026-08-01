@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
@@ -136,8 +137,8 @@ public final class MissionBuildingPlanner {
             }
             bounds = copy(bounds);
             floorYs = floorYs == null ? List.of() : floorYs.stream().distinct().sorted().toList();
-            if (floorYs.size() < 2 || floorYs.size() > MAX_FLOORS) {
-                throw new IllegalArgumentException("mission site must contain two to four floors");
+            if (floorYs.isEmpty() || floorYs.size() > MAX_FLOORS) {
+                throw new IllegalArgumentException("mission site must contain one to four floors");
             }
             target = target.immutable();
             stairs = stairs == null ? List.of() : List.copyOf(stairs);
@@ -229,9 +230,39 @@ public final class MissionBuildingPlanner {
             BlockPos origin,
             int searchRadiusChunks,
             long selectionSalt) {
+        return findSite(level, district, origin, searchRadiusChunks, selectionSalt, 2);
+    }
+
+    /**
+     * Finds a safe building while preferring a multistory plan. A one-floor fallback lets
+     * contracts use otherwise suitable Arnis buildings instead of failing outright.
+     */
+    public static Optional<Site> findSite(
+            ServerLevel level,
+            District district,
+            BlockPos origin,
+            int searchRadiusChunks,
+            long selectionSalt,
+            int minimumFloors) {
+        return findSite(
+                level, district, origin, searchRadiusChunks, selectionSalt, minimumFloors,
+                ignored -> true);
+    }
+
+    static Optional<Site> findSite(
+            ServerLevel level,
+            District district,
+            BlockPos origin,
+            int searchRadiusChunks,
+            long selectionSalt,
+            int minimumFloors,
+            Predicate<Site> siteFilter) {
         if (level == null || district == null || origin == null
-                || !NeonCityGenerator.isMegacityWorld(level)) {
+                || siteFilter == null || !NeonCityGenerator.isMegacityWorld(level)) {
             return Optional.empty();
+        }
+        if (minimumFloors < 1 || minimumFloors > MAX_FLOORS) {
+            throw new IllegalArgumentException("invalid minimum mission floor count");
         }
         int radius = Math.max(1, Math.min(MAX_SEARCH_RADIUS_CHUNKS, searchRadiusChunks));
         int centerChunkX = Math.floorDiv(origin.getX(), 16);
@@ -258,22 +289,29 @@ public final class MissionBuildingPlanner {
                 .thenComparingInt(ChunkCandidate::chunkZ));
 
         int attempts = 0;
+        Site fallback = null;
         for (ChunkCandidate candidate : candidates) {
-            if (attempts++ >= MAX_PROFILE_ATTEMPTS) {
-                break;
-            }
-            NeonCityGenerator.generateNow(level, candidate.chunkX(), candidate.chunkZ(), 1);
             if (!NeonCityGenerator.isUsableArnisChunk(
                     level, candidate.chunkX() << 4, candidate.chunkZ() << 4)) {
                 continue;
             }
+            if (attempts++ >= MAX_PROFILE_ATTEMPTS) {
+                break;
+            }
+            NeonCityGenerator.generateNow(level, candidate.chunkX(), candidate.chunkZ(), 1);
             Optional<Site> site = profileChunk(
-                    level, district, candidate.chunkX(), candidate.chunkZ(), candidate.score());
-            if (site.isPresent()) {
-                return site;
+                    level, district, candidate.chunkX(), candidate.chunkZ(), candidate.score(),
+                    minimumFloors);
+            if (site.isPresent() && siteFilter.test(site.get())) {
+                if (site.get().floorYs().size() >= 2 || minimumFloors >= 2) {
+                    return site;
+                }
+                if (fallback == null) {
+                    fallback = site.get();
+                }
             }
         }
-        return Optional.empty();
+        return Optional.ofNullable(fallback);
     }
 
     public static Optional<Site> findSite(
@@ -302,7 +340,7 @@ public final class MissionBuildingPlanner {
         if (!NeonCityGenerator.isUsableArnisChunk(level, chunkX << 4, chunkZ << 4)) {
             return Optional.empty();
         }
-        return profileChunk(level, district, chunkX, chunkZ, planSeed);
+        return profileChunk(level, district, chunkX, chunkZ, planSeed, 2);
     }
 
     /** Revalidates all touched blocks without modifying the world. */
@@ -312,9 +350,6 @@ public final class MissionBuildingPlanner {
         }
         // Version-one plans still deserialize for active-contract cleanup, but cannot reinstall.
         if (!stairsHaveHorizontalClearance(site.stairs())) {
-            return false;
-        }
-        if (containsBlockEntity(level, site.bounds())) {
             return false;
         }
         for (Edit edit : edits(site)) {
@@ -327,6 +362,10 @@ public final class MissionBuildingPlanner {
                             Entity.class, new AABB(edit.position()), Entity::isAlive).isEmpty()) {
                 return false;
             }
+        }
+        if (!level.getEntitiesOfClass(
+                Entity.class, new AABB(site.target()), Entity::isAlive).isEmpty()) {
+            return false;
         }
         return routeCellsRemainClear(level, site);
     }
@@ -358,7 +397,12 @@ public final class MissionBuildingPlanner {
     }
 
     private static Optional<Site> profileChunk(
-            ServerLevel level, District district, int chunkX, int chunkZ, long planSeed) {
+            ServerLevel level,
+            District district,
+            int chunkX,
+            int chunkZ,
+            long planSeed,
+            int minimumFloors) {
         ArnisPatchLibrary.Placement placement = ArnisPatchLibrary.select(
                 NeonCityGenerator.layout(), chunkX, chunkZ).orElse(null);
         if (placement == null || placement.patch().district() != district) {
@@ -374,7 +418,8 @@ public final class MissionBuildingPlanner {
         int maxY = Math.min(
                 minY + MAX_SCAN_HEIGHT - 1,
                 templateMinY + placement.patch().sizeY() - 2);
-        if (maxY - minY < MIN_STORY_HEIGHT + 2) {
+        int minimumScanHeight = minimumFloors >= 2 ? MIN_STORY_HEIGHT + 2 : 2;
+        if (maxY - minY < minimumScanHeight) {
             return Optional.empty();
         }
 
@@ -397,11 +442,39 @@ public final class MissionBuildingPlanner {
         profiles.sort(Comparator.comparingInt(FloorProfile::y)
                 .thenComparingInt(profile -> profile.bounds().minX)
                 .thenComparingInt(profile -> profile.bounds().minZ));
-        List<FloorProfile> floors = bestFloorStack(profiles, planSeed);
-        if (floors.size() < 2) {
+        List<FloorProfile> floors = bestFloorStack(profiles, planSeed, minimumFloors);
+        if (floors.size() >= minimumFloors) {
+            Optional<Site> preferred = planSite(
+                    level, district, chunkX, chunkZ, planSeed, floors);
+            if (preferred.isPresent()) {
+                return preferred;
+            }
+        }
+        if (minimumFloors >= 2) {
             return Optional.empty();
         }
+        for (FloorProfile floor : profiles.stream()
+                .sorted(Comparator.comparingInt(
+                                (FloorProfile profile) -> profile.cells().size()).reversed()
+                        .thenComparingLong(profile -> positionScore(
+                                planSeed, profile.bounds().minX, profile.bounds().minZ)))
+                .toList()) {
+            Optional<Site> fallback = planSite(
+                    level, district, chunkX, chunkZ, planSeed, List.of(floor));
+            if (fallback.isPresent()) {
+                return fallback;
+            }
+        }
+        return Optional.empty();
+    }
 
+    private static Optional<Site> planSite(
+            ServerLevel level,
+            District district,
+            int chunkX,
+            int chunkZ,
+            long planSeed,
+            List<FloorProfile> floors) {
         Entrance entrance = findEntrance(level, floors.getFirst(), planSeed);
         if (entrance == null) {
             return Optional.empty();
@@ -412,8 +485,7 @@ public final class MissionBuildingPlanner {
         }
 
         BoundingBox bounds = siteBounds(floors, entrance);
-        if ((long) bounds.getXSpan() * bounds.getYSpan() * bounds.getZSpan() > MAX_SITE_VOLUME
-                || containsBlockEntity(level, bounds)) {
+        if ((long) bounds.getXSpan() * bounds.getYSpan() * bounds.getZSpan() > MAX_SITE_VOLUME) {
             return Optional.empty();
         }
         Set<BlockPos> routeExclusions = routeExclusions(entrance, stairs);
@@ -519,7 +591,8 @@ public final class MissionBuildingPlanner {
         return result;
     }
 
-    private static List<FloorProfile> bestFloorStack(List<FloorProfile> profiles, long seed) {
+    private static List<FloorProfile> bestFloorStack(
+            List<FloorProfile> profiles, long seed, int minimumFloors) {
         List<FloorProfile> best = List.of();
         long bestScore = Long.MIN_VALUE;
         for (int start = 0; start < profiles.size(); start++) {
@@ -546,7 +619,7 @@ public final class MissionBuildingPlanner {
             long score = stack.size() * 1_000_000L + area * 100L
                     - (long) (stack.getFirst().y() - NeonCityGenerator.CITY_GROUND_Y) * 10_000L
                     + Math.floorMod(positionScore(seed, start, stack.getFirst().y()), 100L);
-            if (stack.size() >= 2 && score > bestScore) {
+            if (stack.size() >= minimumFloors && score > bestScore) {
                 best = List.copyOf(stack);
                 bestScore = score;
             }
@@ -1174,21 +1247,6 @@ public final class MissionBuildingPlanner {
             }
         }
         return true;
-    }
-
-    private static boolean containsBlockEntity(ServerLevel level, BoundingBox bounds) {
-        BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
-        for (int y = bounds.minY(); y <= bounds.maxY(); y++) {
-            for (int z = bounds.minZ(); z <= bounds.maxZ(); z++) {
-                for (int x = bounds.minX(); x <= bounds.maxX(); x++) {
-                    cursor.set(x, y, z);
-                    if (hasBlockEntity(level, cursor)) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
     }
 
     private static boolean hasBlockEntity(ServerLevel level, BlockPos position) {

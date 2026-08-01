@@ -60,6 +60,10 @@ final class MissionSiteData extends SavedData {
         return existing != null && !existing.equals(instanceId);
     }
 
+    boolean hasReservation(UUID instanceId) {
+        return instanceId != null && reservations.containsValue(instanceId);
+    }
+
     private List<Reservation> serialized() {
         return reservations.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
