@@ -3,7 +3,6 @@ package com.example.cyberdeck.client.hud;
 import com.example.cyberdeck.client.map.CityMapNavigationClient;
 import com.example.cyberdeck.client.map.CityMapRenderUtil;
 import com.example.cyberdeck.client.map.CityMapViewport;
-import com.example.cyberdeck.client.map.MerchantMarkerClient;
 import com.example.cyberdeck.client.map.MinimapGeometry;
 import com.example.cyberdeck.client.screen.CityMapTextureCache;
 import dev.modernity.neoncity.CityMapProjection;
@@ -20,8 +19,9 @@ import net.neoforged.neoforge.client.gui.GuiLayer;
  * Heading-locked live city minimap centered on the player during normal gameplay.
  *
  * <p>The map rotates with the player's orientation so the player arrow always points up, and a
- * compass ring around the map renders live N/S/E/W markers. Visibility and merchant markers can be
- * toggled at runtime via {@link MinimapClientState}.</p>
+ * compass ring around the map renders live N/S/E/W markers. Only the selected navigation route and
+ * endpoint are overlaid; ambient map signals remain in the full map. Visibility can be toggled at
+ * runtime via {@link MinimapClientState}.</p>
  */
 public final class CityMinimapOverlay implements GuiLayer {
     private static final double WORLD_SPAN = 1_200.0;
@@ -110,10 +110,6 @@ public final class CityMinimapOverlay implements GuiLayer {
                 (float) (centerV - halfUv),
                 (float) (centerV + halfUv));
         CityMapRenderUtil.drawRoute(graphics, viewport, CityMapNavigationClient.route().points());
-        if (MinimapClientState.merchantMarkersVisible()) {
-            CityMapRenderUtil.drawMerchantMarkers(
-                    graphics, viewport, MerchantMarkerClient.markers(snapshot.layout()));
-        }
         if (CityMapNavigationClient.waypoint() != null) {
             CityMapRenderUtil.drawWaypoint(
                     graphics, viewport, CityMapNavigationClient.waypoint());

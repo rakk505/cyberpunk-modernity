@@ -4,6 +4,7 @@ import com.example.cyberdeck.Cyberdeck;
 import com.example.cyberdeck.client.hud.MinimapClientState;
 import com.example.cyberdeck.client.map.CityMapNavigationClient;
 import com.example.cyberdeck.client.mission.MissionTrackerClient;
+import com.example.cyberdeck.client.mission.GigJournalClient;
 import com.example.cyberdeck.cyberware.CyberwareAttachments;
 import com.example.cyberdeck.effect.CyberwareEffects;
 import com.example.cyberdeck.healing.HealingConsumable;
@@ -16,6 +17,7 @@ import com.example.cyberdeck.movement.TacticalAction;
 import com.example.cyberdeck.movement.TacticalMovement;
 import com.example.cyberdeck.movement.TacticalMovementPacket;
 import net.minecraft.client.Minecraft;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.neoforged.api.distmarker.Dist;
@@ -73,6 +75,12 @@ public final class CyberdeckClientEvents {
         while (CyberdeckClient.OPEN_CITY_MAP_KEY.consumeClick()) {
             if (mc.gui.screen() == null) {
                 CityMapNavigationClient.requestOpen();
+            }
+        }
+
+        while (CyberdeckClient.OPEN_JOURNAL_KEY.consumeClick()) {
+            if (mc.gui.screen() == null) {
+                com.example.cyberdeck.client.screen.JournalScreen.open();
             }
         }
 
@@ -264,10 +272,20 @@ public final class CyberdeckClientEvents {
                 || layer.equals(VanillaGuiLayers.EXPERIENCE_LEVEL)
                 || layer.equals(VanillaGuiLayers.CONTEXTUAL_INFO_BAR)
                 || layer.equals(VanillaGuiLayers.TAB_LIST)
-                || layer.equals(net.minecraft.resources.Identifier.fromNamespaceAndPath(
-                        Cyberdeck.MODID, "detection_meter"))) {
+                || isScannerSuppressedLayer(layer)) {
             event.setCanceled(true);
         }
+    }
+
+    private static boolean isScannerSuppressedLayer(Identifier layer) {
+        return layer.equals(Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "city_minimap"))
+                || layer.equals(Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "mission_tracker"))
+                || layer.equals(Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "wanted_hud"))
+                || layer.equals(Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "ammo_hud"))
+                || layer.equals(Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "healing_hud"))
+                || layer.equals(Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "smart_lock"))
+                || layer.equals(Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "detection_meter"))
+                || layer.equals(Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "stealth_takedown"));
     }
 
     @SubscribeEvent
@@ -278,6 +296,7 @@ public final class CyberdeckClientEvents {
         HealingConsumableClient.reset();
         CityMapNavigationClient.reset();
         MissionTrackerClient.reset();
+        GigJournalClient.reset();
     }
 
     private static boolean queueSelectedQuickhack(Minecraft minecraft) {

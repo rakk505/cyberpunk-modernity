@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "missions": [
+    {
+      "id": "signal_in_the_static",
+      "type": "steal_data",
+      "title": "Signal in the Static",
+      "briefing": "An encrypted broadcast is moving through a Tyger Claws relay office. Breach the building and recover the transmission that starts the main story.",
+      "target_name": "Encrypted Relay",
+      "target_districts": ["C", "D", "E"],
+      "reward_emmies": {"min": 160, "max": 180},
+      "street_cred": 100,
+      "activation_radius": 80,
+      "guards": 7,
+      "objective_radius": 40,
+      "prerequisites": [],
+      "required_street_cred": 0
+    },
+    {
+      "id": "glass_house",
+      "type": "assassinate_target",
+      "title": "Glass House",
+      "briefing": "The relay names an Arasaka executive coordinating the operation. Fight through the office and remove the executive.",
+      "target_name": "Director Sato",
+      "target_districts": ["A", "B", "F"],
+      "reward_emmies": {"min": 220, "max": 260},
+      "street_cred": 160,
+      "activation_radius": 88,
+      "guards": 10,
+      "objective_radius": 48,
+      "prerequisites": ["signal_in_the_static"],
+      "required_street_cred": 100
+    },
+    {
+      "id": "chrome_saint",
+      "type": "neutralize_cyberpsycho",
+      "title": "Chrome Saint",
+      "briefing": "A witness was converted into a weapon and sealed inside a Militech site. Neutralize the cyberpsycho before the evidence disappears.",
+      "target_name": "Project Saint",
+      "target_districts": ["H", "J", "K"],
+      "reward_emmies": {"min": 240, "max": 280},
+      "street_cred": 180,
+      "activation_radius": 88,
+      "guards": 6,
+      "objective_radius": 48,
+      "cyberpsycho": {
+        "health": 90,
+        "gun": "grad",
+        "grenades": 5,
+        "cyberware": ["sandevistan", "subdermal_armor", "blood_pump", "optical_camo"]
+      },
+      "prerequisites": ["signal_in_the_static"],
+      "required_street_cred": 100
+    },
+    {
+      "id": "two_keys",
+      "type": "steal_data",
+      "title": "Two Keys",
+      "briefing": "Sato's credentials and Saint's biometric record unlock the conspiracy archive. Raid the fortified data center and extract it.",
+      "target_name": "Conspiracy Archive",
+      "target_districts": ["L", "M", "N", "O"],
+      "reward_emmies": {"min": 320, "max": 360},
+      "street_cred": 260,
+      "activation_radius": 96,
+      "guards": 14,
+      "objective_radius": 56,
+      "prerequisites": ["glass_house", "chrome_saint"],
+      "required_street_cred": 420
+    },
+    {
+      "id": "city_of_dreams",
+      "type": "assassinate_target",
+      "title": "City of Dreams",
+      "briefing": "The archive identifies the architect at the top of the chain. Assault the tower, cross every occupied floor, and end the operation.",
+      "target_name": "The Architect",
+      "target_districts": ["T", "W", "Y", "Z"],
+      "reward_emmies": {"min": 480, "max": 560},
+      "street_cred": 400,
+      "activation_radius": 112,
+      "guards": 20,
+      "objective_radius": 72,
+      "prerequisites": ["two_keys"],
+      "required_street_cred": 680
+    }
+  ]
+}

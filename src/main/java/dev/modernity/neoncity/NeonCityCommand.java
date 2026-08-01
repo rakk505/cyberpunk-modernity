@@ -213,18 +213,21 @@ public final class NeonCityCommand {
             return 0;
         }
         District district = parsed.get();
-        Optional<MerchantTruckLibrary.TruckCandidate> candidate =
-                MerchantTruckLibrary.canonicalBlackTruck(district);
-        if (candidate.isEmpty()) {
+        VendorService.ensureDistrictVendors(source.getLevel(), district);
+        Optional<VendorAnchorData.Anchor> anchor =
+                VendorAnchorData.get(source.getLevel()).fixer(district);
+        if (anchor.isEmpty()) {
             source.sendFailure(Component.literal(
-                    district.label() + " has no park footprint large enough for a merchant truck."));
+                    district.label() + " has no safe Arnis facade for a fixer stall."));
             return 0;
         }
-        MerchantTruckLibrary.TruckCandidate found = candidate.get();
+        VendorAnchorData.Anchor found = anchor.get();
         source.sendSuccess(() -> Component.literal(String.format(
-                "%s fixer truck block=(%d,%d,%d) chunk=(%d,%d) cluster=(%d,%d)",
-                district.label(), found.minX(), found.groundY() + 1, found.minZ(),
-                found.chunkX(), found.chunkZ(), found.clusterX(), found.clusterZ())), false);
+                "%s fixer stall block=(%d,%d,%d) chunk=(%d,%d)",
+                district.label(), found.merchantPos().getX(), found.merchantPos().getY(),
+                found.merchantPos().getZ(),
+                Math.floorDiv(found.merchantPos().getX(), 16),
+                Math.floorDiv(found.merchantPos().getZ(), 16))), false);
         return 1;
     }
 

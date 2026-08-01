@@ -1,15 +1,21 @@
 package com.example.cyberdeck.client.map;
 
+import com.example.cyberdeck.client.mission.MissionTrackerClient;
+import com.example.cyberdeck.network.OpenCityMapPacket;
 import dev.modernity.neoncity.CityRoutePlanner;
+import dev.modernity.neoncity.MissionService;
 import java.util.List;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-// MerchantMarkerClient is in this same package (com.example.cyberdeck.client.map).
 
 /** Small clipped map primitives shared by the full map and the HUD minimap. */
 public final class CityMapRenderUtil {
     public static final int ROUTE_COLOR = 0xFFFFC54A;
     public static final int ROUTE_SHADOW = 0xE005090C;
     public static final int PLAYER_COLOR = 0xFF45F5E6;
+    public static final int MERCHANT_COLOR = 0xFFFF9F3C;
+    public static final int FIXER_COLOR = 0xFFFF435D;
+    public static final int GIG_COLOR = 0xFFFFC54A;
+    public static final int VENDOR_SHADOW = 0xE005090C;
 
     private CityMapRenderUtil() {
     }
@@ -43,29 +49,29 @@ public final class CityMapRenderUtil {
         }
     }
 
-    /** Draws a single merchant marker (small amber house glyph) at a screen position. */
-    public static void drawMerchantMarker(GuiGraphicsExtractor graphics, int x, int y) {
+    /** Draws one exact server-owned vendor marker at a screen position. */
+    public static void drawVendorMarker(
+            GuiGraphicsExtractor graphics,
+            int x,
+            int y,
+            OpenCityMapPacket.MarkerKind kind) {
+        int color = kind == OpenCityMapPacket.MarkerKind.FIXER ? FIXER_COLOR : MERCHANT_COLOR;
         // Drop-shadow diamond behind the roof for readability over bright map tiles.
-        diamond(graphics, x, y - 1, 5, MerchantMarkerClient.MERCHANT_SHADOW);
+        diamond(graphics, x, y - 1, 5, VENDOR_SHADOW);
         // Roof triangle.
-        diamond(graphics, x, y - 2, 3, MerchantMarkerClient.MERCHANT_COLOR);
+        diamond(graphics, x, y - 2, 3, color);
         // Body.
-        graphics.fill(x - 2, y, x + 3, y + 4, MerchantMarkerClient.MERCHANT_COLOR);
-        graphics.fill(x - 1, y + 1, x + 2, y + 3, MerchantMarkerClient.MERCHANT_SHADOW);
+        graphics.fill(x - 2, y, x + 3, y + 4, color);
+        graphics.fill(x - 1, y + 1, x + 2, y + 3, VENDOR_SHADOW);
     }
 
-    /** Draws merchant markers on the rotating HUD minimap, clipped to the viewport. */
-    public static void drawMerchantMarkers(
-            GuiGraphicsExtractor graphics,
-            CityMapViewport viewport,
-            java.util.List<MerchantMarkerClient.Marker> markers) {
-        for (MerchantMarkerClient.Marker marker : markers) {
-            int x = viewport.screenX(marker.x());
-            int y = viewport.screenY(marker.z());
-            if (viewport.contains(x, y)) {
-                drawMerchantMarker(graphics, x, y);
-            }
-        }
+    /** Draws the map's compact yellow exclamation signal for a gig. */
+    public static void drawGigMarker(GuiGraphicsExtractor graphics, int x, int y) {
+        diamond(graphics, x, y, 6, VENDOR_SHADOW);
+        diamond(graphics, x, y, 5, GIG_COLOR);
+        diamond(graphics, x, y, 3, 0xFF171004);
+        graphics.fill(x - 1, y - 3, x + 2, y + 1, GIG_COLOR);
+        graphics.fill(x - 1, y + 2, x + 2, y + 4, GIG_COLOR);
     }
 
     public static void drawWaypoint(
@@ -75,6 +81,17 @@ public final class CityMapRenderUtil {
         int x = viewport.screenX(waypoint.x());
         int y = viewport.screenY(waypoint.z());
         if (viewport.contains(x, y)) {
+            if (waypoint.kind() == OpenCityMapPacket.MarkerKind.AVAILABLE_GIG
+                    || activeGigAt(waypoint.x(), waypoint.z())) {
+                drawGigMarker(graphics, x, y);
+                return;
+            }
+            if (waypoint.kind() == OpenCityMapPacket.MarkerKind.ACTIVE_MISSION) {
+                diamond(graphics, x, y, 7, ROUTE_SHADOW);
+                diamond(graphics, x, y, 5, ROUTE_COLOR);
+                diamond(graphics, x, y, 2, 0xFF1B1105);
+                return;
+            }
             diamond(graphics, x, y - 2, 7, ROUTE_SHADOW);
             diamond(graphics, x, y - 2, 5, ROUTE_COLOR);
             diamond(graphics, x, y - 2, 2, 0xFF1B1105);
@@ -82,6 +99,20 @@ public final class CityMapRenderUtil {
         } else {
             drawOffscreenWaypoint(graphics, viewport, x, y);
         }
+    }
+
+    public static boolean isGigMarker(OpenCityMapPacket.Marker marker) {
+        return marker.kind() == OpenCityMapPacket.MarkerKind.AVAILABLE_GIG
+                || marker.kind() == OpenCityMapPacket.MarkerKind.ACTIVE_MISSION
+                        && activeGigAt(marker.x(), marker.z());
+    }
+
+    private static boolean activeGigAt(int worldX, int worldZ) {
+        MissionTrackerClient.Snapshot active = MissionTrackerClient.active();
+        return active != null
+                && active.kind() == MissionService.ContractKind.GIG
+                && active.navigationX() == worldX
+                && active.navigationZ() == worldZ;
     }
 
     public static void drawPlayer(
