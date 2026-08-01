@@ -4,6 +4,7 @@ import com.example.cyberdeck.Cyberdeck;
 import com.example.cyberdeck.client.hud.MinimapClientState;
 import com.example.cyberdeck.client.map.CityMapNavigationClient;
 import com.example.cyberdeck.client.mission.MissionTrackerClient;
+import com.example.cyberdeck.client.mission.GigJournalClient;
 import com.example.cyberdeck.cyberware.CyberwareAttachments;
 import com.example.cyberdeck.effect.CyberwareEffects;
 import com.example.cyberdeck.healing.HealingConsumable;
@@ -73,6 +74,12 @@ public final class CyberdeckClientEvents {
         while (CyberdeckClient.OPEN_CITY_MAP_KEY.consumeClick()) {
             if (mc.gui.screen() == null) {
                 CityMapNavigationClient.requestOpen();
+            }
+        }
+
+        while (CyberdeckClient.OPEN_JOURNAL_KEY.consumeClick()) {
+            if (mc.gui.screen() == null) {
+                com.example.cyberdeck.client.screen.JournalScreen.open();
             }
         }
 
@@ -276,6 +283,7 @@ public final class CyberdeckClientEvents {
         HealingConsumableClient.reset();
         CityMapNavigationClient.reset();
         MissionTrackerClient.reset();
+        GigJournalClient.reset();
     }
 
     private static boolean queueSelectedQuickhack(Minecraft minecraft) {

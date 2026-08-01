@@ -44,11 +44,17 @@ public final class MissionBuildingPlanner {
     private static final int MAX_PROFILE_ATTEMPTS = 16;
     private static final int SCAN_MARGIN = 2;
     private static final int MAX_SCAN_HEIGHT = 72;
-    private static final int MIN_FLOOR_CELLS = 12;
+    private static final int MIN_FLOOR_CELLS = 64;
+    private static final int MIN_FLOOR_SIDE = 7;
+    private static final int MIN_PATROL_CELLS = 24;
     private static final int MIN_STORY_HEIGHT = 4;
     private static final int MAX_STORY_HEIGHT = 9;
     private static final int MAX_FLOORS = 4;
     private static final int MAX_ROUTE_POINTS = 8;
+    private static final int STAIR_WIDTH = 2;
+    private static final int STAIR_LANDING_DEPTH = 2;
+    private static final int MIN_STAIR_HORIZONTAL_GAP = 3;
+    private static final int MAX_STAIR_CANDIDATES = 64;
     private static final int MAX_SITE_VOLUME = 40_000;
     private static final int PLACE_FLAGS =
             Block.UPDATE_SKIP_ALL_SIDEEFFECTS | Block.UPDATE_CLIENTS;
@@ -214,7 +220,7 @@ public final class MissionBuildingPlanner {
     }
 
     /**
-     * Generates and inspects at most 24 deterministic Arnis candidates near {@code origin}.
+     * Generates and inspects at most 16 deterministic Arnis candidates near {@code origin}.
      * Returning empty is expected when nearby imported geometry cannot be modified conservatively.
      */
     public static Optional<Site> findSite(
@@ -302,6 +308,10 @@ public final class MissionBuildingPlanner {
     /** Revalidates all touched blocks without modifying the world. */
     public static boolean preflight(ServerLevel level, Site site) {
         if (level == null || site == null || !loadSiteChunks(level, site.bounds())) {
+            return false;
+        }
+        // Version-one plans still deserialize for active-contract cleanup, but cannot reinstall.
+        if (!stairsHaveHorizontalClearance(site.stairs())) {
             return false;
         }
         if (containsBlockEntity(level, site.bounds())) {
@@ -396,14 +406,9 @@ public final class MissionBuildingPlanner {
         if (entrance == null) {
             return Optional.empty();
         }
-        List<StairRun> stairs = new ArrayList<>();
-        for (int index = 1; index < floors.size(); index++) {
-            StairRun run = findStairRun(level, floors.get(index - 1), floors.get(index),
-                    planSeed + index * 0x9E3779B97F4A7C15L);
-            if (run == null) {
-                return Optional.empty();
-            }
-            stairs.add(run);
+        List<StairRun> stairs = findStairPlan(level, floors, planSeed);
+        if (stairs.size() != floors.size() - 1) {
+            return Optional.empty();
         }
 
         BoundingBox bounds = siteBounds(floors, entrance);
@@ -421,9 +426,22 @@ public final class MissionBuildingPlanner {
             }
             routes.add(route);
         }
-        BlockPos target = chooseTarget(floors.getLast(), entrance, planSeed);
+        Set<BlockPos> targetExclusions = new HashSet<>(routeExclusions);
+        for (PatrolRoute route : routes) {
+            for (BlockPos waypoint : route.waypoints()) {
+                reserve(targetExclusions, waypoint, 2);
+            }
+        }
+        BlockPos target = chooseTarget(
+                floors.getLast(), entrance, planSeed, targetExclusions);
+        if (target == null) {
+            return Optional.empty();
+        }
         List<Decoration> decorations = planDecorations(
                 floors, entrance, stairs, routes, target, planSeed);
+        if (!hasRequiredDecorations(floors, decorations)) {
+            return Optional.empty();
+        }
         String id = district.code().toLowerCase(java.util.Locale.ROOT)
                 + ":" + chunkX + ":" + chunkZ + ":"
                 + Long.toUnsignedString(planSeed, 16);
@@ -494,7 +512,7 @@ public final class MissionBuildingPlanner {
                 continue;
             }
             Rect bounds = rect(component);
-            if (bounds.width() >= 3 && bounds.depth() >= 3) {
+            if (bounds.width() >= MIN_FLOOR_SIDE && bounds.depth() >= MIN_FLOOR_SIDE) {
                 result.add(new FloorProfile(y, Set.copyOf(component), bounds));
             }
         }
@@ -626,19 +644,34 @@ public final class MissionBuildingPlanner {
         return 0;
     }
 
-    private static StairRun findStairRun(
+    private static List<StairRun> findStairPlan(
+            ServerLevel level, List<FloorProfile> floors, long seed) {
+        List<List<StairCandidate>> candidatesByTransition = new ArrayList<>();
+        for (int index = 1; index < floors.size(); index++) {
+            List<StairCandidate> candidates = stairCandidates(
+                    level,
+                    floors.get(index - 1),
+                    floors.get(index),
+                    seed + index * 0x9E3779B97F4A7C15L);
+            if (candidates.isEmpty()) {
+                return List.of();
+            }
+            candidatesByTransition.add(candidates);
+        }
+        List<StairRun> selected = new ArrayList<>();
+        if (!selectStairPlan(candidatesByTransition, 0, selected)) {
+            return List.of();
+        }
+        return List.copyOf(selected);
+    }
+
+    private static List<StairCandidate> stairCandidates(
             ServerLevel level, FloorProfile lower, FloorProfile upper, long seed) {
         int rise = upper.y() - lower.y();
         List<StairCandidate> candidates = new ArrayList<>();
         for (BlockPos start : lower.cells()) {
             for (Direction direction : HORIZONTAL) {
-                Direction across = direction.getClockWise();
-                if (!lower.cells().contains(start.relative(across))) {
-                    continue;
-                }
-                BlockPos upperLanding = start.relative(direction, rise).atY(upper.y());
-                if (!upper.cells().contains(upperLanding)
-                        || !upper.cells().contains(upperLanding.relative(across))) {
+                if (!stairLandingsFit(lower, upper, start, direction, rise)) {
                     continue;
                 }
                 int edits = stairEditCost(level, start, direction, rise);
@@ -650,10 +683,64 @@ public final class MissionBuildingPlanner {
             }
         }
         return candidates.stream()
-                .min(Comparator.comparingInt(StairCandidate::edits)
+                .sorted(Comparator.comparingInt(StairCandidate::edits)
                         .thenComparingLong(StairCandidate::score))
-                .map(StairCandidate::run)
-                .orElse(null);
+                .limit(MAX_STAIR_CANDIDATES)
+                .toList();
+    }
+
+    private static boolean selectStairPlan(
+            List<List<StairCandidate>> candidatesByTransition,
+            int transition,
+            List<StairRun> selected) {
+        if (transition == candidatesByTransition.size()) {
+            return true;
+        }
+        for (StairCandidate candidate : candidatesByTransition.get(transition)) {
+            if (selected.stream().anyMatch(
+                    existing -> !stairRunsHaveHorizontalClearance(existing, candidate.run()))) {
+                continue;
+            }
+            selected.add(candidate.run());
+            if (selectStairPlan(candidatesByTransition, transition + 1, selected)) {
+                return true;
+            }
+            selected.removeLast();
+        }
+        return false;
+    }
+
+    private static boolean stairLandingsFit(
+            FloorProfile lower,
+            FloorProfile upper,
+            BlockPos start,
+            Direction direction,
+            int rise) {
+        Direction across = direction.getClockWise();
+        for (int lane = 0; lane < STAIR_WIDTH; lane++) {
+            for (int step = 0; step < rise; step++) {
+                BlockPos projection = start.relative(direction, step).relative(across, lane);
+                if (!lower.cells().contains(projection)
+                        || !upper.cells().contains(projection.atY(upper.y()))) {
+                    return false;
+                }
+            }
+            for (int depth = 1; depth <= STAIR_LANDING_DEPTH; depth++) {
+                BlockPos approach = start.relative(direction.getOpposite(), depth)
+                        .relative(across, lane);
+                if (!lower.cells().contains(approach)) {
+                    return false;
+                }
+            }
+            for (int depth = 0; depth < STAIR_LANDING_DEPTH; depth++) {
+                BlockPos exit = start.relative(direction, rise + depth)
+                        .relative(across, lane).atY(upper.y());
+                if (!upper.cells().contains(exit)) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     private static int stairEditCost(
@@ -661,7 +748,7 @@ public final class MissionBuildingPlanner {
         Direction across = direction.getClockWise();
         int edits = 0;
         for (int step = 0; step < rise; step++) {
-            for (int lane = 0; lane < 2; lane++) {
+            for (int lane = 0; lane < STAIR_WIDTH; lane++) {
                 BlockPos stair = start.relative(direction, step)
                         .relative(across, lane).above(step);
                 for (int head = 0; head <= 2; head++) {
@@ -678,12 +765,72 @@ public final class MissionBuildingPlanner {
         return edits;
     }
 
+    private static boolean stairsHaveHorizontalClearance(List<StairRun> stairs) {
+        for (int first = 0; first < stairs.size(); first++) {
+            for (int second = first + 1; second < stairs.size(); second++) {
+                if (!stairRunsHaveHorizontalClearance(stairs.get(first), stairs.get(second))) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private static boolean stairRunsHaveHorizontalClearance(StairRun first, StairRun second) {
+        Rect firstBounds = stairHorizontalEnvelope(first);
+        Rect secondBounds = stairHorizontalEnvelope(second);
+        int xGap = Math.max(0, Math.max(
+                firstBounds.minX() - secondBounds.maxX(),
+                secondBounds.minX() - firstBounds.maxX()));
+        int zGap = Math.max(0, Math.max(
+                firstBounds.minZ() - secondBounds.maxZ(),
+                secondBounds.minZ() - firstBounds.maxZ()));
+        return xGap + zGap >= MIN_STAIR_HORIZONTAL_GAP;
+    }
+
+    private static Rect stairHorizontalEnvelope(StairRun stair) {
+        Direction across = stair.ascending().getClockWise();
+        BlockPos first = stair.start().relative(
+                stair.ascending().getOpposite(), STAIR_LANDING_DEPTH);
+        BlockPos last = stair.start()
+                .relative(stair.ascending(), stair.rise() + STAIR_LANDING_DEPTH - 1)
+                .relative(across, STAIR_WIDTH - 1);
+        return new Rect(
+                Math.min(first.getX(), last.getX()), Math.max(first.getX(), last.getX()),
+                Math.min(first.getZ(), last.getZ()), Math.max(first.getZ(), last.getZ()));
+    }
+
+    private static List<BlockPos> stairLandingCells(StairRun stair) {
+        Direction across = stair.ascending().getClockWise();
+        List<BlockPos> result = new ArrayList<>(STAIR_WIDTH * STAIR_LANDING_DEPTH * 2);
+        for (int lane = 0; lane < STAIR_WIDTH; lane++) {
+            for (int depth = 1; depth <= STAIR_LANDING_DEPTH; depth++) {
+                result.add(stair.start().relative(stair.ascending().getOpposite(), depth)
+                        .relative(across, lane));
+            }
+            for (int depth = 0; depth < STAIR_LANDING_DEPTH; depth++) {
+                result.add(stair.start().relative(stair.ascending(), stair.rise() + depth)
+                        .relative(across, lane).above(stair.rise()));
+            }
+        }
+        return result;
+    }
+
+    private static List<BlockPos> stairFloorClearanceCells(StairRun stair) {
+        List<BlockPos> result = new ArrayList<>(stairLandingCells(stair));
+        Direction across = stair.ascending().getClockWise();
+        for (int lane = 0; lane < STAIR_WIDTH; lane++) {
+            result.add(stair.start().relative(across, lane));
+        }
+        return result;
+    }
+
     private static PatrolRoute patrolRoute(
             FloorProfile floor, long seed, Set<BlockPos> exclusions) {
         List<BlockPos> ordered = ordered(floor.cells().stream()
                 .filter(position -> !exclusions.contains(position))
                 .collect(java.util.stream.Collectors.toSet()), seed);
-        if (ordered.size() < 2) {
+        if (ordered.size() < MIN_PATROL_CELLS) {
             return null;
         }
         List<BlockPos> route = new ArrayList<>();
@@ -712,23 +859,28 @@ public final class MissionBuildingPlanner {
         for (StairRun stair : stairs) {
             Direction across = stair.ascending().getClockWise();
             for (int step = 0; step <= stair.rise(); step++) {
-                for (int lane = 0; lane < 2; lane++) {
+                for (int lane = 0; lane < STAIR_WIDTH; lane++) {
                     BlockPos position = stair.start().relative(stair.ascending(), step)
                             .relative(across, lane).above(step);
                     reserve(excluded, position, 1);
                 }
             }
+            for (BlockPos landing : stairFloorClearanceCells(stair)) {
+                reserve(excluded, landing, 1);
+            }
         }
         return excluded;
     }
 
-    private static BlockPos chooseTarget(FloorProfile top, Entrance entrance, long seed) {
+    private static BlockPos chooseTarget(
+            FloorProfile top, Entrance entrance, long seed, Set<BlockPos> exclusions) {
         return top.cells().stream()
+                .filter(position -> !exclusions.contains(position))
                 .max(Comparator.comparingDouble(
                                 (BlockPos position) -> position.distSqr(entrance.position()))
                         .thenComparingLong(position -> positionScore(
                                 seed, position.getX(), position.getZ())))
-                .orElseThrow();
+                .orElse(null);
     }
 
     private static List<Decoration> planDecorations(
@@ -749,10 +901,13 @@ public final class MissionBuildingPlanner {
         for (StairRun stair : stairs) {
             Direction across = stair.ascending().getClockWise();
             for (int step = 0; step <= stair.rise(); step++) {
-                for (int lane = 0; lane < 2; lane++) {
+                for (int lane = 0; lane < STAIR_WIDTH; lane++) {
                     reserve(reserved, stair.start().relative(stair.ascending(), step)
                             .relative(across, lane).above(step), 1);
                 }
+            }
+            for (BlockPos landing : stairFloorClearanceCells(stair)) {
+                reserve(reserved, landing, 1);
             }
         }
 
@@ -795,6 +950,21 @@ public final class MissionBuildingPlanner {
         return List.copyOf(result);
     }
 
+    private static boolean hasRequiredDecorations(
+            List<FloorProfile> floors, List<Decoration> decorations) {
+        for (int floorIndex = 0; floorIndex < floors.size(); floorIndex++) {
+            int floorY = floors.get(floorIndex).y();
+            int required = floorIndex == 0 ? 3 : 4;
+            long actual = decorations.stream()
+                    .filter(decoration -> decoration.position().getY() == floorY)
+                    .count();
+            if (actual < required) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private static boolean preservesFloorConnectivity(
             FloorProfile floor,
             List<BlockPos> proposed,
@@ -817,17 +987,10 @@ public final class MissionBuildingPlanner {
             required.add(entranceInside.relative(entrance.outward().getClockWise()));
         }
         for (StairRun stair : stairs) {
-            Direction across = stair.ascending().getClockWise();
-            if (stair.start().getY() == floor.y()) {
-                required.add(stair.start());
-                required.add(stair.start().relative(across));
-            }
-            int topY = stair.start().getY() + stair.rise();
-            if (topY == floor.y()) {
-                BlockPos landing = stair.start().relative(stair.ascending(), stair.rise())
-                        .above(stair.rise());
-                required.add(landing);
-                required.add(landing.relative(across));
+            for (BlockPos position : stairFloorClearanceCells(stair)) {
+                if (position.getY() == floor.y()) {
+                    required.add(position);
+                }
             }
         }
         required.retainAll(floor.cells());
@@ -901,10 +1064,11 @@ public final class MissionBuildingPlanner {
                 }
             }
             DoorHingeSide hinge = lane == 0 ? DoorHingeSide.LEFT : DoorHingeSide.RIGHT;
-            BlockState lower = Blocks.IRON_DOOR.defaultBlockState()
+            BlockState lower = Blocks.COPPER_DOOR.waxed().weathered().defaultBlockState()
                     .setValue(DoorBlock.FACING, entrance.outward())
                     .setValue(DoorBlock.HALF, DoubleBlockHalf.LOWER)
-                    .setValue(DoorBlock.HINGE, hinge);
+                    .setValue(DoorBlock.HINGE, hinge)
+                    .setValue(DoorBlock.OPEN, true);
             BlockState upper = lower.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER);
             edits.add(new Edit(door, lower, EditPolicy.SAFE_REPLACE));
             edits.add(new Edit(door.above(), upper, EditPolicy.SAFE_REPLACE));
@@ -914,7 +1078,7 @@ public final class MissionBuildingPlanner {
     private static void addStairEdits(List<Edit> edits, StairRun run) {
         Direction across = run.ascending().getClockWise();
         for (int step = 0; step < run.rise(); step++) {
-            for (int lane = 0; lane < 2; lane++) {
+            for (int lane = 0; lane < STAIR_WIDTH; lane++) {
                 BlockPos stair = run.start().relative(run.ascending(), step)
                         .relative(across, lane).above(step);
                 edits.add(new Edit(stair.above(), Blocks.AIR.defaultBlockState(),
@@ -975,6 +1139,15 @@ public final class MissionBuildingPlanner {
                     return false;
                 }
                 if (!isPassage(level, waypoint)) {
+                    return false;
+                }
+            }
+        }
+        for (StairRun stair : site.stairs()) {
+            for (BlockPos landing : stairLandingCells(stair)) {
+                if (editedSolid.contains(landing)
+                        || editedSolid.contains(landing.above())
+                        || !isPassage(level, landing)) {
                     return false;
                 }
             }
@@ -1138,12 +1311,17 @@ public final class MissionBuildingPlanner {
         for (StairRun stair : stairs) {
             Direction across = stair.ascending().getClockWise();
             for (int step = 0; step < stair.rise(); step++) {
-                for (int lane = 0; lane < 2; lane++) {
+                for (int lane = 0; lane < STAIR_WIDTH; lane++) {
                     BlockPos position = stair.start().relative(stair.ascending(), step)
                             .relative(across, lane).above(step + 2);
                     if (!contains(bounds, position)) {
                         return false;
                     }
+                }
+            }
+            for (BlockPos landing : stairLandingCells(stair)) {
+                if (!contains(bounds, landing.above())) {
+                    return false;
                 }
             }
         }

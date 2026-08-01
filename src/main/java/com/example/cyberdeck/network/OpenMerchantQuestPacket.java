@@ -13,7 +13,7 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.Identifier;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
-/** Server-owned fixer job list shown when a black truck merchant is used. */
+/** Server-owned fixer job list shown when a fixer stall merchant is used. */
 public record OpenMerchantQuestPacket(
         int merchantEntityId,
         int sourceDistrictOrdinal,

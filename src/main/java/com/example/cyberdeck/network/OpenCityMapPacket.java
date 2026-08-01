@@ -19,6 +19,7 @@ public record OpenCityMapPacket(
         List<Marker> markers) implements CustomPacketPayload {
     public static final int MAX_MARKERS = 1024;
     private static final int MAX_LABEL_LENGTH = 128;
+    private static final int MAX_REFERENCE_LENGTH = 64;
 
     public static final Type<OpenCityMapPacket> TYPE = new Type<>(
             Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "open_city_map"));
@@ -47,6 +48,7 @@ public record OpenCityMapPacket(
             buffer.writeInt(marker.z());
             buffer.writeVarInt(marker.districtOrdinal());
             buffer.writeUtf(marker.labelKey(), MAX_LABEL_LENGTH);
+            buffer.writeUtf(marker.referenceId(), MAX_REFERENCE_LENGTH);
         }
     }
 
@@ -71,7 +73,8 @@ public record OpenCityMapPacket(
                     buffer.readInt(),
                     buffer.readInt(),
                     buffer.readVarInt(),
-                    buffer.readUtf(MAX_LABEL_LENGTH)));
+                    buffer.readUtf(MAX_LABEL_LENGTH),
+                    buffer.readUtf(MAX_REFERENCE_LENGTH)));
         }
         return new OpenCityMapPacket(available, forceOpen, layoutSeed, fingerprint, markers);
     }
@@ -88,6 +91,7 @@ public record OpenCityMapPacket(
 
     public enum MarkerKind {
         ACTIVE_MISSION,
+        AVAILABLE_GIG,
         FIXER,
         MERCHANT,
         TRANSIT
@@ -98,9 +102,20 @@ public record OpenCityMapPacket(
             int x,
             int z,
             int districtOrdinal,
-            String labelKey) {
+            String labelKey,
+            String referenceId) {
+        public Marker(
+                MarkerKind kind,
+                int x,
+                int z,
+                int districtOrdinal,
+                String labelKey) {
+            this(kind, x, z, districtOrdinal, labelKey, "");
+        }
+
         public Marker {
             labelKey = labelKey == null ? "" : labelKey;
+            referenceId = referenceId == null ? "" : referenceId;
         }
     }
 }

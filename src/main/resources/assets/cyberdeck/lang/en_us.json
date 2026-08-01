@@ -42,6 +42,7 @@
   "screen.cyberdeck.quicktime.routing": "ROUTING...",
 
   "screen.cyberdeck.city_map.title": "Project Moon City Map",
+  "screen.cyberdeck.journal": "Journal",
   "screen.cyberdeck.city_map.transit": "%s Transit Node",
   "screen.cyberdeck.city_map.mission.corporate": "Classified Corporate Contract",
   "screen.cyberdeck.city_map.mission.agriculture": "Agricultural Ward Distress Signal",
@@ -72,6 +73,7 @@
   "key.cyberdeck.toggle": "Toggle Cyberdeck Interface",
   "key.cyberdeck.open_cyberware": "Open Cyberware Screen",
   "key.cyberdeck.open_city_map": "Open Project Moon City Map",
+  "key.cyberdeck.open_journal": "Open Journal",
   "key.cyberdeck.sandevistan": "Toggle Sandevistan",
   "key.cyberdeck.arm_cannon": "Fire Arm Cannon",
     "key.cyberdeck.thretevac": "Activate Circulatory Cyberware",
@@ -201,6 +203,8 @@
   "entity.cyberdeck.smart_bullet": "Smart Round",
   "block.cyberdeck.data_terminal": "Secured Data Terminal",
   "item.cyberdeck.data_terminal": "Secured Data Terminal",
+  "block.cyberdeck.delivery_terminal": "Contract Delivery Terminal",
+  "item.cyberdeck.contract_cargo": "Sealed Contract Cargo",
 
   "message.cyberdeck.no_ammo": "Out of ammo",
 

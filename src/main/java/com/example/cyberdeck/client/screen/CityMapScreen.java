@@ -1,11 +1,13 @@
 package com.example.cyberdeck.client.screen;
 
-import com.example.cyberdeck.client.CyberdeckClient;
 import com.example.cyberdeck.client.hud.MinimapClientState;
 import com.example.cyberdeck.client.map.CityMapNavigationClient;
 import com.example.cyberdeck.client.map.CityMapRenderUtil;
 import com.example.cyberdeck.client.map.CityMapViewport;
+import com.example.cyberdeck.client.mission.GigJournalClient;
 import com.example.cyberdeck.client.mission.MissionTrackerClient;
+import com.example.cyberdeck.network.AcceptDiscoveredGigPacket;
+import com.example.cyberdeck.network.GigJournalPacket;
 import com.example.cyberdeck.network.OpenCityMapPacket;
 import com.mojang.blaze3d.platform.cursor.CursorTypes;
 import dev.modernity.neoncity.CityMapProjection;
@@ -21,6 +23,7 @@ import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Util;
+import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 import org.lwjgl.glfw.GLFW;
 
 /** Full-screen Project Moon city plan with pan, zoom, player tracking and active missions. */
@@ -47,7 +50,7 @@ public final class CityMapScreen extends Screen {
     private final OpenCityMapPacket packet;
     private final MegacityLayout cityLayout;
     private final int extent;
-    private final List<OpenCityMapPacket.Marker> missions;
+    private final List<OpenCityMapPacket.Marker> contractSignals;
     private double centerX;
     private double centerZ;
     private double zoom = MIN_ZOOM;
@@ -64,6 +67,7 @@ public final class CityMapScreen extends Screen {
     // Mirrors the shared minimap merchant toggle so both views stay consistent.
     private boolean showMerchants = MinimapClientState.merchantMarkersVisible();
     private OpenCityMapPacket.Marker selectedMarker;
+    private long acceptingGigUntil;
 
     private CityMapScreen(OpenCityMapPacket packet) {
         super(Component.translatable("screen.cyberdeck.city_map.title"));
@@ -72,12 +76,13 @@ public final class CityMapScreen extends Screen {
                 ? MegacityLayout.createFromLayoutSeed(packet.layoutSeed())
                 : MegacityLayout.create(0L);
         this.extent = CityMapProjection.extent(cityLayout);
-        this.missions = packet.markers().stream()
-                .filter(marker -> marker.kind() == OpenCityMapPacket.MarkerKind.ACTIVE_MISSION)
+        this.contractSignals = packet.markers().stream()
+                .filter(marker -> marker.kind() == OpenCityMapPacket.MarkerKind.ACTIVE_MISSION
+                        || marker.kind() == OpenCityMapPacket.MarkerKind.AVAILABLE_GIG)
                 .toList();
         CityMapNavigationClient.Waypoint waypoint = CityMapNavigationClient.waypoint();
         if (waypoint == null) {
-            this.selectedMarker = missions.isEmpty() ? null : missions.getFirst();
+            this.selectedMarker = contractSignals.isEmpty() ? null : contractSignals.getFirst();
         } else if (!waypoint.marker()) {
             this.selectedMarker = null;
         } else {
@@ -96,7 +101,10 @@ public final class CityMapScreen extends Screen {
         Minecraft minecraft = Minecraft.getInstance();
         Screen currentScreen = minecraft.gui.screen();
         if (!packet.forceOpen() && (minecraft.level == null || minecraft.player == null
-                || currentScreen != null && !(currentScreen instanceof CityMapScreen))) {
+                || currentScreen != null
+                        && !(currentScreen instanceof CityMapScreen)
+                        && !(currentScreen instanceof JournalScreen)
+                        && !(currentScreen instanceof CyberwareScreen))) {
             return;
         }
         minecraft.setScreenAndShow(new CityMapScreen(packet));
@@ -127,29 +135,27 @@ public final class CityMapScreen extends Screen {
 
     private void renderHeader(
             GuiGraphicsExtractor graphics, Layout layout, int mouseX, int mouseY) {
-        graphics.fill(0, 0, width, layout.headerHeight(), 0xE8081016);
-        graphics.horizontalLine(0, width - 1, layout.headerHeight() - 1, CYAN_DIM);
-        graphics.horizontalLine(0, 110, layout.headerHeight() - 2, CYAN);
-        graphics.text(font, "PROJECT MOON // CITY GRID", 14, 10, CYAN, false);
-        graphics.text(font, "NIGHT CITY NETWORK", 14, 23, TEXT_DARK, false);
-
-        String location = cursorReadout(layout, mouseX, mouseY);
-        graphics.text(font, location, width - 14 - font.width(location), 11, TEXT, false);
-        String zoomText = String.format(Locale.ROOT, "ZOOM  %.1fX", zoom);
-        graphics.text(font, zoomText, width - 14 - font.width(zoomText), 24, TEXT_DIM, false);
+        CyberpunkMenuTabs.render(graphics, font, width,
+                CyberpunkMenuTabs.Tab.MAP, mouseX, mouseY);
     }
 
     private void renderMissionBand(
             GuiGraphicsExtractor graphics, Layout layout, int mouseX, int mouseY) {
         graphics.fill(0, layout.headerHeight(), layout.leftWidth(), layout.footerTop(), SIDEBAR);
         graphics.verticalLine(layout.leftWidth() - 1, layout.headerHeight(), layout.footerTop(), CYAN_DIM);
-        graphics.text(font, "ACTIVE MISSION", 12, layout.headerHeight() + 13, AMBER, false);
-        graphics.text(font, String.format(Locale.ROOT, "%02d TRACKED", missions.size()),
+        GigJournalPacket.AvailableGig selectedGig = GigJournalClient.availableAt(selectedMarker);
+        if (selectedGig != null) {
+            renderSelectedGig(graphics, layout, selectedGig, mouseX, mouseY);
+            renderLayerToggles(graphics, layout, mouseX, mouseY);
+            return;
+        }
+        graphics.text(font, "GIGS & MISSIONS", 12, layout.headerHeight() + 13, AMBER, false);
+        graphics.text(font, String.format(Locale.ROOT, "%02d SIGNALS", contractSignals.size()),
                 12, layout.headerHeight() + 27, TEXT_DARK, false);
         int rowY = layout.headerHeight() + 48;
         int rowHeight = 32;
-        for (int index = 0; index < missions.size(); index++) {
-            OpenCityMapPacket.Marker marker = missions.get(index);
+        for (int index = 0; index < contractSignals.size(); index++) {
+            OpenCityMapPacket.Marker marker = contractSignals.get(index);
             int top = rowY + index * rowHeight;
             if (top + rowHeight > layout.footerTop() - 62) break;
             boolean selected = marker == selectedMarker;
@@ -161,7 +167,9 @@ public final class CityMapScreen extends Screen {
                     selected ? AMBER : hovered ? AMBER_DIM : TEXT_DARK);
             District district = district(marker.districtOrdinal());
             String code = district == null ? "?" : district.code();
-            graphics.text(font, code, 17, top + 11, selected ? AMBER : RED, false);
+            graphics.text(font,
+                    CityMapRenderUtil.isGigMarker(marker) ? "!" : code,
+                    17, top + 11, selected ? AMBER : RED, false);
             graphics.text(font, elide(markerLabel(marker), layout.leftWidth() - 50),
                     36, top + 6, selected ? TEXT : 0xFFB2C8C5, false);
             graphics.text(font, district == null ? "UNKNOWN" : district.label().toUpperCase(Locale.ROOT),
@@ -169,6 +177,79 @@ public final class CityMapScreen extends Screen {
             if (hovered) graphics.requestCursor(CursorTypes.POINTING_HAND);
         }
 
+        renderLayerToggles(graphics, layout, mouseX, mouseY);
+    }
+
+    private void renderSelectedGig(
+            GuiGraphicsExtractor graphics,
+            Layout layout,
+            GigJournalPacket.AvailableGig gig,
+            int mouseX,
+            int mouseY) {
+        int x = 12;
+        int maxWidth = layout.leftWidth() - 24;
+        int y = layout.headerHeight() + 13;
+        int statsY = availableGigAccept(layout).y() - 36;
+        graphics.text(font, "AVAILABLE GIG", x, y, AMBER, false);
+        y += 17;
+        int titleLines = 0;
+        int maximumTitleLines = Math.max(1, Math.min(3, (statsY - y - 21) / 11));
+        for (String line : wrap(gig.title(), maxWidth)) {
+            if (titleLines++ >= maximumTitleLines) break;
+            graphics.text(font, line, x, y, TEXT, false);
+            y += 11;
+        }
+        y += 4;
+        if (y + 11 < statsY) {
+            graphics.text(font, dev.modernity.neoncity.MissionCatalog.MissionType
+                    .values()[gig.typeOrdinal()].displayName(), x, y, RED, false);
+            y += 17;
+        }
+        if (y + 24 < statsY) {
+            graphics.text(font, "BRIEFING", x, y, TEXT_DARK, false);
+            y += 13;
+            int briefingLines = 0;
+            for (String line : wrap(gig.briefing(), maxWidth)) {
+                if (briefingLines++ >= 4 || y + 11 >= statsY) break;
+                graphics.text(font, line, x, y, TEXT_DIM, false);
+                y += 11;
+            }
+        }
+        if (y + 24 < statsY) {
+            y += 4;
+            graphics.text(font, "OBJECTIVE", x, y, TEXT_DARK, false);
+            y += 13;
+            for (String line : wrap(gig.objective(), maxWidth)) {
+                if (y + 11 >= statsY) break;
+                graphics.text(font, line, x, y, CYAN, false);
+                y += 11;
+            }
+        }
+        District district = district(gig.districtOrdinal());
+        graphics.text(font, elide(district == null ? "UNKNOWN DISTRICT"
+                        : district.code() + " // " + distanceTo(gig.targetX(), gig.targetZ()), maxWidth),
+                x, statsY, TEXT_DIM, false);
+        String reward = gig.reward() + " EM // " + gig.streetCred() + " SC";
+        graphics.text(font, elide(reward, maxWidth), x, statsY + 13, AMBER, false);
+
+        Rect accept = availableGigAccept(layout);
+        boolean waiting = Util.getMillis() < acceptingGigUntil;
+        boolean blocked = MissionTrackerClient.active() != null;
+        boolean enabled = !waiting && !blocked;
+        boolean hovered = accept.contains(mouseX, mouseY);
+        graphics.fill(accept.x(), accept.y(), accept.right(), accept.bottom(),
+                hovered && enabled ? 0xE42A2920 : 0xDD11171B);
+        graphics.outline(accept.x(), accept.y(), accept.width(), accept.height(),
+                enabled ? hovered ? AMBER : AMBER_DIM : TEXT_DARK);
+        String action = blocked ? "CONTRACT ACTIVE" : waiting ? "ACCEPTING..." : "ACCEPT GIG";
+        graphics.centeredText(font, action, accept.centerX(), accept.y() + 7,
+                enabled ? AMBER : TEXT_DIM);
+        if (hovered) graphics.requestCursor(
+                enabled ? CursorTypes.POINTING_HAND : CursorTypes.NOT_ALLOWED);
+    }
+
+    private void renderLayerToggles(
+            GuiGraphicsExtractor graphics, Layout layout, int mouseX, int mouseY) {
         int filterY = layout.footerTop() - 52;
         graphics.text(font, "LAYERS", 12, filterY, TEXT_DARK, false);
         renderToggle(graphics, toggleMissions(layout), "!", showMissions, AMBER, mouseX, mouseY);
@@ -293,7 +374,9 @@ public final class CityMapScreen extends Screen {
             if (!map.contains(x, y)) continue;
             boolean isHovered = Math.abs(mouseX - x) <= 7 && Math.abs(mouseY - y) <= 7;
             boolean selected = marker == selectedMarker;
-            if (marker.kind() == OpenCityMapPacket.MarkerKind.ACTIVE_MISSION) {
+            if (CityMapRenderUtil.isGigMarker(marker)) {
+                CityMapRenderUtil.drawGigMarker(graphics, x, y);
+            } else if (marker.kind() == OpenCityMapPacket.MarkerKind.ACTIVE_MISSION) {
                 int pulse = (int) ((Math.sin(Util.getMillis() / 180.0) + 1.0) * 2.0);
                 drawDiamond(graphics, x, y, selected ? 6 : 4 + pulse / 2,
                         selected || isHovered ? AMBER : 0xFFCF9831);
@@ -312,7 +395,9 @@ public final class CityMapScreen extends Screen {
                     Math.min(map.bottom() - 10, mouseY - 17));
             graphics.fill(textX - 4, textY - 4, textX + textWidth + 4, textY + 9, 0xE9060D12);
             graphics.text(font, label, textX, textY - 2,
-                    hovered.kind() == OpenCityMapPacket.MarkerKind.ACTIVE_MISSION ? AMBER : CYAN,
+                    hovered.kind() == OpenCityMapPacket.MarkerKind.ACTIVE_MISSION
+                            || hovered.kind() == OpenCityMapPacket.MarkerKind.AVAILABLE_GIG
+                            ? AMBER : CYAN,
                     false);
             graphics.requestCursor(CursorTypes.POINTING_HAND);
         }
@@ -498,6 +583,10 @@ public final class CityMapScreen extends Screen {
 
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+        if (event.button() == 0 && CyberpunkMenuTabs.handleClick(
+                CyberpunkMenuTabs.Tab.MAP, event.x(), event.y(), width)) {
+            return true;
+        }
         if (!packet.available()) return super.mouseClicked(event, doubleClick);
         Layout layout = layout();
         if (event.button() == 1 && layout.map().contains(event.x(), event.y())) {
@@ -506,6 +595,15 @@ public final class CityMapScreen extends Screen {
             return true;
         }
         if (event.button() != 0) return super.mouseClicked(event, doubleClick);
+        GigJournalPacket.AvailableGig availableGig = GigJournalClient.availableAt(selectedMarker);
+        if (availableGig != null && availableGigAccept(layout).contains(event.x(), event.y())) {
+            if (MissionTrackerClient.active() == null && Util.getMillis() >= acceptingGigUntil) {
+                acceptingGigUntil = Util.getMillis() + 1_000L;
+                ClientPacketDistributor.sendToServer(
+                        new AcceptDiscoveredGigPacket(availableGig.offerId()));
+            }
+            return true;
+        }
         if (zoomIn(layout).contains(event.x(), event.y())) {
             setZoom(zoom * 1.35, layout.map().centerX(), layout.map().centerY(), layout.map());
             return true;
@@ -616,8 +714,7 @@ public final class CityMapScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyEvent event) {
-        if (CyberdeckClient.OPEN_CITY_MAP_KEY.matches(event)) {
-            onClose();
+        if (CyberpunkMenuTabs.handleKey(CyberpunkMenuTabs.Tab.MAP, event)) {
             return true;
         }
         double step = 220.0 / zoom;
@@ -693,8 +790,8 @@ public final class CityMapScreen extends Screen {
         int rowY = layout.headerHeight() + 48;
         if (mouseY < rowY) return null;
         int index = (int) ((mouseY - rowY) / 32);
-        int visibleRows = Math.min(missions.size(), visibleMissionRows(layout));
-        return index >= 0 && index < visibleRows ? missions.get(index) : null;
+        int visibleRows = Math.min(contractSignals.size(), visibleMissionRows(layout));
+        return index >= 0 && index < visibleRows ? contractSignals.get(index) : null;
     }
 
     private OpenCityMapPacket.Marker markerAt(Rect map, double mouseX, double mouseY) {
@@ -718,7 +815,7 @@ public final class CityMapScreen extends Screen {
 
     private boolean isLayerVisible(OpenCityMapPacket.Marker marker) {
         return switch (marker.kind()) {
-            case ACTIVE_MISSION -> showMissions;
+            case ACTIVE_MISSION, AVAILABLE_GIG -> showMissions;
             case FIXER, MERCHANT -> showMerchants;
             case TRANSIT -> showTransit && zoom >= 1.25;
         };
@@ -786,6 +883,7 @@ public final class CityMapScreen extends Screen {
     private static String markerHeading(OpenCityMapPacket.Marker marker) {
         return switch (marker.kind()) {
             case ACTIVE_MISSION -> "ACTIVE CONTRACT";
+            case AVAILABLE_GIG -> "AVAILABLE GIG";
             case FIXER -> "DISTRICT FIXER";
             case MERCHANT -> "MERCHANT STALL";
             case TRANSIT -> "TRANSIT NODE";
@@ -795,6 +893,7 @@ public final class CityMapScreen extends Screen {
     private static String markerStatus(OpenCityMapPacket.Marker marker) {
         return switch (marker.kind()) {
             case ACTIVE_MISSION -> "OBJECTIVE // ACTIVE";
+            case AVAILABLE_GIG -> "AWAITING ACCEPTANCE";
             case FIXER -> "GIG NETWORK // ONLINE";
             case MERCHANT -> "MARKET // OPEN";
             case TRANSIT -> "NETWORK // ONLINE";
@@ -850,7 +949,7 @@ public final class CityMapScreen extends Screen {
     }
 
     private Layout layout() {
-        int header = 39;
+        int header = CyberpunkMenuTabs.HEIGHT;
         int footer = 24;
         int left = Math.max(124, Math.min(164, width / 5));
         int right = width >= 700 ? Math.max(164, Math.min(196, width / 5)) : 0;
@@ -870,6 +969,20 @@ public final class CityMapScreen extends Screen {
     private int visibleMissionRows(Layout layout) {
         int rowY = layout.headerHeight() + 48;
         return Math.max(0, (layout.footerTop() - 62 - rowY) / 32);
+    }
+
+    private Rect availableGigAccept(Layout layout) {
+        return new Rect(12, layout.footerTop() - 88,
+                Math.max(40, layout.leftWidth() - 24), 25);
+    }
+
+    private String distanceTo(int targetX, int targetZ) {
+        if (minecraft.player == null || minecraft.level == null
+                || !net.minecraft.world.level.Level.OVERWORLD.equals(minecraft.level.dimension())) {
+            return "OFF-GRID";
+        }
+        return String.format(Locale.ROOT, "%.0fm", Math.hypot(
+                targetX - minecraft.player.getX(), targetZ - minecraft.player.getZ()));
     }
 
     private Rect zoomIn(Layout layout) {

@@ -4,12 +4,19 @@ import com.example.cyberdeck.CyberdeckItems;
 import com.example.cyberdeck.player.StreetCredState;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.mojang.authlib.GameProfile;
+import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.Connection;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.network.CommonListenerCookie;
+import net.minecraft.world.level.GameType;
 
 /** Focused progression invariants kept separate from the four objective end-to-end tests. */
 final class MissionFeatureGameTests {
@@ -56,7 +63,7 @@ final class MissionFeatureGameTests {
 
     static void partyRewards(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        ServerPlayer online = helper.makeMockServerPlayerInLevel();
+        ServerPlayer online = makeUniquePlayer(helper, "rewards");
         StreetCredState.setStreetCred(online, 0);
         UUID offline = UUID.fromString("c0de0000-0000-0000-0000-000000000001");
         PartyService.ParticipantSnapshot participants = new PartyService.ParticipantSnapshot(
@@ -136,6 +143,215 @@ final class MissionFeatureGameTests {
                 "one participant acknowledgement cleared another participant's tombstone");
         PartyService.acknowledgeContractClear(level, settlement, deferredPlayer);
         PartySavedData.get(level).takePendingEmmies(deferredPlayer);
+        disconnect(online);
+        helper.succeed();
+    }
+
+    static ServerPlayer makeUniquePlayer(GameTestHelper helper, String prefix) {
+        UUID playerId = UUID.randomUUID();
+        String name = (prefix + "-" + playerId.toString().substring(0, 7));
+        if (name.length() > 16) name = name.substring(0, 16);
+        CommonListenerCookie cookie = CommonListenerCookie.createInitial(
+                new GameProfile(playerId, name), false);
+        ServerPlayer player = new ServerPlayer(
+                helper.getLevel().getServer(),
+                helper.getLevel(),
+                cookie.gameProfile(),
+                cookie.clientInformation()) {
+            @Override
+            public GameType gameMode() {
+                return GameType.SURVIVAL;
+            }
+        };
+        GameType.SURVIVAL.updatePlayerAbilities(player.getAbilities());
+        Connection connection = new Connection(PacketFlow.SERVERBOUND);
+        new EmbeddedChannel(connection);
+        helper.getLevel().getServer().getPlayerList().placeNewPlayer(connection, player, cookie);
+        return player;
+    }
+
+    static void disconnect(ServerPlayer player) {
+        if (player.connection != null) {
+            player.connection.disconnect(Component.literal("GameTest complete"));
+        }
+    }
+
+    static void gigBoardLifecycle(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        MegacityLayout layout = MegacityLayout.create(0xC1A0B04DL);
+        UUID ownerId = UUID.randomUUID();
+        AmbientGigData.OwnerKey owner = new AmbientGigData.OwnerKey(false, ownerId);
+        UUID partyMember = UUID.randomUUID();
+        AmbientGigData.OwnerKey firstPartyOwner = AmbientGigService.ownerForMembers(
+                List.of(ownerId, partyMember));
+        AmbientGigData.OwnerKey recreatedPartyOwner = AmbientGigService.ownerForMembers(
+                List.of(partyMember, ownerId));
+        helper.assertTrue(firstPartyOwner.equals(recreatedPartyOwner)
+                        && firstPartyOwner.party()
+                        && AmbientGigService.ownerForMembers(List.of(ownerId)).equals(owner),
+                "gig board ownership changed with party identity/order or failed solo normalization");
+        PartySavedData partyData = PartySavedData.get(level);
+        UUID firstPartyId = UUID.randomUUID();
+        PartySavedData.PartySnapshot firstSoloParty = partyData.create(firstPartyId, ownerId, 0);
+        AmbientGigData.OwnerKey firstSoloPartyOwner = AmbientGigService.ownerForMembers(
+                firstSoloParty.members());
+        partyData.disband(firstPartyId).orElseThrow();
+        UUID recreatedPartyId = UUID.randomUUID();
+        PartySavedData.PartySnapshot recreatedSoloParty =
+                partyData.create(recreatedPartyId, ownerId, 0);
+        AmbientGigData.OwnerKey recreatedSoloPartyOwner = AmbientGigService.ownerForMembers(
+                recreatedSoloParty.members());
+        partyData.disband(recreatedPartyId).orElseThrow();
+        helper.assertTrue(!firstPartyId.equals(recreatedPartyId)
+                        && firstSoloPartyOwner.equals(owner)
+                        && recreatedSoloPartyOwner.equals(owner),
+                "recreating a one-member party minted a new gig board owner");
+        List<AmbientGigData.StoredOffer> first = AmbientGigService.generateStoredOffers(
+                layout, level.getSeed(), owner, District.A_CORP, 0L);
+        List<AmbientGigData.StoredOffer> repeated = AmbientGigService.generateStoredOffers(
+                layout, level.getSeed(), owner, District.A_CORP, 0L);
+        List<AmbientGigData.StoredOffer> refreshed = AmbientGigService.generateStoredOffers(
+                layout, level.getSeed(), owner, District.A_CORP, 1L);
+        helper.assertTrue(first.size() == AmbientGigService.OFFERS_PER_DISTRICT
+                        && first.equals(repeated)
+                        && first.stream().map(AmbientGigData.StoredOffer::id).distinct().count()
+                                == AmbientGigService.OFFERS_PER_DISTRICT,
+                "district board was not a stable set of five unique offers");
+        helper.assertTrue(first.stream().allMatch(offer -> {
+                    MegacityLayout.Location location = layout.locateDistrict(
+                            offer.targetX(), offer.targetZ());
+                    return location.insideCity() && location.district() == District.A_CORP;
+                }),
+                "generated gig escaped its owning district");
+        helper.assertTrue(!first.stream().map(AmbientGigData.StoredOffer::id).toList()
+                        .equals(refreshed.stream().map(AmbientGigData.StoredOffer::id).toList()),
+                "eligible board refresh reused the previous offer identities");
+
+        AmbientGigData data = AmbientGigData.get(level);
+        data.replace(owner, District.A_CORP, 0L, first);
+        data.replace(owner, District.B_CORP, 0L, AmbientGigService.generateStoredOffers(
+                layout, level.getSeed(), owner, District.B_CORP, 0L));
+        helper.assertTrue(!data.pool(owner, District.A_CORP).orElseThrow().refreshEligible(),
+                "new district board began refresh-eligible");
+        AmbientGigData.StoredOffer accepted = first.getFirst();
+        helper.assertTrue(data.removeOffer(owner, District.A_CORP, accepted.id())
+                        && !data.removeOffer(owner, District.A_CORP, accepted.id())
+                        && data.pool(owner, District.A_CORP).orElseThrow().offers().size()
+                                == AmbientGigService.OFFERS_PER_DISTRICT - 1,
+                "stable offer acceptance was not idempotent");
+        List<UUID> remainingIds = data.pool(owner, District.A_CORP).orElseThrow().offers().stream()
+                .map(AmbientGigData.StoredOffer::id).toList();
+        helper.assertTrue(!AmbientGigService.ensureBoard(level, owner, District.A_CORP)
+                        && data.pool(owner, District.A_CORP).orElseThrow().generation() == 0L
+                        && data.pool(owner, District.A_CORP).orElseThrow().offers().stream()
+                                .map(AmbientGigData.StoredOffer::id).toList().equals(remainingIds),
+                "re-entering before an external completion replenished accepted gigs");
+
+        PartyService.ParticipantSnapshot solo = new PartyService.ParticipantSnapshot(
+                java.util.Optional.empty(), List.of(ownerId));
+        data.setLastDistrict(ownerId, District.A_CORP);
+        UUID refreshCompletion = UUID.randomUUID();
+        helper.assertTrue(AmbientGigService.recordCompletion(
+                        level, refreshCompletion, solo, District.B_CORP),
+                "first external completion was rejected");
+        helper.assertTrue(data.pool(owner, District.A_CORP).orElseThrow().refreshPending()
+                        && !data.pool(owner, District.A_CORP).orElseThrow().refreshEligible(),
+                "external completion was not held pending while an offline owner remained inside");
+        data.setLastDistrict(ownerId, null);
+        AmbientGigService.promotePendingRefreshes(level, owner, solo.playerIds());
+        helper.assertTrue(data.pool(owner, District.A_CORP).orElseThrow().refreshEligible()
+                        && !data.pool(owner, District.A_CORP).orElseThrow().refreshPending()
+                        && !data.pool(owner, District.B_CORP).orElseThrow().refreshEligible(),
+                "completion did not arm only boards outside the completed district");
+        helper.assertTrue(AmbientGigService.ensureBoard(level, owner, District.A_CORP)
+                        && data.pool(owner, District.A_CORP).orElseThrow().generation() == 1L
+                        && data.pool(owner, District.A_CORP).orElseThrow().offers().size()
+                                == AmbientGigService.OFFERS_PER_DISTRICT
+                        && data.pool(owner, District.A_CORP).orElseThrow().offers().stream()
+                                .map(AmbientGigData.StoredOffer::id)
+                                .noneMatch(remainingIds::contains)
+                        && !data.pool(owner, District.A_CORP).orElseThrow().refreshEligible(),
+                "qualified re-entry did not advance and restore the district board");
+        List<UUID> refreshedIds = data.pool(owner, District.A_CORP).orElseThrow().offers().stream()
+                .map(AmbientGigData.StoredOffer::id).toList();
+        helper.assertTrue(!AmbientGigService.recordCompletion(
+                                level, refreshCompletion, solo, District.B_CORP)
+                        && !data.pool(owner, District.A_CORP).orElseThrow().refreshEligible()
+                        && !AmbientGigService.ensureBoard(level, owner, District.A_CORP)
+                        && data.pool(owner, District.A_CORP).orElseThrow().generation() == 1L
+                        && data.pool(owner, District.A_CORP).orElseThrow().offers().stream()
+                                .map(AmbientGigData.StoredOffer::id).toList().equals(refreshedIds),
+                "duplicate completion refreshed a later board generation");
+        var ops = level.registryAccess().createSerializationContext(
+                com.mojang.serialization.JsonOps.INSTANCE);
+        com.google.gson.JsonElement encodedBoards = AmbientGigData.TYPE.codec()
+                .encodeStart(ops, data)
+                .getOrThrow(message -> helper.assertionException(
+                        net.minecraft.network.chat.Component.literal(
+                                "gig boards must encode: " + message)));
+        AmbientGigData decodedBoards = AmbientGigData.TYPE.codec()
+                .parse(ops, encodedBoards)
+                .getOrThrow(message -> helper.assertionException(
+                        net.minecraft.network.chat.Component.literal(
+                                "gig boards must decode: " + message)));
+        helper.assertTrue(!decodedBoards.claimCompletion(refreshCompletion),
+                "completion idempotency was not preserved by the saved-data codec");
+
+        UUID churnLeader = UUID.randomUUID();
+        UUID churnMember = UUID.randomUUID();
+        UUID churnPartyId = UUID.randomUUID();
+        partyData.create(churnPartyId, churnLeader, 0);
+        PartySavedData.PartySnapshot churnParty = partyData.addMember(
+                churnPartyId, churnMember, 0).orElseThrow();
+        PartyService.ParticipantSnapshot churnParticipants =
+                new PartyService.ParticipantSnapshot(
+                        java.util.Optional.of(churnPartyId), churnParty.members());
+        AmbientGigData.OwnerKey oldGroupOwner = AmbientGigService.ownerForMembers(
+                churnParty.members());
+        AmbientGigData.OwnerKey churnLeaderOwner = AmbientGigService.ownerForMembers(
+                List.of(churnLeader));
+        AmbientGigData.OwnerKey churnMemberOwner = AmbientGigService.ownerForMembers(
+                List.of(churnMember));
+        data.replace(oldGroupOwner, District.A_CORP, 0L, List.of());
+        partyData.disband(churnPartyId).orElseThrow();
+        data.replace(churnLeaderOwner, District.A_CORP, 0L, List.of());
+        data.replace(churnMemberOwner, District.A_CORP, 0L, List.of());
+        UUID churnCompletion = UUID.randomUUID();
+        helper.assertTrue(AmbientGigService.recordCompletion(
+                                level, churnCompletion, churnParticipants, District.B_CORP)
+                        && data.pool(churnLeaderOwner, District.A_CORP)
+                                .orElseThrow().refreshEligible()
+                        && data.pool(churnMemberOwner, District.A_CORP)
+                                .orElseThrow().refreshEligible()
+                        && !data.pool(oldGroupOwner, District.A_CORP)
+                                .orElseThrow().refreshEligible(),
+                "completion after disband refreshed the orphaned group instead of current owners");
+
+        UUID secondParticipant = UUID.randomUUID();
+        PartyService.ParticipantSnapshot journalParticipants =
+                new PartyService.ParticipantSnapshot(
+                        java.util.Optional.empty(), List.of(ownerId, secondParticipant));
+        UUID contractId = UUID.randomUUID();
+        MissionService.ContractContext context = new MissionService.ContractContext(
+                MissionService.ContractKind.GIG, 17, contractId,
+                journalParticipants, false, false);
+        MissionService.ActiveMission mission = new MissionService.ActiveMission(
+                accepted.definitionId(), MissionCatalog.definition(accepted.definitionId()).type(),
+                "Journal Test", "Persistent briefing", "Complete the test",
+                District.A_CORP,
+                new net.minecraft.core.BlockPos(
+                        accepted.targetX(), NeonCityGenerator.CITY_GROUND_Y + 1,
+                        accepted.targetZ()),
+                accepted.reward(), "", "", 0, 100L);
+        MissionJournalData journal = MissionJournalData.get(level);
+        journal.accept(journalParticipants, context, mission, 100L);
+        journal.status(contractId, MissionService.JournalStatus.COMPLETED, 200L);
+        journal.accept(journalParticipants, context, mission, 300L);
+        helper.assertTrue(journal.entries(ownerId).getFirst().status()
+                                == MissionService.JournalStatus.COMPLETED
+                        && journal.entries(secondParticipant).getFirst().status()
+                                == MissionService.JournalStatus.COMPLETED,
+                "offline journal status was lost or overwritten by active reconciliation");
         helper.succeed();
     }
 

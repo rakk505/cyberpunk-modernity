@@ -3,7 +3,6 @@ package com.example.cyberdeck.client;
 import com.example.cyberdeck.Cyberdeck;
 import com.example.cyberdeck.client.hud.AmmoHudOverlay;
 import com.example.cyberdeck.client.hud.HealingHudOverlay;
-import com.example.cyberdeck.client.hud.MissionTrackerOverlay;
 import com.example.cyberdeck.client.hud.CityMinimapOverlay;
 import com.example.cyberdeck.client.hud.QuickhackScannerOverlay;
 import com.example.cyberdeck.client.hud.SmartLockOverlay;
@@ -68,6 +67,14 @@ public final class CyberdeckClient {
             KeyConflictContext.IN_GAME,
             InputConstants.Type.KEYSYM,
             GLFW.GLFW_KEY_M,
+            CATEGORY);
+
+    // Opens the accepted-contract journal (default I).
+    public static final KeyMapping OPEN_JOURNAL_KEY = new KeyMapping(
+            "key.cyberdeck.open_journal",
+            KeyConflictContext.IN_GAME,
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_I,
             CATEGORY);
 
     // Sandevistan (default T).
@@ -207,9 +214,6 @@ public final class CyberdeckClient {
         event.registerAbove(VanillaGuiLayers.EFFECTS,
                 Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "city_minimap"),
                 new CityMinimapOverlay());
-        event.registerAbove(VanillaGuiLayers.EFFECTS,
-                Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "mission_tracker"),
-                new MissionTrackerOverlay());
         event.registerAbove(VanillaGuiLayers.HOTBAR,
                 Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "ammo_hud"),
                 new AmmoHudOverlay());
@@ -259,6 +263,7 @@ public final class CyberdeckClient {
         event.register(TOGGLE_KEY);
         event.register(OPEN_CYBERWARE_KEY);
         event.register(OPEN_CITY_MAP_KEY);
+        event.register(OPEN_JOURNAL_KEY);
         event.register(SANDEVISTAN_KEY);
         event.register(ARM_CANNON_KEY);
         event.register(THRETEVAC_KEY);

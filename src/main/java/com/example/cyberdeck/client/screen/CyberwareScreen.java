@@ -10,10 +10,8 @@ import com.example.cyberdeck.cyberware.CyberwareItems;
 import com.example.cyberdeck.cyberware.SlotUnlock;
 import com.example.cyberdeck.network.EquipCyberwarePacket;
 import com.example.cyberdeck.network.RemoveCyberwarePacket;
-import com.example.cyberdeck.ram.RamAttachments;
 import com.mojang.blaze3d.platform.cursor.CursorTypes;
 
-import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
@@ -120,7 +118,7 @@ public final class CyberwareScreen extends Screen {
         graphics.pose().translate(viewport.offsetX(), viewport.offsetY());
         graphics.pose().scale(viewport.scale(), viewport.scale());
         renderFrame(graphics);
-        renderHeader(graphics);
+        renderHeader(graphics, designMouseX, designMouseY);
         renderAnatomy(graphics);
         for (GroupSpec group : GROUPS) {
             renderConnection(graphics, group);
@@ -146,6 +144,10 @@ public final class CyberwareScreen extends Screen {
         double mouseX = viewport.toDesignX(event.x());
         double mouseY = viewport.toDesignY(event.y());
         if (!viewport.contains(event.x(), event.y())) {
+            return true;
+        }
+        if (CyberpunkMenuTabs.handleClick(
+                CyberpunkMenuTabs.Tab.CYBERWARE, mouseX, mouseY, DESIGN_WIDTH)) {
             return true;
         }
         if (detailsOpen) {
@@ -214,6 +216,9 @@ public final class CyberwareScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyEvent event) {
+        if (CyberpunkMenuTabs.handleKey(CyberpunkMenuTabs.Tab.CYBERWARE, event)) {
+            return true;
+        }
         if (event.isEscape() && detailsOpen) {
             detailsOpen = false;
             return true;
@@ -253,23 +258,17 @@ public final class CyberwareScreen extends Screen {
                 DESIGN_HEIGHT - 28, TEXT_DISABLED, false);
     }
 
-    private void renderHeader(GuiGraphicsExtractor graphics) {
+    private void renderHeader(GuiGraphicsExtractor graphics, double mouseX, double mouseY) {
         Player player = Minecraft.getInstance().player;
         CyberwareData data = currentData();
-        int level = player == null ? 0 : player.experienceLevel;
-        int ram = player == null ? 0 : RamAttachments.get(player);
-        int maxRam = player == null ? RamAttachments.BASE_MAX_RAM : RamAttachments.max(player);
         int used = data == null ? 0 : data.capacityUsed();
         int maximum = player == null || data == null ? 0 : CyberwareCapacity.maximum(player, data);
 
-        graphics.text(this.font, level + " LEVEL", 38, 11, CYAN, false);
-        graphics.text(this.font, ram + "/" + maxRam + " RAM", 118, 11, GREEN, false);
-        graphics.centeredText(this.font, "CYBERWARE", DESIGN_WIDTH / 2, 20, CYAN);
+        CyberpunkMenuTabs.render(graphics, this.font, DESIGN_WIDTH,
+                CyberpunkMenuTabs.Tab.CYBERWARE, mouseX, mouseY);
         String capacity = "CAPACITY  " + used + "/" + maximum;
-        graphics.text(this.font, capacity, 922 - this.font.width(capacity), 11,
+        graphics.text(this.font, capacity, 930 - this.font.width(capacity), 44,
                 used > maximum ? RED_BRIGHT : GOLD, false);
-        graphics.horizontalLine(26, DESIGN_WIDTH - 27, 36, RED);
-        graphics.fill(26, 34, 97, 37, RED);
     }
 
     private void renderAnatomy(GuiGraphicsExtractor graphics) {
@@ -354,7 +353,7 @@ public final class CyberwareScreen extends Screen {
     }
 
     private void renderCatalog(GuiGraphicsExtractor graphics, double mouseX, double mouseY) {
-        graphics.fill(0, 0, DESIGN_WIDTH, DESIGN_HEIGHT, 0xA9050609);
+        graphics.fill(0, CyberpunkMenuTabs.HEIGHT, DESIGN_WIDTH, DESIGN_HEIGHT, 0xA9050609);
         graphics.fill(DETAIL_PANEL.x(), DETAIL_PANEL.y(), DETAIL_PANEL.right(), DETAIL_PANEL.bottom(), PANEL);
         graphics.outline(DETAIL_PANEL.x(), DETAIL_PANEL.y(), DETAIL_PANEL.width(), DETAIL_PANEL.height(), RED);
         drawCornerBrackets(graphics, DETAIL_PANEL, CYAN, 12);
@@ -532,9 +531,7 @@ public final class CyberwareScreen extends Screen {
 
     private void renderFooter(GuiGraphicsExtractor graphics, double mouseX, double mouseY) {
         graphics.horizontalLine(25, DESIGN_WIDTH - 26, 500, RED_DIM);
-        KeyMapping mapping = KeyMapping.get("key.cyberdeck.open_cyberware");
-        String key = mapping == null ? "G" : mapping.getTranslatedKeyMessage().getString();
-        graphics.text(this.font, "[" + key + "] RIPPERDOC", 29, 510, CYAN_DIM, false);
+        graphics.text(this.font, "RIPPERDOC", 29, 510, CYAN_DIM, false);
         String hint = detailsOpen ? "FAMILY  //  TIER  //  EFFECTS  //  INSTALL"
                 : "SELECT A BODY SOCKET";
         graphics.centeredText(this.font, hint, DESIGN_WIDTH / 2, 510, TEXT_DISABLED);

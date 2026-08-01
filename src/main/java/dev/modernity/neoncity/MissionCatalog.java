@@ -114,7 +114,8 @@ public final class MissionCatalog {
                 case ASSASSINATE_TARGET -> "Eliminate " + targetName;
                 case NEUTRALIZE_CYBERPSYCHO -> "Neutralize " + targetName;
                 case STEAL_DATA -> "Access " + targetName;
-                case SHIP_ITEM -> "Deliver " + cargoCount + " " + itemLabel(cargoItem);
+                case SHIP_ITEM -> "Submit " + cargoCount + " " + itemLabel(cargoItem)
+                        + " at " + targetName;
             };
         }
     }

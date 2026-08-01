@@ -19,7 +19,7 @@ import net.minecraft.world.item.trading.ItemCost;
 import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.level.ItemLike;
 
-/** Complete, stable offer lists for the four trading truck roles. */
+/** Complete, stable offer lists for the four trading merchant roles. */
 final class MerchantTradeCatalog {
     private static final int MAX_USES = 32_000;
     private static final ArmorType[] ARMOR_TYPES = {

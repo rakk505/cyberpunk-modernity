@@ -1,7 +1,9 @@
 package com.example.cyberdeck.client.map;
 
+import com.example.cyberdeck.client.mission.MissionTrackerClient;
 import com.example.cyberdeck.network.OpenCityMapPacket;
 import dev.modernity.neoncity.CityRoutePlanner;
+import dev.modernity.neoncity.MissionService;
 import java.util.List;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
@@ -12,6 +14,7 @@ public final class CityMapRenderUtil {
     public static final int PLAYER_COLOR = 0xFF45F5E6;
     public static final int MERCHANT_COLOR = 0xFFFF9F3C;
     public static final int FIXER_COLOR = 0xFFFF435D;
+    public static final int GIG_COLOR = 0xFFFFC54A;
     public static final int VENDOR_SHADOW = 0xE005090C;
 
     private CityMapRenderUtil() {
@@ -80,6 +83,28 @@ public final class CityMapRenderUtil {
         }
     }
 
+    /** Draws the map's compact yellow exclamation signal for a gig. */
+    public static void drawGigMarker(GuiGraphicsExtractor graphics, int x, int y) {
+        diamond(graphics, x, y, 6, VENDOR_SHADOW);
+        diamond(graphics, x, y, 5, GIG_COLOR);
+        diamond(graphics, x, y, 3, 0xFF171004);
+        graphics.fill(x - 1, y - 3, x + 2, y + 1, GIG_COLOR);
+        graphics.fill(x - 1, y + 2, x + 2, y + 4, GIG_COLOR);
+    }
+
+    /** Draws all currently offered gigs on the HUD minimap. */
+    public static void drawGigMarkers(
+            GuiGraphicsExtractor graphics,
+            CityMapViewport viewport,
+            List<OpenCityMapPacket.Marker> markers) {
+        for (OpenCityMapPacket.Marker marker : markers) {
+            if (!isGigMarker(marker)) continue;
+            int x = viewport.screenX(marker.x());
+            int y = viewport.screenY(marker.z());
+            if (viewport.contains(x, y)) drawGigMarker(graphics, x, y);
+        }
+    }
+
     public static void drawWaypoint(
             GuiGraphicsExtractor graphics,
             CityMapViewport viewport,
@@ -87,6 +112,10 @@ public final class CityMapRenderUtil {
         int x = viewport.screenX(waypoint.x());
         int y = viewport.screenY(waypoint.z());
         if (viewport.contains(x, y)) {
+            if (activeGigAt(waypoint.x(), waypoint.z())) {
+                drawGigMarker(graphics, x, y);
+                return;
+            }
             diamond(graphics, x, y - 2, 7, ROUTE_SHADOW);
             diamond(graphics, x, y - 2, 5, ROUTE_COLOR);
             diamond(graphics, x, y - 2, 2, 0xFF1B1105);
@@ -94,6 +123,20 @@ public final class CityMapRenderUtil {
         } else {
             drawOffscreenWaypoint(graphics, viewport, x, y);
         }
+    }
+
+    public static boolean isGigMarker(OpenCityMapPacket.Marker marker) {
+        return marker.kind() == OpenCityMapPacket.MarkerKind.AVAILABLE_GIG
+                || marker.kind() == OpenCityMapPacket.MarkerKind.ACTIVE_MISSION
+                        && activeGigAt(marker.x(), marker.z());
+    }
+
+    private static boolean activeGigAt(int worldX, int worldZ) {
+        MissionTrackerClient.Snapshot active = MissionTrackerClient.active();
+        return active != null
+                && active.kind() == MissionService.ContractKind.GIG
+                && active.targetX() == worldX
+                && active.targetZ() == worldZ;
     }
 
     public static void drawPlayer(

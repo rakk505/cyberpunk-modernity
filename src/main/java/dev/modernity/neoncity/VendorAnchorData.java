@@ -102,8 +102,13 @@ final class VendorAnchorData extends SavedData {
     }
 
     Optional<Anchor> fixer(District district) {
+        return role(district, MerchantTruckLibrary.MerchantRole.QUEST);
+    }
+
+    Optional<Anchor> role(
+            District district, MerchantTruckLibrary.MerchantRole role) {
         return anchors.values().stream()
-                .filter(anchor -> anchor.fixer() && anchor.district() == district)
+                .filter(anchor -> anchor.role() == role && anchor.district() == district)
                 .min(Comparator.comparing(Anchor::siteId));
     }
 
@@ -144,6 +149,13 @@ final class VendorAnchorData extends SavedData {
                 current.merchantPos(),
                 current.yaw(),
                 entityUuid);
+    }
+
+    void remove(String siteId) {
+        if (anchors.remove(siteId) != null) {
+            revision++;
+            setDirty();
+        }
     }
 
     long revision() {

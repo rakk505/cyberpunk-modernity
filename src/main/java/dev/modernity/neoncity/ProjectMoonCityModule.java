@@ -59,13 +59,16 @@ public final class ProjectMoonCityModule {
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             PARK_TREE_LIBRARY = register("park_tree_library", ExampleGameTests::parkTreeLibrary);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
-            MERCHANT_TRUCKS = register("merchant_trucks", ExampleGameTests::merchantTrucks);
+            MERCHANT_STALLS = register("merchant_stalls", ExampleGameTests::merchantStalls);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             MISSION_SYSTEM = register("mission_system", ExampleGameTests::missionSystem);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             STORY_MISSION_DAG = register("story_mission_dag", MissionFeatureGameTests::storyDag);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             PARTY_REWARDS = register("party_rewards", MissionFeatureGameTests::partyRewards);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            GIG_BOARD_LIFECYCLE = register(
+                    "gig_board_lifecycle", MissionFeatureGameTests::gigBoardLifecycle);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             MISSION_BUILDING_PLANNER = register(
                     "mission_building_planner", ExampleGameTests::missionBuildingPlanner);
@@ -174,6 +177,12 @@ public final class ProjectMoonCityModule {
 
     @SubscribeEvent
     public void onServerTick(net.neoforged.neoforge.event.tick.ServerTickEvent.Post event) {
+        if (event.getServer().getTickCount() % 10 == 0) {
+            for (net.minecraft.server.level.ServerPlayer player
+                    : event.getServer().getPlayerList().getPlayers()) {
+                AmbientGigService.recordPresence(player);
+            }
+        }
         if (!generationEnabled) {
             return;
         }
@@ -196,7 +205,7 @@ public final class ProjectMoonCityModule {
                 MegacityLayout.Location location = NeonCityGenerator.effectiveLocation(sample);
                 if (location.insideCity()
                         && sample.zone() != MegacityLayout.Zone.WILDERNESS) {
-                    VendorService.ensureDistrictFixer(overworld, location.district());
+                    VendorService.ensureDistrictVendors(overworld, location.district());
                 }
                 MissionService.tickPlayer(player, location);
                 AmbientGigService.tick(player);
@@ -359,10 +368,11 @@ public final class ProjectMoonCityModule {
         registerInstance(event, "district_coverage", DISTRICT_COVERAGE, data);
         registerInstance(event, "organic_roads", ORGANIC_ROADS, data);
         registerInstance(event, "park_tree_library", PARK_TREE_LIBRARY, data);
-        registerInstance(event, "merchant_trucks", MERCHANT_TRUCKS, data);
+        registerInstance(event, "merchant_stalls", MERCHANT_STALLS, data);
         registerInstance(event, "mission_system", MISSION_SYSTEM, data);
         registerInstance(event, "story_mission_dag", STORY_MISSION_DAG, data);
         registerInstance(event, "party_rewards", PARTY_REWARDS, data);
+        registerInstance(event, "gig_board_lifecycle", GIG_BOARD_LIFECYCLE, data);
         registerInstance(event, "mission_building_planner", MISSION_BUILDING_PLANNER, data);
         registerInstance(event, "faction_patrol_routes", FACTION_PATROL_ROUTES, data);
         registerInstance(event, "skyline_hierarchy", SKYLINE_HIERARCHY, data);

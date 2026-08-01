@@ -9,19 +9,19 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.npc.villager.Villager;
-import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /** Registration, recovery, and immovable-anchor maintenance shared by every vendor site. */
 final class VendorService {
     private static final double ANCHOR_SEARCH_RADIUS = 3.0;
+    private static final String CURRENT_SITE_PREFIX = "vendor_stall_v2_";
 
     private VendorService() {
     }
 
     static String siteId(BlockPos sitePos) {
-        return "vendor_" + sitePos.asLong();
+        return CURRENT_SITE_PREFIX + sitePos.asLong();
     }
 
     static VendorAnchorData.Anchor register(
@@ -46,19 +46,51 @@ final class VendorService {
         District district = MerchantTruckLibrary.merchantDistrict(entity).orElse(null);
         BlockPos sitePos = MerchantTruckLibrary.merchantAnchor(entity).orElse(null);
         if (role == null || district == null || sitePos == null) {
+            entity.discard();
             return;
         }
         VendorAnchorData data = VendorAnchorData.get(level);
         VendorAnchorData.Anchor existing = data.anchor(siteId(sitePos)).orElse(null);
-        BlockPos merchantPos = existing == null ? entity.blockPosition() : existing.merchantPos();
-        float yaw = existing == null ? entity.getYRot() : existing.yaw();
-        register(level, entity, role, district, sitePos, merchantPos, yaw);
+        if (existing != null
+                && isCurrentAnchor(existing)
+                && existing.role() == role
+                && existing.district() == district) {
+            register(
+                    level,
+                    entity,
+                    role,
+                    district,
+                    sitePos,
+                    existing.merchantPos(),
+                    existing.yaw());
+            return;
+        }
+
+        VendorAnchorData.Anchor legacy = data.anchors().stream()
+                .filter(anchor -> isLegacyAnchor(anchor)
+                        && anchor.role() == role
+                        && anchor.district() == district
+                        && anchor.sitePos().equals(sitePos))
+                .findFirst()
+                .orElse(null);
+        if (legacy != null && currentAnchor(data, district, role).isEmpty()) {
+            lockMerchant(entity, legacy.merchantPos(), legacy.yaw());
+            data.bindEntity(legacy.siteId(), entity.getUUID());
+            return;
+        }
+        entity.discard();
     }
 
     /** Keeps loaded vendors at their authoritative anchors and recreates a missing entity once. */
     static void maintainAnchors(ServerLevel level) {
         VendorAnchorData data = VendorAnchorData.get(level);
         for (VendorAnchorData.Anchor anchor : data.anchors()) {
+            if (isLegacyAnchor(anchor)) {
+                if (currentAnchor(data, anchor.district(), anchor.role()).isPresent()) {
+                    retireLegacyAnchor(level, data, anchor);
+                    continue;
+                }
+            }
             if (!level.isLoaded(anchor.merchantPos())) {
                 continue;
             }
@@ -102,65 +134,68 @@ final class VendorService {
         }
     }
 
-    /** Ensures a district has a persisted fixer, using its truck or a compact stall fallback. */
-    static boolean ensureDistrictFixer(ServerLevel level, District district) {
+    /** Ensures one persisted building stall for the fixer and every trading specialty. */
+    static boolean ensureDistrictVendors(ServerLevel level, District district) {
         VendorAnchorData data = VendorAnchorData.get(level);
         long before = data.revision();
-        if (data.fixer(district).isPresent()) {
-            return false;
-        }
-
-        Optional<MerchantTruckLibrary.TruckCandidate> truck =
-                MerchantTruckLibrary.canonicalBlackTruck(district);
-        if (truck.isPresent()) {
-            MerchantTruckLibrary.TruckCandidate candidate = truck.get();
-            ChunkPos chunk = new ChunkPos(candidate.chunkX(), candidate.chunkZ());
-            if (!NeonCityGenerator.isGenerated(chunk)) {
-                NeonCityGenerator.generateNow(level, chunk.x(), chunk.z(), 0);
+        for (MerchantTruckLibrary.MerchantRole role
+                : VendorStallLibrary.plannedRoles(district)) {
+            if (currentAnchor(data, district, role).isEmpty()) {
+                VendorStallLibrary.ensure(level, district, role);
             }
-            registerExistingAt(level, candidate.base());
-            if (data.fixer(district).isEmpty()
-                    && MerchantTruckLibrary.hasTruckBlocks(level, candidate)) {
-                Villager merchant = MerchantTruckLibrary.spawnMerchant(
-                        level, candidate, MerchantTruckLibrary.MerchantRole.QUEST);
-                if (merchant != null && level.addFreshEntity(merchant)) {
-                    register(
-                            level,
-                            merchant,
-                            MerchantTruckLibrary.MerchantRole.QUEST,
-                            candidate.district(),
-                            candidate.base(),
-                            candidate.merchantSpawn(),
-                            candidate.rotation() == net.minecraft.world.level.block.Rotation.NONE
-                                    ? 0.0F : 90.0F);
+            if (currentAnchor(data, district, role).isPresent()) {
+                for (VendorAnchorData.Anchor anchor : data.anchors()) {
+                    if (anchor.district() == district
+                            && anchor.role() == role
+                            && isLegacyAnchor(anchor)) {
+                        retireLegacyAnchor(level, data, anchor);
+                    }
                 }
             }
-        }
-
-        if (data.fixer(district).isEmpty()) {
-            VendorStallLibrary.canonical(district).ifPresent(candidate -> {
-                ChunkPos chunk = ChunkPos.containing(candidate.sitePos());
-                if (!NeonCityGenerator.isGenerated(chunk)) {
-                    NeonCityGenerator.generateNow(level, chunk.x(), chunk.z(), 0);
-                }
-                if (data.fixer(district).isEmpty()) {
-                    VendorStallLibrary.place(
-                            level, candidate, MerchantTruckLibrary.MerchantRole.QUEST);
-                }
-            });
         }
         return data.revision() != before;
     }
 
-    private static void registerExistingAt(ServerLevel level, BlockPos sitePos) {
-        AABB area = new AABB(sitePos).inflate(18.0, 8.0, 18.0);
-        for (Villager merchant : level.getEntitiesOfClass(
-                Villager.class, area, MerchantTruckLibrary::isMerchant)) {
-            if (MerchantTruckLibrary.merchantAnchor(merchant)
-                    .filter(sitePos::equals).isPresent()) {
-                registerLoadedMerchant(level, merchant);
+    static boolean ensureDistrictFixer(ServerLevel level, District district) {
+        return ensureDistrictVendors(level, district);
+    }
+
+    static Optional<VendorAnchorData.Anchor> currentAnchor(
+            VendorAnchorData data,
+            District district,
+            MerchantTruckLibrary.MerchantRole role) {
+        return data.anchors().stream()
+                .filter(anchor -> isCurrentAnchor(anchor)
+                        && anchor.district() == district
+                        && anchor.role() == role)
+                .findFirst();
+    }
+
+    private static boolean isCurrentAnchor(VendorAnchorData.Anchor anchor) {
+        return anchor.siteId().startsWith(CURRENT_SITE_PREFIX)
+                && anchor.sitePos().equals(anchor.merchantPos());
+    }
+
+    private static boolean isLegacyAnchor(VendorAnchorData.Anchor anchor) {
+        return !isCurrentAnchor(anchor);
+    }
+
+    private static void retireLegacyAnchor(
+            ServerLevel level,
+            VendorAnchorData data,
+            VendorAnchorData.Anchor anchor) {
+        anchor.entityUuid().map(level::getEntity).ifPresent(Entity::discard);
+        if (level.isLoaded(anchor.merchantPos())) {
+            AABB area = new AABB(anchor.merchantPos()).inflate(18.0, 8.0, 18.0);
+            for (Villager merchant : level.getEntitiesOfClass(
+                    Villager.class,
+                    area,
+                    entity -> MerchantTruckLibrary.merchantAnchor(entity)
+                            .filter(anchor.sitePos()::equals).isPresent())) {
+                merchant.discard();
             }
         }
+        data.remove(anchor.siteId());
     }
 
     private static Optional<Villager> preferred(

@@ -109,6 +109,7 @@ public final class CityMinimapOverlay implements GuiLayer {
                 (float) (centerV - halfUv),
                 (float) (centerV + halfUv));
         CityMapRenderUtil.drawRoute(graphics, viewport, CityMapNavigationClient.route().points());
+        CityMapRenderUtil.drawGigMarkers(graphics, viewport, snapshot.packet().markers());
         if (MinimapClientState.merchantMarkersVisible()) {
             CityMapRenderUtil.drawVendorMarkers(
                     graphics, viewport, snapshot.packet().markers());

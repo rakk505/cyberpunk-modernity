@@ -146,6 +146,7 @@ public final class PartyService {
         data.clearStreetCredFloor(player.getUUID());
         clearInvitation(player);
         removal.remaining().ifPresent(party -> synchronizeParty(level, data, party));
+        AmbientGigService.syncJournal(player);
         return removal.remaining().isPresent() ? LeaveResult.LEFT : LeaveResult.DISBANDED;
     }
 
@@ -168,6 +169,7 @@ public final class PartyService {
             } else {
                 applyStreetCredFloor(member, removed.streetCred());
                 data.clearStreetCredFloor(memberId);
+                AmbientGigService.syncJournal(member);
             }
         }
         return DisbandResult.DISBANDED;
@@ -610,6 +612,7 @@ public final class PartyService {
             } else {
                 StreetCredState.setStreetCred(member, party.streetCred());
                 data.clearStreetCredFloor(memberId);
+                AmbientGigService.syncJournal(member);
             }
         }
     }
