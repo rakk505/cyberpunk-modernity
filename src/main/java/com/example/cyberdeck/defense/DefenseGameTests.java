@@ -1,8 +1,15 @@
 package com.example.cyberdeck.defense;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
 
 import com.example.cyberdeck.weapon.GunType;
 
@@ -49,6 +56,48 @@ final class DefenseGameTests {
         helper.assertTrue(detonated, "a placed canister must detonate");
         helper.assertBlockNotPresent(DefenseContent.EXPLOSIVE_CANISTER.get(), canister);
         helper.assertBlockPresent(Blocks.STONE, protectedBlock);
+        helper.succeed();
+    }
+
+    static void turretPlacement(GameTestHelper helper) {
+        BlockPos floor = new BlockPos(1, 1, 1);
+        BlockPos placement = floor.above();
+        helper.setBlock(floor, Blocks.STONE);
+        helper.assertTrue(KangTaoTurretItem.canPlaceAt(
+                        helper.getLevel(), helper.absolutePos(placement)),
+                "turret must fit above a clear solid floor");
+
+        BlockPos absoluteFloor = helper.absolutePos(floor);
+        ItemStack turretItem = new ItemStack(DefenseContent.KANG_TAO_TURRET_ITEM.get());
+        UseOnContext context = new UseOnContext(
+                helper.getLevel(),
+                null,
+                InteractionHand.MAIN_HAND,
+                turretItem,
+                new BlockHitResult(
+                        Vec3.atCenterOf(absoluteFloor), Direction.UP, absoluteFloor, false));
+        InteractionResult result = DefenseContent.KANG_TAO_TURRET_ITEM.get().useOn(context);
+        helper.assertTrue(result.consumesAction(), "turret item must deploy on a valid floor");
+
+        KangTaoTurret turret = helper.getLevel().getEntitiesOfClass(
+                        KangTaoTurret.class,
+                        DefenseContent.KANG_TAO_TURRET.get().getSpawnAABB(
+                                absoluteFloor.getX() + 0.5,
+                                absoluteFloor.getY() + 1.0,
+                                absoluteFloor.getZ() + 0.5).inflate(0.25))
+                .stream()
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("deployed turret entity was not found"));
+        float initialYaw = turret.getYRot();
+        turret.aiStep();
+        helper.assertTrue(turret.getYRot() != initialYaw,
+                "an idle turret must visibly sweep its aim");
+        turret.discard();
+
+        helper.setBlock(placement, Blocks.STONE);
+        helper.assertFalse(KangTaoTurretItem.canPlaceAt(
+                        helper.getLevel(), helper.absolutePos(placement)),
+                "turret placement must reject an occupied volume");
         helper.succeed();
     }
 }

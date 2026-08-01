@@ -14,7 +14,6 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.item.BlockItem;
-import net.minecraft.world.item.SpawnEggItem;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.material.MapColor;
@@ -60,10 +59,9 @@ public final class DefenseContent {
 
     public static final DeferredItem<BlockItem> EXPLOSIVE_CANISTER_ITEM =
             ITEMS.registerSimpleBlockItem("explosive_canister", EXPLOSIVE_CANISTER);
-    public static final DeferredItem<SpawnEggItem> KANG_TAO_TURRET_ITEM =
+    public static final DeferredItem<KangTaoTurretItem> KANG_TAO_TURRET_ITEM =
             ITEMS.registerItem("kang_tao_turret",
-                    properties -> new SpawnEggItem(properties.stacksTo(16)
-                            .spawnEgg(KANG_TAO_TURRET.get())));
+                    properties -> new KangTaoTurretItem(properties.stacksTo(16)));
 
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> TURRET_ARC_TEST =
             TEST_FUNCTIONS.register("turret_arc", () -> DefenseGameTests::turretArc);
@@ -71,6 +69,8 @@ public final class DefenseContent {
             TEST_FUNCTIONS.register("turret_destruction", () -> DefenseGameTests::turretDestruction);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> CANISTER_EXPLOSION_TEST =
             TEST_FUNCTIONS.register("canister_explosion", () -> DefenseGameTests::canisterExplosion);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> TURRET_PLACEMENT_TEST =
+            TEST_FUNCTIONS.register("turret_placement", () -> DefenseGameTests::turretPlacement);
 
     private DefenseContent() {
     }
@@ -115,5 +115,8 @@ public final class DefenseContent {
         event.registerTest(
                 Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "canister_explosion"),
                 new FunctionGameTestInstance(CANISTER_EXPLOSION_TEST.getKey(), data));
+        event.registerTest(
+                Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "turret_placement"),
+                new FunctionGameTestInstance(TURRET_PLACEMENT_TEST.getKey(), data));
     }
 }

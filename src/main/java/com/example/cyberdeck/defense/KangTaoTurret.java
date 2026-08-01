@@ -38,6 +38,7 @@ public final class KangTaoTurret extends Mob {
     private static final double DETECTION_RANGE = 32.0;
     private static final float YAW_SPEED = 12.0F;
     private static final float PITCH_SPEED = 8.0F;
+    private static final float IDLE_SCAN_SPEED = 1.25F;
     private static final float MAX_PITCH = 45.0F;
     private static final int WRECK_LIFETIME_TICKS = 100;
     private static final float DEATH_EXPLOSION_RADIUS = 2.5F;
@@ -48,6 +49,7 @@ public final class KangTaoTurret extends Mob {
             SynchedEntityData.defineId(KangTaoTurret.class, EntityDataSerializers.BOOLEAN);
 
     private long nextShotTick;
+    private boolean scanIncreasing = true;
 
     public KangTaoTurret(EntityType<? extends KangTaoTurret> entityType, Level level) {
         super(entityType, level);
@@ -97,7 +99,7 @@ public final class KangTaoTurret extends Mob {
         this.setTarget(target);
         this.setAggressive(target != null);
         if (target == null) {
-            this.returnToBase();
+            this.scanIdle();
             return;
         }
 
@@ -133,8 +135,18 @@ public final class KangTaoTurret extends Mob {
                 .orElse(null);
     }
 
-    private void returnToBase() {
-        this.setYRot(Mth.approachDegrees(this.getYRot(), this.getBaseYaw(), YAW_SPEED * 0.5F));
+    private void scanIdle() {
+        float relativeYaw = Mth.degreesDifference(this.getBaseYaw(), this.getYRot());
+        float nextYaw = relativeYaw + (this.scanIncreasing ? IDLE_SCAN_SPEED : -IDLE_SCAN_SPEED);
+        if (nextYaw >= HALF_ROTATION_RANGE) {
+            nextYaw = HALF_ROTATION_RANGE;
+            this.scanIncreasing = false;
+        } else if (nextYaw <= -HALF_ROTATION_RANGE) {
+            nextYaw = -HALF_ROTATION_RANGE;
+            this.scanIncreasing = true;
+        }
+
+        this.setYRot(Mth.wrapDegrees(this.getBaseYaw() + nextYaw));
         this.setXRot(Mth.approach(this.getXRot(), 0.0F, PITCH_SPEED * 0.5F));
         this.setYHeadRot(this.getYRot());
     }
@@ -239,6 +251,7 @@ public final class KangTaoTurret extends Mob {
         output.putFloat("BaseYaw", this.getBaseYaw());
         output.putBoolean("Destroyed", this.isDestroyed());
         output.putLong("NextShotTick", this.nextShotTick);
+        output.putBoolean("ScanIncreasing", this.scanIncreasing);
     }
 
     @Override
@@ -247,5 +260,6 @@ public final class KangTaoTurret extends Mob {
         this.entityData.set(DATA_BASE_YAW, input.getFloatOr("BaseYaw", this.getYRot()));
         this.entityData.set(DATA_DESTROYED, input.getBooleanOr("Destroyed", false));
         this.nextShotTick = input.getLongOr("NextShotTick", 0L);
+        this.scanIncreasing = input.getBooleanOr("ScanIncreasing", true);
     }
 }
