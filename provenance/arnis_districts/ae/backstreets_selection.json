@@ -1,0 +1,35 @@
+{
+  "atlas_chunks": 16,
+  "candidate_count": 192,
+  "chosen": {
+    "above_surface_blocks": 347206,
+    "developed_chunks": 211,
+    "floating_structural_columns": 22566,
+    "max_height_above_surface": 55,
+    "occupied_chunks": 248,
+    "road_surface_cells": 7540,
+    "score": -25853602,
+    "selection": "backstreets=15,8:30,23",
+    "structural_columns": 28165,
+    "vegetation_blocks": 47256,
+    "water_blocks": 0
+  },
+  "chunk_bounds_scanned": {
+    "max_x": 30,
+    "max_z": 26,
+    "min_x": 0,
+    "min_z": 0
+  },
+  "city": "Helsinki / Punavuori",
+  "district": "AE",
+  "kind": "neoncity:arnis_zone_atlas_selection",
+  "quality_tier": "strict",
+  "schema_version": 1,
+  "slug": "helsinki_punavuori",
+  "source_osm": {
+    "file": "provenance/arnis_districts/ae/backstreets_helsinki_punavuori_osm.json",
+    "sha256": "1c4a36c32a618f96cc4415a242f78c195fb70763909b97df9a42f880c12e44ee"
+  },
+  "source_world": "build/arnis_perimeter/ae/backstreets/Arnis World 1",
+  "zone": "BACKSTREETS"
+}

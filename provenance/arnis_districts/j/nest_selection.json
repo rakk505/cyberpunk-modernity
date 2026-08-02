@@ -1,0 +1,35 @@
+{
+  "atlas_chunks": 16,
+  "candidate_count": 348,
+  "chosen": {
+    "above_surface_blocks": 160300,
+    "developed_chunks": 85,
+    "floating_structural_columns": 6999,
+    "max_height_above_surface": 188,
+    "occupied_chunks": 111,
+    "road_surface_cells": 5927,
+    "score": -7676179,
+    "selection": "nest=19,7:34,22",
+    "structural_columns": 10623,
+    "vegetation_blocks": 6231,
+    "water_blocks": 12542
+  },
+  "chunk_bounds_scanned": {
+    "max_x": 43,
+    "max_z": 26,
+    "min_x": 0,
+    "min_z": 0
+  },
+  "city": "Las Vegas / Bellagio-Paris Strip",
+  "district": "J",
+  "kind": "neoncity:arnis_zone_atlas_selection",
+  "quality_tier": "strict",
+  "schema_version": 1,
+  "slug": "las_vegas_strip",
+  "source_osm": {
+    "file": "provenance/arnis_districts/j/nest_las_vegas_strip_osm.json",
+    "sha256": "c6b251d47b1daeb236a330b8a9d8d8ba2e89986080d441092d366bb8f4b52f31"
+  },
+  "source_world": "build/arnis_perimeter/j/nest/Arnis World 1",
+  "zone": "NEST"
+}

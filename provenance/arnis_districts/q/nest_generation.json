@@ -1,0 +1,77 @@
+{
+  "bbox": [
+    33.5883,
+    130.3965,
+    33.5923,
+    130.403
+  ],
+  "city": "Fukuoka / Tenjin",
+  "culture": "compact Japanese metropolitan blocks without a mainline rail megablock",
+  "district": "Q",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "kind": "neoncity:arnis_zone_source_generation",
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "manifest": {
+    "file": "provenance/arnis_districts/perimeter_manifest.json",
+    "sha256": "ca71ba94724f144d9d947d1095869bebd4749110f68ed7e1200bfd5c74f3f786"
+  },
+  "schema_version": 1,
+  "slug": "fukuoka_tenjin",
+  "source": {
+    "osm_file": "provenance/arnis_districts/q/nest_fukuoka_tenjin_osm.json",
+    "osm_sha256": "512b03c521067309aaad1dfc6671a8bffd30268dc5b137cb14f913281946dd95"
+  },
+  "world": {
+    "build_path": "build/arnis_perimeter/q/nest/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "ac30226e861560f44bd15e3b5eaae390dd0c9b5264d085b7b3c138bb9e7cf568",
+    "metadata": {
+      "maxGeoLat": 33.5923,
+      "maxGeoLon": 130.403,
+      "maxMcX": 602,
+      "maxMcZ": 444,
+      "minGeoLat": 33.5883,
+      "minGeoLon": 130.3965,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "80bda0eae0e37ea342dfb966a6083fb668a47b12a890003bc930a7a15a231d53",
+    "preview_sha256": "102d4f4017c7825abd1eb1796ecc256e57170694a2de01c6c65cb8d8ea0393b1",
+    "regions": [
+      {
+        "bytes": 4202496,
+        "file": "r.0.0.mca",
+        "sha256": "906584529082bcec52327110bb5841f2b7d3389a2ebbabc00e7edb122f3c5e39"
+      },
+      {
+        "bytes": 4202496,
+        "file": "r.1.0.mca",
+        "sha256": "4e0d9e4f738a189ab2642af1392567a88a21a873e0334c5333fcce71fc7ef9e3"
+      }
+    ]
+  },
+  "zone": "NEST"
+}

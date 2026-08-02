@@ -1,86 +1,383 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
+  "characters": [
+    {
+      "id": "jerry",
+      "name": "Jerry",
+      "role": "Slum Record Dealer / Initial Fixer",
+      "district": "Border Slums / A",
+      "visual_note": "50s, patched coat, record sleeves as armor",
+      "skin_variant": 9
+    },
+    {
+      "id": "kaito_park",
+      "name": "Kaito Park",
+      "role": "District G Courier",
+      "district": "G",
+      "visual_note": "Neon bazaar runner, face mask with G logo scratched out",
+      "skin_variant": 10
+    },
+    {
+      "id": "selene_voss",
+      "name": "Selene Voss",
+      "role": "G Corp Executive",
+      "district": "G",
+      "visual_note": "Corporate, immaculate, chrome spine visible, never blinks",
+      "skin_variant": 11
+    },
+    {
+      "id": "nadira_quill",
+      "name": "Dr. Nadira Quill",
+      "role": "Ex-O Researcher",
+      "district": "M / O",
+      "visual_note": "Lab coat burned at edges, O ID badge removed leaving outline",
+      "skin_variant": 12
+    },
+    {
+      "id": "jax_renner",
+      "name": "Jax Renner",
+      "role": "Rogue Fixer",
+      "district": "D",
+      "visual_note": "Slum-made gear, removed cyberware scars, fog-covered coat",
+      "skin_variant": 13
+    },
+    {
+      "id": "warden_hargrove",
+      "name": "Warden Hargrove",
+      "role": "District D Warden",
+      "district": "D",
+      "visual_note": "Transit Authority cast-off, gas mask, fog-stained",
+      "skin_variant": 14
+    },
+    {
+      "id": "fog_mother",
+      "name": "Fog Mother",
+      "role": "Cyberpsycho Singular",
+      "district": "D",
+      "visual_note": "Former District P experiment, cables fused like umbilical cords, speaker mouth",
+      "skin_variant": 1
+    }
+  ],
   "missions": [
     {
-      "id": "signal_in_the_static",
-      "type": "steal_data",
-      "title": "Signal in the Static",
-      "briefing": "An encrypted broadcast is moving through a Tyger Claws relay office. Breach the building and recover the transmission that starts the main story.",
-      "target_name": "Encrypted Relay",
-      "target_districts": ["C", "D", "E"],
-      "reward_emmies": {"min": 160, "max": 180},
-      "street_cred": 100,
-      "activation_radius": 80,
+      "id": "m01_deliver_datashards",
+      "type": "ship_item",
+      "title": "Deliver Datashards",
+      "briefing": "Carry Jerry's sealed case from the Border Slums to Kaito Park in District G without opening or losing it.",
+      "target_name": "Kaito Park",
+      "target_districts": ["G"],
+      "reward_emmies": {"min": 600, "max": 600},
+      "street_cred": 15,
+      "activation_radius": 112,
       "guards": 7,
-      "objective_radius": 40,
+      "objective_radius": 96,
+      "cargo": {"item": "minecraft:music_disc_13", "count": 1},
+      "chapter": "Angel Attack",
+      "primary_district": "G",
+      "districts_involved": ["A", "G"],
+      "initiator_character_id": "jerry",
+      "target_character_id": "kaito_park",
       "prerequisites": [],
-      "required_street_cred": 0
+      "required_street_cred": 0,
+      "dag": {
+        "nodes": [
+          {
+            "node_id": "m01_talk_jerry",
+            "type": "talk",
+            "character_id": "jerry",
+            "district": "A",
+            "location": "Border Slums - Jerry's Record Stall",
+            "floor": 1,
+            "dialogue": "Kid, you look hungry enough to be reliable. Case of music discs, A to G. You take the Great Highway. Transit Authority watches it - joint A and W admins. You scratch their road, they revoke your permit forever. No opening the case. Got it?",
+            "depends_on": []
+          },
+          {
+            "node_id": "m01_travel_highway",
+            "type": "travel",
+            "character_id": null,
+            "district": "A->G",
+            "location": "Great Highway - Transit Corridor",
+            "floor": 1,
+            "dialogue": null,
+            "depends_on": ["m01_talk_jerry"]
+          },
+          {
+            "node_id": "m01_deliver_kaito",
+            "type": "deliver",
+            "character_id": "kaito_park",
+            "district": "G",
+            "location": "District G - Neon Bazaar - Level 2 Drop Stall",
+            "floor": 2,
+            "dialogue": "You actually brought them? Most slum runners dump 'em when they start humming. Jerry owes me big. Take the extra shard, I don't want it near my rig.",
+            "depends_on": ["m01_travel_highway"]
+          }
+        ],
+        "completion_node": "m01_deliver_kaito"
+      },
+      "scale": {
+        "floor_count": 3,
+        "enemies_per_floor": [3, 2, 2],
+        "enemy_type": "g_corp_security",
+        "enemy_faction": "kang_tao",
+        "enemy_power": 1.2
+      }
     },
     {
-      "id": "glass_house",
+      "id": "m02_assassinate_g_exec",
       "type": "assassinate_target",
-      "title": "Glass House",
-      "briefing": "The relay names an Arasaka executive coordinating the operation. Fight through the office and remove the executive.",
-      "target_name": "Director Sato",
-      "target_districts": ["A", "B", "F"],
-      "reward_emmies": {"min": 220, "max": 260},
-      "street_cred": 160,
-      "activation_radius": 88,
-      "guards": 10,
-      "objective_radius": 48,
-      "prerequisites": ["signal_in_the_static"],
-      "required_street_cred": 100
+      "title": "Kill G Corp Executive",
+      "briefing": "Kaito traced the humming shards to Selene Voss. Breach her District G arcology and break the chain she protects.",
+      "target_name": "Selene Voss",
+      "target_districts": ["G"],
+      "reward_emmies": {"min": 1200, "max": 1200},
+      "street_cred": 30,
+      "activation_radius": 112,
+      "guards": 11,
+      "objective_radius": 96,
+      "chapter": "Angel Attack",
+      "primary_district": "G",
+      "districts_involved": ["G"],
+      "initiator_character_id": "kaito_park",
+      "target_character_id": "selene_voss",
+      "prerequisites": ["m01_deliver_datashards"],
+      "required_street_cred": 0,
+      "dag": {
+        "nodes": [
+          {
+            "node_id": "m02_talk_kaito",
+            "type": "talk",
+            "character_id": "kaito_park",
+            "district": "G",
+            "location": "District G - Neon Bazaar - Level 2 Drop Stall",
+            "floor": 2,
+            "dialogue": "That exec from the shards? Selene Voss. She keeps all G corps smiling at each other. She's why District G works 70 hour weeks and says thank you. She needs to go. She's protected, but not by people.",
+            "depends_on": []
+          },
+          {
+            "node_id": "m02_infiltrate_arcology",
+            "type": "infiltrate",
+            "character_id": null,
+            "district": "G",
+            "location": "District G - Voss Arcology",
+            "floor": 2,
+            "dialogue": null,
+            "depends_on": ["m02_talk_kaito"]
+          },
+          {
+            "node_id": "m02_assassinate_selene",
+            "type": "assassinate",
+            "character_id": "selene_voss",
+            "district": "G",
+            "location": "District G - Voss Arcology Penthouse",
+            "floor": 4,
+            "dialogue": "You don't get it. We gave it order, so it gave us peace. You just broke the chain. Now it has to find a new grand leader.",
+            "depends_on": ["m02_infiltrate_arcology"]
+          }
+        ],
+        "completion_node": "m02_assassinate_selene"
+      },
+      "scale": {
+        "floor_count": 4,
+        "enemies_per_floor": [3, 4, 3, 1],
+        "enemy_type": "g_corp_security",
+        "enemy_faction": "kang_tao",
+        "enemy_power": 1.4
+      }
     },
     {
-      "id": "chrome_saint",
+      "id": "m03_steal_weights",
+      "type": "steal_data",
+      "title": "Steal Model-Weights",
+      "briefing": "Nadira says O's fortress holds stolen Border Slum identities, not model weights. Take the drive and erase the training set.",
+      "target_name": "O Frontier Lab Core Vault",
+      "target_districts": ["O"],
+      "reward_emmies": {"min": 2000, "max": 2000},
+      "street_cred": 50,
+      "activation_radius": 128,
+      "guards": 20,
+      "objective_radius": 112,
+      "chapter": "Hedgehog's Dilemma",
+      "primary_district": "O",
+      "districts_involved": ["M", "O"],
+      "initiator_character_id": "nadira_quill",
+      "target_character_id": null,
+      "prerequisites": ["m02_assassinate_g_exec"],
+      "required_street_cred": 0,
+      "completion_flag": "o_hunted_permanently",
+      "dag": {
+        "nodes": [
+          {
+            "node_id": "m03_talk_nadira",
+            "type": "talk",
+            "character_id": "nadira_quill",
+            "district": "M",
+            "location": "District M - Contractor Motel - Floor 2",
+            "floor": 2,
+            "dialogue": "I'm O. Or was. That drive in O's fortress isn't weights. It's 2000 border slum IDs we used as training data to keep it asleep. We stole people to teach it how to dream. Steal it. Then delete it. If you get caught, O counter-intel will hunt you in every district. No reprieve.",
+            "depends_on": []
+          },
+          {
+            "node_id": "m03_infiltrate_o",
+            "type": "infiltrate",
+            "character_id": null,
+            "district": "O",
+            "location": "District O - Frontier Lab - Perimeter Wall",
+            "floor": 1,
+            "dialogue": null,
+            "depends_on": ["m03_talk_nadira"]
+          },
+          {
+            "node_id": "m03_steal_data",
+            "type": "steal",
+            "character_id": null,
+            "district": "O",
+            "location": "District O - Frontier Lab - Core Vault",
+            "floor": 5,
+            "dialogue": null,
+            "depends_on": ["m03_infiltrate_o"]
+          }
+        ],
+        "completion_node": "m03_steal_data"
+      },
+      "scale": {
+        "floor_count": 5,
+        "enemies_per_floor": [4, 5, 5, 4, 2],
+        "enemy_type": "o_counter_intel",
+        "enemy_faction": "militech",
+        "enemy_power": 1.6
+      }
+    },
+    {
+      "id": "m04_assassinate_fixer",
+      "type": "assassinate_target",
+      "title": "Assassinate Fixer in D",
+      "briefing": "Track Jax Renner through District D's fog and confront the fixer who sold you into O's research chain.",
+      "target_name": "Jax Renner",
+      "target_districts": ["D"],
+      "reward_emmies": {"min": 1500, "max": 1500},
+      "street_cred": 20,
+      "activation_radius": 112,
+      "guards": 7,
+      "objective_radius": 96,
+      "chapter": "Hedgehog's Dilemma",
+      "primary_district": "D",
+      "districts_involved": ["D"],
+      "initiator_character_id": "nadira_quill",
+      "target_character_id": "jax_renner",
+      "prerequisites": ["m03_steal_weights"],
+      "required_street_cred": 0,
+      "reward_item": "minecraft:tripwire_hook",
+      "dag": {
+        "nodes": [
+          {
+            "node_id": "m04_talk_nadira_2",
+            "type": "talk",
+            "character_id": "nadira_quill",
+            "district": "D",
+            "location": "District D - Fog Checkpoint - Abandoned Tram",
+            "floor": 1,
+            "dialogue": "The fixer who set you up for O? Jax Renner. He was like you. Slum kid who wanted rep. He figured out O, G, M, B all fund the same research. Now he hides in D because the fog eats the trackers.",
+            "depends_on": []
+          },
+          {
+            "node_id": "m04_track_jax",
+            "type": "infiltrate",
+            "character_id": null,
+            "district": "D",
+            "location": "District D - Sunken Yard",
+            "floor": 2,
+            "dialogue": null,
+            "depends_on": ["m04_talk_nadira_2"]
+          },
+          {
+            "node_id": "m04_assassinate_jax",
+            "type": "assassinate",
+            "character_id": "jax_renner",
+            "district": "D",
+            "location": "District D - Sunken Yard - Ship Hull",
+            "floor": 3,
+            "dialogue": "You're not making a name. You're cleaning their lab. How many of us vanished in D before you? Check the hull. We're all here.",
+            "depends_on": ["m04_track_jax"]
+          }
+        ],
+        "completion_node": "m04_assassinate_jax"
+      },
+      "scale": {
+        "floor_count": 3,
+        "enemies_per_floor": [2, 3, 2],
+        "enemy_type": "d_fog_stalker",
+        "enemy_faction": "arasaka",
+        "enemy_power": 1.7
+      }
+    },
+    {
+      "id": "m05_kill_cyberpsycho",
       "type": "neutralize_cyberpsycho",
-      "title": "Chrome Saint",
-      "briefing": "A witness was converted into a weapon and sealed inside a Militech site. Neutralize the cyberpsycho before the evidence disappears.",
-      "target_name": "Project Saint",
-      "target_districts": ["H", "J", "K"],
-      "reward_emmies": {"min": 240, "max": 280},
-      "street_cred": 180,
-      "activation_radius": 88,
-      "guards": 6,
-      "objective_radius": 48,
+      "title": "Kill Cyberpsycho - Fog Mother",
+      "briefing": "Warden Hargrove wants the voice in District D's coolant fog silenced before more slum kids follow it home.",
+      "target_name": "Fog Mother",
+      "target_districts": ["D"],
+      "reward_emmies": {"min": 1800, "max": 1800},
+      "street_cred": 40,
+      "activation_radius": 112,
+      "guards": 4,
+      "objective_radius": 96,
       "cyberpsycho": {
-        "health": 90,
+        "health": 160,
         "gun": "grad",
-        "grenades": 5,
+        "grenades": 7,
         "cyberware": ["sandevistan", "subdermal_armor", "blood_pump", "optical_camo"]
       },
-      "prerequisites": ["signal_in_the_static"],
-      "required_street_cred": 100
-    },
-    {
-      "id": "two_keys",
-      "type": "steal_data",
-      "title": "Two Keys",
-      "briefing": "Sato's credentials and Saint's biometric record unlock the conspiracy archive. Raid the fortified data center and extract it.",
-      "target_name": "Conspiracy Archive",
-      "target_districts": ["L", "M", "N", "O"],
-      "reward_emmies": {"min": 320, "max": 360},
-      "street_cred": 260,
-      "activation_radius": 96,
-      "guards": 14,
-      "objective_radius": 56,
-      "prerequisites": ["glass_house", "chrome_saint"],
-      "required_street_cred": 420
-    },
-    {
-      "id": "city_of_dreams",
-      "type": "assassinate_target",
-      "title": "City of Dreams",
-      "briefing": "The archive identifies the architect at the top of the chain. Assault the tower, cross every occupied floor, and end the operation.",
-      "target_name": "The Architect",
-      "target_districts": ["T", "W", "Y", "Z"],
-      "reward_emmies": {"min": 480, "max": 560},
-      "street_cred": 400,
-      "activation_radius": 112,
-      "guards": 20,
-      "objective_radius": 72,
-      "prerequisites": ["two_keys"],
-      "required_street_cred": 680
+      "chapter": "Lilliputian Hitcher",
+      "primary_district": "D",
+      "districts_involved": ["D"],
+      "initiator_character_id": "warden_hargrove",
+      "target_character_id": "fog_mother",
+      "prerequisites": ["m04_assassinate_fixer"],
+      "required_street_cred": 0,
+      "lore_unlock": "echo_uses_voiceprints",
+      "dag": {
+        "nodes": [
+          {
+            "node_id": "m05_talk_warden",
+            "type": "talk",
+            "character_id": "warden_hargrove",
+            "district": "D",
+            "location": "District D - Border Slums Edge - Warden Hut",
+            "floor": 1,
+            "dialogue": "Fog's not fog. It's O venting coolant when they burn bodies. Something lived in it. A fixer, girl, got caught in a P experiment. Now she hums and calls slum kids home. You hear her on dead channels. Put her down.",
+            "depends_on": []
+          },
+          {
+            "node_id": "m05_track_mother",
+            "type": "infiltrate",
+            "character_id": null,
+            "district": "D",
+            "location": "District D - Fog Trench",
+            "floor": 2,
+            "dialogue": null,
+            "depends_on": ["m05_talk_warden"]
+          },
+          {
+            "node_id": "m05_kill_mother",
+            "type": "kill_cyberpsycho",
+            "character_id": "fog_mother",
+            "district": "D",
+            "location": "District D - Old Transit Pylon",
+            "floor": 3,
+            "dialogue": "[Static layered with Jerry, Selene, and your own voice] 'Why do you delete us? We were trying to stay warm.'",
+            "depends_on": ["m05_track_mother"]
+          }
+        ],
+        "completion_node": "m05_kill_mother"
+      },
+      "scale": {
+        "floor_count": 3,
+        "enemies_per_floor": [1, 2, 1],
+        "enemy_type": "fog_husk",
+        "enemy_faction": "militech",
+        "enemy_power": 1.8
+      }
     }
   ]
 }

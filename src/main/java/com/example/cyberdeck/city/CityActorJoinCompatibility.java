@@ -1,6 +1,7 @@
 package com.example.cyberdeck.city;
 
 import com.example.cyberdeck.Cyberdeck;
+import com.example.cyberdeck.defense.KangTaoTurret;
 import com.example.cyberdeck.faction.FactionEnemy;
 import com.example.cyberdeck.npc.CityNpc;
 import net.minecraft.server.level.ServerLevel;
@@ -13,7 +14,7 @@ import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
  * Keeps Cyberdeck's managed city actors compatible with city generators that suppress ambient
  * mob joins. Neon City 2.0 cancels every {@code Mob} join inside its generated bounds, including
  * civilians and faction squads explicitly created by Cyberdeck. This lowest-priority listener
- * restores only those two entity families and leaves every unrelated cancellation untouched.
+ * restores only Cyberdeck-managed actor families and leaves every unrelated cancellation untouched.
  */
 public final class CityActorJoinCompatibility {
     @SubscribeEvent(priority = EventPriority.LOWEST, receiveCanceled = true)
@@ -37,6 +38,8 @@ public final class CityActorJoinCompatibility {
     }
 
     public static boolean isManagedCityActor(Entity entity) {
-        return entity instanceof CityNpc || entity instanceof FactionEnemy;
+        return entity instanceof CityNpc
+                || entity instanceof FactionEnemy
+                || entity instanceof KangTaoTurret;
     }
 }

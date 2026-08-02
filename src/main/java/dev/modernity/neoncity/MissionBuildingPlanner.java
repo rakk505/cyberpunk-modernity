@@ -1,11 +1,11 @@
 package dev.modernity.neoncity;
 
-import com.example.cyberdeck.city.CityWorlds;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -16,6 +16,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.NbtOps;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
@@ -24,6 +26,7 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.HorizontalDirectionalBlock;
 import net.minecraft.world.level.block.StairBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.DoorHingeSide;
@@ -46,6 +49,15 @@ public final class MissionBuildingPlanner {
     private static final long SITE_SALT = 0x4D495353494F4E42L;
     private static final int MAX_SEARCH_RADIUS_CHUNKS = 16;
     private static final int MAX_PROFILE_ATTEMPTS = 16;
+    private static final int MAX_ATLAS_REGION_RADIUS_CHUNKS = 2;
+    private static final int MAX_ATLAS_BUILDING_LABELS = 64;
+    private static final int MAX_ATLAS_SITES = 24;
+    private static final int MAX_ATLAS_FLOORS = 32;
+    private static final int MAX_ATLAS_PATHS = 128;
+    private static final int MAX_ATLAS_BRANCHES = 4;
+    private static final int MAX_ATLAS_PLAN_VARIANTS = 4;
+    private static final int MAX_ENTRANCE_CANDIDATES = 24;
+    private static final int MAX_ENTRANCE_WALL_DEPTH = 4;
     private static final int SCAN_MARGIN = 2;
     private static final int MAX_SCAN_HEIGHT = 72;
     private static final int MIN_FLOOR_CELLS = 64;
@@ -53,19 +65,35 @@ public final class MissionBuildingPlanner {
     private static final int MIN_PATROL_CELLS = 24;
     private static final int MIN_STORY_HEIGHT = 4;
     private static final int MAX_STORY_HEIGHT = 9;
-    private static final int MAX_FLOORS = 4;
+    private static final int MAX_FLOORS = 5;
     private static final int MAX_ROUTE_POINTS = 8;
     private static final int STAIR_WIDTH = 2;
     private static final int STAIR_LANDING_DEPTH = 2;
+    private static final int STAIR_HEADROOM = 3;
     private static final int MIN_STAIR_HORIZONTAL_GAP = 3;
     private static final int MAX_STAIR_CANDIDATES = 64;
     private static final int MAX_SITE_VOLUME = 40_000;
     private static final int LARGE_OFFICE_CELLS = 120;
     private static final int MAX_EXTERIOR_PATH_NODES = 4_096;
     private static final int EXTERIOR_SEARCH_MARGIN = 40;
+    private static final int MAX_EXISTING_ENTRANCE_APPROACH_DISTANCE = 12;
     private static final int CORRIDOR_CLEARANCE = 1;
     private static final int MAX_EXPLOSIVE_CANISTERS_PER_SITE = 2;
-    private static final int MAX_DECORATIONS = 256;
+    private static final int MAX_PARTITION_COLUMNS_PER_FLOOR = 6;
+    private static final int MAX_DECORATIONS = 1_024;
+    private static final int MAX_MISSION_FLOOR_CELLS = 144;
+    private static final int MAX_MISSION_WINDOW_CANDIDATES = 32;
+    private static final int MAX_ENTRANCE_TO_MISSION_DISTANCE = 20;
+    private static final int CURRENT_SITE_VERSION = 2;
+    private static final int LEGACY_SITE_VERSION = 1;
+    private static final int MAX_RESTORATION_BLOCKS = 8_192;
+    private static final int MAX_MISSION_TURRETS_PER_SITE = 2;
+    private static final int TURRET_CLEARANCE_RADIUS = 1;
+    private static final int TURRET_HEADROOM = 3;
+    private static final int TURRET_FIRE_DISTANCE = 8;
+    private static final int MIN_TURRET_FORWARD_ARC = 4;
+    private static final int MIN_TURRET_TOTAL_ARC = 8;
+    private static final long TURRET_SALT = 0x545552524554534CL;
     private static final int PLACE_FLAGS =
             Block.UPDATE_SKIP_ALL_SIDEEFFECTS | Block.UPDATE_CLIENTS;
 
@@ -89,7 +117,12 @@ public final class MissionBuildingPlanner {
         SERVER_RACK,
         FILING_CABINET,
         WATER_COOLER,
-        EXPLOSIVE_CANISTER
+        EXPLOSIVE_CANISTER,
+        // Appended because decoration plans persist enum ordinals.
+        MISSION_TURRET,
+        VENDING_MACHINE,
+        COMPUTER_DESK,
+        FULL_HEIGHT_PARTITION
     }
 
     public record Entrance(BlockPos position, Direction outward, int wallDepth, boolean existing) {
@@ -98,7 +131,7 @@ public final class MissionBuildingPlanner {
             if (outward == null || outward.getAxis().isVertical()) {
                 throw new IllegalArgumentException("mission entrance must face horizontally");
             }
-            if (wallDepth < 0 || wallDepth > 2) {
+            if (wallDepth < 0 || wallDepth > MAX_ENTRANCE_WALL_DEPTH) {
                 throw new IllegalArgumentException("invalid mission entrance depth " + wallDepth);
             }
         }
@@ -134,6 +167,112 @@ public final class MissionBuildingPlanner {
         }
     }
 
+    /** Exact connected cells owned by one mission floor. */
+    public record FloorMask(int floorY, List<BlockPos> cells) {
+        public FloorMask {
+            if (cells == null || cells.isEmpty()
+                    || cells.size() > MAX_MISSION_FLOOR_CELLS) {
+                throw new IllegalArgumentException("invalid mission floor mask size");
+            }
+            ArrayList<BlockPos> ordered = new ArrayList<>(cells.size());
+            HashSet<BlockPos> distinct = new HashSet<>();
+            for (BlockPos cell : cells) {
+                if (cell == null || cell.getY() != floorY || !distinct.add(cell.immutable())) {
+                    throw new IllegalArgumentException("invalid mission floor mask cell");
+                }
+                ordered.add(cell.immutable());
+            }
+            ordered.sort(Comparator.comparingInt((BlockPos position) -> position.getX())
+                    .thenComparingInt(position -> position.getZ()));
+            if (connectedComponent(distinct, ordered.getFirst()).size() != distinct.size()) {
+                throw new IllegalArgumentException("mission floor mask is disconnected");
+            }
+            cells = List.copyOf(ordered);
+        }
+
+        boolean contains(BlockPos position) {
+            return position != null && position.getY() == floorY && cells.contains(position);
+        }
+    }
+
+    public record BlockSnapshot(BlockPos position, BlockState state) {
+        public BlockSnapshot {
+            if (position == null || state == null) {
+                throw new IllegalArgumentException("incomplete mission block snapshot");
+            }
+            position = position.immutable();
+        }
+    }
+
+    /** Original live-world blocks needed to remove a generated mission interior exactly. */
+    public record RestorationSnapshot(List<BlockSnapshot> blocks) {
+        public RestorationSnapshot {
+            blocks = blocks == null ? List.of() : List.copyOf(blocks);
+            if (blocks.isEmpty() || blocks.size() > MAX_RESTORATION_BLOCKS
+                    || blocks.stream().map(BlockSnapshot::position).distinct().count()
+                            != blocks.size()) {
+                throw new IllegalArgumentException("invalid mission restoration snapshot");
+            }
+        }
+
+        public CompoundTag save(ServerLevel level) {
+            if (level == null) {
+                throw new IllegalArgumentException("mission snapshot needs registry access");
+            }
+            var ops = level.registryAccess().createSerializationContext(NbtOps.INSTANCE);
+            CompoundTag tag = new CompoundTag();
+            tag.putInt("Version", 1);
+            ListTag encoded = new ListTag();
+            for (BlockSnapshot block : blocks) {
+                CompoundTag entry = new CompoundTag();
+                putPos(entry, "Pos", block.position());
+                entry.store("State", BlockState.CODEC, ops, block.state());
+                encoded.add(entry);
+            }
+            tag.put("Blocks", encoded);
+            return tag;
+        }
+    }
+
+    record DfsAudit(boolean accessible, int visitedCells, List<BlockPos> unreachable) {
+        DfsAudit {
+            unreachable = unreachable == null ? List.of() : immutablePositions(
+                    unreachable, MAX_ROUTE_POINTS * MAX_FLOORS + 4);
+        }
+    }
+
+    /** One segmented multi-chunk building stack, including rejected planning diagnostics. */
+    public record BuildingLabel(
+            String id,
+            String siteId,
+            BoundingBox bounds,
+            List<Integer> floorYs,
+            List<Integer> walkableCellsPerFloor,
+            boolean missionReady,
+            String decision) {
+        public BuildingLabel {
+            bounds = copy(bounds);
+            siteId = siteId == null ? "" : siteId;
+            floorYs = List.copyOf(floorYs);
+            walkableCellsPerFloor = List.copyOf(walkableCellsPerFloor);
+            decision = decision == null ? "" : decision;
+        }
+    }
+
+    /** Result of compiling one generated Arnis region into building labels and mission sites. */
+    public record AtlasScan(
+            District district,
+            BoundingBox scanBounds,
+            List<BuildingLabel> buildings,
+            List<Site> sites,
+            int walkableCellCount) {
+        public AtlasScan {
+            scanBounds = copy(scanBounds);
+            buildings = List.copyOf(buildings);
+            sites = List.copyOf(sites);
+        }
+    }
+
     /** Complete deterministic plan; {@link #save()} and {@link #load(CompoundTag)} are stable. */
     public record Site(
             String id,
@@ -145,7 +284,24 @@ public final class MissionBuildingPlanner {
             List<StairRun> stairs,
             List<PatrolRoute> patrolRoutes,
             List<Decoration> decorations,
+            List<FloorMask> floorMasks,
             long planSeed) {
+        /** Compatibility constructor for legacy callers; maskless sites cannot be reinstalled. */
+        public Site(
+                String id,
+                District district,
+                BoundingBox bounds,
+                List<Integer> floorYs,
+                BlockPos target,
+                Entrance entrance,
+                List<StairRun> stairs,
+                List<PatrolRoute> patrolRoutes,
+                List<Decoration> decorations,
+                long planSeed) {
+            this(id, district, bounds, floorYs, target, entrance, stairs, patrolRoutes,
+                    decorations, List.of(), planSeed);
+        }
+
         public Site {
             if (id == null || id.isBlank() || district == null || bounds == null
                     || target == null || entrance == null) {
@@ -154,12 +310,13 @@ public final class MissionBuildingPlanner {
             bounds = copy(bounds);
             floorYs = floorYs == null ? List.of() : floorYs.stream().distinct().sorted().toList();
             if (floorYs.isEmpty() || floorYs.size() > MAX_FLOORS) {
-                throw new IllegalArgumentException("mission site must contain one to four floors");
+                throw new IllegalArgumentException("mission site must contain one to five floors");
             }
             target = target.immutable();
             stairs = stairs == null ? List.of() : List.copyOf(stairs);
             patrolRoutes = patrolRoutes == null ? List.of() : List.copyOf(patrolRoutes);
             decorations = decorations == null ? List.of() : List.copyOf(decorations);
+            floorMasks = floorMasks == null ? List.of() : List.copyOf(floorMasks);
             if (stairs.size() != floorYs.size() - 1
                     || patrolRoutes.size() != floorYs.size()
                     || decorations.size() > MAX_DECORATIONS
@@ -169,7 +326,9 @@ public final class MissionBuildingPlanner {
                             .equals(Set.copyOf(floorYs))
                     || !contains(bounds, target)
                     || !topologyWithinBounds(
-                            bounds, floorYs, entrance, stairs, patrolRoutes, decorations)) {
+                            bounds, floorYs, entrance, stairs, patrolRoutes, decorations)
+                    || !floorMasks.isEmpty() && !validFloorMasks(
+                            bounds, floorYs, target, entrance, stairs, patrolRoutes, floorMasks)) {
                 throw new IllegalArgumentException("mission site topology is incomplete");
             }
             long volume = (long) bounds.getXSpan() * bounds.getYSpan() * bounds.getZSpan();
@@ -182,9 +341,16 @@ public final class MissionBuildingPlanner {
             return patrolRoutes.stream().filter(route -> route.floorY() == floorY).findFirst();
         }
 
+        /** Immutable cells available for actors, circulation, and objective approaches. */
+        public Set<BlockPos> missionCells(int floorY) {
+            return floorMasks.stream().filter(mask -> mask.floorY() == floorY)
+                    .findFirst().map(mask -> Set.copyOf(mask.cells())).orElse(Set.of());
+        }
+
         public CompoundTag save() {
             CompoundTag tag = new CompoundTag();
-            tag.putInt("Version", 1);
+            tag.putInt("Version", floorMasks.isEmpty()
+                    ? LEGACY_SITE_VERSION : CURRENT_SITE_VERSION);
             tag.putString("Id", id);
             tag.putInt("District", district.ordinal());
             putBounds(tag, bounds);
@@ -197,13 +363,17 @@ public final class MissionBuildingPlanner {
             tag.putString("Stairs", encodeStairs(stairs));
             tag.putString("Patrols", encodePatrols(patrolRoutes));
             tag.putString("Decor", encodeDecorations(decorations));
+            if (!floorMasks.isEmpty()) {
+                tag.putString("FloorMasks", encodeFloorMasks(floorMasks));
+            }
             tag.putLong("PlanSeed", planSeed);
             return tag;
         }
 
         public static Optional<Site> load(CompoundTag tag) {
             try {
-                if (tag == null || tag.getIntOr("Version", 0) != 1) {
+                int version = tag == null ? 0 : tag.getIntOr("Version", 0);
+                if (version != LEGACY_SITE_VERSION && version != CURRENT_SITE_VERSION) {
                     return Optional.empty();
                 }
                 District[] districts = District.values();
@@ -214,6 +384,12 @@ public final class MissionBuildingPlanner {
                 Direction[] directions = Direction.values();
                 int facingOrdinal = tag.getIntOr("EntranceFacing", -1);
                 if (facingOrdinal < 0 || facingOrdinal >= directions.length) {
+                    return Optional.empty();
+                }
+                List<FloorMask> floorMasks = version == CURRENT_SITE_VERSION
+                        ? decodeFloorMasks(tag.getStringOr("FloorMasks", ""))
+                        : List.of();
+                if (version == CURRENT_SITE_VERSION && floorMasks.isEmpty()) {
                     return Optional.empty();
                 }
                 return Optional.of(new Site(
@@ -230,6 +406,7 @@ public final class MissionBuildingPlanner {
                         decodeStairs(tag.getStringOr("Stairs", "")),
                         decodePatrols(tag.getStringOr("Patrols", "")),
                         decodeDecorations(tag.getStringOr("Decor", "")),
+                        floorMasks,
                         tag.getLongOr("PlanSeed", 0L)));
             } catch (RuntimeException malformed) {
                 return Optional.empty();
@@ -274,12 +451,29 @@ public final class MissionBuildingPlanner {
             long selectionSalt,
             int minimumFloors,
             Predicate<Site> siteFilter) {
+        return findSite(
+                level, district, origin, searchRadiusChunks, selectionSalt,
+                minimumFloors, MAX_FLOORS, siteFilter);
+    }
+
+    static Optional<Site> findSite(
+            ServerLevel level,
+            District district,
+            BlockPos origin,
+            int searchRadiusChunks,
+            long selectionSalt,
+            int minimumFloors,
+            int maximumFloors,
+            Predicate<Site> siteFilter) {
         if (level == null || district == null || origin == null
                 || siteFilter == null || !NeonCityGenerator.isMegacityWorld(level)) {
             return Optional.empty();
         }
         if (minimumFloors < 1 || minimumFloors > MAX_FLOORS) {
             throw new IllegalArgumentException("invalid minimum mission floor count");
+        }
+        if (maximumFloors < minimumFloors || maximumFloors > MAX_FLOORS) {
+            throw new IllegalArgumentException("invalid maximum mission floor count");
         }
         int radius = Math.max(1, Math.min(MAX_SEARCH_RADIUS_CHUNKS, searchRadiusChunks));
         int centerChunkX = Math.floorDiv(origin.getX(), 16);
@@ -306,7 +500,7 @@ public final class MissionBuildingPlanner {
                 .thenComparingInt(ChunkCandidate::chunkZ));
 
         int attempts = 0;
-        Site fallback = null;
+        PlannedSiteCandidate best = null;
         for (ChunkCandidate candidate : candidates) {
             if (!NeonCityGenerator.isUsableArnisChunk(
                     level, candidate.chunkX() << 4, candidate.chunkZ() << 4)) {
@@ -318,17 +512,41 @@ public final class MissionBuildingPlanner {
             NeonCityGenerator.generateNow(level, candidate.chunkX(), candidate.chunkZ(), 1);
             Optional<Site> site = profileChunk(
                     level, district, candidate.chunkX(), candidate.chunkZ(), candidate.score(),
-                    minimumFloors);
+                    minimumFloors, maximumFloors);
             if (site.isPresent() && siteFilter.test(site.get())) {
-                if (site.get().floorYs().size() >= 2 || minimumFloors >= 2) {
-                    return site;
-                }
-                if (fallback == null) {
-                    fallback = site.get();
+                PlannedSiteCandidate planned = new PlannedSiteCandidate(
+                        site.get(), candidate.distance(), candidate.score());
+                if (best == null || compareSiteCandidates(level, planned, best) < 0) {
+                    best = planned;
                 }
             }
         }
-        return Optional.ofNullable(fallback);
+        return Optional.ofNullable(best).map(PlannedSiteCandidate::site);
+    }
+
+    private static int compareSiteCandidates(
+            ServerLevel level, PlannedSiteCandidate first, PlannedSiteCandidate second) {
+        int groundY = NeonCityGenerator.CITY_GROUND_Y + 1;
+        int compared = Integer.compare(
+                Math.abs(first.site().entrance().position().getY() - groundY),
+                Math.abs(second.site().entrance().position().getY() - groundY));
+        if (compared != 0) return compared;
+        compared = Integer.compare(
+                entranceClarity(level, first.site().entrance()),
+                entranceClarity(level, second.site().entrance()));
+        if (compared != 0) return compared;
+        compared = Integer.compare(
+                second.site().floorYs().size(), first.site().floorYs().size());
+        if (compared != 0) return compared;
+        compared = Integer.compare(first.distance(), second.distance());
+        if (compared != 0) return compared;
+        return Long.compare(first.score(), second.score());
+    }
+
+    private static int entranceClarity(ServerLevel level, Entrance entrance) {
+        return !entrance.existing()
+                || level.getBlockState(entrance.position()).getBlock() instanceof DoorBlock
+                ? 0 : 1;
     }
 
     public static Optional<Site> findSite(
@@ -360,39 +578,283 @@ public final class MissionBuildingPlanner {
         return profileChunk(level, district, chunkX, chunkZ, planSeed, 2);
     }
 
+    /**
+     * Segments connected indoor floors across a generated Arnis chunk neighbourhood, labels
+     * vertical building stacks, and compiles every stack that passes normal mission preflight.
+     */
+    public static AtlasScan scanArnisRegion(
+            ServerLevel level,
+            District district,
+            int centerChunkX,
+            int centerChunkZ,
+            int radiusChunks,
+            long planSeed,
+            int minimumFloors,
+            int maximumFloors) {
+        if (level == null || district == null || !NeonCityGenerator.isMegacityWorld(level)) {
+            throw new IllegalArgumentException("Arnis building scan needs a megacity level");
+        }
+        if (minimumFloors < 1 || minimumFloors > MAX_FLOORS
+                || maximumFloors < minimumFloors || maximumFloors > MAX_FLOORS) {
+            throw new IllegalArgumentException("invalid Arnis building floor range");
+        }
+        int radius = Math.max(0, Math.min(MAX_ATLAS_REGION_RADIUS_CHUNKS, radiusChunks));
+        int minChunkX = centerChunkX - radius;
+        int maxChunkX = centerChunkX + radius;
+        int minChunkZ = centerChunkZ - radius;
+        int maxChunkZ = centerChunkZ + radius;
+        int minX = (minChunkX << 4) - SCAN_MARGIN;
+        int maxX = (maxChunkX << 4) + 15 + SCAN_MARGIN;
+        int minZ = (minChunkZ << 4) - SCAN_MARGIN;
+        int maxZ = (maxChunkZ << 4) + 15 + SCAN_MARGIN;
+        int contentMinX = minChunkX << 4;
+        int contentMaxX = (maxChunkX << 4) + 15;
+        int contentMinZ = minChunkZ << 4;
+        int contentMaxZ = (maxChunkZ << 4) + 15;
+        int minY = NeonCityGenerator.CITY_GROUND_Y + 1;
+        int maxY = Math.min(level.getMaxY() - 2, minY + MAX_SCAN_HEIGHT - 1);
+        BoundingBox scanBounds = new BoundingBox(minX, minY - 1, minZ, maxX, maxY + 1, maxZ);
+
+        Set<Long> districtChunks = new HashSet<>();
+        for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
+            for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
+                ArnisPatchLibrary.Placement placement = ArnisPatchLibrary.select(
+                        NeonCityGenerator.layout(), chunkX, chunkZ).orElse(null);
+                if (placement != null && placement.patch().district() == district
+                        && NeonCityGenerator.isUsableArnisChunk(
+                                level, chunkX << 4, chunkZ << 4)) {
+                    districtChunks.add(ChunkPos.pack(chunkX, chunkZ));
+                }
+            }
+        }
+
+        Map<Integer, Set<BlockPos>> cellsByFloor = new HashMap<>();
+        int walkableCellCount = 0;
+        for (int y = minY; y <= maxY; y++) {
+            for (int z = minZ; z <= maxZ; z++) {
+                for (int x = minX; x <= maxX; x++) {
+                    if (!districtChunks.contains(ChunkPos.pack(
+                            Math.floorDiv(x, 16), Math.floorDiv(z, 16)))) {
+                        continue;
+                    }
+                    BlockPos position = new BlockPos(x, y, z);
+                    if (isInteriorWalkable(level, position)) {
+                        cellsByFloor.computeIfAbsent(y, ignored -> new HashSet<>()).add(position);
+                        walkableCellCount++;
+                    }
+                }
+            }
+        }
+
+        List<FloorProfile> profiles = new ArrayList<>();
+        for (Map.Entry<Integer, Set<BlockPos>> entry : cellsByFloor.entrySet()) {
+            profiles.addAll(floorComponents(entry.getKey(), entry.getValue()));
+        }
+        profiles.sort(Comparator.comparingInt(FloorProfile::y)
+                .thenComparingInt(profile -> profile.bounds().minX)
+                .thenComparingInt(profile -> profile.bounds().minZ));
+
+        List<FloorStack> stacks = floorStacks(
+                profiles, planSeed, 1, MAX_ATLAS_FLOORS);
+        List<BuildingLabel> labels = new ArrayList<>();
+        List<Site> sites = new ArrayList<>();
+        for (FloorStack stack : stacks) {
+            if (labels.size() >= MAX_ATLAS_BUILDING_LABELS) break;
+            List<FloorProfile> buildingFloors = stack.floors();
+            BoundingBox buildingBounds = floorStackBounds(buildingFloors);
+            long geometryHash = MegacityLayout.mix(
+                    0x4255494C44494E47L,
+                    buildingBounds.minX() * 31 + buildingBounds.maxX(),
+                    buildingBounds.minZ() * 31 + buildingBounds.maxZ())
+                    ^ buildingFloors.stream().mapToLong(FloorProfile::y).sum()
+                    ^ (long) buildingFloors.size() << 48;
+            String buildingId = district.resourceCode() + ":atlas:"
+                    + Long.toUnsignedString(geometryHash, 16);
+            long buildingSeed = MegacityLayout.mix(
+                    planSeed ^ 0x41544C4153424C44L,
+                    buildingBounds.minX() ^ buildingBounds.maxX(),
+                    buildingBounds.minZ() ^ buildingBounds.maxZ())
+                    ^ buildingFloors.size();
+            boolean truncated = buildingBounds.minX() <= contentMinX
+                    || buildingBounds.maxX() >= contentMaxX
+                    || buildingBounds.minZ() <= contentMinZ
+                    || buildingBounds.maxZ() >= contentMaxZ;
+            List<FloorProfile> missionFloors = buildingFloors.size() < minimumFloors
+                    ? List.of()
+                    : List.copyOf(buildingFloors.subList(
+                            0, Math.min(buildingFloors.size(), maximumFloors)));
+            PlanningResult planning = truncated
+                    ? PlanningResult.rejected("rejected: building touches scan boundary")
+                    : missionFloors.size() < minimumFloors
+                            ? PlanningResult.rejected("rejected: insufficient floors")
+                            : sites.size() >= MAX_ATLAS_SITES
+                                    ? PlanningResult.rejected("rejected: scan site limit reached")
+                                    : planAtlasSite(
+                                            level, district, centerChunkX, centerChunkZ,
+                                            buildingSeed, missionFloors);
+            Optional<Site> planned = planning.site();
+            if (planned.isPresent()) sites.add(planned.orElseThrow());
+            labels.add(new BuildingLabel(
+                    buildingId,
+                    planned.map(Site::id).orElse(""),
+                    buildingBounds,
+                    buildingFloors.stream().map(FloorProfile::y).toList(),
+                    buildingFloors.stream().map(floor -> floor.cells().size()).toList(),
+                    planned.isPresent(),
+                    planning.failure()));
+        }
+        return new AtlasScan(district, scanBounds, labels, sites, walkableCellCount);
+    }
+
+    private static PlanningResult planAtlasSite(
+            ServerLevel level,
+            District district,
+            int chunkX,
+            int chunkZ,
+            long buildingSeed,
+            List<FloorProfile> floors) {
+        PlanningResult best = PlanningResult.rejected("rejected: no viable mission layout");
+        for (int variant = 0; variant < MAX_ATLAS_PLAN_VARIANTS; variant++) {
+            long planSeed = variant == 0
+                    ? buildingSeed
+                    : MegacityLayout.mix(
+                            buildingSeed ^ 0x504C414E56415249L,
+                            variant,
+                            floors.getFirst().y());
+            PlanningResult candidate = planSiteDetailed(
+                    level, district, chunkX, chunkZ, planSeed, floors);
+            if (candidate.site().isPresent()) return candidate;
+            best = candidate;
+        }
+        return best;
+    }
+
+    /** Captures every block the site installation or objective setup is allowed to replace. */
+    public static RestorationSnapshot captureOriginalStates(ServerLevel level, Site site) {
+        if (level == null || site == null || !loadSiteChunks(level, site.bounds())) {
+            throw new IllegalArgumentException("cannot snapshot an unloaded mission site");
+        }
+        Map<BlockPos, BlockSnapshot> originals = new java.util.LinkedHashMap<>();
+        for (Edit edit : edits(site)) {
+            originals.putIfAbsent(edit.position(), new BlockSnapshot(
+                    edit.position(), level.getBlockState(edit.position())));
+        }
+        for (BlockPos objectiveCell : List.of(
+                site.target().below(), site.target(), site.target().above())) {
+            originals.putIfAbsent(objectiveCell, new BlockSnapshot(
+                    objectiveCell, level.getBlockState(objectiveCell)));
+        }
+        return new RestorationSnapshot(List.copyOf(originals.values()));
+    }
+
+    /** Decodes a bounded, registry-aware snapshot from persisted contract data. */
+    public static Optional<RestorationSnapshot> loadRestorationSnapshot(
+            ServerLevel level, CompoundTag tag) {
+        if (level == null || tag == null || tag.getIntOr("Version", 0) != 1) {
+            return Optional.empty();
+        }
+        ListTag encoded = tag.getListOrEmpty("Blocks");
+        if (encoded.isEmpty() || encoded.size() > MAX_RESTORATION_BLOCKS) {
+            return Optional.empty();
+        }
+        var ops = level.registryAccess().createSerializationContext(NbtOps.INSTANCE);
+        ArrayList<BlockSnapshot> blocks = new ArrayList<>(encoded.size());
+        HashSet<BlockPos> positions = new HashSet<>();
+        for (int index = 0; index < encoded.size(); index++) {
+            CompoundTag entry = encoded.getCompoundOrEmpty(index);
+            BlockPos position = readPos(entry, "Pos");
+            BlockState state = entry.read("State", BlockState.CODEC, ops).orElse(null);
+            if (state == null || !positions.add(position)) {
+                return Optional.empty();
+            }
+            blocks.add(new BlockSnapshot(position, state));
+        }
+        try {
+            return Optional.of(new RestorationSnapshot(blocks));
+        } catch (IllegalArgumentException malformed) {
+            return Optional.empty();
+        }
+    }
+
+    /** Restores a captured site after mission actors and objective blocks have been removed. */
+    public static boolean restoreOriginalStates(
+            ServerLevel level, RestorationSnapshot snapshot) {
+        if (level == null || snapshot == null) return false;
+        boolean restored = true;
+        List<BlockSnapshot> blocks = snapshot.blocks();
+        for (int index = blocks.size() - 1; index >= 0; index--) {
+            BlockSnapshot block = blocks.get(index);
+            level.getChunkAt(block.position());
+            if (!level.getBlockState(block.position()).equals(block.state())) {
+                level.setBlock(block.position(), block.state(), PLACE_FLAGS);
+            }
+            restored &= level.getBlockState(block.position()).equals(block.state());
+        }
+        return restored;
+    }
+
     /** Revalidates all touched blocks without modifying the world. */
     public static boolean preflight(ServerLevel level, Site site) {
+        return preflightFailure(level, site) == null;
+    }
+
+    /** Package-visible rejection detail for deterministic GameTest diagnostics. */
+    static String preflightFailure(ServerLevel level, Site site) {
         if (level == null || site == null || !loadSiteChunks(level, site.bounds())) {
-            return false;
+            return "site or chunks unavailable";
         }
         // Version-one plans still deserialize for active-contract cleanup, but cannot reinstall.
-        if (!stairsHaveHorizontalClearance(site.stairs())) {
-            return false;
+        if (site.floorMasks().isEmpty() || !stairsHaveHorizontalClearance(site.stairs())) {
+            return "missing floor masks or stair clearance";
+        }
+        if (site.entrance().existing() && !isCompleteDoor(level, site.entrance().position())) {
+            return "existing entrance is not a complete door";
         }
         List<Edit> edits = edits(site);
+        if (!plannedEditsAreConsistent(edits)) return "conflicting planned edits";
         for (Edit edit : edits) {
             BlockState current = level.getBlockState(edit.position());
             if (!edit.matches(current) && !edit.policy().accepts(level, edit.position(), current)) {
-                return false;
+                return "unsafe edit at " + edit.position();
             }
             if (!edit.matches(current) && edit.state().blocksMotion()
                     && !level.getEntitiesOfClass(
                             Entity.class, new AABB(edit.position()), Entity::isAlive).isEmpty()) {
-                return false;
+                return "entity occupies edit at " + edit.position();
             }
         }
         if (!level.getEntitiesOfClass(
                 Entity.class, new AABB(site.target()), Entity::isAlive).isEmpty()) {
-            return false;
+            return "entity occupies target";
         }
-        return routeCellsRemainClear(level, site)
-                && circulationRemainsAccessible(level, site, edits);
+        if (!routeCellsRemainClear(level, site)) return "route cell obstructed";
+        if (!wallFixturesHaveBacking(level, site, edits)) return "wall fixture lacks backing";
+        if (!missionTurretsPreserveAccess(level, site)) return "turret blocks access";
+        DfsAudit audit = depthFirstAudit(level, site, edits, turretFootprint(site));
+        if (!audit.accessible()) return "DFS cannot reach " + audit.unreachable();
+        DfsAudit objectiveAudit = depthFirstAudit(
+                level, site, withSolidObjective(site, edits), turretFootprint(site));
+        if (!objectiveAudit.accessible()) {
+            return "solid objective blocks DFS at " + objectiveAudit.unreachable();
+        }
+        return null;
+    }
+
+    private static boolean plannedEditsAreConsistent(List<Edit> edits) {
+        Map<BlockPos, BlockState> planned = new HashMap<>();
+        for (Edit edit : edits) {
+            BlockState previous = planned.putIfAbsent(edit.position(), edit.state());
+            if (previous != null && !previous.equals(edit.state())) return false;
+        }
+        return true;
     }
 
     /** Verifies the installed interior has a player-sized route to every floor and objective. */
     public static boolean hasAccessibleObjectivePath(ServerLevel level, Site site) {
         return level != null && site != null
-                && circulationRemainsAccessible(level, site, List.of())
+                && missionTurretsPreserveAccess(level, site)
+                && circulationRemainsAccessible(
+                        level, site, List.of(), turretFootprint(site))
                 && objectiveApproach(level, site).isPresent();
     }
 
@@ -400,7 +862,7 @@ public final class MissionBuildingPlanner {
     public static Optional<BlockPos> objectiveApproach(ServerLevel level, Site site) {
         if (level == null || site == null) return Optional.empty();
         Set<BlockPos> reachable = reachableFloorCells(
-                level, site, site.target().getY(), List.of());
+                level, site, site.target().getY(), List.of(), turretFootprint(site));
         return java.util.Arrays.stream(HORIZONTAL)
                 .map(site.target()::relative)
                 .filter(reachable::contains)
@@ -408,11 +870,90 @@ public final class MissionBuildingPlanner {
                 .findFirst();
     }
 
+    /** Package-visible deterministic navigation audit for GameTests and mission diagnostics. */
+    static DfsAudit auditDepthFirstTraversal(ServerLevel level, Site site) {
+        if (level == null || site == null) {
+            return new DfsAudit(false, 0, List.of());
+        }
+        return depthFirstAudit(level, site, List.of(), turretFootprint(site));
+    }
+
     /** Exterior endpoint used by road navigation while the objective remains inside the site. */
     public static BlockPos navigationTarget(Site site) {
         Entrance entrance = site.entrance();
         return entrance.position().relative(
                 entrance.outward(), Math.max(0, entrance.wallDepth()));
+    }
+
+    /** Adds deterministic entity slots after the selected building geometry has been installed. */
+    static Site withMissionTurretPlan(ServerLevel level, Site site) {
+        if (level == null || site == null) return site;
+        List<Decoration> baseDecorations = site.decorations().stream()
+                .filter(decoration -> decoration.kind() != DecorKind.MISSION_TURRET)
+                .toList();
+        Site base = copyWithDecorations(site, baseDecorations);
+        List<Decoration> planned = planMissionTurrets(level, base);
+        if (planned.isEmpty()) return base;
+        ArrayList<Decoration> decorations = new ArrayList<>(baseDecorations);
+        decorations.addAll(planned.subList(
+                0, Math.min(planned.size(), MAX_DECORATIONS - decorations.size())));
+        return copyWithDecorations(site, decorations);
+    }
+
+    static List<Decoration> missionTurretPlacements(Site site) {
+        if (site == null) return List.of();
+        return site.decorations().stream()
+                .filter(decoration -> decoration.kind() == DecorKind.MISSION_TURRET)
+                .toList();
+    }
+
+    static boolean hasMissionTurretPlan(Site site) {
+        return site != null && !missionTurretPlacements(site).isEmpty();
+    }
+
+    static List<Decoration> computerDeskPlacements(Site site) {
+        if (site == null) return List.of();
+        return site.decorations().stream()
+                .filter(decoration -> decoration.kind() == DecorKind.COMPUTER_DESK)
+                .toList();
+    }
+
+    /** Revalidates persisted turret geometry without depending on transient entity positions. */
+    static boolean isMissionTurretPlacementSafe(
+            ServerLevel level, Site site, Decoration placement) {
+        if (level == null || site == null || placement == null
+                || placement.kind() != DecorKind.MISSION_TURRET
+                || !site.floorYs().contains(placement.position().getY())
+                || !site.missionCells(placement.position().getY())
+                        .contains(placement.position())
+                || !turretEnvelopeWithinBounds(site, placement.position())
+                || !hasTurretClearance(level, placement.position())
+                || !hasTurretFiringArc(level, placement.position(), placement.facing())
+                || conflictsWithMissionTopology(site, placement.position())) {
+            return false;
+        }
+        return circulationRemainsAccessible(
+                        level, site, List.of(), turretFootprint(List.of(placement)))
+                && circulationRemainsAccessible(
+                        level, site, withSolidObjective(site, List.of()),
+                        turretFootprint(List.of(placement)));
+    }
+
+    static boolean missionTurretsPreserveAccess(ServerLevel level, Site site) {
+        if (level == null || site == null) return false;
+        List<Decoration> turrets = missionTurretPlacements(site);
+        if (turrets.isEmpty()) return true;
+        if (turrets.size() > MAX_MISSION_TURRETS_PER_SITE
+                || new HashSet<>(turrets.stream().map(Decoration::position).toList()).size()
+                        != turrets.size()
+                || turrets.stream().anyMatch(
+                        placement -> !isMissionTurretPlacementSafe(level, site, placement))) {
+            return false;
+        }
+        return circulationRemainsAccessible(level, site, List.of(), turretFootprint(turrets))
+                && circulationRemainsAccessible(
+                        level, site, withSolidObjective(site, List.of()),
+                        turretFootprint(turrets));
     }
 
     /** Applies the exact site plan once; subsequent calls leave the installed geometry unchanged. */
@@ -438,7 +979,8 @@ public final class MissionBuildingPlanner {
             }
             changed = true;
         }
-        if (!circulationRemainsAccessible(level, site, List.of())) {
+        if (!circulationRemainsAccessible(
+                level, site, List.of(), turretFootprint(site))) {
             for (int index = changedStates.size() - 1; index >= 0; index--) {
                 OriginalState original = changedStates.get(index);
                 level.setBlock(original.position(), original.state(), PLACE_FLAGS);
@@ -448,6 +990,204 @@ public final class MissionBuildingPlanner {
         return changed ? InstallationResult.INSTALLED : InstallationResult.ALREADY_INSTALLED;
     }
 
+    private static Site copyWithDecorations(Site site, List<Decoration> decorations) {
+        return new Site(
+                site.id(), site.district(), site.bounds(), site.floorYs(), site.target(),
+                site.entrance(), site.stairs(), site.patrolRoutes(), decorations,
+                site.floorMasks(), site.planSeed());
+    }
+
+    private static List<Decoration> planMissionTurrets(ServerLevel level, Site site) {
+        ArrayList<TurretCandidate> candidates = new ArrayList<>();
+        Entrance entrance = site.entrance();
+        for (int floorY : site.floorYs()) {
+            Set<BlockPos> reachable = reachableFloorCells(
+                    level, site, floorY, List.of(), Set.of());
+            for (BlockPos position : reachable) {
+                if (!turretEnvelopeWithinBounds(site, position)
+                        || !hasTurretClearance(level, position)
+                        || conflictsWithMissionTopology(site, position)) {
+                    continue;
+                }
+                boolean entranceArea = isEntranceTurretArea(entrance, position);
+                Direction facing = entranceArea
+                        && hasTurretFiringArc(level, position, entrance.outward())
+                        ? entrance.outward()
+                        : bestTurretFacing(level, position, site.planSeed());
+                if (facing == null) continue;
+                int arcScore = turretFiringArcScore(level, position, facing);
+                int priority = entranceArea && facing == entrance.outward() ? 0 : 1;
+                candidates.add(new TurretCandidate(
+                        position, facing, priority, arcScore,
+                        horizontalDistance(position, entrance.position()),
+                        positionScore(site.planSeed() ^ TURRET_SALT,
+                                position.getX(), position.getZ())));
+            }
+        }
+        candidates.sort(Comparator
+                .comparingInt(TurretCandidate::priority)
+                .thenComparing(Comparator.comparingInt(TurretCandidate::arcScore).reversed())
+                .thenComparingInt(TurretCandidate::entranceDistance)
+                .thenComparingLong(TurretCandidate::tieBreaker)
+                .thenComparingInt(candidate -> candidate.position().getY())
+                .thenComparingInt(candidate -> candidate.position().getX())
+                .thenComparingInt(candidate -> candidate.position().getZ()));
+
+        ArrayList<Decoration> result = new ArrayList<>();
+        Set<BlockPos> occupied = new HashSet<>();
+        for (TurretCandidate candidate : candidates) {
+            Decoration placement = new Decoration(
+                    candidate.position(), DecorKind.MISSION_TURRET, candidate.facing());
+            Set<BlockPos> footprint = turretFootprint(List.of(placement));
+            if (footprint.stream().anyMatch(occupied::contains)) continue;
+            HashSet<BlockPos> proposed = new HashSet<>(occupied);
+            proposed.addAll(footprint);
+            if (!circulationRemainsAccessible(level, site, List.of(), proposed)
+                    || !circulationRemainsAccessible(
+                            level, site, withSolidObjective(site, List.of()), proposed)) {
+                continue;
+            }
+            result.add(placement);
+            occupied.addAll(footprint);
+            if (result.size() >= MAX_MISSION_TURRETS_PER_SITE) break;
+        }
+        return List.copyOf(result);
+    }
+
+    private static boolean isEntranceTurretArea(Entrance entrance, BlockPos position) {
+        if (position.getY() != entrance.position().getY()) return false;
+        Direction inward = entrance.outward().getOpposite();
+        Direction across = entrance.outward().getClockWise();
+        int dx = position.getX() - entrance.position().getX();
+        int dz = position.getZ() - entrance.position().getZ();
+        int depth = dx * inward.getStepX() + dz * inward.getStepZ();
+        int lateral = dx * across.getStepX() + dz * across.getStepZ();
+        return depth >= 3 && depth <= 9 && lateral >= -2 && lateral <= 3;
+    }
+
+    private static Direction bestTurretFacing(
+            ServerLevel level, BlockPos position, long planSeed) {
+        Direction best = null;
+        int bestScore = Integer.MIN_VALUE;
+        for (Direction direction : orderedDirections(planSeed ^ TURRET_SALT, position)) {
+            if (!hasTurretFiringArc(level, position, direction)) continue;
+            int score = turretFiringArcScore(level, position, direction);
+            if (score > bestScore) {
+                best = direction;
+                bestScore = score;
+            }
+        }
+        return best;
+    }
+
+    private static boolean hasTurretClearance(ServerLevel level, BlockPos position) {
+        if (!level.getBlockState(position.below()).blocksMotion()) return false;
+        for (int dz = -TURRET_CLEARANCE_RADIUS; dz <= TURRET_CLEARANCE_RADIUS; dz++) {
+            for (int dx = -TURRET_CLEARANCE_RADIUS; dx <= TURRET_CLEARANCE_RADIUS; dx++) {
+                BlockPos column = position.offset(dx, 0, dz);
+                for (int dy = 0; dy < TURRET_HEADROOM; dy++) {
+                    if (!isPassable(level.getBlockState(column.above(dy)))) return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private static boolean turretEnvelopeWithinBounds(Site site, BlockPos position) {
+        return turretEnvelopeWithinBounds(site.bounds(), position);
+    }
+
+    private static boolean turretEnvelopeWithinBounds(BoundingBox bounds, BlockPos position) {
+        for (int dz = -TURRET_CLEARANCE_RADIUS; dz <= TURRET_CLEARANCE_RADIUS; dz++) {
+            for (int dx = -TURRET_CLEARANCE_RADIUS; dx <= TURRET_CLEARANCE_RADIUS; dx++) {
+                BlockPos column = position.offset(dx, 0, dz);
+                if (!contains(bounds, column.below())
+                        || !contains(bounds, column.above(TURRET_HEADROOM - 1))) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private static boolean hasTurretFiringArc(
+            ServerLevel level, BlockPos position, Direction facing) {
+        int forward = clearFiringDistance(level, position, facing);
+        int clockwise = clearFiringDistance(level, position, facing.getClockWise());
+        int counterClockwise = clearFiringDistance(
+                level, position, facing.getCounterClockWise());
+        int usableRays = (forward >= 3 ? 1 : 0)
+                + (clockwise >= 3 ? 1 : 0)
+                + (counterClockwise >= 3 ? 1 : 0);
+        return forward >= MIN_TURRET_FORWARD_ARC
+                && forward + clockwise + counterClockwise >= MIN_TURRET_TOTAL_ARC
+                && usableRays >= 2;
+    }
+
+    private static int turretFiringArcScore(
+            ServerLevel level, BlockPos position, Direction facing) {
+        int forward = clearFiringDistance(level, position, facing);
+        return forward * 2
+                + clearFiringDistance(level, position, facing.getClockWise())
+                + clearFiringDistance(level, position, facing.getCounterClockWise());
+    }
+
+    private static int clearFiringDistance(
+            ServerLevel level, BlockPos position, Direction direction) {
+        int clear = 0;
+        for (int distance = 1; distance <= TURRET_FIRE_DISTANCE; distance++) {
+            BlockPos column = position.relative(direction, distance);
+            if (!isPassable(level.getBlockState(column.above()))
+                    || !isPassable(level.getBlockState(column.above(2)))) {
+                break;
+            }
+            clear = distance;
+        }
+        return clear;
+    }
+
+    private static boolean conflictsWithMissionTopology(Site site, BlockPos position) {
+        if (sameFloorWithin(position, site.target(), 3)
+                || sameFloorWithin(position, site.entrance().position(), 3)) {
+            return true;
+        }
+        for (PatrolRoute route : site.patrolRoutes()) {
+            for (BlockPos waypoint : route.waypoints()) {
+                if (sameFloorWithin(position, waypoint, 2)) return true;
+            }
+        }
+        for (StairRun stair : site.stairs()) {
+            for (BlockPos clearance : stairFloorClearanceCells(stair)) {
+                if (sameFloorWithin(position, clearance, 2)) return true;
+            }
+        }
+        for (Decoration decoration : site.decorations()) {
+            if (decoration.kind() == DecorKind.COMPUTER_DESK
+                    && sameFloorWithin(position, decoration.position(), 2)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean sameFloorWithin(BlockPos first, BlockPos second, int distance) {
+        return first.getY() == second.getY()
+                && horizontalDistance(first, second) < distance;
+    }
+
+    private static Set<BlockPos> turretFootprint(Site site) {
+        return turretFootprint(missionTurretPlacements(site));
+    }
+
+    private static Set<BlockPos> turretFootprint(List<Decoration> placements) {
+        HashSet<BlockPos> footprint = new HashSet<>();
+        for (Decoration placement : placements) {
+            if (placement.kind() != DecorKind.MISSION_TURRET) continue;
+            footprint.add(placement.position());
+        }
+        return Set.copyOf(footprint);
+    }
+
     private static Optional<Site> profileChunk(
             ServerLevel level,
             District district,
@@ -455,6 +1195,18 @@ public final class MissionBuildingPlanner {
             int chunkZ,
             long planSeed,
             int minimumFloors) {
+        return profileChunk(
+                level, district, chunkX, chunkZ, planSeed, minimumFloors, MAX_FLOORS);
+    }
+
+    private static Optional<Site> profileChunk(
+            ServerLevel level,
+            District district,
+            int chunkX,
+            int chunkZ,
+            long planSeed,
+            int minimumFloors,
+            int maximumFloors) {
         ArnisPatchLibrary.Placement placement = ArnisPatchLibrary.select(
                 NeonCityGenerator.layout(), chunkX, chunkZ).orElse(null);
         if (placement == null || placement.patch().district() != district) {
@@ -495,9 +1247,11 @@ public final class MissionBuildingPlanner {
                 .thenComparingInt(profile -> profile.bounds().minX)
                 .thenComparingInt(profile -> profile.bounds().minZ));
         List<FloorProfile> floors = bestFloorStack(profiles, planSeed, minimumFloors);
-        if (floors.size() >= minimumFloors) {
+        for (int floorCount = Math.min(floors.size(), maximumFloors);
+                floorCount >= minimumFloors; floorCount--) {
             Optional<Site> preferred = planSite(
-                    level, district, chunkX, chunkZ, planSeed, floors);
+                    level, district, chunkX, chunkZ, planSeed,
+                    List.copyOf(floors.subList(0, floorCount)));
             if (preferred.isPresent()) {
                 return preferred;
             }
@@ -506,8 +1260,9 @@ public final class MissionBuildingPlanner {
             return Optional.empty();
         }
         for (FloorProfile floor : profiles.stream()
-                .sorted(Comparator.comparingInt(
-                                (FloorProfile profile) -> profile.cells().size()).reversed()
+                .sorted(Comparator.comparingInt(FloorProfile::y)
+                        .thenComparing(Comparator.comparingInt(
+                                (FloorProfile profile) -> profile.cells().size()).reversed())
                         .thenComparingLong(profile -> positionScore(
                                 planSeed, profile.bounds().minX, profile.bounds().minZ)))
                 .toList()) {
@@ -527,26 +1282,71 @@ public final class MissionBuildingPlanner {
             int chunkZ,
             long planSeed,
             List<FloorProfile> floors) {
-        Entrance entrance = findEntrance(level, floors.getFirst(), planSeed);
-        if (entrance == null) {
-            return Optional.empty();
+        return planSiteDetailed(
+                level, district, chunkX, chunkZ, planSeed, floors).site();
+    }
+
+    private static PlanningResult planSiteDetailed(
+            ServerLevel level,
+            District district,
+            int chunkX,
+            int chunkZ,
+            long planSeed,
+            List<FloorProfile> floors) {
+        List<Entrance> entrances = findEntrances(level, floors.getFirst(), planSeed);
+        if (entrances.isEmpty()) {
+            return PlanningResult.rejected("rejected: no street-connected entrance");
         }
+        boolean bounded = false;
+        boolean stairs = floors.size() == 1;
+        String failure = "rejected: no safe stair shaft";
+        for (Entrance entrance : entrances) {
+            for (List<FloorProfile> boundedFloors : boundedMissionFloorCandidates(
+                    floors, entrance, planSeed)) {
+                bounded = true;
+                PlanningResult planned = planSiteFromEntrance(
+                        level, district, chunkX, chunkZ, planSeed, boundedFloors, entrance);
+                if (planned.site().isPresent()) return planned;
+                if (!planned.failure().contains("no safe stair shaft")) {
+                    stairs = true;
+                    failure = planned.failure();
+                }
+            }
+        }
+        if (!bounded) {
+            return PlanningResult.rejected("rejected: no common bounded floor window");
+        }
+        if (!stairs) {
+            return PlanningResult.rejected("rejected: no safe stair shaft");
+        }
+        return PlanningResult.rejected(failure);
+    }
+
+    private static PlanningResult planSiteFromEntrance(
+            ServerLevel level,
+            District district,
+            int chunkX,
+            int chunkZ,
+            long planSeed,
+            List<FloorProfile> floors,
+            Entrance entrance) {
         List<StairRun> stairs = findStairPlan(level, floors, planSeed);
         if (stairs.size() != floors.size() - 1) {
-            return Optional.empty();
+            return PlanningResult.rejected("rejected: no safe stair shaft");
         }
 
         BoundingBox bounds = siteBounds(floors, entrance);
         if ((long) bounds.getXSpan() * bounds.getYSpan() * bounds.getZSpan() > MAX_SITE_VOLUME) {
-            return Optional.empty();
+            return PlanningResult.rejected("rejected: mission volume exceeds limit");
         }
-        Set<BlockPos> routeExclusions = routeExclusions(entrance, stairs);
+        Set<BlockPos> routeExclusions = routeExclusions(floors, entrance, stairs);
         List<PatrolRoute> routes = new ArrayList<>();
         for (FloorProfile floor : floors) {
             PatrolRoute route = patrolRoute(
                     floor, planSeed ^ floor.y(), routeExclusions);
             if (route == null) {
-                return Optional.empty();
+                return PlanningResult.rejected(
+                        "rejected: no patrol route on floor " + floor.y());
             }
             routes.add(route);
         }
@@ -559,18 +1359,18 @@ public final class MissionBuildingPlanner {
         BlockPos target = chooseTarget(
                 floors.getLast(), entrance, planSeed, targetExclusions);
         if (target == null) {
-            return Optional.empty();
+            return PlanningResult.rejected("rejected: no safe objective position");
         }
         List<Decoration> decorations = planDecorations(
-                floors, entrance, stairs, routes, target, planSeed);
+                level, floors, entrance, stairs, routes, target, planSeed);
         if (!hasRequiredDecorations(floors, decorations)) {
-            return Optional.empty();
+            return PlanningResult.rejected("rejected: required mission cover does not fit");
         }
-        String id = district.code().toLowerCase(java.util.Locale.ROOT)
+        String id = district.resourceCode()
                 + ":" + chunkX + ":" + chunkZ + ":"
                 + Long.toUnsignedString(planSeed, 16);
         try {
-            return Optional.of(new Site(
+            Site site = new Site(
                     id,
                     district,
                     bounds,
@@ -580,9 +1380,15 @@ public final class MissionBuildingPlanner {
                     stairs,
                     routes,
                     decorations,
-                    planSeed));
+                    floors.stream().map(floor -> new FloorMask(
+                            floor.y(), List.copyOf(floor.cells()))).toList(),
+                    planSeed);
+            String preflight = preflightFailure(level, site);
+            return preflight == null
+                    ? PlanningResult.accepted(site)
+                    : PlanningResult.rejected("rejected: " + preflight);
         } catch (IllegalArgumentException unsafe) {
-            return Optional.empty();
+            return PlanningResult.rejected("rejected: invalid persisted site plan");
         }
     }
 
@@ -645,48 +1451,144 @@ public final class MissionBuildingPlanner {
 
     private static List<FloorProfile> bestFloorStack(
             List<FloorProfile> profiles, long seed, int minimumFloors) {
-        List<FloorProfile> best = List.of();
-        long bestScore = Long.MIN_VALUE;
-        for (int start = 0; start < profiles.size(); start++) {
-            List<FloorProfile> stack = new ArrayList<>();
-            FloorProfile current = profiles.get(start);
-            stack.add(current);
-            while (stack.size() < MAX_FLOORS) {
-                FloorProfile previous = current;
-                current = profiles.stream()
-                        .filter(candidate -> candidate.y() > previous.y())
-                        .filter(candidate -> candidate.y() - previous.y() >= MIN_STORY_HEIGHT)
-                        .filter(candidate -> candidate.y() - previous.y() <= MAX_STORY_HEIGHT)
-                        .filter(candidate -> overlaps(previous.bounds(), candidate.bounds()))
-                        .max(Comparator.comparingInt((FloorProfile value) -> value.cells().size())
-                                .thenComparingLong(value -> positionScore(
-                                        seed, value.bounds().minX, value.bounds().minZ)))
-                        .orElse(null);
-                if (current == null || stack.contains(current)) {
-                    break;
-                }
-                stack.add(current);
-            }
-            long area = stack.stream().mapToLong(value -> value.cells().size()).sum();
-            long score = stack.size() * 1_000_000L + area * 100L
-                    - (long) (stack.getFirst().y() - NeonCityGenerator.CITY_GROUND_Y) * 10_000L
-                    + Math.floorMod(positionScore(seed, start, stack.getFirst().y()), 100L);
-            if (stack.size() >= minimumFloors && score > bestScore) {
-                best = List.copyOf(stack);
-                bestScore = score;
-            }
-        }
-        return best;
+        return floorStacks(profiles, seed, minimumFloors, MAX_FLOORS).stream()
+                .map(FloorStack::floors)
+                .findFirst()
+                .orElse(List.of());
     }
 
-    private static Entrance findEntrance(ServerLevel level, FloorProfile floor, long seed) {
+    private static List<FloorStack> floorStacks(
+            List<FloorProfile> profiles,
+            long seed,
+            int minimumFloors,
+            int maximumFloors) {
+        Map<String, FloorStack> stacks = new LinkedHashMap<>();
+        List<FloorProfile> roots = profiles.stream()
+                .filter(candidate -> profiles.stream().noneMatch(
+                        lower -> canStackFloor(lower, candidate)))
+                .toList();
+        if (roots.isEmpty()) roots = profiles;
+        for (FloorProfile root : roots) {
+            enumerateFloorStacks(
+                    profiles, seed, minimumFloors, maximumFloors,
+                    new ArrayList<>(List.of(root)), stacks);
+            if (stacks.size() >= MAX_ATLAS_PATHS) break;
+        }
+        return stacks.values().stream()
+                .sorted(Comparator.comparingLong(FloorStack::score).reversed()
+                        .thenComparingInt(stack -> stack.floors().getFirst().bounds().minX)
+                        .thenComparingInt(stack -> stack.floors().getFirst().bounds().minZ))
+                .toList();
+    }
+
+    private static void enumerateFloorStacks(
+            List<FloorProfile> profiles,
+            long seed,
+            int minimumFloors,
+            int maximumFloors,
+            List<FloorProfile> path,
+            Map<String, FloorStack> result) {
+        if (result.size() >= MAX_ATLAS_PATHS) return;
+        FloorProfile current = path.getLast();
+        List<FloorProfile> eligible = profiles.stream()
+                .filter(candidate -> canStackFloor(current, candidate))
+                .filter(candidate -> !path.contains(candidate))
+                .toList();
+        int nextFloorY = eligible.stream()
+                .mapToInt(FloorProfile::y)
+                .min()
+                .orElse(Integer.MAX_VALUE);
+        List<FloorProfile> successors = eligible.stream()
+                .filter(candidate -> candidate.y() == nextFloorY)
+                .sorted(Comparator
+                        .comparingInt((FloorProfile candidate) ->
+                                footprintOverlap(current, candidate)).reversed()
+                        .thenComparing(Comparator.comparingInt(
+                                (FloorProfile candidate) -> candidate.cells().size()).reversed())
+                        .thenComparingLong(candidate -> positionScore(
+                                seed, candidate.bounds().minX, candidate.bounds().minZ)))
+                .limit(MAX_ATLAS_BRANCHES)
+                .toList();
+        if (path.size() >= maximumFloors || successors.isEmpty()) {
+            if (path.size() >= minimumFloors) addFloorStack(seed, path, result);
+            return;
+        }
+        for (FloorProfile successor : successors) {
+            path.add(successor);
+            enumerateFloorStacks(
+                    profiles, seed, minimumFloors, maximumFloors, path, result);
+            path.removeLast();
+            if (result.size() >= MAX_ATLAS_PATHS) return;
+        }
+    }
+
+    private static void addFloorStack(
+            long seed, List<FloorProfile> path, Map<String, FloorStack> result) {
+        List<FloorProfile> selected = List.copyOf(path);
+        long area = selected.stream().mapToLong(value -> value.cells().size()).sum();
+        long score = selected.size() * 100_000_000L + area * 100L
+                - (long) Math.abs(
+                        selected.getFirst().y() - (NeonCityGenerator.CITY_GROUND_Y + 1))
+                        * 10_000_000_000L
+                + Math.floorMod(positionScore(
+                        seed, selected.getFirst().bounds().minX,
+                        selected.getFirst().bounds().minZ), 100L);
+        FloorProfile base = selected.getFirst();
+        String key = base.y() + ":" + base.bounds().minX + ":" + base.bounds().maxX
+                + ":" + base.bounds().minZ + ":" + base.bounds().maxZ
+                + ":" + selected.stream().map(FloorProfile::y).toList();
+        FloorStack candidate = new FloorStack(selected, score);
+        result.merge(key, candidate,
+                (first, second) -> first.score() >= second.score() ? first : second);
+    }
+
+    private static boolean canStackFloor(FloorProfile lower, FloorProfile upper) {
+        int rise = upper.y() - lower.y();
+        return rise >= MIN_STORY_HEIGHT && rise <= MAX_STORY_HEIGHT
+                && overlaps(lower.bounds(), upper.bounds())
+                && footprintOverlap(lower, upper)
+                        >= STAIR_WIDTH * (MIN_STORY_HEIGHT + STAIR_LANDING_DEPTH);
+    }
+
+    private static int footprintOverlap(FloorProfile first, FloorProfile second) {
+        Set<BlockPos> larger = first.cells().size() >= second.cells().size()
+                ? first.cells() : second.cells();
+        Set<BlockPos> smaller = first.cells().size() < second.cells().size()
+                ? first.cells() : second.cells();
+        int largerY = larger.iterator().next().getY();
+        int overlap = 0;
+        for (BlockPos position : smaller) {
+            if (larger.contains(position.atY(largerY))) overlap++;
+        }
+        return overlap;
+    }
+
+    private static BoundingBox floorStackBounds(List<FloorProfile> floors) {
+        int minX = floors.stream().mapToInt(floor -> floor.bounds().minX).min().orElseThrow();
+        int maxX = floors.stream().mapToInt(floor -> floor.bounds().maxX).max().orElseThrow();
+        int minZ = floors.stream().mapToInt(floor -> floor.bounds().minZ).min().orElseThrow();
+        int maxZ = floors.stream().mapToInt(floor -> floor.bounds().maxZ).max().orElseThrow();
+        return new BoundingBox(
+                minX, floors.getFirst().y() - 1, minZ,
+                maxX, floors.getLast().y() + MAX_STORY_HEIGHT, maxZ);
+    }
+
+    private static List<Entrance> findEntrances(
+            ServerLevel level, FloorProfile floor, long seed) {
         List<BlockPos> cells = ordered(floor.cells(), seed);
+        LinkedHashSet<Entrance> explicitDoors = new LinkedHashSet<>();
+        LinkedHashSet<Entrance> generatedDoors = new LinkedHashSet<>();
         for (BlockPos cell : cells) {
             for (Direction direction : orderedDirections(seed, cell)) {
                 BlockPos first = cell.relative(direction);
                 if (!floor.cells().contains(first)
-                        && existingAccess(level, floor, first)) {
-                    return new Entrance(first, direction, 0, true);
+                        && existingAccess(level, floor, first, direction)) {
+                    Entrance entrance = new Entrance(first, direction, 0, true);
+                    if (level.getBlockState(first).getBlock() instanceof DoorBlock) {
+                        explicitDoors.add(entrance);
+                    } else {
+                        generatedDoors.add(new Entrance(first, direction, 1, false));
+                    }
                 }
             }
         }
@@ -694,16 +1596,161 @@ public final class MissionBuildingPlanner {
             for (Direction direction : orderedDirections(seed ^ 0x6A09E667F3BCC909L, cell)) {
                 int depth = doorwayDepth(level, floor, cell, direction);
                 if (depth > 0) {
-                    return new Entrance(cell.relative(direction), direction, depth, false);
+                    generatedDoors.add(new Entrance(
+                            cell.relative(direction), direction, depth, false));
                 }
             }
         }
-        return null;
+        ArrayList<Entrance> entrances = new ArrayList<>(MAX_ENTRANCE_CANDIDATES);
+        appendEntrances(entrances, explicitDoors);
+        appendEntrances(entrances, generatedDoors);
+        return List.copyOf(entrances);
+    }
+
+    private static void appendEntrances(List<Entrance> result, Set<Entrance> candidates) {
+        for (Entrance candidate : candidates) {
+            if (result.size() >= MAX_ENTRANCE_CANDIDATES) return;
+            result.add(candidate);
+        }
+    }
+
+    /** Restricts every selected story to one coherent, entrance-oriented plan of at most 144 cells. */
+    private static List<List<FloorProfile>> boundedMissionFloorCandidates(
+            List<FloorProfile> floors, Entrance entrance, long seed) {
+        BlockPos inside = entrance.position().relative(entrance.outward().getOpposite());
+        Direction inward = entrance.outward().getOpposite();
+        Direction across = entrance.outward().getClockWise();
+        int preferredArea = MIN_FLOOR_CELLS + Math.floorMod(
+                (int) positionScore(seed, inside.getX(), inside.getZ()),
+                MAX_MISSION_FLOOR_CELLS - MIN_FLOOR_CELLS + 1);
+        int requiredStairAxis = 0;
+        for (int floorIndex = 1; floorIndex < floors.size(); floorIndex++) {
+            requiredStairAxis = Math.max(
+                    requiredStairAxis,
+                    floors.get(floorIndex).y() - floors.get(floorIndex - 1).y()
+                            + 2 * STAIR_LANDING_DEPTH);
+        }
+        ArrayList<FloorWindow> windows = new ArrayList<>();
+        for (int depth = MIN_FLOOR_SIDE; depth <= 16; depth++) {
+            for (int width = MIN_FLOOR_SIDE; width <= 16; width++) {
+                int area = depth * width;
+                if (area < MIN_FLOOR_CELLS || area > MAX_MISSION_FLOOR_CELLS) continue;
+                if (Math.max(depth, width) < requiredStairAxis) continue;
+                for (int lateralStart = 2 - width; lateralStart <= 0; lateralStart++) {
+                    windows.add(new FloorWindow(
+                            depth, width, lateralStart,
+                            Math.abs(area - preferredArea),
+                            positionScore(seed ^ 0x243F6A8885A308D3L,
+                                    depth * 31 + width, lateralStart)));
+                }
+            }
+        }
+        windows.sort(Comparator.comparingInt(FloorWindow::area).reversed()
+                .thenComparingInt(FloorWindow::areaDelta)
+                .thenComparingLong(FloorWindow::score));
+
+        ArrayList<List<FloorProfile>> results = new ArrayList<>();
+        for (FloorWindow window : windows) {
+            ArrayList<FloorProfile> bounded = new ArrayList<>(floors.size());
+            Set<BlockPos> previous = Set.of();
+            boolean valid = true;
+            for (int floorIndex = 0; floorIndex < floors.size(); floorIndex++) {
+                FloorProfile floor = floors.get(floorIndex);
+                Set<BlockPos> candidates = floor.cells().stream()
+                        .filter(position -> withinMissionWindow(
+                                position, inside, inward, across, window))
+                        .filter(position -> horizontalDistance(position, entrance.position())
+                                <= MAX_ENTRANCE_TO_MISSION_DISTANCE)
+                        .collect(java.util.stream.Collectors.toSet());
+                Set<BlockPos> component = floorIndex == 0
+                        ? componentContaining(candidates, inside.atY(floor.y()))
+                        : componentWithMostOverlap(candidates, previous, floor.y());
+                if (component.size() < MIN_FLOOR_CELLS
+                        || component.size() > MAX_MISSION_FLOOR_CELLS
+                        || floorIndex == 0 && !entrance.existing()
+                                && !component.contains(inside.relative(across).atY(floor.y()))) {
+                    valid = false;
+                    break;
+                }
+                Rect bounds = rect(component);
+                if (bounds.width() < MIN_FLOOR_SIDE || bounds.depth() < MIN_FLOOR_SIDE) {
+                    valid = false;
+                    break;
+                }
+                bounded.add(new FloorProfile(floor.y(), Set.copyOf(component), bounds));
+                previous = component;
+            }
+            if (valid && bounded.size() == floors.size()) {
+                results.add(List.copyOf(bounded));
+                if (results.size() >= MAX_MISSION_WINDOW_CANDIDATES) break;
+            }
+        }
+        return List.copyOf(results);
+    }
+
+    private static boolean withinMissionWindow(
+            BlockPos position,
+            BlockPos inside,
+            Direction inward,
+            Direction across,
+            FloorWindow window) {
+        int dx = position.getX() - inside.getX();
+        int dz = position.getZ() - inside.getZ();
+        int depth = dx * inward.getStepX() + dz * inward.getStepZ();
+        int lateral = dx * across.getStepX() + dz * across.getStepZ();
+        return depth >= 0 && depth < window.depth()
+                && lateral >= window.lateralStart()
+                && lateral < window.lateralStart() + window.width();
+    }
+
+    private static Set<BlockPos> componentContaining(
+            Set<BlockPos> candidates, BlockPos required) {
+        if (!candidates.contains(required)) return Set.of();
+        return connectedComponent(candidates, required);
+    }
+
+    private static Set<BlockPos> componentWithMostOverlap(
+            Set<BlockPos> candidates, Set<BlockPos> previous, int floorY) {
+        if (previous.isEmpty()) return Set.of();
+        int previousY = previous.iterator().next().getY();
+        Set<BlockPos> remaining = new HashSet<>(candidates);
+        Set<BlockPos> best = Set.of();
+        int bestOverlap = 0;
+        while (!remaining.isEmpty()) {
+            BlockPos seed = remaining.iterator().next();
+            Set<BlockPos> component = connectedComponent(remaining, seed);
+            remaining.removeAll(component);
+            int overlap = (int) component.stream().filter(position ->
+                    position.getY() == floorY
+                            && previous.contains(position.atY(previousY))).count();
+            if (overlap > bestOverlap
+                    || overlap == bestOverlap && component.size() > best.size()) {
+                best = component;
+                bestOverlap = overlap;
+            }
+        }
+        return bestOverlap >= STAIR_WIDTH * (MIN_STORY_HEIGHT + STAIR_LANDING_DEPTH)
+                ? best : Set.of();
+    }
+
+    private static Set<BlockPos> connectedComponent(Set<BlockPos> candidates, BlockPos seed) {
+        HashSet<BlockPos> visited = new HashSet<>();
+        ArrayDeque<BlockPos> stack = new ArrayDeque<>();
+        visited.add(seed);
+        stack.push(seed);
+        while (!stack.isEmpty()) {
+            BlockPos current = stack.pop();
+            for (Direction direction : HORIZONTAL) {
+                BlockPos next = current.relative(direction);
+                if (candidates.contains(next) && visited.add(next)) stack.push(next);
+            }
+        }
+        return Set.copyOf(visited);
     }
 
     private static boolean existingAccess(
-            ServerLevel level, FloorProfile floor, BlockPos first) {
-        if (!isPassage(level, first)) {
+            ServerLevel level, FloorProfile floor, BlockPos first, Direction outward) {
+        if (!isPassage(level, first) || outward == null || outward.getAxis().isVertical()) {
             return false;
         }
         int minX = floor.bounds().minX - EXTERIOR_SEARCH_MARGIN;
@@ -711,15 +1758,18 @@ public final class MissionBuildingPlanner {
         int minZ = floor.bounds().minZ - EXTERIOR_SEARCH_MARGIN;
         int maxZ = floor.bounds().maxZ + EXTERIOR_SEARCH_MARGIN;
         Set<BlockPos> visited = new HashSet<>();
+        Map<BlockPos, Integer> distanceFromEntrance = new HashMap<>();
         ArrayDeque<BlockPos> queue = new ArrayDeque<>();
         visited.add(first);
+        distanceFromEntrance.put(first, 0);
         queue.add(first);
         while (!queue.isEmpty() && visited.size() <= MAX_EXTERIOR_PATH_NODES) {
             BlockPos current = queue.removeFirst();
-            if (outsideBuildingApproach(floor, current)
-                    && CityWorlds.isWalkableStreet(level, current)) {
+            int distance = distanceFromEntrance.get(current);
+            if (outsideBuildingApproach(floor, current) && isExposedGroundPassage(level, current)) {
                 return true;
             }
+            if (distance >= MAX_EXISTING_ENTRANCE_APPROACH_DISTANCE) continue;
             for (Direction direction : HORIZONTAL) {
                 BlockPos horizontal = current.relative(direction);
                 for (int dy : new int[] {0, 1, -1}) {
@@ -730,13 +1780,23 @@ public final class MissionBuildingPlanner {
                             || floor.cells().contains(next.atY(floor.y()))) {
                         continue;
                     }
-                    if (isPassage(level, next) && visited.add(next)) {
+                    boolean hasStepHeadroom = dy <= 0
+                            || isPassable(level.getBlockState(current.above(2)));
+                    if (hasStepHeadroom && isPassage(level, next) && visited.add(next)) {
+                        distanceFromEntrance.put(next, distance + 1);
                         queue.addLast(next);
                     }
                 }
             }
         }
         return false;
+    }
+
+    private static boolean isExposedGroundPassage(ServerLevel level, BlockPos position) {
+        return isPassage(level, position)
+                && (!NeonCityGenerator.isMegacityWorld(level)
+                        || position.getY() == NeonCityGenerator.CITY_GROUND_Y + 1
+                                && level.canSeeSky(position));
     }
 
     private static boolean outsideBuildingApproach(FloorProfile floor, BlockPos position) {
@@ -752,16 +1812,16 @@ public final class MissionBuildingPlanner {
         if (!floor.cells().contains(inside.relative(across))) {
             return 0;
         }
-        for (int depth = 1; depth <= 2; depth++) {
+        for (int depth = 1; depth <= MAX_ENTRANCE_WALL_DEPTH; depth++) {
             boolean validWall = true;
             for (int lane = 0; lane < 2 && validWall; lane++) {
                 BlockPos wall = inside.relative(across, lane).relative(outward);
-                if (!level.getBlockState(wall.below()).blocksMotion()) {
-                    validWall = false;
-                    continue;
-                }
                 for (int step = 0; step < depth && validWall; step++) {
                     BlockPos slice = wall.relative(outward, step);
+                    if (!level.getBlockState(slice.below()).blocksMotion()) {
+                        validWall = false;
+                        break;
+                    }
                     for (int y = 0; y < 3; y++) {
                         if (!isCarvable(level, slice.above(y))) {
                             validWall = false;
@@ -771,7 +1831,7 @@ public final class MissionBuildingPlanner {
                 }
                 BlockPos outside = wall.relative(outward, depth);
                 validWall &= isPassage(level, outside)
-                        && existingAccess(level, floor, outside);
+                        && existingAccess(level, floor, outside, outward);
             }
             if (validWall) {
                 return depth;
@@ -887,7 +1947,7 @@ public final class MissionBuildingPlanner {
             for (int lane = 0; lane < STAIR_WIDTH; lane++) {
                 BlockPos stair = start.relative(direction, step)
                         .relative(across, lane).above(step);
-                for (int head = 0; head <= 2; head++) {
+                for (int head = 0; head <= STAIR_HEADROOM; head++) {
                     BlockPos position = stair.above(head);
                     if (!isSafelyEditable(level, position)) {
                         return -1;
@@ -913,6 +1973,11 @@ public final class MissionBuildingPlanner {
     }
 
     private static boolean stairRunsHaveHorizontalClearance(StairRun first, StairRun second) {
+        int firstUpperY = first.start().getY() + first.rise();
+        int secondUpperY = second.start().getY() + second.rise();
+        if (firstUpperY < second.start().getY() || secondUpperY < first.start().getY()) {
+            return true;
+        }
         Rect firstBounds = stairHorizontalEnvelope(first);
         Rect secondBounds = stairHorizontalEnvelope(second);
         int xGap = Math.max(0, Math.max(
@@ -987,7 +2052,7 @@ public final class MissionBuildingPlanner {
     }
 
     private static Set<BlockPos> routeExclusions(
-            Entrance entrance, List<StairRun> stairs) {
+            List<FloorProfile> floors, Entrance entrance, List<StairRun> stairs) {
         Set<BlockPos> excluded = new HashSet<>();
         reserve(excluded, entrance.position(), 1);
         Direction entranceAcross = entrance.outward().getClockWise();
@@ -1005,6 +2070,7 @@ public final class MissionBuildingPlanner {
                 reserve(excluded, landing, 1);
             }
         }
+        reserveStairHeadroomProjections(excluded, floors, stairs, 0);
         return excluded;
     }
 
@@ -1012,10 +2078,13 @@ public final class MissionBuildingPlanner {
             FloorProfile top, Entrance entrance, long seed, Set<BlockPos> exclusions) {
         return top.cells().stream()
                 .filter(position -> !exclusions.contains(position))
+                .filter(position -> horizontalDistance(position, entrance.position())
+                        <= MAX_ENTRANCE_TO_MISSION_DISTANCE)
                 .filter(position -> java.util.Arrays.stream(HORIZONTAL)
                         .filter(direction -> top.cells().contains(position.relative(direction)))
                         .filter(direction -> !exclusions.contains(position.relative(direction)))
-                        .count() >= 2)
+                        .count() >= 1)
+                .filter(position -> removalPreservesConnectivity(top.cells(), position))
                 .max(Comparator.comparingDouble(
                                 (BlockPos position) -> position.distSqr(entrance.position()))
                         .thenComparingLong(position -> positionScore(
@@ -1023,7 +2092,21 @@ public final class MissionBuildingPlanner {
                 .orElse(null);
     }
 
+    private static boolean removalPreservesConnectivity(
+            Set<BlockPos> cells, BlockPos removed) {
+        if (cells == null || removed == null || !cells.contains(removed) || cells.size() <= 1) {
+            return false;
+        }
+        BlockPos seed = cells.stream().filter(position -> !position.equals(removed))
+                .findFirst().orElse(null);
+        if (seed == null) return false;
+        Set<BlockPos> remaining = new HashSet<>(cells);
+        remaining.remove(removed);
+        return connectedComponent(remaining, seed).size() == remaining.size();
+    }
+
     private static List<Decoration> planDecorations(
+            ServerLevel level,
             List<FloorProfile> floors,
             Entrance entrance,
             List<StairRun> stairs,
@@ -1047,6 +2130,7 @@ public final class MissionBuildingPlanner {
                 reserve(occupied, landing, 1);
             }
         }
+        reserveStairHeadroomProjections(occupied, floors, stairs, 1);
 
         int explosiveCanisters = 0;
         for (int floorIndex = 0; floorIndex < floors.size(); floorIndex++) {
@@ -1062,6 +2146,14 @@ public final class MissionBuildingPlanner {
             Direction longAxis = floor.bounds().width() >= floor.bounds().depth()
                     ? Direction.EAST : Direction.SOUTH;
             Direction across = longAxis.getClockWise();
+            addBoundaryPartitionBases(
+                    level, result, occupied, blockedCells, floor,
+                    entrance, stairs, routes, target);
+            if (floor.cells().size() >= 96) {
+                addFullHeightPartitionBases(
+                        level, result, occupied, blockedCells, floor, longAxis,
+                        entrance, stairs, routes, target);
+            }
             if (floorIndex == 0) {
                 BlockPos inside = entrance.position().relative(entrance.outward().getOpposite());
                 Direction inward = entrance.outward().getOpposite();
@@ -1158,10 +2250,35 @@ public final class MissionBuildingPlanner {
                 }
             }
 
+            addWallBackedDecoration(
+                    level, result, occupied, blockedCells, floor,
+                    DecorKind.VENDING_MACHINE, entrance, stairs, routes, target, seed);
+            addComputerDesk(
+                    level, result, occupied, blockedCells, floor,
+                    entrance, stairs, routes, target, seed);
+            if (result.stream().noneMatch(decoration ->
+                    decoration.position().getY() == floor.y()
+                            && decoration.kind() == DecorKind.PLANTER)) {
+                addFirstDecoration(
+                        result, occupied, blockedCells, floor,
+                        structuredFloorCandidates(floor, across),
+                        DecorKind.PLANTER, longAxis,
+                        entrance, stairs, routes, target, 1);
+            }
+            if (result.stream().noneMatch(decoration ->
+                    decoration.position().getY() == floor.y()
+                            && decoration.kind() == DecorKind.COUCH)) {
+                addFirstDecoration(
+                        result, occupied, blockedCells, floor,
+                        structuredFloorCandidates(floor, across).reversed(),
+                        DecorKind.COUCH, across,
+                        entrance, stairs, routes, target, 1);
+            }
+
             int wanted = floorIndex == 0 ? 3 : 4;
-            if (decorationsOnFloor(result, floor.y()) < wanted) {
+            if (furnishingsOnFloor(result, floor.y()) < wanted) {
                 for (BlockPos candidate : structuredFloorCandidates(floor, longAxis)) {
-                    if (decorationsOnFloor(result, floor.y()) >= wanted) break;
+                    if (furnishingsOnFloor(result, floor.y()) >= wanted) break;
                     DecorKind kind = floorIndex == 0
                             ? DecorKind.FILING_CABINET : DecorKind.CUBICLE_DESK;
                     addDecoration(result, occupied, blockedCells, floor,
@@ -1170,7 +2287,42 @@ public final class MissionBuildingPlanner {
                 }
             }
         }
-        return List.copyOf(result);
+        if (result.stream().noneMatch(
+                decoration -> decoration.kind() == DecorKind.EXPLOSIVE_CANISTER)) {
+            for (FloorProfile floor : floors) {
+                if (addWallBackedDecoration(
+                        level, result, occupied, blockedCells, floor,
+                        DecorKind.EXPLOSIVE_CANISTER, entrance, stairs, routes, target,
+                        seed ^ 0x4558504C4F534956L ^ floor.y())) {
+                    break;
+                }
+            }
+        }
+        return expandFullHeightPartitions(level, floors, result);
+    }
+
+    private static void reserveStairHeadroomProjections(
+            Set<BlockPos> occupied,
+            List<FloorProfile> floors,
+            List<StairRun> stairs,
+            int radius) {
+        Set<Integer> floorYs = floors.stream().map(FloorProfile::y)
+                .collect(java.util.stream.Collectors.toSet());
+        for (StairRun stair : stairs) {
+            Direction across = stair.ascending().getClockWise();
+            for (int step = 0; step < stair.rise(); step++) {
+                int stairY = stair.start().getY() + step;
+                for (int floorY : floorYs) {
+                    if (floorY < stairY || floorY > stairY + STAIR_HEADROOM) continue;
+                    for (int lane = 0; lane < STAIR_WIDTH; lane++) {
+                        BlockPos projection = stair.start()
+                                .relative(stair.ascending(), step)
+                                .relative(across, lane).atY(floorY);
+                        reserve(occupied, projection, radius);
+                    }
+                }
+            }
+        }
     }
 
     private static Set<BlockPos> circulationSpine(
@@ -1258,6 +2410,224 @@ public final class MissionBuildingPlanner {
         }
     }
 
+    private static void addFullHeightPartitionBases(
+            ServerLevel level,
+            List<Decoration> result,
+            Set<BlockPos> occupied,
+            Set<BlockPos> blocked,
+            FloorProfile floor,
+            Direction longAxis,
+            Entrance entrance,
+            List<StairRun> stairs,
+            List<PatrolRoute> routes,
+            BlockPos target) {
+        boolean fixedX = longAxis.getAxis() == Direction.Axis.X;
+        int fixed = fixedX
+                ? (floor.bounds().minX + floor.bounds().maxX()) / 2
+                : (floor.bounds().minZ + floor.bounds().maxZ()) / 2;
+        int start = fixedX ? floor.bounds().minZ + 1 : floor.bounds().minX + 1;
+        int end = fixedX ? floor.bounds().maxZ - 1 : floor.bounds().maxX - 1;
+        Direction facing = fixedX ? Direction.EAST : Direction.SOUTH;
+        int columns = 0;
+        for (int variable = start;
+                variable <= end && columns < MAX_PARTITION_COLUMNS_PER_FLOOR;
+                variable++) {
+            BlockPos position = fixedX
+                    ? new BlockPos(fixed, floor.y(), variable)
+                    : new BlockPos(variable, floor.y(), fixed);
+            if (!fullHeightColumnClearOfStairs(level, position, stairs)) continue;
+            if (addDecoration(result, occupied, blocked, floor,
+                    new Decoration(position, DecorKind.FULL_HEIGHT_PARTITION, facing),
+                    entrance, stairs, routes, target, 0)) {
+                columns++;
+            }
+        }
+    }
+
+    private static void addBoundaryPartitionBases(
+            ServerLevel level,
+            List<Decoration> result,
+            Set<BlockPos> occupied,
+            Set<BlockPos> blocked,
+            FloorProfile floor,
+            Entrance entrance,
+            List<StairRun> stairs,
+            List<PatrolRoute> routes,
+            BlockPos target) {
+        Set<BlockPos> candidates = new HashSet<>();
+        for (BlockPos position : floor.cells()) {
+            for (Direction direction : HORIZONTAL) {
+                BlockPos outside = position.relative(direction);
+                if (!floor.cells().contains(outside) && isPassage(level, outside)) {
+                    candidates.add(position);
+                }
+            }
+        }
+        candidates.stream()
+                .filter(position -> fullHeightColumnClearOfStairs(
+                        level, position, stairs))
+                .sorted(Comparator.comparingInt((BlockPos position) -> position.getX())
+                        .thenComparingInt(position -> position.getZ()))
+                .forEach(position -> addDecoration(
+                        result, occupied, blocked, floor,
+                        new Decoration(
+                                position, DecorKind.FULL_HEIGHT_PARTITION,
+                                boundaryFacing(floor, position)),
+                        entrance, stairs, routes, target, 0));
+    }
+
+    private static boolean fullHeightColumnClearOfStairs(
+            ServerLevel level,
+            BlockPos position,
+            List<StairRun> stairs) {
+        int height = ceilingDistance(level, position);
+        if (height < 2) return false;
+        int wallMinY = position.getY();
+        int wallMaxY = position.getY() + height - 1;
+        for (StairRun stair : stairs) {
+            Direction across = stair.ascending().getClockWise();
+            for (int step = 0; step < stair.rise(); step++) {
+                for (int lane = 0; lane < STAIR_WIDTH; lane++) {
+                    BlockPos stairBlock = stair.start().relative(stair.ascending(), step)
+                            .relative(across, lane).above(step);
+                    if (stairBlock.getX() == position.getX()
+                            && stairBlock.getZ() == position.getZ()
+                            && wallMaxY >= stairBlock.getY()
+                            && wallMinY <= stairBlock.getY() + STAIR_HEADROOM) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    private static Direction boundaryFacing(FloorProfile floor, BlockPos position) {
+        return java.util.Arrays.stream(HORIZONTAL)
+                .filter(direction -> !floor.cells().contains(position.relative(direction)))
+                .findFirst()
+                .orElse(Direction.NORTH);
+    }
+
+    private static boolean addWallBackedDecoration(
+            ServerLevel level,
+            List<Decoration> result,
+            Set<BlockPos> occupied,
+            Set<BlockPos> blocked,
+            FloorProfile floor,
+            DecorKind kind,
+            Entrance entrance,
+            List<StairRun> stairs,
+            List<PatrolRoute> routes,
+            BlockPos target,
+            long seed) {
+        List<WallFixtureCandidate> candidates = new ArrayList<>();
+        Set<BlockPos> plannedWalls = result.stream()
+                .filter(decoration -> decoration.kind() == DecorKind.FULL_HEIGHT_PARTITION)
+                .map(Decoration::position)
+                .collect(java.util.stream.Collectors.toSet());
+        for (BlockPos position : floor.cells()) {
+            for (Direction facing : HORIZONTAL) {
+                BlockPos backing = position.relative(facing.getOpposite());
+                BlockPos approach = position.relative(facing);
+                boolean solidBacking = level.getBlockState(backing).blocksMotion()
+                        && level.getBlockState(backing.above()).blocksMotion();
+                if ((!solidBacking && !plannedWalls.contains(backing))
+                        || !floor.cells().contains(approach)
+                        || occupied.contains(approach)
+                        || blocked.contains(approach)
+                        || !isPassage(level, approach)) {
+                    continue;
+                }
+                candidates.add(new WallFixtureCandidate(
+                        position, facing,
+                        positionScore(seed ^ 0xB7E151628AED2A6BL,
+                                position.getX(), position.getZ())));
+            }
+        }
+        candidates.sort(Comparator.comparingLong(WallFixtureCandidate::score)
+                .thenComparingInt(candidate -> candidate.position().getX())
+                .thenComparingInt(candidate -> candidate.position().getZ())
+                .thenComparingInt(candidate -> candidate.facing().ordinal()));
+        for (WallFixtureCandidate candidate : candidates) {
+            if (addDecoration(result, occupied, blocked, floor,
+                    new Decoration(candidate.position(), kind, candidate.facing()),
+                    entrance, stairs, routes, target, 0)) {
+                occupied.add(candidate.position().relative(candidate.facing()));
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean addComputerDesk(
+            ServerLevel level,
+            List<Decoration> result,
+            Set<BlockPos> occupied,
+            Set<BlockPos> blocked,
+            FloorProfile floor,
+            Entrance entrance,
+            List<StairRun> stairs,
+            List<PatrolRoute> routes,
+            BlockPos target,
+            long seed) {
+        Direction axis = floor.bounds().width() >= floor.bounds().depth()
+                ? Direction.EAST : Direction.SOUTH;
+        for (BlockPos position : structuredFloorCandidates(floor, axis)) {
+            for (Direction facing : orderedDirections(seed ^ 0x9E3779B97F4A7C15L, position)) {
+                BlockPos viewer = position.relative(facing);
+                if (!floor.cells().contains(viewer)
+                        || !isPassable(level.getBlockState(viewer.above()))) {
+                    continue;
+                }
+                if (addDecoration(result, occupied, blocked, floor,
+                        new Decoration(position, DecorKind.COMPUTER_DESK, facing),
+                        entrance, stairs, routes, target, 1)) {
+                    occupied.add(viewer);
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static List<Decoration> expandFullHeightPartitions(
+            ServerLevel level,
+            List<FloorProfile> floors,
+            List<Decoration> planned) {
+        ArrayList<Decoration> expanded = new ArrayList<>();
+        Map<Integer, FloorProfile> byY = floors.stream().collect(
+                java.util.stream.Collectors.toMap(FloorProfile::y, floor -> floor));
+        for (Decoration decoration : planned) {
+            if (decoration.kind() != DecorKind.FULL_HEIGHT_PARTITION) {
+                expanded.add(decoration);
+                if (expanded.size() > MAX_DECORATIONS) return List.of();
+                continue;
+            }
+            FloorProfile floor = byY.get(decoration.position().getY());
+            if (floor == null) return List.of();
+            int wallHeight = ceilingDistance(level, decoration.position());
+            if (wallHeight < 2) return List.of();
+            for (int offset = 0; offset < wallHeight; offset++) {
+                expanded.add(new Decoration(
+                        decoration.position().above(offset),
+                        DecorKind.FULL_HEIGHT_PARTITION,
+                        decoration.facing()));
+            }
+            if (expanded.size() > MAX_DECORATIONS) return List.of();
+        }
+        return List.copyOf(expanded);
+    }
+
+    private static int ceilingDistance(ServerLevel level, BlockPos position) {
+        for (int distance = 2; distance <= MAX_STORY_HEIGHT; distance++) {
+            if (level.getBlockState(position.above(distance)).blocksMotion()) {
+                return distance;
+            }
+        }
+        return -1;
+    }
+
     private static boolean addFirstDecoration(
             List<Decoration> result,
             Set<BlockPos> occupied,
@@ -1308,9 +2678,13 @@ public final class MissionBuildingPlanner {
         return true;
     }
 
-    private static long decorationsOnFloor(List<Decoration> decorations, int floorY) {
+    private static long furnishingsOnFloor(List<Decoration> decorations, int floorY) {
         return decorations.stream()
                 .filter(decoration -> decoration.position().getY() == floorY)
+                .filter(decoration -> switch (decoration.kind()) {
+                    case ROOM_PARTITION, FULL_HEIGHT_PARTITION, MISSION_TURRET -> false;
+                    default -> true;
+                })
                 .count();
     }
 
@@ -1350,32 +2724,27 @@ public final class MissionBuildingPlanner {
                 + Math.abs(first.getZ() - second.getZ());
     }
 
+    private static int blockDistance(BlockPos first, BlockPos second) {
+        return horizontalDistance(first, second)
+                + Math.abs(first.getY() - second.getY());
+    }
+
     private static boolean hasRequiredDecorations(
             List<FloorProfile> floors, List<Decoration> decorations) {
         for (int floorIndex = 0; floorIndex < floors.size(); floorIndex++) {
             int floorY = floors.get(floorIndex).y();
-            int required = floorIndex == 0 ? 3 : 4;
-            long actual = decorations.stream()
-                    .filter(decoration -> decoration.position().getY() == floorY)
-                    .count();
-            if (actual < required) {
-                return false;
-            }
-            if (floorIndex == 0 && decorations.stream().noneMatch(decoration ->
-                    decoration.position().getY() == floorY
-                            && decoration.kind() == DecorKind.RECEPTION_DESK)) {
-                return false;
-            }
-            if (floorIndex > 0 && decorations.stream().noneMatch(decoration ->
-                    decoration.position().getY() == floorY
-                            && switch (decoration.kind()) {
-                                case CUBICLE_DESK, CUBICLE_POD, CONFERENCE_TABLE, SERVER_RACK -> true;
-                                default -> false;
-                            })) {
+            long actual = furnishingsOnFloor(decorations, floorY);
+            if (actual < 2) {
                 return false;
             }
         }
-        return true;
+        long kinds = decorations.stream()
+                .filter(decoration -> decoration.kind() != DecorKind.MISSION_TURRET)
+                .map(Decoration::kind)
+                .distinct()
+                .count();
+        return kinds >= 3 && decorations.stream().anyMatch(
+                decoration -> decoration.kind() == DecorKind.EXPLOSIVE_CANISTER);
     }
 
     private static boolean preservesFloorConnectivity(
@@ -1388,6 +2757,8 @@ public final class MissionBuildingPlanner {
             BlockPos target) {
         Set<BlockPos> unavailable = new HashSet<>(blocked);
         unavailable.addAll(proposed);
+        Set<BlockPos> available = new HashSet<>(floor.cells());
+        available.removeAll(unavailable);
         Set<BlockPos> required = new LinkedHashSet<>();
         routes.stream().filter(route -> route.floorY() == floor.y()).findFirst()
                 .ifPresent(route -> required.addAll(route.waypoints()));
@@ -1415,28 +2786,29 @@ public final class MissionBuildingPlanner {
             return true;
         }
         Set<BlockPos> visited = new HashSet<>();
-        ArrayDeque<BlockPos> queue = new ArrayDeque<>();
+        ArrayDeque<BlockPos> stack = new ArrayDeque<>();
         visited.add(start);
-        queue.add(start);
-        while (!queue.isEmpty()) {
-            BlockPos current = queue.removeFirst();
-            for (Direction direction : HORIZONTAL) {
+        stack.push(start);
+        while (!stack.isEmpty()) {
+            BlockPos current = stack.pop();
+            for (int index = HORIZONTAL.length - 1; index >= 0; index--) {
+                Direction direction = HORIZONTAL[index];
                 BlockPos next = current.relative(direction);
                 if (floor.cells().contains(next)
                         && !unavailable.contains(next)
                         && visited.add(next)) {
-                    queue.addLast(next);
+                    stack.push(next);
                 }
             }
         }
-        return visited.containsAll(required);
+        return visited.containsAll(required) && visited.containsAll(available);
     }
 
     private static BoundingBox siteBounds(List<FloorProfile> floors, Entrance entrance) {
-        int minX = floors.stream().mapToInt(value -> value.bounds().minX).min().orElseThrow() - 1;
-        int maxX = floors.stream().mapToInt(value -> value.bounds().maxX).max().orElseThrow() + 1;
-        int minZ = floors.stream().mapToInt(value -> value.bounds().minZ).min().orElseThrow() - 1;
-        int maxZ = floors.stream().mapToInt(value -> value.bounds().maxZ).max().orElseThrow() + 1;
+        int minX = floors.stream().mapToInt(value -> value.bounds().minX).min().orElseThrow();
+        int maxX = floors.stream().mapToInt(value -> value.bounds().maxX).max().orElseThrow();
+        int minZ = floors.stream().mapToInt(value -> value.bounds().minZ).min().orElseThrow();
+        int maxZ = floors.stream().mapToInt(value -> value.bounds().maxZ).max().orElseThrow();
         BlockPos entranceEnd = entrance.position().relative(
                 entrance.outward(), Math.max(1, entrance.wallDepth()));
         minX = Math.min(minX, Math.min(entrance.position().getX(), entranceEnd.getX()) - 1);
@@ -1445,7 +2817,7 @@ public final class MissionBuildingPlanner {
         maxZ = Math.max(maxZ, Math.max(entrance.position().getZ(), entranceEnd.getZ()) + 1);
         return new BoundingBox(
                 minX, floors.getFirst().y() - 1, minZ,
-                maxX, floors.getLast().y() + 3, maxZ);
+                maxX, floors.getLast().y() + MAX_STORY_HEIGHT, maxZ);
     }
 
     private static List<Edit> edits(Site site) {
@@ -1481,7 +2853,7 @@ public final class MissionBuildingPlanner {
                     .setValue(DoorBlock.FACING, entrance.outward())
                     .setValue(DoorBlock.HALF, DoubleBlockHalf.LOWER)
                     .setValue(DoorBlock.HINGE, hinge)
-                    .setValue(DoorBlock.OPEN, true);
+                    .setValue(DoorBlock.OPEN, false);
             BlockState upper = lower.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER);
             edits.add(new Edit(door, lower, EditPolicy.SAFE_REPLACE));
             edits.add(new Edit(door.above(), upper, EditPolicy.SAFE_REPLACE));
@@ -1494,10 +2866,10 @@ public final class MissionBuildingPlanner {
             for (int lane = 0; lane < STAIR_WIDTH; lane++) {
                 BlockPos stair = run.start().relative(run.ascending(), step)
                         .relative(across, lane).above(step);
-                edits.add(new Edit(stair.above(), Blocks.AIR.defaultBlockState(),
-                        EditPolicy.SAFE_REPLACE));
-                edits.add(new Edit(stair.above(2), Blocks.AIR.defaultBlockState(),
-                        EditPolicy.SAFE_REPLACE));
+                for (int headroom = 1; headroom <= STAIR_HEADROOM; headroom++) {
+                    edits.add(new Edit(stair.above(headroom), Blocks.AIR.defaultBlockState(),
+                            EditPolicy.SAFE_REPLACE));
+                }
                 BlockState state = Blocks.POLISHED_DEEPSLATE_STAIRS.defaultBlockState()
                         .setValue(StairBlock.FACING, run.ascending());
                 edits.add(new Edit(stair, state, EditPolicy.SAFE_REPLACE));
@@ -1519,7 +2891,7 @@ public final class MissionBuildingPlanner {
                         EditPolicy.AIR_ONLY));
             }
             case PLANTER -> {
-                edits.add(new Edit(decoration.position(), Blocks.MOSS_BLOCK.defaultBlockState(),
+                edits.add(new Edit(decoration.position(), Blocks.CAULDRON.defaultBlockState(),
                         EditPolicy.AIR_ONLY));
                 edits.add(new Edit(decoration.position().above(),
                         Blocks.AZALEA_LEAVES.defaultBlockState(), EditPolicy.AIR_ONLY));
@@ -1591,6 +2963,34 @@ public final class MissionBuildingPlanner {
             }
             case EXPLOSIVE_CANISTER -> edits.add(new Edit(
                     decoration.position(), explosiveCanisterState(), EditPolicy.AIR_ONLY));
+            case MISSION_TURRET -> {
+                // Entity deployment is owned by MissionService after objective setup succeeds.
+            }
+            case VENDING_MACHINE -> {
+                edits.add(new Edit(decoration.position(),
+                        Blocks.CONCRETE.pick(DyeColor.BLACK).defaultBlockState(),
+                        EditPolicy.AIR_ONLY));
+                edits.add(new Edit(decoration.position().above(),
+                        Blocks.GLAZED_TERRACOTTA.pick(DyeColor.CYAN).defaultBlockState()
+                                .setValue(HorizontalDirectionalBlock.FACING,
+                                        decoration.facing()),
+                        EditPolicy.AIR_ONLY));
+            }
+            case COMPUTER_DESK -> {
+                edits.add(new Edit(decoration.position(),
+                        Blocks.SMOOTH_QUARTZ.defaultBlockState(), EditPolicy.AIR_ONLY));
+                edits.add(new Edit(second,
+                        Blocks.SMOOTH_QUARTZ.defaultBlockState(), EditPolicy.AIR_ONLY));
+                edits.add(new Edit(decoration.position().above(),
+                        Blocks.GLAZED_TERRACOTTA.pick(DyeColor.LIGHT_BLUE).defaultBlockState()
+                                .setValue(HorizontalDirectionalBlock.FACING,
+                                        decoration.facing()),
+                        EditPolicy.AIR_ONLY));
+            }
+            case FULL_HEIGHT_PARTITION -> edits.add(new Edit(
+                    decoration.position(),
+                    Blocks.CONCRETE.pick(DyeColor.LIGHT_GRAY).defaultBlockState(),
+                    EditPolicy.AIR_ONLY));
         }
     }
 
@@ -1600,6 +3000,25 @@ public final class MissionBuildingPlanner {
         return canister == null || canister == Blocks.AIR
                 ? Blocks.GLAZED_TERRACOTTA.pick(DyeColor.RED).defaultBlockState()
                 : canister.defaultBlockState();
+    }
+
+    private static boolean wallFixturesHaveBacking(
+            ServerLevel level, Site site, List<Edit> plannedEdits) {
+        Map<BlockPos, BlockState> overlay = new HashMap<>();
+        for (Edit edit : plannedEdits) overlay.put(edit.position(), edit.state());
+        for (Decoration decoration : site.decorations()) {
+            if (decoration.kind() != DecorKind.VENDING_MACHINE) continue;
+            BlockPos backing = decoration.position().relative(
+                    decoration.facing().getOpposite());
+            BlockPos approach = decoration.position().relative(decoration.facing());
+            if (!plannedState(level, backing, overlay).blocksMotion()
+                    || !plannedState(level, backing.above(), overlay).blocksMotion()
+                    || !floorMaskCells(site, approach.getY()).contains(approach)
+                    || !plannedPassage(level, approach, overlay)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static boolean routeCellsRemainClear(ServerLevel level, Site site) {
@@ -1635,69 +3054,215 @@ public final class MissionBuildingPlanner {
 
     private static boolean circulationRemainsAccessible(
             ServerLevel level, Site site, List<Edit> plannedEdits) {
-        for (int floorY : site.floorYs()) {
-            Set<BlockPos> reachable = reachableFloorCells(level, site, floorY, plannedEdits);
-            if (reachable.isEmpty()) return false;
-            LinkedHashSet<BlockPos> required = new LinkedHashSet<>();
-            site.patrolRoute(floorY).ifPresent(route -> required.addAll(route.waypoints()));
-            if (site.target().getY() == floorY) {
-                Map<BlockPos, BlockState> overlay = new HashMap<>();
-                for (Edit edit : plannedEdits) overlay.put(edit.position(), edit.state());
-                BlockState targetState = plannedState(level, site.target(), overlay);
-                boolean objectiveOccupiesTarget = targetState.is(
-                                MissionBlocks.DELIVERY_TERMINAL.get())
-                        || !isPassable(targetState)
-                                && plannedState(level, site.target().above(), overlay)
-                                        .is(MissionBlocks.DATA_TERMINAL.get());
-                if (!objectiveOccupiesTarget) required.add(site.target());
-                long approaches = java.util.Arrays.stream(HORIZONTAL)
-                        .map(site.target()::relative)
-                        .filter(reachable::contains)
-                        .count();
-                if (approaches < 1) return false;
+        return circulationRemainsAccessible(level, site, plannedEdits, Set.of());
+    }
+
+    private static boolean circulationRemainsAccessible(
+            ServerLevel level,
+            Site site,
+            List<Edit> plannedEdits,
+            Set<BlockPos> occupied) {
+        return depthFirstAudit(level, site, plannedEdits, occupied).accessible();
+    }
+
+    private static DfsAudit depthFirstAudit(
+            ServerLevel level,
+            Site site,
+            List<Edit> plannedEdits,
+            Set<BlockPos> occupied) {
+        ArrayList<BlockPos> unreachable = new ArrayList<>();
+        if (site.floorMasks().isEmpty()) {
+            return new DfsAudit(false, 0, List.of(site.entrance().position()));
+        }
+        Map<BlockPos, BlockState> overlay = new HashMap<>();
+        for (Edit edit : plannedEdits) overlay.put(edit.position(), edit.state());
+        if (!entranceRouteIsAccessible(level, site, overlay)) {
+            unreachable.add(navigationTarget(site));
+        }
+        Map<BlockPos, List<BlockPos>> stairEdges = new HashMap<>();
+        for (StairRun stair : site.stairs()) {
+            if (!addValidatedStairEdges(level, site, stair, overlay, stairEdges)) {
+                unreachable.add(stair.start());
             }
-            BlockPos entranceInside = site.entrance().position()
-                    .relative(site.entrance().outward().getOpposite());
-            if (entranceInside.getY() == floorY) {
-                required.add(entranceInside);
-                if (!site.entrance().existing()) {
-                    required.add(entranceInside.relative(
-                            site.entrance().outward().getClockWise()));
+        }
+
+        BlockPos start = site.entrance().position()
+                .relative(site.entrance().outward().getOpposite());
+        HashSet<BlockPos> visited = new HashSet<>();
+        ArrayDeque<BlockPos> stack = new ArrayDeque<>();
+        if (floorMask(site, start.getY()).filter(mask -> mask.contains(start)).isPresent()
+                && !occupied.contains(start) && plannedPassage(level, start, overlay)) {
+            visited.add(start);
+            stack.push(start);
+        } else {
+            unreachable.add(start);
+        }
+        Set<Integer> floorYs = Set.copyOf(site.floorYs());
+        Map<Integer, Set<BlockPos>> cellsByFloor = new HashMap<>();
+        for (FloorMask mask : site.floorMasks()) {
+            cellsByFloor.put(mask.floorY(), Set.copyOf(mask.cells()));
+        }
+        while (!stack.isEmpty()) {
+            BlockPos current = stack.pop();
+            for (int index = HORIZONTAL.length - 1; index >= 0; index--) {
+                BlockPos next = current.relative(HORIZONTAL[index]);
+                if (!floorYs.contains(next.getY())
+                        || !cellsByFloor.getOrDefault(next.getY(), Set.of()).contains(next)
+                        || occupied.contains(next)
+                        || !plannedPassage(level, next, overlay)
+                        || !visited.add(next)) {
+                    continue;
+                }
+                stack.push(next);
+            }
+            for (BlockPos next : stairEdges.getOrDefault(current, List.of())) {
+                if (!occupied.contains(next)
+                        && plannedPassage(level, next, overlay)
+                        && visited.add(next)) {
+                    stack.push(next);
                 }
             }
-            for (StairRun stair : site.stairs()) {
-                for (BlockPos landing : stairLandingCells(stair)) {
-                    if (landing.getY() == floorY) required.add(landing);
+        }
+
+        LinkedHashSet<BlockPos> required = new LinkedHashSet<>();
+        site.patrolRoutes().forEach(route -> required.addAll(route.waypoints()));
+        required.add(start);
+        if (!site.entrance().existing()) {
+            required.add(start.relative(site.entrance().outward().getClockWise()));
+        }
+        site.stairs().forEach(stair -> required.addAll(stairLandingCells(stair)));
+        BlockState targetState = plannedState(level, site.target(), overlay);
+        if (isPassable(targetState)
+                && isPassable(plannedState(level, site.target().above(), overlay))) {
+            required.add(site.target());
+        } else if (java.util.Arrays.stream(HORIZONTAL)
+                .map(site.target()::relative).noneMatch(visited::contains)) {
+            unreachable.add(site.target());
+        }
+        required.stream().filter(position -> !visited.contains(position))
+                .forEach(unreachable::add);
+        for (FloorMask mask : site.floorMasks()) {
+            mask.cells().stream()
+                    .filter(position -> !occupied.contains(position))
+                    .filter(position -> plannedPassage(level, position, overlay))
+                    .filter(position -> !visited.contains(position))
+                    .forEach(unreachable::add);
+        }
+        return new DfsAudit(unreachable.isEmpty(), visited.size(), unreachable);
+    }
+
+    private static List<Edit> withSolidObjective(Site site, List<Edit> plannedEdits) {
+        ArrayList<Edit> objectiveEdits = new ArrayList<>(plannedEdits);
+        objectiveEdits.add(new Edit(
+                site.target(), Blocks.POLISHED_DEEPSLATE.defaultBlockState(),
+                EditPolicy.SAFE_REPLACE));
+        return List.copyOf(objectiveEdits);
+    }
+
+    private static boolean addValidatedStairEdges(
+            ServerLevel level,
+            Site site,
+            StairRun stair,
+            Map<BlockPos, BlockState> overlay,
+            Map<BlockPos, List<BlockPos>> edges) {
+        Direction across = stair.ascending().getClockWise();
+        for (int step = 0; step < stair.rise(); step++) {
+            for (int lane = 0; lane < STAIR_WIDTH; lane++) {
+                BlockPos stairBlock = stair.start().relative(stair.ascending(), step)
+                        .relative(across, lane).above(step);
+                BlockState state = plannedState(level, stairBlock, overlay);
+                if (!(state.getBlock() instanceof StairBlock)
+                        || state.getValue(StairBlock.FACING) != stair.ascending()) {
+                    return false;
+                }
+                for (int headroom = 1; headroom <= STAIR_HEADROOM; headroom++) {
+                    if (!isPassable(plannedState(
+                            level, stairBlock.above(headroom), overlay))) {
+                        return false;
+                    }
                 }
             }
-            if (!reachable.containsAll(required)) return false;
+        }
+        for (int lane = 0; lane < STAIR_WIDTH; lane++) {
+            BlockPos lower = stair.start().relative(stair.ascending().getOpposite())
+                    .relative(across, lane);
+            BlockPos upper = stair.start().relative(stair.ascending(), stair.rise())
+                    .relative(across, lane).above(stair.rise());
+            if (!floorMaskCells(site, lower.getY()).contains(lower)
+                    || !floorMaskCells(site, upper.getY()).contains(upper)
+                    || !plannedPassage(level, lower, overlay)
+                    || !plannedPassage(level, upper, overlay)) {
+                return false;
+            }
+            edges.computeIfAbsent(lower, ignored -> new ArrayList<>()).add(upper);
+            edges.computeIfAbsent(upper, ignored -> new ArrayList<>()).add(lower);
+        }
+        return true;
+    }
+
+    private static boolean entranceRouteIsAccessible(
+            ServerLevel level, Site site, Map<BlockPos, BlockState> overlay) {
+        Entrance entrance = site.entrance();
+        Set<BlockPos> groundFloor = floorMaskCells(site, site.floorYs().getFirst());
+        if (groundFloor.isEmpty()
+                || !existingAccess(
+                        level,
+                        new FloorProfile(
+                                site.floorYs().getFirst(), groundFloor, rect(groundFloor)),
+                        navigationTarget(site), entrance.outward())) {
+            return false;
+        }
+        Direction across = entrance.outward().getClockWise();
+        int lanes = entrance.existing() ? 1 : 2;
+        for (int lane = 0; lane < lanes; lane++) {
+            BlockPos door = entrance.position().relative(across, lane);
+            BlockPos inside = door.relative(entrance.outward().getOpposite());
+            if (!floorMaskCells(site, inside.getY()).contains(inside)
+                    || !plannedPassage(level, inside, overlay)) {
+                return false;
+            }
+            for (int depth = 0; depth <= entrance.wallDepth(); depth++) {
+                BlockPos corridor = door.relative(entrance.outward(), depth);
+                if (!plannedPassage(level, corridor, overlay)) return false;
+            }
         }
         return true;
     }
 
     private static Set<BlockPos> reachableFloorCells(
             ServerLevel level, Site site, int floorY, List<Edit> plannedEdits) {
+        return reachableFloorCells(level, site, floorY, plannedEdits, Set.of());
+    }
+
+    private static Set<BlockPos> reachableFloorCells(
+            ServerLevel level,
+            Site site,
+            int floorY,
+            List<Edit> plannedEdits,
+            Set<BlockPos> occupied) {
         Map<BlockPos, BlockState> overlay = new HashMap<>();
         for (Edit edit : plannedEdits) overlay.put(edit.position(), edit.state());
         BlockPos start = floorStart(site, floorY);
-        if (start == null || !plannedPassage(level, start, overlay)) return Set.of();
+        Set<BlockPos> allowed = floorMaskCells(site, floorY);
+        if (start == null || occupied.contains(start)
+                || !allowed.contains(start)
+                || !plannedPassage(level, start, overlay)) return Set.of();
         Set<BlockPos> visited = new HashSet<>();
-        ArrayDeque<BlockPos> queue = new ArrayDeque<>();
+        ArrayDeque<BlockPos> stack = new ArrayDeque<>();
         visited.add(start);
-        queue.add(start);
-        while (!queue.isEmpty()) {
-            BlockPos current = queue.removeFirst();
-            for (Direction direction : HORIZONTAL) {
+        stack.push(start);
+        while (!stack.isEmpty()) {
+            BlockPos current = stack.pop();
+            for (int index = HORIZONTAL.length - 1; index >= 0; index--) {
+                Direction direction = HORIZONTAL[index];
                 BlockPos next = current.relative(direction);
-                if (next.getX() < site.bounds().minX() || next.getX() > site.bounds().maxX()
-                        || next.getZ() < site.bounds().minZ()
-                        || next.getZ() > site.bounds().maxZ()
-                        || next.getY() != floorY || visited.contains(next)
+                if (!allowed.contains(next) || visited.contains(next)
+                        || occupied.contains(next)
                         || !plannedPassage(level, next, overlay)) {
                     continue;
                 }
                 visited.add(next);
-                queue.addLast(next);
+                stack.push(next);
             }
         }
         return Set.copyOf(visited);
@@ -1757,10 +3322,19 @@ public final class MissionBuildingPlanner {
                 && level.getBlockState(feet.below()).blocksMotion();
     }
 
+    private static boolean isCompleteDoor(ServerLevel level, BlockPos lowerPosition) {
+        BlockState lower = level.getBlockState(lowerPosition);
+        BlockState upper = level.getBlockState(lowerPosition.above());
+        return lower.getBlock() instanceof DoorBlock
+                && lower.getValue(DoorBlock.HALF) == DoubleBlockHalf.LOWER
+                && upper.getBlock() == lower.getBlock()
+                && upper.getValue(DoorBlock.HALF) == DoubleBlockHalf.UPPER;
+    }
+
     private static boolean isPassable(BlockState state) {
         return state.isAir() || state.canBeReplaced()
                 || state.getBlock() instanceof DoorBlock
-                        && state.getValue(DoorBlock.OPEN);
+                        && (state.getValue(DoorBlock.OPEN) || !state.is(Blocks.IRON_DOOR));
     }
 
     private static boolean hasCeiling(ServerLevel level, BlockPos feet, int maxDistance) {
@@ -1795,7 +3369,8 @@ public final class MissionBuildingPlanner {
             BlockPos position, DecorKind kind, Direction across) {
         return switch (kind) {
             case PLANTER, ROOM_PARTITION, SERVER_RACK, FILING_CABINET,
-                    WATER_COOLER, EXPLOSIVE_CANISTER -> List.of(position);
+                    WATER_COOLER, EXPLOSIVE_CANISTER, MISSION_TURRET,
+                    VENDING_MACHINE, FULL_HEIGHT_PARTITION -> List.of(position);
             case CUBICLE_POD, CONFERENCE_TABLE -> {
                 Direction forward = across.getClockWise();
                 yield List.of(
@@ -1871,16 +3446,32 @@ public final class MissionBuildingPlanner {
             List<Decoration> decorations) {
         BlockPos entranceEnd = entrance.position().relative(
                 entrance.outward(), Math.max(0, entrance.wallDepth() - 1));
+        BlockPos navigationEnd = entrance.position().relative(
+                entrance.outward(), entrance.wallDepth());
         if (!contains(bounds, entrance.position())
-                || !contains(bounds, entranceEnd.above(2))) {
+                || !contains(bounds, entranceEnd.above(2))
+                || !contains(bounds, navigationEnd.above(2))) {
             return false;
+        }
+        if (!entrance.existing()) {
+            Direction across = entrance.outward().getClockWise();
+            BlockPos secondLane = entrance.position().relative(across);
+            BlockPos secondEnd = secondLane.relative(
+                    entrance.outward(), Math.max(0, entrance.wallDepth() - 1));
+            BlockPos secondNavigationEnd = secondLane.relative(
+                    entrance.outward(), entrance.wallDepth());
+            if (!contains(bounds, secondLane)
+                    || !contains(bounds, secondEnd.above(2))
+                    || !contains(bounds, secondNavigationEnd.above(2))) {
+                return false;
+            }
         }
         for (StairRun stair : stairs) {
             Direction across = stair.ascending().getClockWise();
             for (int step = 0; step < stair.rise(); step++) {
                 for (int lane = 0; lane < STAIR_WIDTH; lane++) {
                     BlockPos position = stair.start().relative(stair.ascending(), step)
-                            .relative(across, lane).above(step + 2);
+                            .relative(across, lane).above(step + STAIR_HEADROOM);
                     if (!contains(bounds, position)) {
                         return false;
                     }
@@ -1904,7 +3495,9 @@ public final class MissionBuildingPlanner {
                     decoration.position(), decoration.kind(), across)) {
                 if (!contains(bounds, position)
                         || decorationUsesUpperBlock(decoration.kind())
-                                && !contains(bounds, position.above())) {
+                                && !contains(bounds, position.above())
+                        || decoration.kind() == DecorKind.MISSION_TURRET
+                                && !turretEnvelopeWithinBounds(bounds, position)) {
                     return false;
                 }
             }
@@ -1912,10 +3505,84 @@ public final class MissionBuildingPlanner {
         return true;
     }
 
+    private static boolean validFloorMasks(
+            BoundingBox bounds,
+            List<Integer> floorYs,
+            BlockPos target,
+            Entrance entrance,
+            List<StairRun> stairs,
+            List<PatrolRoute> routes,
+            List<FloorMask> floorMasks) {
+        if (floorMasks.size() != floorYs.size()
+                || floorMasks.stream().map(FloorMask::floorY).distinct().count()
+                        != floorMasks.size()
+                || !floorMasks.stream().map(FloorMask::floorY)
+                        .collect(java.util.stream.Collectors.toSet())
+                        .equals(Set.copyOf(floorYs))) {
+            return false;
+        }
+        Map<Integer, Set<BlockPos>> cellsByFloor = new HashMap<>();
+        for (FloorMask mask : floorMasks) {
+            Set<BlockPos> cells = Set.copyOf(mask.cells());
+            if (cells.stream().anyMatch(cell -> !contains(bounds, cell)
+                    || horizontalDistance(cell, entrance.position())
+                            > MAX_ENTRANCE_TO_MISSION_DISTANCE)) {
+                return false;
+            }
+            cellsByFloor.put(mask.floorY(), cells);
+        }
+        BlockPos inside = entrance.position().relative(entrance.outward().getOpposite());
+        Set<BlockPos> entranceFloor = cellsByFloor.get(inside.getY());
+        if (entranceFloor == null || !entranceFloor.contains(inside)) return false;
+        if (!entrance.existing()
+                && !entranceFloor.contains(inside.relative(entrance.outward().getClockWise()))) {
+            return false;
+        }
+        if (!cellsByFloor.getOrDefault(target.getY(), Set.of()).contains(target)) return false;
+        for (PatrolRoute route : routes) {
+            if (!cellsByFloor.getOrDefault(route.floorY(), Set.of())
+                    .containsAll(route.waypoints())) {
+                return false;
+            }
+        }
+        for (StairRun stair : stairs) {
+            Direction across = stair.ascending().getClockWise();
+            int upperY = stair.start().getY() + stair.rise();
+            Set<BlockPos> lowerCells = cellsByFloor.getOrDefault(stair.start().getY(), Set.of());
+            Set<BlockPos> upperCells = cellsByFloor.getOrDefault(upperY, Set.of());
+            for (int lane = 0; lane < STAIR_WIDTH; lane++) {
+                for (int step = 0; step < stair.rise(); step++) {
+                    BlockPos projection = stair.start().relative(stair.ascending(), step)
+                            .relative(across, lane);
+                    if (!lowerCells.contains(projection)
+                            || !upperCells.contains(projection.atY(upperY))) {
+                        return false;
+                    }
+                }
+            }
+            for (BlockPos landing : stairLandingCells(stair)) {
+                if (!cellsByFloor.getOrDefault(landing.getY(), Set.of()).contains(landing)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private static Optional<FloorMask> floorMask(Site site, int floorY) {
+        return site.floorMasks().stream()
+                .filter(mask -> mask.floorY() == floorY)
+                .findFirst();
+    }
+
+    private static Set<BlockPos> floorMaskCells(Site site, int floorY) {
+        return site.missionCells(floorY);
+    }
+
     private static boolean decorationUsesUpperBlock(DecorKind kind) {
         return switch (kind) {
             case PLANTER, CUBICLE_DESK, ROOM_PARTITION, CUBICLE_POD,
-                    SERVER_RACK, WATER_COOLER -> true;
+                    SERVER_RACK, WATER_COOLER, VENDING_MACHINE, COMPUTER_DESK -> true;
             default -> false;
         };
     }
@@ -2061,6 +3728,36 @@ public final class MissionBuildingPlanner {
         return List.copyOf(result);
     }
 
+    private static String encodeFloorMasks(List<FloorMask> floorMasks) {
+        return floorMasks.stream().map(mask -> mask.floorY() + "@" + mask.cells().stream()
+                        .map(MissionBuildingPlanner::encodePos)
+                        .collect(java.util.stream.Collectors.joining("|")))
+                .collect(java.util.stream.Collectors.joining(";"));
+    }
+
+    private static List<FloorMask> decodeFloorMasks(String encoded) {
+        if (encoded == null || encoded.isBlank()) return List.of();
+        ArrayList<FloorMask> result = new ArrayList<>();
+        for (String entry : encoded.split(";", -1)) {
+            if (entry.isBlank() || result.size() >= MAX_FLOORS) {
+                throw new IllegalArgumentException("invalid mission floor masks");
+            }
+            String[] parts = entry.split("@", 2);
+            if (parts.length != 2 || parts[1].isBlank()) {
+                throw new IllegalArgumentException("invalid mission floor mask");
+            }
+            ArrayList<BlockPos> cells = new ArrayList<>();
+            for (String cell : parts[1].split("\\|", -1)) {
+                if (cell.isBlank() || cells.size() >= MAX_MISSION_FLOOR_CELLS) {
+                    throw new IllegalArgumentException("invalid mission floor mask cells");
+                }
+                cells.add(decodePos(cell));
+            }
+            result.add(new FloorMask(Integer.parseInt(parts[0]), cells));
+        }
+        return List.copyOf(result);
+    }
+
     private static String encodePos(BlockPos position) {
         return position.getX() + "," + position.getY() + "," + position.getZ();
     }
@@ -2120,9 +3817,45 @@ public final class MissionBuildingPlanner {
     private record FloorProfile(int y, Set<BlockPos> cells, Rect bounds) {
     }
 
+    private record FloorStack(List<FloorProfile> floors, long score) {
+        private FloorStack {
+            floors = List.copyOf(floors);
+        }
+    }
+
+    private record FloorWindow(
+            int depth, int width, int lateralStart, int areaDelta, long score) {
+        int area() { return depth * width; }
+    }
+
     private record ChunkCandidate(int chunkX, int chunkZ, int distance, long score) {
     }
 
+    private record PlannedSiteCandidate(Site site, int distance, long score) {
+    }
+
+    private record PlanningResult(Optional<Site> site, String failure) {
+        private static PlanningResult accepted(Site site) {
+            return new PlanningResult(Optional.of(site), "accepted");
+        }
+
+        private static PlanningResult rejected(String failure) {
+            return new PlanningResult(Optional.empty(), failure);
+        }
+    }
+
     private record StairCandidate(StairRun run, int edits, long score) {
+    }
+
+    private record WallFixtureCandidate(BlockPos position, Direction facing, long score) {
+    }
+
+    private record TurretCandidate(
+            BlockPos position,
+            Direction facing,
+            int priority,
+            int arcScore,
+            int entranceDistance,
+            long tieBreaker) {
     }
 }

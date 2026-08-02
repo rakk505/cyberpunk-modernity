@@ -7,6 +7,7 @@ import dev.modernity.neoncity.District;
 import dev.modernity.neoncity.MissionCatalog;
 import dev.modernity.neoncity.MissionService;
 import io.netty.handler.codec.DecoderException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -21,7 +22,7 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 public record GigJournalPacket(
         List<Contract> contracts,
         List<AvailableGig> availableGigs) implements CustomPacketPayload {
-    public static final int MAX_CONTRACTS = 64;
+    public static final int MAX_CONTRACTS = 72;
     public static final int MAX_AVAILABLE_GIGS = 5;
     private static final int MAX_ID = 96;
     private static final int MAX_TEXT = 512;
@@ -37,18 +38,45 @@ public record GigJournalPacket(
     }
 
     public static GigJournalPacket snapshot(ServerPlayer player) {
-        List<Contract> contracts = MissionService.journalEntries(player).stream()
+        List<Contract> contracts = new ArrayList<>();
+        for (dev.modernity.neoncity.StoryMissionCatalog.StoryMission story
+                : MissionService.availableStoryMissions(player)) {
+            dev.modernity.neoncity.StoryMissionCatalog.StoryNode first = story.readyNodes(
+                    java.util.Set.of()).getFirst();
+            int targetX = player.getBlockX();
+            int targetZ = player.getBlockZ();
+            if (dev.modernity.neoncity.NeonCityGenerator.isMegacityWorld(
+                    player.level().getServer().overworld())) {
+                dev.modernity.neoncity.MegacityLayout.Node center =
+                        dev.modernity.neoncity.NeonCityGenerator.layout().node(
+                                story.primaryDistrict());
+                targetX = center.x();
+                targetZ = center.z();
+            }
+            contracts.add(new Contract(
+                    UUID.nameUUIDFromBytes(("cyberdeck:mainline:" + story.id())
+                            .getBytes(StandardCharsets.UTF_8)),
+                    MissionService.ContractKind.STORY_MISSION.ordinal(),
+                    story.encounter().type().ordinal(),
+                    MissionService.JournalStatus.AVAILABLE.ordinal(),
+                    story.id(), story.encounter().title(),
+                    story.chapter() + " // " + story.encounter().briefing(),
+                    "Begin at " + first.location(), story.primaryDistrict().ordinal(),
+                    targetX, targetZ, story.encounter().rewardMin(),
+                    story.encounter().streetCred(), 0L, player.level().getGameTime()));
+        }
+        contracts.addAll(MissionService.journalEntries(player).stream()
                 .map(entry -> new Contract(
                         entry.instanceId(), entry.kind().ordinal(), entry.type().ordinal(),
                         entry.status().ordinal(), entry.definitionId(), entry.title(),
                         entry.briefing(), entry.objective(), entry.targetDistrict().ordinal(),
                         entry.targetX(), entry.targetZ(), entry.reward(), entry.streetCred(),
                         entry.acceptedTick(), entry.updatedTick()))
-                .toList();
+                .toList());
         List<AvailableGig> available = AmbientGigService.availableOffers(player).stream()
                 .map(discovered -> from(discovered.offerId(), discovered.offer()))
                 .toList();
-        return new GigJournalPacket(contracts, available);
+        return new GigJournalPacket(List.copyOf(contracts), available);
     }
 
     private static AvailableGig from(UUID offerId, MissionService.MissionOffer offer) {

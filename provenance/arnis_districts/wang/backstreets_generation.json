@@ -1,0 +1,72 @@
+{
+  "bbox": [
+    42.3485,
+    -71.055,
+    42.3525,
+    -71.049
+  ],
+  "city": "Boston / Fort Point",
+  "culture": "historic brick warehouses, channel infrastructure, and industrial streets",
+  "district": "WANG",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "kind": "neoncity:arnis_zone_source_generation",
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "manifest": {
+    "file": "provenance/arnis_districts/perimeter_manifest.json",
+    "sha256": "ca71ba94724f144d9d947d1095869bebd4749110f68ed7e1200bfd5c74f3f786"
+  },
+  "schema_version": 1,
+  "slug": "boston_fort_point",
+  "source": {
+    "osm_file": "provenance/arnis_districts/wang/backstreets_boston_fort_point_osm.json",
+    "osm_sha256": "4784fb4c0c0ab6920148cf471e5eb2362936f9f02c36f66684b27c636358226d"
+  },
+  "world": {
+    "build_path": "build/arnis_perimeter/wang/backstreets/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "9f32914576a4ee8e455124ec1e1bdd6e93a3dac7a2d5d756b01abd5743d45f7e",
+    "metadata": {
+      "maxGeoLat": 42.3525,
+      "maxGeoLon": -71.049,
+      "maxMcX": 493,
+      "maxMcZ": 444,
+      "minGeoLat": 42.3485,
+      "minGeoLon": -71.055,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "da56efbaefc36df878630e68a708e1ed1fb02a9a7433ca8e68a1ac070eb0b9d4",
+    "preview_sha256": "cc13a6eaf17b5f6bc4aa0ef1f7568ee333e888b79ddc80b9a8d446c8a02652bc",
+    "regions": [
+      {
+        "bytes": 4251648,
+        "file": "r.0.0.mca",
+        "sha256": "43cf47394245b5d8ca4c59c575fdfa789cce5e998f10f6a99435ef82621af276"
+      }
+    ]
+  },
+  "zone": "BACKSTREETS"
+}

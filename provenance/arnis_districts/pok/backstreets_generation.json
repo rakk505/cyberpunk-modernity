@@ -1,0 +1,77 @@
+{
+  "bbox": [
+    30.2538,
+    -97.735,
+    30.2578,
+    -97.729
+  ],
+  "city": "Austin / East Cesar Chavez",
+  "culture": "low-rise creative industry, warehouses, homes, and neighborhood streets",
+  "district": "POK",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "kind": "neoncity:arnis_zone_source_generation",
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "manifest": {
+    "file": "provenance/arnis_districts/perimeter_manifest.json",
+    "sha256": "ca71ba94724f144d9d947d1095869bebd4749110f68ed7e1200bfd5c74f3f786"
+  },
+  "schema_version": 1,
+  "slug": "austin_east_cesar_chavez",
+  "source": {
+    "osm_file": "provenance/arnis_districts/pok/backstreets_austin_east_cesar_chavez_osm.json",
+    "osm_sha256": "86a90223ffbaacc748dd016ede12643aff633e60cb8a5a108b349454377800aa"
+  },
+  "world": {
+    "build_path": "build/arnis_perimeter/pok/backstreets/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "b1b0b9bb179584eca1d15730638846b625da14856d97aca2b1eee79e53adb1e6",
+    "metadata": {
+      "maxGeoLat": 30.2578,
+      "maxGeoLon": -97.729,
+      "maxMcX": 576,
+      "maxMcZ": 444,
+      "minGeoLat": 30.2538,
+      "minGeoLon": -97.735,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "46902b39d3651f4e9eb7fd0b31571672e6f06592f5a96eb3fc4107d4e2db9dfc",
+    "preview_sha256": "648c9a272e323c3c472a8fc46b05493d5c1ec17e1437045039cb6ce4dffc7331",
+    "regions": [
+      {
+        "bytes": 4235264,
+        "file": "r.0.0.mca",
+        "sha256": "21d189e4d1697ac5835dc98d09370c128c43c83ec801bb2c257c3f2e202b638f"
+      },
+      {
+        "bytes": 4202496,
+        "file": "r.1.0.mca",
+        "sha256": "416f5505348c206187c40f6fd27dc05597b6c349d935042ecee9757dd2d6a6ce"
+      }
+    ]
+  },
+  "zone": "BACKSTREETS"
+}

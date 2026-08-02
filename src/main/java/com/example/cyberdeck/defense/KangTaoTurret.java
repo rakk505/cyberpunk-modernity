@@ -34,7 +34,13 @@ import com.example.cyberdeck.weapon.GunType;
 /** A stationary automatic turret with a 270-degree horizontal firing arc. */
 public final class KangTaoTurret extends Mob {
     static final float HALF_ROTATION_RANGE = 135.0F;
-    static final int FIRE_INTERVAL_TICKS = GunType.ASSAULT_RIFLE.cooldownTicks();
+    static final GunType WEAPON_PROFILE = GunType.ASSAULT_RIFLE;
+    static final int FIRE_INTERVAL_TICKS = WEAPON_PROFILE.cooldownTicks();
+    static final int MIN_BURST_TICKS = 5 * 20;
+    static final int MAX_BURST_TICKS = 6 * 20;
+    static final int RELOAD_TICKS = WEAPON_PROFILE.reloadTimeTicks();
+    static final double GUN_PIVOT_HEIGHT = 25.0 / 16.0;
+    static final double MUZZLE_REACH = 24.5 / 16.0;
     private static final double DETECTION_RANGE = 32.0;
     private static final float YAW_SPEED = 12.0F;
     private static final float PITCH_SPEED = 8.0F;
@@ -49,7 +55,13 @@ public final class KangTaoTurret extends Mob {
             SynchedEntityData.defineId(KangTaoTurret.class, EntityDataSerializers.BOOLEAN);
 
     private long nextShotTick;
+    private long burstEndTick;
+    private long reloadEndTick;
+    private int burstSequence;
     private boolean scanIncreasing = true;
+
+    record BurstSchedule(long burstStartTick, long burstEndTick, long reloadEndTick) {
+    }
 
     public KangTaoTurret(EntityType<? extends KangTaoTurret> entityType, Level level) {
         super(entityType, level);
@@ -93,6 +105,8 @@ public final class KangTaoTurret extends Mob {
             return;
         }
 
+        long now = level.getGameTime();
+        this.expireFireCycle(now);
         Vec3 movement = this.getDeltaMovement();
         this.setDeltaMovement(0.0, movement.y, 0.0);
         Player target = this.findTarget(level);
@@ -103,20 +117,70 @@ public final class KangTaoTurret extends Mob {
             return;
         }
 
-        float desiredYaw = yawTo(this.getEyePosition(), target.getEyePosition());
-        float desiredPitch = pitchTo(this.getEyePosition(), target.getEyePosition());
+        Vec3 targetPoint = target.getEyePosition();
+        Vec3 gunPivot = this.position().add(0.0, GUN_PIVOT_HEIGHT, 0.0);
+        float desiredYaw = yawTo(gunPivot, targetPoint);
+        float desiredPitch = pitchTo(gunPivot, targetPoint);
         float clampedYaw = clampAimYaw(this.getBaseYaw(), desiredYaw);
         this.setYRot(Mth.approachDegrees(this.getYRot(), clampedYaw, YAW_SPEED));
         this.setXRot(Mth.approach(this.getXRot(), desiredPitch, PITCH_SPEED));
         this.setYHeadRot(this.getYRot());
 
-        long now = level.getGameTime();
         boolean aimed = Math.abs(Mth.degreesDifference(this.getYRot(), desiredYaw)) <= 3.0F
                 && Math.abs(this.getXRot() - desiredPitch) <= 4.0F;
-        if (aimed && now >= this.nextShotTick) {
-            GunFiring.fire(level, this, GunType.ASSAULT_RIFLE);
+        if (!aimed) {
+            return;
+        }
+        if (this.burstEndTick == 0L) {
+            this.beginBurst(now);
+        }
+        if (now < this.burstEndTick && now >= this.nextShotTick) {
+            Vec3 barrelDirection = aimDirection(this.getYRot(), this.getXRot());
+            Vec3 muzzle = this.position().add(muzzleOffset(barrelDirection));
+            Vec3 shotDirection = targetPoint.subtract(muzzle).normalize();
+            GunFiring.fire(level, this, WEAPON_PROFILE, muzzle, shotDirection);
             this.nextShotTick = now + FIRE_INTERVAL_TICKS;
         }
+    }
+
+    private void beginBurst(long now) {
+        long identity = this.getUUID().getMostSignificantBits()
+                ^ Long.rotateLeft(this.getUUID().getLeastSignificantBits(), 17);
+        BurstSchedule schedule = burstSchedule(now, identity, this.burstSequence++);
+        this.burstEndTick = schedule.burstEndTick();
+        this.reloadEndTick = schedule.reloadEndTick();
+        this.nextShotTick = now;
+    }
+
+    private void expireFireCycle(long now) {
+        if (this.burstEndTick != 0L && now >= this.reloadEndTick) {
+            this.burstEndTick = 0L;
+            this.reloadEndTick = 0L;
+            this.nextShotTick = now;
+        }
+    }
+
+    static BurstSchedule burstSchedule(long startTick, long identity, int sequence) {
+        int burstTicks = burstDurationTicks(identity, sequence);
+        long burstEndTick = startTick + burstTicks;
+        return new BurstSchedule(startTick, burstEndTick, burstEndTick + RELOAD_TICKS);
+    }
+
+    static int burstDurationTicks(long identity, int sequence) {
+        return ((identity ^ sequence) & 1L) == 0L ? MIN_BURST_TICKS : MAX_BURST_TICKS;
+    }
+
+    static Vec3 aimDirection(float yaw, float pitch) {
+        return Vec3.directionFromRotation(pitch, yaw).normalize();
+    }
+
+    static Vec3 muzzleOffset(float yaw, float pitch) {
+        return muzzleOffset(aimDirection(yaw, pitch));
+    }
+
+    private static Vec3 muzzleOffset(Vec3 direction) {
+        return new Vec3(0.0, GUN_PIVOT_HEIGHT, 0.0)
+                .add(direction.scale(MUZZLE_REACH));
     }
 
     private @Nullable Player findTarget(ServerLevel level) {
@@ -251,6 +315,9 @@ public final class KangTaoTurret extends Mob {
         output.putFloat("BaseYaw", this.getBaseYaw());
         output.putBoolean("Destroyed", this.isDestroyed());
         output.putLong("NextShotTick", this.nextShotTick);
+        output.putLong("BurstEndTick", this.burstEndTick);
+        output.putLong("ReloadEndTick", this.reloadEndTick);
+        output.putInt("BurstSequence", this.burstSequence);
         output.putBoolean("ScanIncreasing", this.scanIncreasing);
     }
 
@@ -260,6 +327,9 @@ public final class KangTaoTurret extends Mob {
         this.entityData.set(DATA_BASE_YAW, input.getFloatOr("BaseYaw", this.getYRot()));
         this.entityData.set(DATA_DESTROYED, input.getBooleanOr("Destroyed", false));
         this.nextShotTick = input.getLongOr("NextShotTick", 0L);
+        this.burstEndTick = input.getLongOr("BurstEndTick", 0L);
+        this.reloadEndTick = input.getLongOr("ReloadEndTick", 0L);
+        this.burstSequence = input.getIntOr("BurstSequence", 0);
         this.scanIncreasing = input.getBooleanOr("ScanIncreasing", true);
     }
 }

@@ -1,0 +1,77 @@
+{
+  "bbox": [
+    13.7415,
+    100.5025,
+    13.7455,
+    100.5085
+  ],
+  "city": "Bangkok / Yaowarat",
+  "culture": "dense Chinatown shophouses, markets, and narrow sois",
+  "district": "XI",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "kind": "neoncity:arnis_zone_source_generation",
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "manifest": {
+    "file": "provenance/arnis_districts/perimeter_manifest.json",
+    "sha256": "ca71ba94724f144d9d947d1095869bebd4749110f68ed7e1200bfd5c74f3f786"
+  },
+  "schema_version": 1,
+  "slug": "bangkok_yaowarat",
+  "source": {
+    "osm_file": "provenance/arnis_districts/xi/backstreets_bangkok_yaowarat_osm.json",
+    "osm_sha256": "7f7052821da8b22f0f14f1c43a02dbad2b4a5d50066b09510afe15e3febb25b5"
+  },
+  "world": {
+    "build_path": "build/arnis_perimeter/xi/backstreets/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "26d3828bf2d0c93e26f97c9638c0d313331f0a76f72bc0ec58e3eb0f349ab3eb",
+    "metadata": {
+      "maxGeoLat": 13.7455,
+      "maxGeoLon": 100.5085,
+      "maxMcX": 648,
+      "maxMcZ": 444,
+      "minGeoLat": 13.7415,
+      "minGeoLon": 100.5025,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "1173e5b23e2fb20bc3f15f7e6280deef0d98ef595196db8e970e693996664b1d",
+    "preview_sha256": "c78dcd41560ee2892459c653b4afcd179f8a064b1e7394d1b3bf4fefa0d85f99",
+    "regions": [
+      {
+        "bytes": 4218880,
+        "file": "r.0.0.mca",
+        "sha256": "db6b5f38a5d2d37218042226123578f775ce59469a75ff16e2a8472c06ba830c"
+      },
+      {
+        "bytes": 4202496,
+        "file": "r.1.0.mca",
+        "sha256": "84014518e8d63d4f06a2032cfc8fdcfd48cbe47f6a8590cbe40f455f767243d0"
+      }
+    ]
+  },
+  "zone": "BACKSTREETS"
+}

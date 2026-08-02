@@ -1,0 +1,72 @@
+{
+  "bbox": [
+    40.4185,
+    -3.71,
+    40.4225,
+    -3.704
+  ],
+  "city": "Madrid / Gran Via-Callao",
+  "culture": "grand Iberian avenues, ornate perimeter blocks, and civic plazas",
+  "district": "PON",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "kind": "neoncity:arnis_zone_source_generation",
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "manifest": {
+    "file": "provenance/arnis_districts/perimeter_manifest.json",
+    "sha256": "ca71ba94724f144d9d947d1095869bebd4749110f68ed7e1200bfd5c74f3f786"
+  },
+  "schema_version": 1,
+  "slug": "madrid_gran_via",
+  "source": {
+    "osm_file": "provenance/arnis_districts/pon/nest_madrid_gran_via_osm.json",
+    "osm_sha256": "406c5804a370b862da547e8cf0dfd882b8d23bccb1ca93b1a84567171a7cfa23"
+  },
+  "world": {
+    "build_path": "build/arnis_perimeter/pon/nest/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "0abf4c2be06b24a3e07dff6061770401f69689d96df9184ad2a776c953685963",
+    "metadata": {
+      "maxGeoLat": 40.4225,
+      "maxGeoLon": -3.704,
+      "maxMcX": 507,
+      "maxMcZ": 444,
+      "minGeoLat": 40.4185,
+      "minGeoLon": -3.71,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "3442ff3a3741ed39db81ea123e02bc79a8e9db11398f23e67d8ca82190e5ee5c",
+    "preview_sha256": "a52a9c2e6082f3460b535c054e9ca90c56b9b986d0aa6e9c81ae6c4b499c3230",
+    "regions": [
+      {
+        "bytes": 5406720,
+        "file": "r.0.0.mca",
+        "sha256": "82d19c25dae868d4390f50ff37ec24d803e56974d98a65b957bbf65f10ffc29b"
+      }
+    ]
+  },
+  "zone": "NEST"
+}

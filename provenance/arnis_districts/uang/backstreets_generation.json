@@ -1,0 +1,77 @@
+{
+  "bbox": [
+    52.3513,
+    4.893,
+    52.3553,
+    4.901
+  ],
+  "city": "Amsterdam / De Pijp",
+  "culture": "dense neighborhood blocks, local markets, and fine-grained streets",
+  "district": "UANG",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "kind": "neoncity:arnis_zone_source_generation",
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "manifest": {
+    "file": "provenance/arnis_districts/perimeter_manifest.json",
+    "sha256": "ca71ba94724f144d9d947d1095869bebd4749110f68ed7e1200bfd5c74f3f786"
+  },
+  "schema_version": 1,
+  "slug": "amsterdam_de_pijp",
+  "source": {
+    "osm_file": "provenance/arnis_districts/uang/backstreets_amsterdam_de_pijp_osm.json",
+    "osm_sha256": "42fe8d1af1328295c403056c373083daa8e53373e15348460d55bff1f9c2bd13"
+  },
+  "world": {
+    "build_path": "build/arnis_perimeter/uang/backstreets/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "bdc53a8d53c311d243957e69d97ab4dda6094756452fbacf03d3258cd411f388",
+    "metadata": {
+      "maxGeoLat": 52.3553,
+      "maxGeoLon": 4.901,
+      "maxMcX": 543,
+      "maxMcZ": 444,
+      "minGeoLat": 52.3513,
+      "minGeoLon": 4.893,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "1d0da8ee0a4334bbebd7d48538599645463fb0a1d5aa1ba267e6a55ebb41b27e",
+    "preview_sha256": "f385bae44b28287187f652389ca1dbe58d8014282d81df5e3c3e1a8d75be0df0",
+    "regions": [
+      {
+        "bytes": 5595136,
+        "file": "r.0.0.mca",
+        "sha256": "c085f9c49273baa418872b98659a38140b24829a736ffbaf19061e47d0f4f4bd"
+      },
+      {
+        "bytes": 4374528,
+        "file": "r.1.0.mca",
+        "sha256": "0dba256ffee347c2ea6f1c5bba54a6ab33d25704c5cc469b91c65e3f50245245"
+      }
+    ]
+  },
+  "zone": "BACKSTREETS"
+}

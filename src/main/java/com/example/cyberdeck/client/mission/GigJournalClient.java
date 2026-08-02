@@ -1,6 +1,7 @@
 package com.example.cyberdeck.client.mission;
 
 import com.example.cyberdeck.network.AbandonContractPacket;
+import com.example.cyberdeck.network.AcceptStoryMissionPacket;
 import com.example.cyberdeck.network.GigJournalPacket;
 import com.example.cyberdeck.network.OpenCityMapPacket;
 import com.example.cyberdeck.network.RequestGigJournalPacket;
@@ -27,6 +28,11 @@ public final class GigJournalClient {
 
     public static void requestAbandon(UUID instanceId) {
         ClientPacketDistributor.sendToServer(new AbandonContractPacket(instanceId));
+        ClientPacketDistributor.sendToServer(RequestGigJournalPacket.INSTANCE);
+    }
+
+    public static void requestAcceptStory(String missionId) {
+        ClientPacketDistributor.sendToServer(new AcceptStoryMissionPacket(missionId));
         ClientPacketDistributor.sendToServer(RequestGigJournalPacket.INSTANCE);
     }
 

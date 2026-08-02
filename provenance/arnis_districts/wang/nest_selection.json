@@ -1,0 +1,35 @@
+{
+  "atlas_chunks": 16,
+  "candidate_count": 180,
+  "chosen": {
+    "above_surface_blocks": 232670,
+    "developed_chunks": 172,
+    "floating_structural_columns": 15858,
+    "max_height_above_surface": 38,
+    "occupied_chunks": 235,
+    "road_surface_cells": 11659,
+    "score": -17931576,
+    "selection": "nest=11,0:26,15",
+    "structural_columns": 21400,
+    "vegetation_blocks": 54682,
+    "water_blocks": 0
+  },
+  "chunk_bounds_scanned": {
+    "max_x": 29,
+    "max_z": 26,
+    "min_x": 0,
+    "min_z": 0
+  },
+  "city": "Boston / Newbury Street",
+  "district": "WANG",
+  "kind": "neoncity:arnis_zone_atlas_selection",
+  "quality_tier": "strict",
+  "schema_version": 1,
+  "slug": "boston_newbury",
+  "source_osm": {
+    "file": "provenance/arnis_districts/wang/nest_boston_newbury_osm.json",
+    "sha256": "47fa26656977e8fcbf402809c28ba16fa3767531540195e17b30d8918b30509e"
+  },
+  "source_world": "build/arnis_perimeter/wang/nest/Arnis World 1",
+  "zone": "NEST"
+}

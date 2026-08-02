@@ -25,33 +25,85 @@ final class MissionFeatureGameTests {
 
     static void storyDag(GameTestHelper helper) {
         List<StoryMissionCatalog.StoryMission> definitions = StoryMissionCatalog.definitions();
-        helper.assertTrue(definitions.size() >= 5, "story catalog lost its main progression chain");
+        helper.assertTrue(definitions.size() == 5, "story catalog lost its five-mission mainline");
         List<StoryMissionCatalog.StoryMission> roots = StoryMissionCatalog.available(Set.of(), 0);
         helper.assertTrue(roots.size() == 1
-                        && roots.getFirst().id().equals("signal_in_the_static"),
+                        && roots.getFirst().id().equals("m01_deliver_datashards"),
                 "story DAG must begin at one deterministic root");
-        Set<String> rootComplete = Set.of("signal_in_the_static");
-        Set<String> firstBranch = StoryMissionCatalog.available(rootComplete, 100).stream()
-                .map(StoryMissionCatalog.StoryMission::id)
-                .collect(java.util.stream.Collectors.toSet());
-        helper.assertTrue(firstBranch.equals(Set.of("glass_house", "chrome_saint")),
-                "story fork did not unlock after its shared prerequisite");
-        helper.assertTrue(StoryMissionCatalog.available(
-                        Set.of("signal_in_the_static", "glass_house"), 10_000).stream()
-                        .noneMatch(value -> value.id().equals("two_keys")),
-                "multi-parent mission unlocked with only one completed parent");
-        Set<String> bothParents = Set.of(
-                "signal_in_the_static", "glass_house", "chrome_saint");
-        helper.assertTrue(StoryMissionCatalog.available(bothParents, 419).stream()
-                        .noneMatch(value -> value.id().equals("two_keys"))
-                        && StoryMissionCatalog.available(bothParents, 420).stream()
-                        .anyMatch(value -> value.id().equals("two_keys")),
-                "Street Cred gate did not hold exactly below its configured threshold");
-        int maximumGigCred = MissionCatalog.definitions().stream()
-                .mapToInt(MissionCatalog.MissionDefinition::streetCred).max().orElseThrow();
-        helper.assertTrue(definitions.stream().allMatch(
-                        value -> value.encounter().streetCred() > maximumGigCred),
-                "story missions must award materially more Street Cred than gigs");
+        List<String> expectedOrder = List.of(
+                "m01_deliver_datashards",
+                "m02_assassinate_g_exec",
+                "m03_steal_weights",
+                "m04_assassinate_fixer",
+                "m05_kill_cyberpsycho");
+        java.util.HashSet<String> completed = new java.util.HashSet<>();
+        for (String expected : expectedOrder) {
+            List<StoryMissionCatalog.StoryMission> available =
+                    StoryMissionCatalog.available(Set.copyOf(completed), 0);
+            helper.assertTrue(available.size() == 1 && available.getFirst().id().equals(expected),
+                    "completing one mainline mission did not unlock exactly its successor");
+            completed.add(expected);
+        }
+        helper.assertTrue(StoryMissionCatalog.available(Set.copyOf(completed), 0).isEmpty(),
+                "completed mainline still exposed an available mission");
+        StoryMissionCatalog.StoryMission oFortress =
+                StoryMissionCatalog.definition("m03_steal_weights");
+        helper.assertTrue(oFortress.requestedFloors() == 5
+                        && oFortress.enemiesPerFloor().equals(List.of(4, 5, 5, 4, 2))
+                        && definitions.stream().allMatch(value -> value.requiredStreetCred() == 0),
+                "mainline floor scale or always-available unlock policy regressed");
+        helper.assertTrue(StoryMissionCatalog.characters().size() == 7
+                        && StoryMissionCatalog.character("fog_mother").skinVariant() == 1,
+                "mainline character/skin catalog is incomplete");
+        for (int floors = 3; floors <= 5; floors++) {
+            MissionBuildingPlanner.Site tower = MainlineBuildingGenerator.createSite(
+                    District.O_CORP, "tower_test_" + floors,
+                    helper.absolutePos(new net.minecraft.core.BlockPos(floors * 20, 3, 0)),
+                    floors, 1000L + floors);
+            helper.assertTrue(tower.floorYs().size() == floors
+                            && tower.floorMasks().stream().allMatch(mask -> mask.cells().size() == 100)
+                            && tower.stairs().size() == floors - 1
+                            && tower.target().getY() == tower.floorYs().getLast(),
+                    "purpose-built mainline tower lost authored floor topology");
+        }
+
+        MainlineQuestData progress = MainlineQuestData.get(helper.getLevel());
+        UUID progressId = UUID.randomUUID();
+        MissionService.ContractContext progressContext = new MissionService.ContractContext(
+                MissionService.ContractKind.STORY_MISSION, 15, progressId,
+                new PartyService.ParticipantSnapshot(
+                        java.util.Optional.empty(), List.of(UUID.randomUUID())),
+                false, false);
+        helper.assertTrue(MainlineQuestService.ensureProgress(
+                        helper.getLevel(), progressContext, "m01_deliver_datashards")
+                        && !MainlineQuestService.ensureProgress(
+                                helper.getLevel(), progressContext, "m01_deliver_datashards"),
+                "mainline save recovery was not idempotent");
+        StoryMissionCatalog.StoryNode first = MainlineQuestService.currentNode(
+                helper.getLevel(), progressContext).orElseThrow();
+        helper.assertTrue(first.id().equals("m01_talk_jerry")
+                        && progress.completeNode(progressId, first.id())
+                        && !progress.completeNode(progressId, first.id())
+                        && MainlineQuestService.currentNode(helper.getLevel(), progressContext)
+                                .map(StoryMissionCatalog.StoryNode::id)
+                                .filter("m01_travel_highway"::equals).isPresent(),
+                "mainline node progress was not atomic and idempotent");
+        progress.removeProgress(progressId);
+
+        MissionBuildingPlanner.Site reserved = MainlineBuildingGenerator.createSite(
+                District.G_CORP, "reservation_test",
+                new net.minecraft.core.BlockPos(20_000, 73, 20_000), 3, 2001L);
+        MissionBuildingPlanner.Site overlapping = MainlineBuildingGenerator.createSite(
+                District.G_CORP, "overlap_test",
+                new net.minecraft.core.BlockPos(20_008, 73, 20_008), 3, 2002L);
+        MissionBuildingPlanner.Site separate = MainlineBuildingGenerator.createSite(
+                District.G_CORP, "separate_test",
+                new net.minecraft.core.BlockPos(20_080, 73, 20_080), 3, 2003L);
+        progress.putSite("__gametest_reservation", reserved);
+        helper.assertTrue(progress.conflicts(overlapping, null)
+                        && !progress.conflicts(overlapping, "__gametest_reservation")
+                        && !progress.conflicts(separate, null),
+                "permanent mainline reservation did not exclude overlapping gig sites");
 
         helper.assertTrue(rejected(storyRoot("a", List.of("missing"))),
                 "story parser accepted a dangling prerequisite");
@@ -366,7 +418,7 @@ final class MissionFeatureGameTests {
 
     private static JsonObject storyRoot(String id, List<String> prerequisites) {
         JsonObject root = new JsonObject();
-        root.addProperty("schema_version", StoryMissionCatalog.SCHEMA_VERSION);
+        root.addProperty("schema_version", 1);
         JsonArray missions = new JsonArray();
         missions.add(storyEntry(id, prerequisites));
         root.add("missions", missions);

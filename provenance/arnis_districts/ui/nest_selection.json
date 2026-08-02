@@ -1,0 +1,35 @@
+{
+  "atlas_chunks": 16,
+  "candidate_count": 312,
+  "chosen": {
+    "above_surface_blocks": 397777,
+    "developed_chunks": 124,
+    "floating_structural_columns": 13909,
+    "max_height_above_surface": 246,
+    "occupied_chunks": 154,
+    "road_surface_cells": 8038,
+    "score": -15537696,
+    "selection": "nest=25,11:40,26",
+    "structural_columns": 17704,
+    "vegetation_blocks": 7151,
+    "water_blocks": 20576
+  },
+  "chunk_bounds_scanned": {
+    "max_x": 40,
+    "max_z": 26,
+    "min_x": 0,
+    "min_z": 0
+  },
+  "city": "Singapore / Raffles Place",
+  "district": "UI",
+  "kind": "neoncity:arnis_zone_atlas_selection",
+  "quality_tier": "strict",
+  "schema_version": 1,
+  "slug": "singapore_raffles_place",
+  "source_osm": {
+    "file": "provenance/arnis_districts/ui/nest_singapore_raffles_place_osm.json",
+    "sha256": "b212b409bfc568aeccb42c5892cf3e150edc5fba26ef57019b0b6eb1c8b77644"
+  },
+  "source_world": "build/arnis_perimeter/ui/nest/Arnis World 1",
+  "zone": "NEST"
+}

@@ -1,0 +1,77 @@
+{
+  "bbox": [
+    56.886,
+    60.609,
+    56.89,
+    60.618
+  ],
+  "city": "Yekaterinburg / Uralmash",
+  "culture": "constructivist worker-city blocks and heavy industrial avenues",
+  "district": "YI",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "kind": "neoncity:arnis_zone_source_generation",
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "manifest": {
+    "file": "provenance/arnis_districts/perimeter_manifest.json",
+    "sha256": "ca71ba94724f144d9d947d1095869bebd4749110f68ed7e1200bfd5c74f3f786"
+  },
+  "schema_version": 1,
+  "slug": "yekaterinburg_uralmash",
+  "source": {
+    "osm_file": "provenance/arnis_districts/yi/backstreets_yekaterinburg_uralmash_osm.json",
+    "osm_sha256": "01af2acfddf0bfc9511056f855f3835d748ef751c658b74d531e9f191efff776"
+  },
+  "world": {
+    "build_path": "build/arnis_perimeter/yi/backstreets/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "47be2b9f571d0f96fa9d0f602c40f4dc444b8859d7e3e738c5c1ea7492d7a02e",
+    "metadata": {
+      "maxGeoLat": 56.89,
+      "maxGeoLon": 60.618,
+      "maxMcX": 546,
+      "maxMcZ": 444,
+      "minGeoLat": 56.886,
+      "minGeoLon": 60.609,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "238f9134f278b126943161dfb811d0d6c51d2c42e84b8436438b560e1ac327e3",
+    "preview_sha256": "b97a0ef0f2f9eac72deff5d3216da27b8133c1b5646f3042c6860fae468fe05e",
+    "regions": [
+      {
+        "bytes": 4218880,
+        "file": "r.0.0.mca",
+        "sha256": "8d39154067a6b323c990c084115b4e058366766370cfed4d0022477193fc6713"
+      },
+      {
+        "bytes": 4202496,
+        "file": "r.1.0.mca",
+        "sha256": "49b7898d596ec44d29935992c24f9bcc47a4f7fba8124700a3f7a714c687dca1"
+      }
+    ]
+  },
+  "zone": "BACKSTREETS"
+}

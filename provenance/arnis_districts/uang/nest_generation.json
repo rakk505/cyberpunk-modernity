@@ -1,0 +1,77 @@
+{
+  "bbox": [
+    52.3668,
+    4.881,
+    52.3708,
+    4.889
+  ],
+  "city": "Amsterdam / Nine Streets",
+  "culture": "canal houses, bridges, narrow parcels, and historic commercial streets",
+  "district": "UANG",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "kind": "neoncity:arnis_zone_source_generation",
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "manifest": {
+    "file": "provenance/arnis_districts/perimeter_manifest.json",
+    "sha256": "ca71ba94724f144d9d947d1095869bebd4749110f68ed7e1200bfd5c74f3f786"
+  },
+  "schema_version": 1,
+  "slug": "amsterdam_nine_streets",
+  "source": {
+    "osm_file": "provenance/arnis_districts/uang/nest_amsterdam_nine_streets_osm.json",
+    "osm_sha256": "53e5fe5aabf9c879204bf13961536f513456bc0b6fbab94ea145c4dd0b33c21e"
+  },
+  "world": {
+    "build_path": "build/arnis_perimeter/uang/nest/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "37b911933f3211290366f463f749464857e1b4bf6dee6f0c8a33648c5f9a2649",
+    "metadata": {
+      "maxGeoLat": 52.3708,
+      "maxGeoLon": 4.889,
+      "maxMcX": 543,
+      "maxMcZ": 444,
+      "minGeoLat": 52.3668,
+      "minGeoLon": 4.881,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "aa21698cb6749ec556b690df7a7f193c71a700f6fbce25e0173f4286540c876e",
+    "preview_sha256": "feffe5623bebf9664aa335806f8fc084eedd60b8724020899cdc6f727d51f30f",
+    "regions": [
+      {
+        "bytes": 5013504,
+        "file": "r.0.0.mca",
+        "sha256": "fdb157e25cbe54871beefa97287db65c9f3082e7117895a9b4b6a38d38fd5d78"
+      },
+      {
+        "bytes": 4243456,
+        "file": "r.1.0.mca",
+        "sha256": "6bdd4ba71d643be92db5a194b81f0862c9121b12dd94a3ca7dd5678e2ab122d6"
+      }
+    ]
+  },
+  "zone": "NEST"
+}

@@ -89,6 +89,8 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
             SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<Boolean> DATA_EXCISION =
             SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Integer> DATA_SKIN_VARIANT =
+            SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.INT);
 
     private static final int WEAPON_GLITCH_NONE = 0;
     private static final int WEAPON_GLITCH_FIDDLING = 1;
@@ -167,6 +169,8 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
                 .add(Attributes.MAX_HEALTH, 24.0)
                 .add(Attributes.MOVEMENT_SPEED, 0.26)
                 .add(Attributes.ATTACK_DAMAGE, 5.0)
+                .add(Attributes.ARMOR, 0.0)
+                .add(Attributes.ARMOR_TOUGHNESS, 0.0)
                 .add(Attributes.FOLLOW_RANGE, 40.0);
     }
 
@@ -191,6 +195,7 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         entityData.define(DATA_DETECTION, 0);
         entityData.define(DATA_TRAUMA_TEAM, false);
         entityData.define(DATA_EXCISION, false);
+        entityData.define(DATA_SKIN_VARIANT, 0);
     }
 
     @Override
@@ -268,6 +273,14 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
 
     public boolean isExcision() {
         return this.getEntityData().get(DATA_EXCISION);
+    }
+
+    public int getSkinVariant() {
+        return Math.max(0, this.getEntityData().get(DATA_SKIN_VARIANT));
+    }
+
+    public void setSkinVariant(int variant) {
+        this.getEntityData().set(DATA_SKIN_VARIANT, Math.max(0, variant));
     }
 
     public boolean isExcisionTarget(UUID playerId) {
@@ -1134,6 +1147,7 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         output.putBoolean("Triggered", isTriggered());
         output.putBoolean("TraumaTeam", isTraumaTeam());
         output.putBoolean("Excision", isExcision());
+        output.putInt("SkinVariant", getSkinVariant());
         if (traumaTargetId != null) {
             output.putString("TraumaTarget", traumaTargetId.toString());
         }
@@ -1178,6 +1192,7 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         this.getEntityData().set(DATA_TRAUMA_TEAM, traumaTeam);
         boolean excision = input.getBooleanOr("Excision", false);
         this.getEntityData().set(DATA_EXCISION, excision);
+        setSkinVariant(input.getIntOr("SkinVariant", 0));
         String traumaTarget = input.getStringOr("TraumaTarget", "");
         try {
             traumaTargetId = traumaTarget.isEmpty() ? null : UUID.fromString(traumaTarget);

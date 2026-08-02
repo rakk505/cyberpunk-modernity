@@ -1,0 +1,77 @@
+{
+  "bbox": [
+    25.195,
+    55.271,
+    25.199,
+    55.277
+  ],
+  "city": "Dubai / Burj Khalifa Downtown",
+  "culture": "desert supertalls, monumental podiums, and engineered boulevards",
+  "district": "PAK",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "kind": "neoncity:arnis_zone_source_generation",
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "manifest": {
+    "file": "provenance/arnis_districts/perimeter_manifest.json",
+    "sha256": "ca71ba94724f144d9d947d1095869bebd4749110f68ed7e1200bfd5c74f3f786"
+  },
+  "schema_version": 1,
+  "slug": "dubai_downtown",
+  "source": {
+    "osm_file": "provenance/arnis_districts/pak/nest_dubai_downtown_osm.json",
+    "osm_sha256": "eaadf702f76febf3a764989437b398b8899b0e6ac9eaf2339a4430babec21a8e"
+  },
+  "world": {
+    "build_path": "build/arnis_perimeter/pak/nest/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "530f5dc1af2e86bf924b788b748cd249a780cea1d1c320825fd772bb1d53d4f3",
+    "metadata": {
+      "maxGeoLat": 25.199,
+      "maxGeoLon": 55.277,
+      "maxMcX": 603,
+      "maxMcZ": 444,
+      "minGeoLat": 25.195,
+      "minGeoLon": 55.271,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "78fbb0973177146888fc07a41b99685c16f5dac8b4ba58326784484bad675e11",
+    "preview_sha256": "07ce125744a6d6cda4b356dfff4f1127208a9f10896676439df161688997023b",
+    "regions": [
+      {
+        "bytes": 4415488,
+        "file": "r.0.0.mca",
+        "sha256": "9a57614888ce83f585e7323228ff317e316dea982c911de641f614153b5d9ea0"
+      },
+      {
+        "bytes": 4202496,
+        "file": "r.1.0.mca",
+        "sha256": "e757f4606d6492d87ef626499e0f22864b000e2a3cf70badb46140a692bcc050"
+      }
+    ]
+  },
+  "zone": "NEST"
+}

@@ -53,7 +53,16 @@ final class DistrictLogoBanners {
             BannerPatterns.GRADIENT_UP,
             BannerPatterns.SKULL,
             BannerPatterns.HALF_HORIZONTAL,
-            BannerPatterns.STRIPE_DOWNLEFT);
+            BannerPatterns.STRIPE_DOWNLEFT,
+            BannerPatterns.MOJANG,
+            BannerPatterns.FLOWER,
+            BannerPatterns.BRICKS,
+            BannerPatterns.GUSTER,
+            BannerPatterns.RHOMBUS_MIDDLE,
+            BannerPatterns.GRADIENT,
+            BannerPatterns.FLOW,
+            BannerPatterns.STRIPE_SMALL,
+            BannerPatterns.GLOBE);
 
     private DistrictLogoBanners() {
     }
@@ -103,6 +112,15 @@ final class DistrictLogoBanners {
             case X_CORP -> colors(DyeColor.BROWN, DyeColor.YELLOW, DyeColor.GREEN);
             case Y_CORP -> colors(DyeColor.LIGHT_BLUE, DyeColor.WHITE, DyeColor.RED);
             case Z_CORP -> colors(DyeColor.BLACK, DyeColor.CYAN, DyeColor.MAGENTA);
+            case AE_DISTRICT -> colors(DyeColor.BLUE, DyeColor.WHITE, DyeColor.LIGHT_GRAY);
+            case YI_DISTRICT -> colors(DyeColor.GRAY, DyeColor.RED, DyeColor.WHITE);
+            case WANG_DISTRICT -> colors(DyeColor.RED, DyeColor.BLACK, DyeColor.YELLOW);
+            case XI_DISTRICT -> colors(DyeColor.MAGENTA, DyeColor.YELLOW, DyeColor.CYAN);
+            case UI_DISTRICT -> colors(DyeColor.WHITE, DyeColor.LIME, DyeColor.CYAN);
+            case UANG_DISTRICT -> colors(DyeColor.ORANGE, DyeColor.BLUE, DyeColor.WHITE);
+            case PON_DISTRICT -> colors(DyeColor.RED, DyeColor.YELLOW, DyeColor.WHITE);
+            case POK_DISTRICT -> colors(DyeColor.ORANGE, DyeColor.BLACK, DyeColor.LIGHT_BLUE);
+            case PAK_DISTRICT -> colors(DyeColor.WHITE, DyeColor.YELLOW, DyeColor.BLACK);
         };
         return new Design(
                 colors.base(), colors.primary(), colors.secondary(), MARKS.get(district.ordinal()));

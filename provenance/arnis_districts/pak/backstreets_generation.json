@@ -1,0 +1,77 @@
+{
+  "bbox": [
+    25.262,
+    55.297,
+    25.266,
+    55.303
+  ],
+  "city": "Dubai / Al Fahidi",
+  "culture": "historic Gulf lanes, courtyard compounds, and wind-tower fabric",
+  "district": "PAK",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "kind": "neoncity:arnis_zone_source_generation",
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "manifest": {
+    "file": "provenance/arnis_districts/perimeter_manifest.json",
+    "sha256": "ca71ba94724f144d9d947d1095869bebd4749110f68ed7e1200bfd5c74f3f786"
+  },
+  "schema_version": 1,
+  "slug": "dubai_al_fahidi",
+  "source": {
+    "osm_file": "provenance/arnis_districts/pak/backstreets_dubai_al_fahidi_osm.json",
+    "osm_sha256": "f954f6ce725fff1324a48008ccd3d9209ae34bc871fe5ec91ad9481d0e4829fc"
+  },
+  "world": {
+    "build_path": "build/arnis_perimeter/pak/backstreets/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "8e527e19f6223ab1ba507bf60549b6a64ce65b2ac0d8bb431f94dd7ba71d3739",
+    "metadata": {
+      "maxGeoLat": 25.266,
+      "maxGeoLon": 55.303,
+      "maxMcX": 603,
+      "maxMcZ": 444,
+      "minGeoLat": 25.262,
+      "minGeoLon": 55.297,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "e59027532a75ed35d3bf903ef8fdea17d52886ccf3b45828064bbca321625d43",
+    "preview_sha256": "c2b1535d68e1ecf9f9664c0afb172b297ae376667d2f3cf6b71cfff383271ccb",
+    "regions": [
+      {
+        "bytes": 4202496,
+        "file": "r.0.0.mca",
+        "sha256": "c3b9f07074fdb14b5c4a710302865dacb4d688cdb82f0c1dbcaf9545b2f2647f"
+      },
+      {
+        "bytes": 4202496,
+        "file": "r.1.0.mca",
+        "sha256": "fe9eda89d2fb4584f4ae07d8555c0973b9c31c936cffeab7ac2067a52a2c929e"
+      }
+    ]
+  },
+  "zone": "BACKSTREETS"
+}

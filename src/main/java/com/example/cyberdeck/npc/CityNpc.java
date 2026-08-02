@@ -42,7 +42,7 @@ import net.minecraft.world.phys.Vec3;
 
 /** A city pedestrian whose synchronized role controls combat, durability, and rewards. */
 public final class CityNpc extends PathfinderMob implements RangedAttackMob {
-    public static final int SKIN_COUNT = 9;
+    public static final int SKIN_COUNT = 15;
     public static final int MISSION_TARGET_SKIN = 8;
     public static final int PANIC_TICKS = 100;
     public static final int CORPO_DEFENSE_PERCENT = 30;
