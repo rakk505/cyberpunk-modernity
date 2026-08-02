@@ -42,7 +42,8 @@ public final class NpcVoicelineService {
     public static void onAttack(AttackEntityEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player)
                 || !(player.level() instanceof ServerLevel level)
-                || !(event.getTarget() instanceof LivingEntity target)) {
+                || !(event.getTarget() instanceof LivingEntity target)
+                || MissionService.isMainlineCharacter(target)) {
             return;
         }
         boolean storyActor = MissionService.isStoryMissionActor(target);
@@ -58,7 +59,8 @@ public final class NpcVoicelineService {
         if (event.getHand() != InteractionHand.MAIN_HAND
                 || !(event.getEntity() instanceof ServerPlayer player)
                 || !(player.level() instanceof ServerLevel level)
-                || !(event.getTarget() instanceof LivingEntity target)) {
+                || !(event.getTarget() instanceof LivingEntity target)
+                || MissionService.isMainlineCharacter(target)) {
             return;
         }
         boolean storyActor = MissionService.isStoryMissionActor(target);
@@ -69,16 +71,14 @@ public final class NpcVoicelineService {
         trySpeak(level, player, target, storyActor);
     }
 
-    /** Ambient Residents speak on use; other city and story actors retain attack dialogue. */
+    /** Ambient city NPCs speak on use; combat actors can retain attack barks. */
     public static boolean acceptsTrigger(
             LivingEntity target, boolean storyActor, DialogueTrigger trigger) {
         if (storyActor) {
             return trigger == DialogueTrigger.ATTACK;
         }
-        if (target instanceof CityNpc npc) {
-            DialogueTrigger expected = npc.getRole() == NpcRole.RESIDENT
-                    ? DialogueTrigger.INTERACT : DialogueTrigger.ATTACK;
-            return trigger == expected;
+        if (target instanceof CityNpc) {
+            return trigger == DialogueTrigger.INTERACT;
         }
         return false;
     }

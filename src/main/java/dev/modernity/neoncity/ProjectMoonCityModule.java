@@ -32,7 +32,6 @@ import net.neoforged.neoforge.event.RegisterGameTestsEvent;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.neoforge.event.entity.living.MobSpawnEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
-import net.neoforged.neoforge.event.entity.player.AttackEntityEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
@@ -303,24 +302,23 @@ public final class ProjectMoonCityModule {
 
     @SubscribeEvent
     public void onMerchantInteract(PlayerInteractEvent.EntityInteract event) {
-        if (event.getHand() != InteractionHand.MAIN_HAND
-                || MerchantTruckLibrary.merchantRole(event.getTarget()).orElse(null)
-                != MerchantTruckLibrary.MerchantRole.QUEST) {
+        if (event.getHand() != InteractionHand.MAIN_HAND) {
             return;
         }
+        if (MainlineQuestService.isQuestNpc(event.getTarget())) {
+            event.setCanceled(true);
+            event.setCancellationResult(InteractionResult.SUCCESS);
+            if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
+                MissionService.interactStoryNpc(player, event.getTarget());
+            }
+            return;
+        }
+        if (MerchantTruckLibrary.merchantRole(event.getTarget()).orElse(null)
+                != MerchantTruckLibrary.MerchantRole.QUEST) return;
         event.setCanceled(true);
         event.setCancellationResult(InteractionResult.SUCCESS);
         if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
             MissionService.open(player, event.getTarget());
-        }
-    }
-
-    @SubscribeEvent
-    public void onQuestNpcAttack(AttackEntityEvent event) {
-        if (!MainlineQuestService.isQuestNpc(event.getTarget())) return;
-        event.setCanceled(true);
-        if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
-            MissionService.interactStoryNpc(player, event.getTarget());
         }
     }
 

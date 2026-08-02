@@ -744,7 +744,7 @@ public final class MissionService {
         syncIfChanged(player, mission);
     }
 
-    /** Handles a left-click on a protected mainline character. */
+    /** Handles a right-click on a protected mainline character. */
     public static boolean interactStoryNpc(ServerPlayer player, Entity entity) {
         if (!MainlineQuestService.isQuestNpc(entity)) return false;
         if (!(player.level() instanceof ServerLevel level)
@@ -1307,6 +1307,10 @@ public final class MissionService {
                 .getString(ACTOR_DEFINITION).orElse("");
         return !definitionId.isBlank() && StoryMissionCatalog.definitions().stream()
                 .anyMatch(definition -> definition.id().equals(definitionId));
+    }
+
+    public static boolean isMainlineCharacter(Entity entity) {
+        return MainlineQuestService.isQuestNpc(entity);
     }
 
     /** Rejects a persisted mission actor when its terminal contract's chunk loads later. */
