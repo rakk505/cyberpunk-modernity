@@ -1,5 +1,7 @@
 package dev.modernity.neoncity;
 
+import com.example.cyberdeck.defense.DefenseContent;
+import com.example.cyberdeck.defense.KangTaoTurret;
 import com.example.cyberdeck.faction.CyberpsychoEntity;
 import com.example.cyberdeck.faction.Faction;
 import com.example.cyberdeck.faction.FactionEnemy;
@@ -14,13 +16,16 @@ import com.example.cyberdeck.weapon.WeaponItems;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Predicate;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
@@ -39,6 +44,8 @@ import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.decoration.painting.Painting;
+import net.minecraft.world.entity.decoration.painting.PaintingVariants;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.CustomData;
@@ -79,6 +86,7 @@ public final class MissionService {
     private static final String DEPLOYED = PREFIX + "deployed";
     private static final String COMPLETING = PREFIX + "completing";
     private static final String SITE_PLAN = PREFIX + "site";
+    private static final String SITE_RESTORATION = PREFIX + "site_restoration";
 
     private static final String ACTOR_TAG = "cyberdeck_mission_actor";
     private static final String ACTOR_OWNER = "cyberdeck_mission_owner";
@@ -87,6 +95,8 @@ public final class MissionService {
     private static final String ACTOR_INSTANCE = "cyberdeck_mission_instance";
     private static final String ROLE_TARGET = "target";
     private static final String ROLE_GUARD = "guard";
+    private static final String ROLE_TURRET = "turret";
+    private static final String ROLE_DECOR = "decor";
     private static final String ROLE_DATA_TERMINAL = "data_terminal";
     private static final String ROLE_DELIVERY_TERMINAL = "delivery_terminal";
     private static final String CARGO_INSTANCE = "cyberdeck_contract_cargo";
@@ -94,10 +104,14 @@ public final class MissionService {
     private static final long OFFER_SALT = 0x4D495353494F4E53L;
     private static final int TARGET_OFFSET = 144;
     private static final int DELIVERY_HANDOFF_RADIUS = 8;
+    private static final int MIN_GUARDS_PER_MISSION_FLOOR = 2;
+    private static final double COMPLETED_COMBAT_RETENTION_DISTANCE = 96.0;
     private static final long DEPLOY_RETRY_DELAY_TICKS = 20L * 15L;
     private static final int MAX_SITE_SEARCH_RADIUS_CHUNKS = 16;
     private static final Map<UUID, Integer> LAST_SYNC = new HashMap<>();
     private static final Map<UUID, DeploymentRetry> DEPLOYMENT_RETRIES = new HashMap<>();
+    private static final Map<UUID, Set<String>> REJECTED_MAINLINE_SITES = new HashMap<>();
+    private static final Map<UUID, Entity> NEW_MISSION_ACTORS = new HashMap<>();
 
     private MissionService() {
     }
@@ -121,7 +135,8 @@ public final class MissionService {
         ACTIVE,
         COMPLETED,
         FAILED,
-        ABANDONED
+        ABANDONED,
+        AVAILABLE
     }
 
     private record DeploymentRetry(long nextTick, int cycle) {
@@ -307,7 +322,7 @@ public final class MissionService {
         MegacityLayout.Node node = layout.node(targetDistrict);
         UUID playerId = player.getUUID();
         long hash = MegacityLayout.mix(
-                level.getSeed() ^ layout.seed() ^ definition.id().hashCode(),
+                NeonCityGenerator.contentSeed() ^ layout.seed() ^ definition.id().hashCode(),
                 (int) playerId.getMostSignificantBits(),
                 (int) playerId.getLeastSignificantBits());
         int targetX = node.x() - 96 + Math.floorMod((int) hash, 193);
@@ -376,22 +391,20 @@ public final class MissionService {
         }
 
         MissionCatalog.MissionDefinition definition = story.encounter();
-        UUID playerId = player.getUUID();
-        long hash = MegacityLayout.mix(
-                level.getSeed() ^ NeonCityGenerator.layout().seed() ^ definition.id().hashCode(),
-                (int) playerId.getMostSignificantBits(),
-                (int) playerId.getLeastSignificantBits());
-        List<District> choices = definition.targetDistricts();
-        District district = choices.get(Math.floorMod((int) hash, choices.size()));
-        MegacityLayout.Node node = NeonCityGenerator.layout().node(district);
-        int targetX = node.x() - 112 + Math.floorMod((int) Long.rotateLeft(hash, 19), 225);
-        int targetZ = node.z() - 112 + Math.floorMod((int) Long.rotateRight(hash, 27), 225);
-        int reward = definition.rewardMin() + Math.floorMod(
-                (int) Long.rotateRight(hash, 41),
-                definition.rewardMax() - definition.rewardMin() + 1);
+        MissionBuildingPlanner.Site reserved = MainlineQuestService.reservedSite(
+                level, definition.id()).orElseGet(() -> MainlineQuestService.ensureWorldPlan(
+                        level, definition.id()).orElse(null));
+        if (reserved == null) {
+            player.sendSystemMessage(Component.literal(
+                            "No safe fixed-seed mainline building is available yet.")
+                    .withStyle(ChatFormatting.YELLOW));
+            return false;
+        }
         MissionOffer offer = new MissionOffer(
                 definition.id(), definition.type(), definition.title(), definition.briefing(),
-                definition.objectiveText(), district.ordinal(), targetX, targetZ, reward,
+                definition.objectiveText(), story.primaryDistrict().ordinal(),
+                reserved.entrance().position().getX(), reserved.entrance().position().getZ(),
+                definition.rewardMin(),
                 definition.streetCred());
         return deploy(player, definition, offer, ContractKind.STORY_MISSION);
     }
@@ -412,8 +425,13 @@ public final class MissionService {
 
     public static List<StoryMissionCatalog.StoryMission> availableStoryMissions(
             ServerPlayer player) {
+        String activeDefinition = contractContext(player)
+                .filter(context -> context.kind() == ContractKind.STORY_MISSION)
+                .flatMap(ignored -> activeMission(player))
+                .map(ActiveMission::definitionId).orElse("");
         return StoryMissionCatalog.available(
-                MissionPlayerData.completedStory(player), PartyService.sharedStreetCred(player));
+                        MissionPlayerData.completedStory(player), PartyService.sharedStreetCred(player))
+                .stream().filter(mission -> !mission.id().equals(activeDefinition)).toList();
     }
 
     public static List<JournalEntry> journalEntries(ServerPlayer player) {
@@ -447,6 +465,9 @@ public final class MissionService {
         MissionJournalData.get(level).status(
                 context.instanceId(), JournalStatus.ABANDONED, level.getGameTime());
         clearDeploymentRetry(context.instanceId());
+        if (context.kind() == ContractKind.STORY_MISSION) {
+            MainlineQuestService.end(level, context.instanceId());
+        }
         cleanup(level, player, mission);
         clearParticipants(level, context);
         for (ServerPlayer member : PartyService.onlineMembers(
@@ -511,11 +532,16 @@ public final class MissionService {
                 definition.cargoCount(), level.getGameTime());
         ContractContext context = new ContractContext(
                 kind, definition.streetCred(), UUID.randomUUID(), participants, false, false);
+        if (kind == ContractKind.STORY_MISSION) {
+            MainlineQuestService.begin(level, context, definition.id());
+            active = MainlineQuestService.retarget(level, active, context);
+        }
         for (ServerPlayer member : onlineParticipants) {
             save(member, active);
             saveContext(member, context);
         }
         if (definition.type() == MissionCatalog.MissionType.SHIP_ITEM
+                && kind == ContractKind.GIG
                 && issueCargo(level, player, definition, active) == null) {
             clearParticipants(level, context);
             player.sendSystemMessage(Component.literal("Cargo deployment failed; no contract was consumed.")
@@ -523,14 +549,6 @@ public final class MissionService {
             return false;
         }
         ActiveMission spawned = active;
-        if (kind == ContractKind.STORY_MISSION) {
-            ActiveMission activated = activate(player, definition, active, context);
-            if (activated != null) {
-                spawned = activated;
-            } else {
-                scheduleDeploymentRetry(level, context);
-            }
-        }
         PartyService.registerContract(level, context.instanceId(), participants);
         MissionJournalData.get(level).accept(
                 participants, context, spawned, level.getGameTime());
@@ -543,7 +561,8 @@ public final class MissionService {
     }
 
     static List<MissionOffer> offers(ServerLevel level, BlockPos anchor, District source) {
-        return offers(NeonCityGenerator.layout(), level.getSeed(), anchor, source);
+        return offers(
+                NeonCityGenerator.layout(), NeonCityGenerator.contentSeed(), anchor, source);
     }
 
     static List<MissionOffer> offers(
@@ -663,7 +682,11 @@ public final class MissionService {
                         level, context.instanceId(), context.participants(),
                         mission.targetDistrict());
             }
-            cleanup(level.getServer().overworld(), player, mission);
+            if (MissionSiteData.get(level).isRetainedCompletion(context.instanceId())) {
+                cleanupContractCargo(level.getServer(), context.instanceId());
+            } else {
+                cleanup(level.getServer().overworld(), player, mission);
+            }
             clear(player);
             PartyService.acknowledgeContractClear(
                     level, context.instanceId(), player.getUUID());
@@ -678,12 +701,29 @@ public final class MissionService {
             syncIfChanged(player, mission);
             return;
         }
-        if (!context.deployed()
-                && MissionSiteData.get(level).hasReservation(context.instanceId())) {
-            syncIfChanged(player, mission);
+        if (context.kind() == ContractKind.STORY_MISSION) {
+            StoryMissionCatalog.StoryNode automatic = MainlineQuestService.automaticNode(
+                    player, mission, context).orElse(null);
+            if (automatic != null) {
+                mission = advanceStoryNode(player, mission, context, automatic);
+                context = contractContext(player).orElse(context);
+            }
+        }
+        if (context.deployed()
+                && updateDistrictVisitAndSuspend(player, mission, context)) {
+            syncIfChanged(player, activeMission(player).orElse(mission));
             return;
         }
-        if (!context.deployed() && participantNear(
+        if (!context.deployed()
+                && MissionSiteData.get(level).hasReservation(context.instanceId())) {
+            rollbackUndeployedReservation(level, context);
+        }
+        if (!context.deployed()
+                && (context.kind() != ContractKind.STORY_MISSION
+                        || MainlineQuestService.buildingReady(level, context))
+                && participantInDistrict(
+                        level, context.participants(), mission.targetDistrict())
+                && participantNear(
                 level, context.participants(), mission.target(),
                 definition.activationRadius())
                 && deploymentAttemptReady(level, context)) {
@@ -704,6 +744,131 @@ public final class MissionService {
         syncIfChanged(player, mission);
     }
 
+    /** Handles a left-click on a protected mainline character. */
+    public static boolean interactStoryNpc(ServerPlayer player, Entity entity) {
+        if (!MainlineQuestService.isQuestNpc(entity)) return false;
+        if (!(player.level() instanceof ServerLevel level)
+                || entity.level() != level || player.distanceToSqr(entity) > 64.0) {
+            return true;
+        }
+        ActiveMission mission = activeMission(player).orElse(null);
+        ContractContext context = contractContext(player).orElse(null);
+        if (mission == null || context == null
+                || context.kind() != ContractKind.STORY_MISSION) {
+            player.sendSystemMessage(Component.literal(
+                            "No active mainline objective. Open the Journal to accept one.")
+                    .withStyle(ChatFormatting.YELLOW), true);
+            return true;
+        }
+
+        StoryMissionCatalog.StoryMission story = StoryMissionCatalog.definition(
+                mission.definitionId());
+        StoryMissionCatalog.StoryNode node = MainlineQuestService.matchingInteraction(
+                player, entity).orElse(null);
+        if (node == null) {
+            if (mission.type() == MissionCatalog.MissionType.SHIP_ITEM
+                    && story.initiatorCharacterId().equals(
+                            MainlineQuestService.characterId(entity))) {
+                Item cargo = MissionBlocks.CONTRACT_CARGO.get();
+                int carried = count(
+                        context.participants(), level.getServer(), cargo, context.instanceId());
+                if (carried < mission.cargoCount()) {
+                    issueCargo(level, player, story.encounter(), mission);
+                    player.sendSystemMessage(Component.literal(
+                                    "Jerry replaces the sealed case. The old contract tag is void.")
+                            .withStyle(ChatFormatting.AQUA));
+                    return true;
+                }
+            }
+            player.sendSystemMessage(Component.literal("CURRENT OBJECTIVE // " + mission.objective())
+                    .withStyle(ChatFormatting.YELLOW), true);
+            return true;
+        }
+
+        StoryMissionCatalog.CharacterDefinition character = StoryMissionCatalog.character(
+                node.characterId());
+        if (node.type() == StoryMissionCatalog.NodeType.DELIVER) {
+            if (!context.deployed()) {
+                player.sendSystemMessage(Component.literal(
+                                "The drop site is not ready yet. Follow the current route marker.")
+                        .withStyle(ChatFormatting.YELLOW), true);
+                return true;
+            }
+            Item cargo = MissionBlocks.CONTRACT_CARGO.get();
+            int carried = countNearby(
+                    level, context.participants(), entity.blockPosition(),
+                    DELIVERY_HANDOFF_RADIUS, cargo, context.instanceId());
+            if (carried < mission.cargoCount()) {
+                player.sendSystemMessage(Component.literal(
+                                "DELIVERY REJECTED // CONTRACT CARGO "
+                                        + Math.min(carried, mission.cargoCount()) + "/"
+                                        + mission.cargoCount())
+                        .withStyle(ChatFormatting.RED), true);
+                return true;
+            }
+        } else if (mission.type() == MissionCatalog.MissionType.SHIP_ITEM) {
+            cleanupContractCargo(level.getServer(), context.instanceId());
+            issueCargo(level, player, story.encounter(), mission);
+        }
+
+        if (!node.dialogue().isBlank()) {
+            player.sendSystemMessage(Component.literal(character.name() + ": ")
+                    .withStyle(ChatFormatting.GOLD)
+                    .append(Component.literal(node.dialogue()).withStyle(ChatFormatting.WHITE)));
+        }
+        advanceStoryNode(player, mission, context, node);
+        return true;
+    }
+
+    private static ActiveMission advanceStoryNode(
+            ServerPlayer representative,
+            ActiveMission mission,
+            ContractContext context,
+            StoryMissionCatalog.StoryNode node) {
+        ServerLevel level = (ServerLevel) representative.level();
+        if (!MainlineQuestService.completeNode(level, context, node)) return mission;
+        if (MainlineQuestService.isCompletionNode(mission, node)) {
+            complete(representative, mission);
+            return mission;
+        }
+        ActiveMission next = MainlineQuestService.retarget(level, mission, context);
+        BlockPos navigation = MainlineQuestService.reservedSite(level, mission.definitionId())
+                .filter(ignored -> context.deployed())
+                .map(MissionBuildingPlanner::navigationTarget)
+                .orElse(next.target());
+        for (ServerPlayer member : PartyService.onlineMembers(
+                level.getServer(), context.participants())) {
+            if (contractContext(member).map(value -> value.instanceId().equals(context.instanceId()))
+                    .orElse(false)) {
+                save(member, next);
+                member.sendSystemMessage(Component.literal("OBJECTIVE UPDATED // " + next.objective())
+                        .withStyle(ChatFormatting.AQUA), true);
+            }
+        }
+        MissionJournalData.get(level).accept(
+                context.participants(), context, next, navigation, level.getGameTime());
+        unlockStoryTarget(level, next, context);
+        syncParticipants(level, context);
+        return next;
+    }
+
+    private static void unlockStoryTarget(
+            ServerLevel level, ActiveMission mission, ContractContext context) {
+        StoryMissionCatalog.StoryNode node = MainlineQuestService.currentNode(level, context)
+                .orElse(null);
+        if (node == null || node.type() != StoryMissionCatalog.NodeType.ASSASSINATE
+                && node.type() != StoryMissionCatalog.NodeType.KILL_CYBERPSYCHO
+                || mission.actorUuid().isBlank()) {
+            return;
+        }
+        try {
+            Entity target = level.getEntity(UUID.fromString(mission.actorUuid()));
+            if (target != null) target.setInvulnerable(false);
+        } catch (IllegalArgumentException ignored) {
+            // A missing actor is reconciled by the existing login/deployment recovery path.
+        }
+    }
+
     private static ActiveMission activate(
             ServerPlayer owner,
             MissionCatalog.MissionDefinition definition,
@@ -720,31 +885,87 @@ public final class MissionService {
         int searchRadius = Math.min(
                 MAX_SITE_SEARCH_RADIUS_CHUNKS, baseRadius + retryCycle * 2);
         Set<String> rejectedSites = new HashSet<>();
+        Set<String> rejectedMainlineSites = context.kind() == ContractKind.STORY_MISSION
+                ? REJECTED_MAINLINE_SITES.computeIfAbsent(
+                        context.instanceId(), ignored -> new HashSet<>())
+                : new HashSet<>();
+        MissionBuildingPlanner.Site mainlineSite = context.kind() == ContractKind.STORY_MISSION
+                ? MainlineQuestService.ensureWorldPlan(level, definition.id()).orElse(null)
+                : null;
+        if (retryCycle >= 2 && mainlineSite != null) {
+            rejectedMainlineSites.add(mainlineSite.id());
+        }
         for (int attempt = 0; attempt < 8; attempt++) {
-            MissionBuildingPlanner.Site candidate = MissionBuildingPlanner.findSite(
-                    level,
-                    mission.targetDistrict(),
-                    mission.target(),
-                    searchRadius,
-                    selectionSalt + attempt * 0x9E3779B97F4A7C15L,
-                    1,
-                    site -> {
-                        String key = siteReservationKey(site);
-                        return !rejectedSites.contains(key)
-                                && !siteData.isReservedByOther(key, context.instanceId());
-                    }).orElse(null);
+            MissionBuildingPlanner.Site candidate;
+            if (context.kind() == ContractKind.STORY_MISSION) {
+                candidate = attempt == 0
+                        ? mainlineSite
+                        : attempt == 1 && retryCycle >= 2 && mainlineSite != null
+                                ? MainlineQuestService.recoverWorldPlan(
+                                        level, definition.id(), Set.copyOf(rejectedMainlineSites))
+                                        .orElse(null)
+                                : null;
+                if (candidate != null) {
+                    String key = siteReservationKey(candidate);
+                    if (rejectedSites.contains(key)
+                            || siteData.isReservedByOther(
+                                    key, candidate, context.instanceId())) {
+                        candidate = null;
+                    }
+                }
+            } else {
+                candidate = MissionBuildingPlanner.findSite(
+                        level,
+                        mission.targetDistrict(),
+                        mission.target(),
+                        searchRadius,
+                        selectionSalt + attempt * 0x9E3779B97F4A7C15L,
+                        1,
+                        site -> {
+                            String key = siteReservationKey(site);
+                            return !rejectedSites.contains(key)
+                                    && !MainlineQuestService.conflictsReservedSite(
+                                            level, site, null)
+                                    && !siteData.isReservedByOther(
+                                            key, site, context.instanceId());
+                        }).orElse(null);
+            }
             if (candidate == null) {
+                continue;
+            }
+            if (!objectiveUsesUpperFloor(candidate)) {
+                rejectedSites.add(siteReservationKey(candidate));
+                rejectedMainlineSites.add(candidate.id());
                 continue;
             }
             String reservationKey = siteReservationKey(candidate);
             if (!rejectedSites.add(reservationKey)
-                    || !siteData.reserve(reservationKey, context.instanceId())) {
+                    || !siteData.reserve(
+                            reservationKey, candidate, context.instanceId())) {
                 continue;
             }
+            MissionBuildingPlanner.RestorationSnapshot restoration;
+            try {
+                restoration = MissionBuildingPlanner.captureOriginalStates(level, candidate);
+            } catch (IllegalArgumentException unavailableSite) {
+                siteData.releaseIfOwned(reservationKey, context.instanceId());
+                rejectedMainlineSites.add(candidate.id());
+                continue;
+            }
+            siteData.storeRestoration(context.instanceId(), restoration.save(level));
             MissionBuildingPlanner.InstallationResult installation =
                     MissionBuildingPlanner.install(level, candidate);
             if (installation == MissionBuildingPlanner.InstallationResult.UNSAFE) {
                 siteData.releaseIfOwned(reservationKey, context.instanceId());
+                rejectedMainlineSites.add(candidate.id());
+                continue;
+            }
+            candidate = MissionBuildingPlanner.withMissionTurretPlan(level, candidate);
+            if (!MissionBuildingPlanner.hasMissionTurretPlan(candidate)
+                    || !MissionBuildingPlanner.missionTurretsPreserveAccess(level, candidate)) {
+                MissionBuildingPlanner.restoreOriginalStates(level, restoration);
+                siteData.releaseIfOwned(reservationKey, context.instanceId());
+                rejectedMainlineSites.add(candidate.id());
                 continue;
             }
             BlockPos target = mission.type() == MissionCatalog.MissionType.STEAL_DATA
@@ -757,23 +978,44 @@ public final class MissionService {
             for (ServerPlayer member : PartyService.onlineMembers(
                     level.getServer(), context.participants())) {
                 saveSite(member, candidate);
+                saveSiteRestoration(member, level, restoration);
                 saveNavigationTarget(member, MissionBuildingPlanner.navigationTarget(candidate));
+            }
+            if (deployMissionTurrets(level, owner, definition, candidate) < 1) {
+                cleanupContractActors(level.getServer(), context.instanceId());
+                for (ServerPlayer member : PartyService.onlineMembers(
+                        level.getServer(), context.participants())) {
+                    clearSite(member);
+                    clearSiteRestoration(member);
+                    clearNavigationTarget(member);
+                }
+                MissionBuildingPlanner.restoreOriginalStates(level, restoration);
+                siteData.releaseIfOwned(reservationKey, context.instanceId());
+                rejectedMainlineSites.add(candidate.id());
+                continue;
             }
             ActiveMission spawned = switch (prepared.type()) {
                 case ASSASSINATE_TARGET -> spawnAssassination(level, owner, definition, prepared);
                 case NEUTRALIZE_CYBERPSYCHO -> spawnCyberpsycho(level, owner, definition, prepared);
                 case STEAL_DATA -> installDataObjective(level, owner, definition, prepared);
-                case SHIP_ITEM -> installDeliveryObjective(level, owner, definition, prepared);
+                case SHIP_ITEM -> context.kind() == ContractKind.STORY_MISSION
+                        ? prepareStoryDelivery(level, owner, definition, prepared)
+                        : installDeliveryObjective(level, owner, definition, prepared);
             };
             if (spawned == null) {
+                cleanupContractActors(level.getServer(), context.instanceId());
                 for (ServerPlayer member : PartyService.onlineMembers(
                         level.getServer(), context.participants())) {
                     clearSite(member);
+                    clearSiteRestoration(member);
                     clearNavigationTarget(member);
                 }
+                MissionBuildingPlanner.restoreOriginalStates(level, restoration);
                 siteData.releaseIfOwned(reservationKey, context.instanceId());
+                rejectedMainlineSites.add(candidate.id());
                 continue;
             }
+            deployComputerDisplays(level, owner, definition, candidate);
             ContractContext deployed = context.withDeployed(true);
             for (ServerPlayer member : PartyService.onlineMembers(
                     level.getServer(), context.participants())) {
@@ -788,6 +1030,100 @@ public final class MissionService {
             return spawned;
         }
         return null;
+    }
+
+    private static void rollbackUndeployedReservation(
+            ServerLevel level, ContractContext context) {
+        restoreReservedSite(level, context.instanceId());
+        cleanupContractActors(level.getServer(), context.instanceId());
+        MissionSiteData.get(level).releaseOwned(context.instanceId());
+        for (ServerPlayer member : PartyService.onlineMembers(
+                level.getServer(), context.participants())) {
+            clearSite(member);
+            clearSiteRestoration(member);
+            clearNavigationTarget(member);
+        }
+    }
+
+    private static boolean updateDistrictVisitAndSuspend(
+            ServerPlayer representative,
+            ActiveMission mission,
+            ContractContext context) {
+        ServerLevel level = (ServerLevel) representative.level();
+        List<ServerPlayer> online = PartyService.onlineMembers(
+                level.getServer(), context.participants());
+        if (online.isEmpty()) return false;
+        List<UUID> inside = online.stream()
+                .filter(member -> AmbientGigService.inhabitedDistrict(member)
+                        .filter(mission.targetDistrict()::equals).isPresent())
+                .map(ServerPlayer::getUUID)
+                .toList();
+        MissionSiteData sites = MissionSiteData.get(level);
+        sites.markEntered(context.instanceId(), inside);
+        Map<UUID, ServerPlayer> onlineById = online.stream().collect(
+                java.util.stream.Collectors.toMap(ServerPlayer::getUUID, member -> member));
+        boolean participantStillInside = context.participants().playerIds().stream()
+                .anyMatch(playerId -> {
+                    ServerPlayer member = onlineById.get(playerId);
+                    return member == null
+                            ? AmbientGigData.get(level).lastDistrict(playerId)
+                                    .filter(mission.targetDistrict()::equals).isPresent()
+                            : AmbientGigService.inhabitedDistrict(member)
+                                    .filter(mission.targetDistrict()::equals).isPresent();
+                });
+        if (participantStillInside || !sites.hasEntered(context.instanceId())) {
+            return false;
+        }
+        suspendDeployment(level, representative, mission, context, online);
+        return true;
+    }
+
+    private static void suspendDeployment(
+            ServerLevel level,
+            ServerPlayer representative,
+            ActiveMission mission,
+            ContractContext context,
+            List<ServerPlayer> onlineParticipants) {
+        MissionBuildingPlanner.RestorationSnapshot restoration =
+                reservedSiteRestoration(level, context.instanceId()).orElseGet(() ->
+                        siteRestoration(representative, level).orElseGet(() ->
+                                onlineParticipants.stream()
+                                        .map(member -> siteRestoration(member, level))
+                                        .flatMap(Optional::stream)
+                                        .findFirst().orElse(null)));
+        clearObjectiveBlock(level, mission);
+        if (restoration != null) {
+            MissionBuildingPlanner.restoreOriginalStates(level, restoration);
+        }
+        // Restoring loads every edited chunk before actor cleanup, so persisted actors cannot
+        // remain dormant in an unloaded mission floor.
+        cleanupContractActors(level.getServer(), context.instanceId());
+
+        ActiveMission suspended = new ActiveMission(
+                mission.definitionId(), mission.type(), mission.title(), mission.briefing(),
+                mission.objective(), mission.targetDistrict(), mission.target(), mission.reward(),
+                "", mission.cargoItem(), mission.cargoCount(), mission.acceptedTick());
+        ContractContext undeployed = context.withDeployed(false);
+        for (ServerPlayer member : onlineParticipants) {
+            ContractContext memberContext = contractContext(member).orElse(null);
+            if (memberContext == null
+                    || !memberContext.instanceId().equals(context.instanceId())) continue;
+            save(member, suspended);
+            saveContext(member, undeployed);
+            clearSite(member);
+            clearSiteRestoration(member);
+            clearNavigationTarget(member);
+        }
+        MissionJournalData.get(level).suspend(
+                context.participants(), undeployed, suspended, level.getGameTime());
+        MissionSiteData.get(level).releaseOwned(context.instanceId());
+        clearDeploymentRetry(context.instanceId());
+        syncParticipants(level, undeployed);
+    }
+
+    private static boolean objectiveUsesUpperFloor(MissionBuildingPlanner.Site site) {
+        return site.floorYs().size() < 2
+                || site.target().getY() >= site.floorYs().get(1);
     }
 
     private static boolean deploymentAttemptReady(
@@ -807,6 +1143,7 @@ public final class MissionService {
 
     private static void clearDeploymentRetry(UUID instanceId) {
         DEPLOYMENT_RETRIES.remove(instanceId);
+        REJECTED_MAINLINE_SITES.remove(instanceId);
     }
 
     public static boolean activateDataTerminal(ServerPlayer player, BlockPos position) {
@@ -821,8 +1158,19 @@ public final class MissionService {
                     .withStyle(ChatFormatting.RED), true);
             return false;
         }
+        if (!MainlineQuestService.objectiveReady(player, StoryMissionCatalog.NodeType.STEAL)) {
+            player.sendSystemMessage(Component.literal("ACCESS DENIED // COMPLETE PRIOR OBJECTIVES")
+                    .withStyle(ChatFormatting.RED), true);
+            return false;
+        }
         player.level().playSound(null, position, SoundEvents.VAULT_OPEN_SHUTTER,
                 SoundSource.BLOCKS, 0.8F, 1.4F);
+        if (context.kind() == ContractKind.STORY_MISSION) {
+            StoryMissionCatalog.StoryNode node = MainlineQuestService.currentNode(
+                    (ServerLevel) player.level(), context).orElse(null);
+            if (node == null || !MainlineQuestService.completeNode(
+                    (ServerLevel) player.level(), context, node)) return false;
+        }
         complete(player, mission);
         return true;
     }
@@ -840,6 +1188,12 @@ public final class MissionService {
                     .withStyle(ChatFormatting.RED), true);
             return false;
         }
+        if (!MainlineQuestService.objectiveReady(player, StoryMissionCatalog.NodeType.DELIVER)) {
+            player.sendSystemMessage(Component.literal(
+                            "DELIVERY REJECTED // COMPLETE PRIOR OBJECTIVES")
+                    .withStyle(ChatFormatting.RED), true);
+            return false;
+        }
         Item cargo = MissionBlocks.CONTRACT_CARGO.get();
         int carried = countNearby(
                 (ServerLevel) player.level(), context.participants(), position,
@@ -854,6 +1208,12 @@ public final class MissionService {
         }
         player.level().playSound(null, position, SoundEvents.VAULT_OPEN_SHUTTER,
                 SoundSource.BLOCKS, 0.8F, 1.2F);
+        if (context.kind() == ContractKind.STORY_MISSION) {
+            StoryMissionCatalog.StoryNode node = MainlineQuestService.currentNode(
+                    (ServerLevel) player.level(), context).orElse(null);
+            if (node == null || !MainlineQuestService.completeNode(
+                    (ServerLevel) player.level(), context, node)) return false;
+        }
         complete(player, mission);
         return true;
     }
@@ -881,6 +1241,7 @@ public final class MissionService {
             MissionJournalData.get(objectiveLevel).status(
                     instanceId, JournalStatus.FAILED, objectiveLevel.getGameTime());
             PartyService.markContractCompleted(objectiveLevel, instanceId);
+            MainlineQuestService.end(objectiveLevel, instanceId);
             cleanupContractWorld(objectiveLevel.getServer(), instanceId);
             return;
         }
@@ -891,8 +1252,29 @@ public final class MissionService {
                 || !mission.definitionId().equals(tags.getString(ACTOR_DEFINITION).orElse(""))) {
             return;
         }
+        if (context.kind() == ContractKind.STORY_MISSION
+                && !MainlineQuestService.objectiveReady(
+                        player,
+                        StoryMissionCatalog.NodeType.ASSASSINATE,
+                        StoryMissionCatalog.NodeType.KILL_CYBERPSYCHO)) {
+            fail(player, mission, "Target was removed before the objective became active.");
+            return;
+        }
         if (event.getSource().getEntity() instanceof ServerPlayer killer
                 && context.participants().playerIds().contains(killer.getUUID())) {
+            if (context.kind() == ContractKind.STORY_MISSION) {
+                StoryMissionCatalog.StoryNode node = MainlineQuestService.currentNode(
+                        objectiveLevel, context).orElse(null);
+                if (node == null || !MainlineQuestService.completeNode(
+                        objectiveLevel, context, node)) return;
+                if (!node.dialogue().isBlank()) {
+                    for (ServerPlayer member : PartyService.onlineMembers(
+                            objectiveLevel.getServer(), context.participants())) {
+                        member.sendSystemMessage(Component.literal(node.dialogue())
+                                .withStyle(ChatFormatting.DARK_AQUA));
+                    }
+                }
+            }
             complete(player, mission);
         } else {
             fail(player, mission, "Target lost before your party neutralized it.");
@@ -937,14 +1319,35 @@ public final class MissionService {
         } catch (IllegalArgumentException malformed) {
             return false;
         }
-        if (instanceId == null || !PartyService.isContractTerminal(level, instanceId)) {
+        if (instanceId == null) {
             return false;
         }
+        boolean terminal = PartyService.isContractTerminal(level, instanceId);
+        boolean suspended = MissionJournalData.get(level).deploymentState(instanceId)
+                .filter(deployed -> !deployed).isPresent()
+                && !MissionSiteData.get(level).hasReservation(instanceId);
+        if (!terminal && suspended) {
+            ServerPlayer representative = findRepresentative(level, instanceId);
+            if (representative != null && contractContext(representative)
+                    .filter(ContractContext::deployed).isPresent()) {
+                suspended = false;
+            }
+        }
         String role = entity.getPersistentData().getString(ACTOR_ROLE).orElse("");
+        MissionSiteData.CompletedSite retained = MissionSiteData.get(level)
+                .completedSite(instanceId).orElse(null);
+        if (terminal && retained != null) {
+            return retained.combatCleared() && isCombatRole(role);
+        }
+        if (!terminal && !suspended) return false;
         if (isObjectiveBlock(level, entity.blockPosition(), role)) {
             level.setBlock(entity.blockPosition(), Blocks.AIR.defaultBlockState(), 3);
         }
-        MissionSiteData.get(level).releaseOwned(instanceId);
+        if (terminal) {
+            ServerLevel overworld = level.getServer().overworld();
+            restoreReservedSite(overworld, instanceId);
+            MissionSiteData.get(overworld).releaseOwned(instanceId);
+        }
         return true;
     }
 
@@ -975,6 +1378,46 @@ public final class MissionService {
         if (hadActiveData && existing == null) {
             clear(player);
         }
+        if (existingMission != null && existing != null
+                && existing.kind() == ContractKind.STORY_MISSION) {
+            try {
+                if (MainlineQuestService.ensureProgress(
+                        level, existing, existingMission.definitionId())) {
+                    if (existing.deployed()) {
+                        cleanupContractWorld(level.getServer(), existing.instanceId());
+                    }
+                    ContractContext restarted = existing.withDeployed(false).withCompleting(false);
+                    ActiveMission restartedMission = MainlineQuestService.retarget(
+                            level, existingMission, restarted);
+                    for (ServerPlayer member : PartyService.onlineMembers(
+                            level.getServer(), restarted.participants())) {
+                        ContractContext memberContext = contractContext(member).orElse(null);
+                        if (memberContext != null
+                                && memberContext.instanceId().equals(restarted.instanceId())) {
+                            save(member, restartedMission);
+                            saveContext(member, restarted);
+                            clearSite(member);
+                            clearSiteRestoration(member);
+                            clearNavigationTarget(member);
+                        }
+                    }
+                    MissionJournalData.get(level).accept(
+                            restarted.participants(), restarted, restartedMission,
+                            level.getGameTime());
+                    player.sendSystemMessage(Component.literal(
+                                    "Mainline state upgraded; the current mission restarted at "
+                                            + "its opening objective.")
+                            .withStyle(ChatFormatting.YELLOW));
+                    existingMission = restartedMission;
+                    existing = restarted;
+                }
+            } catch (IllegalArgumentException removedDefinition) {
+                fail(player, existingMission,
+                        "The saved mainline definition is no longer available.");
+                existingMission = null;
+                existing = null;
+            }
+        }
         if (existing != null && (PartyService.isContractCompleted(level, existing.instanceId())
                 || PartyService.requiresContractClear(
                         level, existing.instanceId(), player.getUUID()))) {
@@ -987,7 +1430,9 @@ public final class MissionService {
                             existingMission.targetDistrict());
                 }
             }
-            if (existingMission != null) {
+            if (MissionSiteData.get(level).isRetainedCompletion(existing.instanceId())) {
+                cleanupContractCargo(level.getServer(), existing.instanceId());
+            } else if (existingMission != null) {
                 cleanup(level.getServer().overworld(), player, existingMission);
             } else {
                 cleanupContractWorld(level.getServer(), existing.instanceId());
@@ -999,6 +1444,34 @@ public final class MissionService {
         }
         ActiveMission localMission = activeMission(player).orElse(null);
         ContractContext localContext = contractContext(player).orElse(null);
+        UUID localJournalInstance = localContext == null ? null : localContext.instanceId();
+        String localJournalDefinition = localMission == null ? "" : localMission.definitionId();
+        JournalEntry canonicalLocal = localMission == null || localContext == null
+                ? null
+                : MissionJournalData.get(level).entries(player.getUUID()).stream()
+                        .filter(entry -> entry.instanceId().equals(localJournalInstance))
+                        .filter(entry -> entry.status() == JournalStatus.ACTIVE)
+                        .filter(entry -> entry.definitionId().equals(localJournalDefinition))
+                        .findFirst().orElse(null);
+        if (localMission != null && localContext != null && localContext.deployed()
+                && canonicalLocal != null && !canonicalLocal.deployed()
+                && !MissionSiteData.get(level).hasReservation(localContext.instanceId())) {
+            localMission = new ActiveMission(
+                    canonicalLocal.definitionId(), canonicalLocal.type(), canonicalLocal.title(),
+                    canonicalLocal.briefing(), canonicalLocal.objective(),
+                    canonicalLocal.targetDistrict(),
+                    new BlockPos(
+                            canonicalLocal.targetX(), canonicalLocal.targetY(),
+                            canonicalLocal.targetZ()),
+                    canonicalLocal.reward(), "", localMission.cargoItem(),
+                    localMission.cargoCount(), canonicalLocal.acceptedTick());
+            localContext = localContext.withDeployed(false);
+            save(player, localMission);
+            saveContext(player, localContext);
+            clearSite(player);
+            clearSiteRestoration(player);
+            clearNavigationTarget(player);
+        }
         if (localMission != null && localContext != null && !localContext.deployed()) {
             UUID localInstanceId = localContext.instanceId();
             String localDefinitionId = localMission.definitionId();
@@ -1009,32 +1482,38 @@ public final class MissionService {
                     .findFirst().orElse(null);
             boolean legacyReservation = MissionSiteData.get(level).hasReservation(localInstanceId);
             if (canonical != null && (canonical.deployed() || legacyReservation)) {
-                RecoveredDeployment recovered = canonical.deployed()
-                        ? new RecoveredDeployment(
+                Optional<RecoveredDeployment> recovered = canonical.deployed()
+                        ? Optional.of(new RecoveredDeployment(
                                 new BlockPos(
                                         canonical.targetX(), canonical.targetY(),
                                         canonical.targetZ()),
-                                localMission.actorUuid())
+                                localMission.actorUuid()))
                         : recoverLegacyDeployment(level, localContext, localMission, canonical);
-                localMission = new ActiveMission(
-                        canonical.definitionId(), canonical.type(), canonical.title(),
-                        canonical.briefing(), canonical.objective(), canonical.targetDistrict(),
-                        recovered.target(), canonical.reward(), recovered.actorUuid(),
-                        localMission.cargoItem(),
-                        localMission.cargoCount(), canonical.acceptedTick());
-                localContext = localContext.withDeployed(true);
-                save(player, localMission);
-                saveContext(player, localContext);
-                clearSite(player);
-                saveNavigationTarget(player, new BlockPos(
-                        canonical.navigationX(), recovered.target().getY(),
-                        canonical.navigationZ()));
-                clearDeploymentRetry(localContext.instanceId());
-                MissionJournalData.get(level).accept(
-                        localContext.participants(), localContext, localMission,
-                        new BlockPos(canonical.navigationX(), recovered.target().getY(),
-                                canonical.navigationZ()),
-                        level.getGameTime());
+                if (recovered.isPresent()) {
+                    RecoveredDeployment deployment = recovered.orElseThrow();
+                    localMission = new ActiveMission(
+                            canonical.definitionId(), canonical.type(), canonical.title(),
+                            canonical.briefing(), canonical.objective(),
+                            canonical.targetDistrict(), deployment.target(), canonical.reward(),
+                            deployment.actorUuid(), localMission.cargoItem(),
+                            localMission.cargoCount(), canonical.acceptedTick());
+                    localContext = localContext.withDeployed(true);
+                    save(player, localMission);
+                    saveContext(player, localContext);
+                    clearSite(player);
+                    saveNavigationTarget(player, new BlockPos(
+                            canonical.navigationX(), deployment.target().getY(),
+                            canonical.navigationZ()));
+                    clearDeploymentRetry(localContext.instanceId());
+                    MissionJournalData.get(level).accept(
+                            localContext.participants(), localContext, localMission,
+                            new BlockPos(canonical.navigationX(), deployment.target().getY(),
+                                    canonical.navigationZ()),
+                            level.getGameTime());
+                } else {
+                    rollbackUndeployedReservation(level, localContext);
+                    clearDeploymentRetry(localContext.instanceId());
+                }
             }
         }
         PartyService.ParticipantSnapshot searchParticipants = localContext == null
@@ -1057,6 +1536,7 @@ public final class MissionService {
                 saveContext(player, remoteContext);
                 clearSite(player);
                 clearNavigationTarget(player);
+                copySiteRestoration(member, player, level);
                 localMission = remoteMission;
                 localContext = remoteContext;
             }
@@ -1068,8 +1548,13 @@ public final class MissionService {
                     saveSite(player, remoteSite);
                     saveNavigationTarget(
                             player, MissionBuildingPlanner.navigationTarget(remoteSite));
+                    copySiteRestoration(member, player, level);
                     copiedSite = true;
                 }
+            }
+            if (localContext != null && localContext.deployed()
+                    && siteRestoration(player, level).isEmpty()) {
+                copySiteRestoration(member, player, level);
             }
             if (localContext != null && localContext.deployed()
                     && persistedNavigationTarget(player).isEmpty()) {
@@ -1085,6 +1570,18 @@ public final class MissionService {
         ContractContext reconciledContext = contractContext(player).orElse(null);
         if (reconciledMission != null && reconciledContext != null) {
             if (reconciledContext.deployed()) {
+                site(player).ifPresent(plannedSite -> {
+                    MissionSiteData sites = MissionSiteData.get(level);
+                    if (sites.reserve(
+                            siteReservationKey(plannedSite),
+                            plannedSite,
+                            reconciledContext.instanceId())) {
+                        siteRestoration(player, level).ifPresent(restoration ->
+                                sites.storeRestoration(
+                                        reconciledContext.instanceId(),
+                                        restoration.save(level)));
+                    }
+                });
                 if (persistedNavigationTarget(player).isEmpty()) {
                     MissionJournalData.get(level).entries(player.getUUID()).stream()
                             .filter(entry -> entry.instanceId().equals(reconciledContext.instanceId()))
@@ -1108,7 +1605,7 @@ public final class MissionService {
         forceSync(player);
     }
 
-    private static RecoveredDeployment recoverLegacyDeployment(
+    private static Optional<RecoveredDeployment> recoverLegacyDeployment(
             ServerLevel level,
             ContractContext context,
             ActiveMission localMission,
@@ -1125,8 +1622,8 @@ public final class MissionService {
                     && (ROLE_TARGET.equals(role)
                             || ROLE_DATA_TERMINAL.equals(role)
                             || ROLE_DELIVERY_TERMINAL.equals(role))) {
-                return new RecoveredDeployment(
-                        entity.blockPosition(), entity.getUUID().toString());
+                return Optional.of(new RecoveredDeployment(
+                        entity.blockPosition(), entity.getUUID().toString()));
             }
         }
         if (localMission.type() == MissionCatalog.MissionType.STEAL_DATA
@@ -1139,11 +1636,12 @@ public final class MissionService {
                         || (localMission.type() == MissionCatalog.MissionType.SHIP_ITEM
                                 && level.getBlockState(position)
                                         .is(MissionBlocks.DELIVERY_TERMINAL.get()))) {
-                    return new RecoveredDeployment(position, localMission.actorUuid());
+                    return Optional.of(new RecoveredDeployment(
+                            position, localMission.actorUuid()));
                 }
             }
         }
-        return new RecoveredDeployment(horizontalTarget, localMission.actorUuid());
+        return Optional.empty();
     }
 
     public static void onPlayerClone(
@@ -1155,6 +1653,8 @@ public final class MissionService {
     public static void reset() {
         LAST_SYNC.clear();
         DEPLOYMENT_RETRIES.clear();
+        REJECTED_MAINLINE_SITES.clear();
+        NEW_MISSION_ACTORS.clear();
         AmbientGigService.reset();
     }
 
@@ -1169,14 +1669,26 @@ public final class MissionService {
                 mission.target().getZ() + 0.5, level.getRandom().nextFloat() * 360.0F, 0.0F);
         target.finalizeSpawn(level, level.getCurrentDifficultyAt(mission.target()),
                 EntitySpawnReason.EVENT, null);
-        target.setSkinVariant(CityNpc.MISSION_TARGET_SKIN);
+        MainlineQuestService.targetCharacter(definition.id()).ifPresentOrElse(
+                character -> target.setSkinVariant(character.skinVariant()),
+                () -> target.setSkinVariant(CityNpc.MISSION_TARGET_SKIN));
+        if (contractContext(player).map(context -> MainlineQuestService.isActiveMainline(
+                        level, context, definition.id()))
+                .orElse(false)) {
+            target.setRole(com.example.cyberdeck.npc.NpcRole.EXEC);
+            target.setInvulnerable(!MainlineQuestService.objectiveReady(
+                    player, StoryMissionCatalog.NodeType.ASSASSINATE));
+        }
         target.setNoAi(true);
         target.setCustomName(Component.literal(definition.targetName()).withStyle(ChatFormatting.GOLD));
         target.setCustomNameVisible(true);
         target.setPersistenceRequired();
         tagActor(target, player, definition, ROLE_TARGET);
-        if (!level.noCollision(target) || !level.addFreshEntity(target)) return null;
-        spawnGuards(level, player, definition, mission.target());
+        if (!level.noCollision(target) || !addMissionActor(level, target)) return null;
+        if (!spawnGuards(level, player, definition, mission.target())) {
+            target.discard();
+            return null;
+        }
         return withActor(mission, target.getUUID());
     }
 
@@ -1196,14 +1708,25 @@ public final class MissionService {
         psycho.setItemSlot(EquipmentSlot.MAINHAND,
                 new ItemStack(WeaponItems.gun(definition.cyberpsychoGun()).get()));
         psycho.configure(definition.cyberpsychoHealth(), definition.cyberware());
+        if (contractContext(player).map(context -> MainlineQuestService.isActiveMainline(
+                        level, context, definition.id()))
+                .orElse(false)) {
+            MainlineQuestService.targetCharacter(definition.id()).ifPresent(
+                    character -> psycho.setSkinVariant(character.skinVariant()));
+            psycho.setInvulnerable(!MainlineQuestService.objectiveReady(
+                    player, StoryMissionCatalog.NodeType.KILL_CYBERPSYCHO));
+        }
         psycho.setGrenadeCount(definition.cyberpsychoGrenades());
         psycho.setHome(mission.target());
         psycho.setCustomName(Component.literal(definition.targetName()).withStyle(ChatFormatting.RED));
         psycho.setCustomNameVisible(true);
         psycho.setPersistenceRequired();
         tagActor(psycho, player, definition, ROLE_TARGET);
-        if (!level.noCollision(psycho) || !level.addFreshEntity(psycho)) return null;
-        spawnGuards(level, player, definition, mission.target());
+        if (!level.noCollision(psycho) || !addMissionActor(level, psycho)) return null;
+        if (!spawnGuards(level, player, definition, mission.target())) {
+            psycho.discard();
+            return null;
+        }
         return withActor(mission, psycho.getUUID());
     }
 
@@ -1239,7 +1762,7 @@ public final class MissionService {
                 0.0F);
         marker.setInvulnerable(true);
         tagActor(marker, player, definition, ROLE_DATA_TERMINAL);
-        if (!level.addFreshEntity(marker)) {
+        if (!addMissionActor(level, marker)) {
             level.setBlock(support, originalSupport, 3);
             level.setBlock(mission.target(), originalTerminal, 3);
             return null;
@@ -1251,7 +1774,12 @@ public final class MissionService {
             level.setBlock(mission.target(), originalTerminal, 3);
             return null;
         }
-        spawnGuards(level, player, definition, nearestStreet(level, mission.target()));
+        if (!spawnGuards(level, player, definition, nearestStreet(level, mission.target()))) {
+            marker.discard();
+            level.setBlock(support, originalSupport, 3);
+            level.setBlock(mission.target(), originalTerminal, 3);
+            return null;
+        }
         return withActor(mission, marker.getUUID());
     }
 
@@ -1280,7 +1808,7 @@ public final class MissionService {
                 0.0F);
         marker.setInvulnerable(true);
         tagActor(marker, player, definition, ROLE_DELIVERY_TERMINAL);
-        if (!level.addFreshEntity(marker)) {
+        if (!addMissionActor(level, marker)) {
             level.setBlock(mission.target(), original, 3);
             return null;
         }
@@ -1290,8 +1818,22 @@ public final class MissionService {
             level.setBlock(mission.target(), original, 3);
             return null;
         }
-        spawnGuards(level, player, definition, mission.target());
+        if (!spawnGuards(level, player, definition, mission.target())) {
+            marker.discard();
+            level.setBlock(mission.target(), original, 3);
+            return null;
+        }
         return withActor(mission, marker.getUUID());
+    }
+
+    static ActiveMission prepareStoryDelivery(
+            ServerLevel level,
+            ServerPlayer player,
+            MissionCatalog.MissionDefinition definition,
+            ActiveMission mission) {
+        if (!spawnGuards(level, player, definition, mission.target())) return null;
+        ContractContext context = contractContext(player).orElse(null);
+        return context == null ? mission : MainlineQuestService.retarget(level, mission, context);
     }
 
     static ActiveMission issueCargo(
@@ -1423,32 +1965,57 @@ public final class MissionService {
         return center;
     }
 
-    private static void spawnGuards(
+    private static boolean spawnGuards(
             ServerLevel level,
             ServerPlayer player,
             MissionCatalog.MissionDefinition definition,
             BlockPos home) {
-        if (home == null) return;
         RandomSource random = level.getRandom();
-        int spawned = 0;
+        ArrayList<FactionEnemy> spawned = new ArrayList<>();
         MissionBuildingPlanner.Site site = site(player).orElse(null);
         if (site != null && !site.patrolRoutes().isEmpty()) {
-            for (int index = 0; index < definition.guards(); index++) {
-                MissionBuildingPlanner.PatrolRoute route = site.patrolRoutes().get(
-                        index % site.patrolRoutes().size());
-                BlockPos position = route.waypoints().get(
-                        Math.floorMod(index / site.patrolRoutes().size(),
-                                route.waypoints().size()));
-                FactionEnemy guard = createGuard(
-                        level, player, definition, position, route.waypoints(), random);
-                if (guard != null) spawned++;
+            int floorCount = site.patrolRoutes().size();
+            boolean mainline = contractContext(player)
+                    .map(context -> MainlineQuestService.isActiveMainline(
+                            level, context, definition.id()))
+                    .orElse(false);
+            List<Integer> mainlineQuotas = mainline
+                    ? MainlineQuestService.floorEnemyQuotas(definition.id(), floorCount)
+                    : List.of();
+            int requested = mainline
+                    ? mainlineQuotas.stream().mapToInt(Integer::intValue).sum()
+                    : site.floorYs().size() > 1
+                            ? Math.max(
+                                    definition.guards(),
+                                    floorCount * MIN_GUARDS_PER_MISSION_FLOOR)
+                            : definition.guards();
+            int guardsPerFloor = mainline ? 0 : requested / floorCount;
+            int extraGuards = mainline ? 0 : requested % floorCount;
+            for (int floorIndex = 0; floorIndex < floorCount; floorIndex++) {
+                MissionBuildingPlanner.PatrolRoute route =
+                        site.patrolRoutes().get(floorIndex);
+                int floorQuota = mainline
+                        ? mainlineQuotas.get(floorIndex)
+                        : guardsPerFloor + (floorIndex < extraGuards ? 1 : 0);
+                for (int floorGuard = 0; floorGuard < floorQuota; floorGuard++) {
+                    FactionEnemy guard = createGuardOnRoute(
+                            level, player, definition, site, route, floorGuard, random);
+                    if (guard == null) {
+                        spawned.forEach(Entity::discard);
+                        return false;
+                    }
+                    spawned.add(guard);
+                }
             }
-            if (spawned >= definition.guards()) return;
+            return spawned.size() == requested;
         }
+        int requested = definition.guards();
+        if (requested == 0) return true;
+        if (home == null) return false;
         int deploymentRadius = Math.min(32, definition.objectiveRadius());
         for (int radius = 2; radius <= deploymentRadius
-                && spawned < definition.guards(); radius += 2) {
-            for (int index = 0; index < 8 && spawned < definition.guards(); index++) {
+                && spawned.size() < requested; radius += 2) {
+            for (int index = 0; index < 8 && spawned.size() < requested; index++) {
                 double angle = index * Math.PI / 4.0;
                 BlockPos probe = home.offset(
                         (int) Math.round(Math.cos(angle) * radius), 0,
@@ -1456,11 +2023,81 @@ public final class MissionService {
                 BlockPos position = nearestStreet(level, probe);
                 if (position == null
                         || position.distSqr(home) > deploymentRadius * deploymentRadius) continue;
-                if (createGuard(level, player, definition, position, List.of(), random) != null) {
-                    spawned++;
+                FactionEnemy guard = createGuard(
+                        level, player, definition, position, List.of(), random);
+                if (guard != null) spawned.add(guard);
+            }
+        }
+        if (spawned.size() == requested) return true;
+        spawned.forEach(Entity::discard);
+        return false;
+    }
+
+    private static FactionEnemy createGuardOnRoute(
+            ServerLevel level,
+            ServerPlayer player,
+            MissionCatalog.MissionDefinition definition,
+            MissionBuildingPlanner.Site site,
+            MissionBuildingPlanner.PatrolRoute route,
+            int preferredWaypoint,
+            RandomSource random) {
+        List<BlockPos> waypoints = route.waypoints();
+        LinkedHashSet<BlockPos> candidates = new LinkedHashSet<>();
+        waypoints.stream()
+                .filter(position -> !guardOverflowReserved(site, position))
+                .forEach(candidates::add);
+        site.missionCells(route.floorY()).stream()
+                .filter(position -> level.isEmptyBlock(position)
+                        && level.isEmptyBlock(position.above())
+                        && level.getBlockState(position.below()).blocksMotion()
+                        && !guardOverflowReserved(site, position))
+                .sorted(java.util.Comparator.comparingInt((BlockPos position) -> position.getX())
+                        .thenComparingInt(position -> position.getZ()))
+                .forEach(candidates::add);
+        List<BlockPos> positions = List.copyOf(candidates);
+        for (int offset = 0; offset < positions.size(); offset++) {
+            BlockPos position = positions.get(
+                    Math.floorMod(preferredWaypoint + offset, positions.size()));
+            FactionEnemy guard = createGuard(
+                    level, player, definition, position, waypoints, random);
+            if (guard != null) return guard;
+        }
+        return null;
+    }
+
+    private static boolean guardOverflowReserved(
+            MissionBuildingPlanner.Site site, BlockPos position) {
+        if (position.equals(site.target())
+                || position.getY() == site.entrance().position().getY()
+                        && Math.abs(position.getX() - site.entrance().position().getX()) <= 2
+                        && Math.abs(position.getZ() - site.entrance().position().getZ()) <= 2) {
+            return true;
+        }
+        for (MissionBuildingPlanner.Decoration turret
+                : MissionBuildingPlanner.missionTurretPlacements(site)) {
+            if (turret.position().getY() == position.getY()
+                    && Math.abs(turret.position().getX() - position.getX()) <= 1
+                    && Math.abs(turret.position().getZ() - position.getZ()) <= 1) {
+                return true;
+            }
+        }
+        for (MissionBuildingPlanner.StairRun stair : site.stairs()) {
+            int lowerY = stair.start().getY();
+            int upperY = lowerY + stair.rise();
+            if (position.getY() != lowerY && position.getY() != upperY) continue;
+            Direction across = stair.ascending().getClockWise();
+            for (int offset = -3; offset < stair.rise() + 3; offset++) {
+                for (int lane = 0; lane < 2; lane++) {
+                    if (position.equals(stair.start()
+                            .relative(stair.ascending(), offset)
+                            .relative(across, lane)
+                            .atY(position.getY()))) {
+                        return true;
+                    }
                 }
             }
         }
+        return false;
     }
 
     private static FactionEnemy createGuard(
@@ -1481,8 +2118,133 @@ public final class MissionService {
         guard.setPatrolRoute(patrolRoute);
         guard.setPersistenceRequired();
         tagActor(guard, player, definition, ROLE_GUARD);
-        FactionSquads.equip(guard, Faction.ARASAKA, random);
-        return level.noCollision(guard) && level.addFreshEntity(guard) ? guard : null;
+        if (contractContext(player).map(context -> MainlineQuestService.isActiveMainline(
+                        level, context, definition.id()))
+                .orElse(false)) {
+            MainlineQuestService.configureGuard(guard, definition.id());
+        } else {
+            FactionSquads.equip(guard, Faction.ARASAKA, random);
+        }
+        if (level.noCollision(guard) && addMissionActor(level, guard)) return guard;
+        guard.discard();
+        return null;
+    }
+
+    /** Adds a one-block painting monitor to each planned computer desk. */
+    static int deployComputerDisplays(
+            ServerLevel level,
+            ServerPlayer owner,
+            MissionCatalog.MissionDefinition definition,
+            MissionBuildingPlanner.Site site) {
+        if (level == null || owner == null || definition == null || site == null) return 0;
+        ContractContext context = contractContext(owner).orElse(null);
+        if (context == null) return 0;
+        int deployed = 0;
+        for (MissionBuildingPlanner.Decoration desk
+                : MissionBuildingPlanner.computerDeskPlacements(site)) {
+            BlockPos anchor = desk.position().above().relative(desk.facing());
+            Painting existing = existingComputerDisplay(
+                    level, context.instanceId(), anchor, desk.facing());
+            if (existing != null) {
+                deployed++;
+                continue;
+            }
+            Painting display = Painting.create(level, anchor, desk.facing()).orElse(null);
+            if (display == null
+                    || display.getVariant().value().width() != 1
+                    || display.getVariant().value().height() != 1) {
+                var variants = level.registryAccess().lookupOrThrow(
+                        net.minecraft.core.registries.Registries.PAINTING_VARIANT);
+                var kebab = variants.wrapAsHolder(
+                        variants.getValueOrThrow(PaintingVariants.KEBAB));
+                display = new Painting(level, anchor, desk.facing(), kebab);
+            }
+            if (!display.survives()) continue;
+            display.setInvulnerable(true);
+            tagActor(display, owner, definition, ROLE_DECOR);
+            if (addMissionActor(level, display)) deployed++;
+        }
+        return deployed;
+    }
+
+    private static Painting existingComputerDisplay(
+            ServerLevel level, UUID instanceId, BlockPos anchor, net.minecraft.core.Direction facing) {
+        String encodedInstance = instanceId.toString();
+        return missionActors(
+                        level, Painting.class, new AABB(anchor).inflate(0.25),
+                        painting -> !painting.isRemoved()
+                                && painting.getPos().equals(anchor)
+                                && painting.getDirection() == facing
+                                && encodedInstance.equals(painting.getPersistentData()
+                                        .getString(ACTOR_INSTANCE).orElse(""))
+                                && ROLE_DECOR.equals(painting.getPersistentData()
+                                        .getString(ACTOR_ROLE).orElse("")))
+                .stream().findFirst().orElse(null);
+    }
+
+    /** Deploys persisted site defenses once for either a gig or a story-mission contract. */
+    static int deployMissionTurrets(
+            ServerLevel level,
+            ServerPlayer owner,
+            MissionCatalog.MissionDefinition definition,
+            MissionBuildingPlanner.Site site) {
+        if (level == null || owner == null || definition == null || site == null
+                || !MissionBuildingPlanner.missionTurretsPreserveAccess(level, site)) {
+            return 0;
+        }
+        ContractContext context = contractContext(owner).orElse(null);
+        if (context == null) return 0;
+        int deployed = 0;
+        for (MissionBuildingPlanner.Decoration placement
+                : MissionBuildingPlanner.missionTurretPlacements(site)) {
+            KangTaoTurret existing = existingMissionTurret(
+                    level, context.instanceId(), placement.position());
+            if (existing != null) {
+                deployed++;
+                continue;
+            }
+            if (!MissionBuildingPlanner.isMissionTurretPlacementSafe(level, site, placement)) {
+                continue;
+            }
+            KangTaoTurret turret = DefenseContent.KANG_TAO_TURRET.get().create(
+                    level, EntitySpawnReason.EVENT);
+            if (turret == null) continue;
+            float yaw = placement.facing().toYRot();
+            turret.snapTo(
+                    placement.position().getX() + 0.5,
+                    placement.position().getY(),
+                    placement.position().getZ() + 0.5,
+                    yaw,
+                    0.0F);
+            turret.finalizeSpawn(
+                    level,
+                    level.getCurrentDifficultyAt(placement.position()),
+                    EntitySpawnReason.EVENT,
+                    null);
+            turret.setBaseYaw(yaw);
+            turret.setPersistenceRequired();
+            tagActor(turret, owner, definition, ROLE_TURRET);
+            if (!level.noCollision(turret) || !addMissionActor(level, turret)) {
+                turret.discard();
+                continue;
+            }
+            deployed++;
+        }
+        return deployed;
+    }
+
+    private static KangTaoTurret existingMissionTurret(
+            ServerLevel level, UUID instanceId, BlockPos position) {
+        String encodedInstance = instanceId.toString();
+        return missionActors(
+                        level, KangTaoTurret.class, new AABB(position).inflate(1.0),
+                        turret -> !turret.isRemoved()
+                                && turret.blockPosition().equals(position)
+                                && encodedInstance.equals(turret.getPersistentData()
+                                        .getString(ACTOR_INSTANCE).orElse(""))
+                                && ROLE_TURRET.equals(turret.getPersistentData()
+                                        .getString(ACTOR_ROLE).orElse("")))
+                .stream().findFirst().orElse(null);
     }
 
     /** Makes an airborne reinforcement part of the source guard's contract cleanup lifecycle. */
@@ -1558,6 +2320,12 @@ public final class MissionService {
                 mission.reward(),
                 context.streetCred(),
                 storyId)) return;
+        if (context.kind() == ContractKind.STORY_MISSION) {
+            grantMainlineRewardItem(level, context, mission.definitionId());
+            MainlineQuestService.end(level, context.instanceId());
+        }
+        boolean retainedSite = MissionSiteData.get(level).retainCompleted(
+                context.instanceId(), context.participants().playerIds());
 
         MissionJournalData.get(level).status(
                 context.instanceId(), JournalStatus.COMPLETED, level.getGameTime());
@@ -1565,7 +2333,11 @@ public final class MissionService {
         AmbientGigService.recordCompletion(
                 level, context.instanceId(), context.participants(), mission.targetDistrict());
 
-        cleanup(level, player, mission);
+        if (retainedSite) {
+            cleanupContractCargo(level.getServer(), context.instanceId());
+        } else {
+            cleanup(level, player, mission);
+        }
         clearParticipants(level, context);
         for (ServerPlayer member : PartyService.onlineMembers(
                 level.getServer(), context.participants())) {
@@ -1583,8 +2355,8 @@ public final class MissionService {
     private static void fail(ServerPlayer player, ActiveMission mission, String reason) {
         ContractContext context = contractContext(player).orElse(null);
         ServerLevel level = (ServerLevel) player.level();
-        cleanup(level, player, mission);
         if (context == null) {
+            cleanup(level, player, mission);
             clear(player);
             forceSync(player);
             return;
@@ -1592,7 +2364,11 @@ public final class MissionService {
         MissionJournalData.get(level).status(
                 context.instanceId(), JournalStatus.FAILED, level.getGameTime());
         clearDeploymentRetry(context.instanceId());
+        if (context.kind() == ContractKind.STORY_MISSION) {
+            MainlineQuestService.end(level, context.instanceId());
+        }
         PartyService.markContractCompleted(level, context.instanceId());
+        cleanup(level, player, mission);
         for (ServerPlayer member : PartyService.onlineMembers(
                 level.getServer(), context.participants())) {
             member.sendSystemMessage(Component.literal(
@@ -1601,6 +2377,28 @@ public final class MissionService {
         }
         clearParticipants(level, context);
         syncParticipants(level, context);
+    }
+
+    private static void grantMainlineRewardItem(
+            ServerLevel level, ContractContext context, String missionId) {
+        StoryMissionCatalog.StoryMission story;
+        try {
+            story = StoryMissionCatalog.definition(missionId);
+        } catch (IllegalArgumentException unknownMission) {
+            return;
+        }
+        if (story.rewardItem() == null) return;
+        Item reward = item(story.rewardItem());
+        if (reward == null || reward == Items.AIR) return;
+        String label = missionId.equals("m04_assassinate_fixer")
+                ? "Relay Key to G Tower" : story.encounter().title() + " Reward";
+        for (ServerPlayer member : PartyService.onlineMembers(
+                level.getServer(), context.participants())) {
+            ItemStack stack = new ItemStack(reward);
+            stack.set(DataComponents.CUSTOM_NAME,
+                    Component.literal(label).withStyle(ChatFormatting.AQUA));
+            if (!member.addItem(stack) && !stack.isEmpty()) member.drop(stack, false);
+        }
     }
 
     private static void cleanup(ServerLevel level, ServerPlayer player, ActiveMission mission) {
@@ -1723,7 +2521,8 @@ public final class MissionService {
                 ACTIVE, DEFINITION, TYPE, TITLE, BRIEFING, OBJECTIVE, DISTRICT,
                 TARGET_X, TARGET_Y, TARGET_Z, NAVIGATION_X, NAVIGATION_Z, REWARD, ACTOR_UUID,
                 CARGO_ITEM, CARGO_COUNT, ACCEPTED_TICK, CONTRACT_KIND, STREET_CRED,
-                INSTANCE_ID, PARTY_ID, PARTICIPANTS, DEPLOYED, COMPLETING, SITE_PLAN);
+                INSTANCE_ID, PARTY_ID, PARTICIPANTS, DEPLOYED, COMPLETING, SITE_PLAN,
+                SITE_RESTORATION);
     }
 
     static Optional<MissionBuildingPlanner.Site> site(ServerPlayer player) {
@@ -1737,6 +2536,43 @@ public final class MissionService {
 
     private static void clearSite(ServerPlayer player) {
         MissionPlayerData.persisted(player).remove(SITE_PLAN);
+    }
+
+    private static Optional<MissionBuildingPlanner.RestorationSnapshot> siteRestoration(
+            ServerPlayer player, ServerLevel level) {
+        return MissionPlayerData.persisted(player).getCompound(SITE_RESTORATION)
+                .flatMap(tag -> MissionBuildingPlanner.loadRestorationSnapshot(level, tag));
+    }
+
+    private static Optional<MissionBuildingPlanner.RestorationSnapshot> reservedSiteRestoration(
+            ServerLevel level, UUID instanceId) {
+        return MissionSiteData.get(level).restoration(instanceId)
+                .flatMap(tag -> MissionBuildingPlanner.loadRestorationSnapshot(level, tag));
+    }
+
+    private static boolean restoreReservedSite(ServerLevel level, UUID instanceId) {
+        return reservedSiteRestoration(level, instanceId)
+                .map(snapshot -> MissionBuildingPlanner.restoreOriginalStates(level, snapshot))
+                .orElse(false);
+    }
+
+    private static void saveSiteRestoration(
+            ServerPlayer player,
+            ServerLevel level,
+            MissionBuildingPlanner.RestorationSnapshot restoration) {
+        MissionPlayerData.persisted(player).put(
+                SITE_RESTORATION, restoration.save(level));
+    }
+
+    private static void copySiteRestoration(
+            ServerPlayer source, ServerPlayer destination, ServerLevel level) {
+        siteRestoration(source, level).ifPresentOrElse(
+                restoration -> saveSiteRestoration(destination, level, restoration),
+                () -> clearSiteRestoration(destination));
+    }
+
+    private static void clearSiteRestoration(ServerPlayer player) {
+        MissionPlayerData.persisted(player).remove(SITE_RESTORATION);
     }
 
     private static void saveNavigationTarget(ServerPlayer player, BlockPos navigation) {
@@ -1786,7 +2622,14 @@ public final class MissionService {
 
     private static void cleanupContractWorld(
             net.minecraft.server.MinecraftServer server, UUID instanceId) {
-        String encodedInstance = instanceId.toString();
+        cleanupContractCargo(server, instanceId);
+        restoreReservedSite(server.overworld(), instanceId);
+        cleanupContractActors(server, instanceId);
+        MissionSiteData.get(server.overworld()).releaseOwned(instanceId);
+    }
+
+    private static void cleanupContractCargo(
+            net.minecraft.server.MinecraftServer server, UUID instanceId) {
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             purgeCargo(player, instanceId);
         }
@@ -1796,19 +2639,179 @@ public final class MissionService {
                 if (candidate instanceof ItemEntity itemEntity
                         && cargoInstance(itemEntity.getItem()).filter(instanceId::equals).isPresent()) {
                     removals.add(candidate);
-                    continue;
                 }
+            }
+            removals.forEach(Entity::discard);
+        }
+    }
+
+    private static void cleanupContractActors(
+            net.minecraft.server.MinecraftServer server, UUID instanceId) {
+        cleanupContractActors(server, instanceId, ignored -> true);
+    }
+
+    private static void cleanupContractCombatActors(
+            net.minecraft.server.MinecraftServer server, UUID instanceId) {
+        cleanupContractActors(server, instanceId, MissionService::isCombatRole);
+    }
+
+    private static void cleanupContractDecorationActors(
+            net.minecraft.server.MinecraftServer server, UUID instanceId) {
+        cleanupContractActors(server, instanceId, role -> !isCombatRole(role));
+    }
+
+    private static void cleanupContractActors(
+            net.minecraft.server.MinecraftServer server,
+            UUID instanceId,
+            Predicate<String> roleFilter) {
+        String encodedInstance = instanceId.toString();
+        ArrayList<UUID> pendingRemovals = new ArrayList<>();
+        for (Map.Entry<UUID, Entity> entry : NEW_MISSION_ACTORS.entrySet()) {
+            Entity candidate = entry.getValue();
+            String role = candidate.getPersistentData().getString(ACTOR_ROLE).orElse("");
+            if (candidate.level().getServer() == server
+                    && encodedInstance.equals(candidate.getPersistentData()
+                            .getString(ACTOR_INSTANCE).orElse(""))
+                    && roleFilter.test(role)) {
+                candidate.discard();
+                pendingRemovals.add(entry.getKey());
+            }
+        }
+        pendingRemovals.forEach(NEW_MISSION_ACTORS::remove);
+        for (ServerLevel level : server.getAllLevels()) {
+            ArrayList<Entity> removals = new ArrayList<>();
+            for (Entity candidate : level.getAllEntities()) {
                 CompoundTag data = candidate.getPersistentData();
                 if (!encodedInstance.equals(data.getString(ACTOR_INSTANCE).orElse(""))) continue;
-                if (isObjectiveBlock(level, candidate.blockPosition(),
-                        data.getString(ACTOR_ROLE).orElse(""))) {
+                String role = data.getString(ACTOR_ROLE).orElse("");
+                if (!roleFilter.test(role)) continue;
+                if (isObjectiveBlock(level, candidate.blockPosition(), role)) {
                     level.setBlock(candidate.blockPosition(), Blocks.AIR.defaultBlockState(), 3);
                 }
                 removals.add(candidate);
             }
             removals.forEach(Entity::discard);
         }
-        MissionSiteData.get(server.overworld()).releaseOwned(instanceId);
+    }
+
+    private static boolean addMissionActor(ServerLevel level, Entity entity) {
+        if (!level.addFreshEntity(entity)) return false;
+        NEW_MISSION_ACTORS.put(entity.getUUID(), entity);
+        return true;
+    }
+
+    static Entity missionActorByUuid(ServerLevel level, String encodedUuid) {
+        UUID entityId;
+        try {
+            entityId = UUID.fromString(encodedUuid);
+        } catch (IllegalArgumentException malformed) {
+            return null;
+        }
+        Entity registered = level.getEntity(entityId);
+        if (registered != null && !registered.isRemoved()) {
+            NEW_MISSION_ACTORS.remove(entityId);
+            return registered;
+        }
+        Entity pending = NEW_MISSION_ACTORS.get(entityId);
+        if (pending == null || pending.isRemoved() || pending.level() != level) {
+            NEW_MISSION_ACTORS.remove(entityId);
+            return null;
+        }
+        return pending;
+    }
+
+    static <T extends Entity> List<T> missionActors(
+            ServerLevel level,
+            Class<T> type,
+            AABB area,
+            Predicate<? super T> predicate) {
+        Map<UUID, T> actors = new java.util.LinkedHashMap<>();
+        for (T actor : level.getEntitiesOfClass(type, area, predicate)) {
+            actors.put(actor.getUUID(), actor);
+            NEW_MISSION_ACTORS.remove(actor.getUUID());
+        }
+        ArrayList<UUID> stale = new ArrayList<>();
+        for (Map.Entry<UUID, Entity> entry : NEW_MISSION_ACTORS.entrySet()) {
+            Entity candidate = entry.getValue();
+            if (candidate.isRemoved()) {
+                stale.add(entry.getKey());
+                continue;
+            }
+            if (candidate.level() == level && type.isInstance(candidate)
+                    && area.contains(candidate.position())) {
+                T actor = type.cast(candidate);
+                if (predicate.test(actor)) actors.putIfAbsent(actor.getUUID(), actor);
+            }
+        }
+        stale.forEach(NEW_MISSION_ACTORS::remove);
+        return List.copyOf(actors.values());
+    }
+
+    private static boolean isCombatRole(String role) {
+        return ROLE_TARGET.equals(role) || ROLE_GUARD.equals(role) || ROLE_TURRET.equals(role);
+    }
+
+    /** Advances completed sites without keeping a completed contract in a player's active slot. */
+    static void tickCompletedSites(ServerLevel level) {
+        if (level == null || level != level.getServer().overworld()) return;
+        MissionSiteData sites = MissionSiteData.get(level);
+        for (MissionSiteData.CompletedSite site : sites.completedSites()) {
+            boolean combatCleared = site.combatCleared();
+            if (!site.combatCleared() && allParticipantsFarFromSite(level, site)) {
+                cleanupContractCombatActors(level.getServer(), site.instanceId());
+                sites.markCombatCleared(site.instanceId());
+                combatCleared = true;
+            }
+            if (allParticipantsOutsideDistrict(level, site)
+                    && restoreReservedSite(level, site.instanceId())) {
+                cleanupContractDecorationActors(level.getServer(), site.instanceId());
+                if (combatCleared) {
+                    sites.releaseOwned(site.instanceId());
+                }
+            }
+        }
+    }
+
+    private static boolean allParticipantsOutsideDistrict(
+            ServerLevel level, MissionSiteData.CompletedSite site) {
+        for (UUID participantId : site.participants()) {
+            ServerPlayer participant = level.getServer().getPlayerList().getPlayer(participantId);
+            if (participant != null) {
+                if (AmbientGigService.inhabitedDistrict(participant)
+                        .filter(site.district()::equals).isPresent()) {
+                    return false;
+                }
+                continue;
+            }
+            Optional<District> lastDistrict = AmbientGigData.get(level).lastDistrict(participantId);
+            if (lastDistrict.isEmpty() || lastDistrict.filter(site.district()::equals).isPresent()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean allParticipantsFarFromSite(
+            ServerLevel level, MissionSiteData.CompletedSite site) {
+        double minimumDistanceSquared = COMPLETED_COMBAT_RETENTION_DISTANCE
+                * COMPLETED_COMBAT_RETENTION_DISTANCE;
+        for (UUID participantId : site.participants()) {
+            ServerPlayer participant = level.getServer().getPlayerList().getPlayer(participantId);
+            // An offline member has no trustworthy coordinate. Retain combat until they return or
+            // the entire party has conclusively left the district.
+            if (participant == null) return false;
+            if (participant.level() != level) continue;
+            double deltaX = distanceOutside(participant.getX(), site.minX(), site.maxX() + 1.0);
+            double deltaZ = distanceOutside(participant.getZ(), site.minZ(), site.maxZ() + 1.0);
+            if (deltaX * deltaX + deltaZ * deltaZ <= minimumDistanceSquared) return false;
+        }
+        return true;
+    }
+
+    private static double distanceOutside(double coordinate, double minimum, double maximum) {
+        if (coordinate < minimum) return minimum - coordinate;
+        if (coordinate > maximum) return coordinate - maximum;
+        return 0.0;
     }
 
     private static boolean isObjectiveBlock(
@@ -1818,6 +2821,17 @@ public final class MissionService {
         }
         return ROLE_DELIVERY_TERMINAL.equals(role)
                 && level.getBlockState(position).is(MissionBlocks.DELIVERY_TERMINAL.get());
+    }
+
+    private static boolean participantInDistrict(
+            ServerLevel level,
+            PartyService.ParticipantSnapshot participants,
+            District district) {
+        return PartyService.onlineMembers(level.getServer(), participants).stream()
+                .filter(player -> player.level() == level && player.isAlive()
+                        && !player.isSpectator())
+                .anyMatch(player -> AmbientGigService.inhabitedDistrict(player)
+                        .filter(district::equals).isPresent());
     }
 
     private static boolean participantNear(
@@ -1847,7 +2861,7 @@ public final class MissionService {
     }
 
     private static String siteReservationKey(MissionBuildingPlanner.Site site) {
-        return site.district().code() + ":"
+        return site.district().commandCode() + ":"
                 + site.bounds().minX() + ":" + site.bounds().minZ() + ":"
                 + site.bounds().maxX() + ":" + site.bounds().maxZ();
     }

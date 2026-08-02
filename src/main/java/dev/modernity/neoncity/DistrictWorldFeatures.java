@@ -1,6 +1,5 @@
 package dev.modernity.neoncity;
 
-import com.example.cyberdeck.city.CityLootGeneration;
 import java.util.Comparator;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
@@ -118,7 +117,6 @@ final class DistrictWorldFeatures {
         BorderVillageLibrary.decorateChunk(level, chunk, samples);
         CliffInfrastructureLibrary.decorateChunk(level, chunk);
         ParkTreeLibrary.decorateBorderChunk(level, chunk, samples);
-        CityLootGeneration.decorateMegacityChunk(level, chunk, samples);
         placeSnowDrifts(level, chunk, samples, seed);
         placeFarmWorker(level, chunk, samples, seed);
     }
@@ -131,7 +129,7 @@ final class DistrictWorldFeatures {
         for (int localZ = 0; localZ < 16; localZ++) {
             for (int localX = 0; localX < 16; localX++) {
                 NeonCityGenerator.UrbanSample sample = samples[localZ + 1][localX + 1];
-                if (sample.district() != District.Y_CORP
+                if (!sample.district().isSharedWinter()
                         || sample.zone() == MegacityLayout.Zone.WILDERNESS) {
                     continue;
                 }

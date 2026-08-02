@@ -243,20 +243,37 @@ public final class CityMapTextureCache {
                     continue;
                 }
                 double distance = nearestDistance[index];
-                if (distance > 1.08 || nearestDistrict[index] < 0) {
+                MegacityLayout.Location exactLocation = null;
+                boolean needsHullLookup = layout.insideUrbanHull(worldX, worldZ)
+                        && (distance > MegacityLayout.DISTRICT_BLOB_LIMIT
+                                || nearestDistrict[index] < 0);
+                if (needsHullLookup) {
+                    exactLocation = layout.locateDistrict(worldX, worldZ);
+                }
+                if (exactLocation == null
+                        && (distance > MegacityLayout.DISTRICT_BLOB_LIMIT
+                                || nearestDistrict[index] < 0)) {
                     output.setPixel(pixelX, pixelZ,
                             checker(worldX, worldZ, 0xFF02060B, 0xFF03080E));
                     continue;
                 }
 
-                District district = districts[Byte.toUnsignedInt(nearestDistrict[index])];
-                MegacityLayout.Zone zone = distance <= 0.45
-                        ? MegacityLayout.Zone.NEST : MegacityLayout.Zone.BACKSTREETS;
-                if (secondDistrict[index] >= 0
-                        && MegacityLayout.isDistrictBorder(
-                                distance, secondDistance[index])) {
-                    District other = districts[Byte.toUnsignedInt(secondDistrict[index])];
-                    zone = layout.boundaryZone(district, other);
+                District district;
+                MegacityLayout.Zone zone;
+                if (exactLocation != null) {
+                    distance = exactLocation.normalizedDistance();
+                    district = exactLocation.district();
+                    zone = exactLocation.zone();
+                } else {
+                    district = districts[Byte.toUnsignedInt(nearestDistrict[index])];
+                    zone = distance <= 0.45
+                            ? MegacityLayout.Zone.NEST : MegacityLayout.Zone.BACKSTREETS;
+                    if (secondDistrict[index] >= 0
+                            && MegacityLayout.isDistrictBorder(
+                                    distance, secondDistance[index])) {
+                        District other = districts[Byte.toUnsignedInt(secondDistrict[index])];
+                        zone = layout.boundaryZone(district, other);
+                    }
                 }
 
                 MegacityLayout.Node node = layout.node(district);

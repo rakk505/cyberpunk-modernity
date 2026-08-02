@@ -2,6 +2,8 @@ package com.example.cyberdeck.city;
 
 import com.example.cyberdeck.cyberware.Cyberware;
 import com.example.cyberdeck.cyberware.CyberwareItems;
+import com.example.cyberdeck.weapon.AmmoItems;
+import com.example.cyberdeck.weapon.AmmoType;
 import com.example.cyberdeck.weapon.GunType;
 import com.example.cyberdeck.weapon.WeaponItems;
 import dev.modernity.neoncity.MegacityLayout;
@@ -36,13 +38,20 @@ public final class CityLootGeneration {
     private CityLootGeneration() {
     }
 
-    /** Adds guaranteed gun and cyberware rewards plus one to three additional items. */
+    /** Adds guaranteed gun, cyberware, and ammunition plus one to three additional items. */
     public static void populate(BlackLootCacheBlockEntity cache, RandomSource random) {
         cache.clearContent();
         putRandom(cache, new ItemStack(WeaponItems.gun(
                 FIREARMS[random.nextInt(FIREARMS.length)]).get()), random);
         putRandom(cache, new ItemStack(CyberwareItems.item(
                 Cyberware.VALUES[random.nextInt(Cyberware.VALUES.length)]).get()), random);
+        AmmoType[] ammoTypes = AmmoType.values();
+        AmmoType ammoType = ammoTypes[random.nextInt(ammoTypes.length)];
+        int rewardSteps = (AmmoCacheBlock.MAX_REWARD - AmmoCacheBlock.MIN_REWARD)
+                / AmmoCacheBlock.REWARD_STEP;
+        int ammoAmount = AmmoCacheBlock.MIN_REWARD
+                + random.nextInt(rewardSteps + 1) * AmmoCacheBlock.REWARD_STEP;
+        putRandom(cache, new ItemStack(AmmoItems.item(ammoType).get(), ammoAmount), random);
 
         int extras = 1 + random.nextInt(3);
         for (int i = 0; i < extras; i++) {
@@ -62,15 +71,16 @@ public final class CityLootGeneration {
     /** Places and initializes one generated cache when its complete footprint is unobstructed. */
     public static boolean place(
             ServerLevel level, BlockPos position, CacheKind kind, Direction facing, long seed) {
-        if (!canPlace(level, position, kind, facing)) {
+        Direction placementFacing = placementFacing(level, position, kind, facing);
+        if (placementFacing == null) {
             return false;
         }
 
         BlockState state = switch (kind) {
             case BLACK_LOOT -> CityLootBlocks.BLACK_LOOT_CACHE.get().defaultBlockState()
-                    .setValue(BlackLootCacheBlock.FACING, facing);
+                    .setValue(BlackLootCacheBlock.FACING, placementFacing);
             case AMMO -> CityLootBlocks.AMMO_CACHE.get().defaultBlockState()
-                    .setValue(AmmoCacheBlock.FACING, facing);
+                    .setValue(AmmoCacheBlock.FACING, placementFacing);
         };
         if (!level.setBlock(position, state, Block.UPDATE_ALL)) {
             return false;
@@ -86,14 +96,14 @@ public final class CityLootGeneration {
     }
 
     /** Low-density cache pass for each newly generated Project Moon city chunk. */
-    public static void decorateMegacityChunk(
+    public static boolean decorateMegacityChunk(
             ServerLevel level,
             ChunkPos chunk,
             NeonCityGenerator.UrbanSample[][] samples) {
         long hash = mix(NeonCityGenerator.layout().seed() ^ CACHE_SALT, chunk.x(), chunk.z());
         CacheKind kind = cacheKindForHash(hash);
         if (kind == null) {
-            return;
+            return false;
         }
         Direction facing = HORIZONTAL[Math.floorMod((int) (hash >>> 8), HORIZONTAL.length)];
         int start = Math.floorMod((int) (hash >>> 16), 256);
@@ -114,9 +124,10 @@ public final class CityLootGeneration {
                     sample.groundY() + 1,
                     chunk.getMinBlockZ() + localZ);
             if (place(level, position, kind, facing, hash)) {
-                return;
+                return true;
             }
         }
+        return false;
     }
 
     /** Pure density decision exposed for regression tests. */
@@ -141,17 +152,44 @@ public final class CityLootGeneration {
                 || sample.roadClass() == NeonCityGenerator.RoadClass.CENTRAL_PLAZA;
     }
 
-    private static boolean canPlace(
+    private static Direction placementFacing(
             ServerLevel level, BlockPos position, CacheKind kind, Direction facing) {
-        if (!clearColumn(level, position)) {
-            return false;
+        if (facing == null || facing.getAxis() == Direction.Axis.Y
+                || !clearColumn(level, position)) {
+            return null;
         }
-        if (kind != CacheKind.BLACK_LOOT) {
-            return true;
+        Direction backing = backingWall(level, position, facing);
+        if (backing == null) {
+            return null;
         }
-        Direction width = facing.getClockWise();
-        return clearColumn(level, position.relative(width))
-                && clearColumn(level, position.relative(width.getOpposite()));
+        Direction resolvedFacing = backing.getOpposite();
+        if (kind == CacheKind.BLACK_LOOT) {
+            Direction width = resolvedFacing.getClockWise();
+            if (!clearColumn(level, position.relative(width))
+                    || !clearColumn(level, position.relative(width.getOpposite()))) {
+                return null;
+            }
+        }
+        return resolvedFacing;
+    }
+
+    private static Direction backingWall(
+            ServerLevel level, BlockPos position, Direction requestedFacing) {
+        Direction preferred = requestedFacing.getOpposite();
+        Direction[] directions = {
+                preferred,
+                preferred.getClockWise(),
+                preferred.getCounterClockWise(),
+                preferred.getOpposite()
+        };
+        for (Direction direction : directions) {
+            BlockPos neighbour = position.relative(direction);
+            if (level.getBlockState(neighbour).isFaceSturdy(
+                    level, neighbour, direction.getOpposite())) {
+                return direction;
+            }
+        }
+        return null;
     }
 
     private static boolean clearColumn(ServerLevel level, BlockPos position) {

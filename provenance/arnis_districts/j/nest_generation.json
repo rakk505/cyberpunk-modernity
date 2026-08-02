@@ -1,0 +1,77 @@
+{
+  "bbox": [
+    36.1095,
+    -115.1785,
+    36.1135,
+    -115.1705
+  ],
+  "city": "Las Vegas / Bellagio-Paris Strip",
+  "culture": "casino megablocks, resort towers, and spectacle boulevards",
+  "district": "J",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "kind": "neoncity:arnis_zone_source_generation",
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "manifest": {
+    "file": "provenance/arnis_districts/perimeter_manifest.json",
+    "sha256": "ca71ba94724f144d9d947d1095869bebd4749110f68ed7e1200bfd5c74f3f786"
+  },
+  "schema_version": 1,
+  "slug": "las_vegas_strip",
+  "source": {
+    "osm_file": "provenance/arnis_districts/j/nest_las_vegas_strip_osm.json",
+    "osm_sha256": "c6b251d47b1daeb236a330b8a9d8d8ba2e89986080d441092d366bb8f4b52f31"
+  },
+  "world": {
+    "build_path": "build/arnis_perimeter/j/nest/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "a4c03d99d10fd29be774178c88def39d674d3b5deb144710b627b1f7a3363d10",
+    "metadata": {
+      "maxGeoLat": 36.1135,
+      "maxGeoLon": -115.1705,
+      "maxMcX": 718,
+      "maxMcZ": 444,
+      "minGeoLat": 36.1095,
+      "minGeoLon": -115.1785,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "5be74918cbf3a56ba31037e19cf13284db188dcd2468a0f99e13cc44e495b0c5",
+    "preview_sha256": "fcae17176162c687493d36936b82fdc70801b3b291ce8c24327d28f350b668b4",
+    "regions": [
+      {
+        "bytes": 4268032,
+        "file": "r.0.0.mca",
+        "sha256": "6d181d5fc59f7f1edf67a8c2d3dc827d9378e73e32dbcff414b5cfa2d8ef5e3c"
+      },
+      {
+        "bytes": 4259840,
+        "file": "r.1.0.mca",
+        "sha256": "dcb2770f40f7db08b67e5bd27dbc7897d3b5d888dab11d044063ada4e557e656"
+      }
+    ]
+  },
+  "zone": "NEST"
+}

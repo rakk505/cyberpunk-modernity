@@ -1,0 +1,35 @@
+{
+  "atlas_chunks": 16,
+  "candidate_count": 264,
+  "chosen": {
+    "above_surface_blocks": 71287,
+    "developed_chunks": 89,
+    "floating_structural_columns": 7769,
+    "max_height_above_surface": 31,
+    "occupied_chunks": 160,
+    "road_surface_cells": 6079,
+    "score": -8742505,
+    "selection": "backstreets=21,9:36,24",
+    "structural_columns": 10725,
+    "vegetation_blocks": 19870,
+    "water_blocks": 0
+  },
+  "chunk_bounds_scanned": {
+    "max_x": 36,
+    "max_z": 26,
+    "min_x": 0,
+    "min_z": 0
+  },
+  "city": "Dubai / Al Fahidi",
+  "district": "PAK",
+  "kind": "neoncity:arnis_zone_atlas_selection",
+  "quality_tier": "strict",
+  "schema_version": 1,
+  "slug": "dubai_al_fahidi",
+  "source_osm": {
+    "file": "provenance/arnis_districts/pak/backstreets_dubai_al_fahidi_osm.json",
+    "sha256": "f954f6ce725fff1324a48008ccd3d9209ae34bc871fe5ec91ad9481d0e4829fc"
+  },
+  "source_world": "build/arnis_perimeter/pak/backstreets/Arnis World 1",
+  "zone": "BACKSTREETS"
+}

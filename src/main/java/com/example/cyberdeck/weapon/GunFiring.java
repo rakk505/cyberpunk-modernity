@@ -2,6 +2,8 @@ package com.example.cyberdeck.weapon;
 
 import com.example.cyberdeck.effect.SandevistanMechanics;
 import com.example.cyberdeck.defense.ExplosiveCanisterBlock;
+import com.example.cyberdeck.defense.KangTaoTurret;
+import com.example.cyberdeck.faction.Faction;
 import com.example.cyberdeck.faction.FactionEnemy;
 import com.example.cyberdeck.movement.TacticalMovement;
 import com.example.cyberdeck.npc.CityNpc;
@@ -33,6 +35,8 @@ import net.minecraft.world.phys.Vec3;
  * distance-based falloff. This makes precise aim the deciding factor in every fight.
  */
 public final class GunFiring {
+    private static final String MISSION_INSTANCE_TAG = "cyberdeck_mission_instance";
+
     private GunFiring() {
     }
 
@@ -41,6 +45,34 @@ public final class GunFiring {
      * caller is responsible for ammo and cooldown; this method only resolves the shot.
      */
     public static void fire(ServerLevel level, LivingEntity shooter, GunType gun) {
+        Vec3 direction = shooter.getViewVector(1.0F).normalize();
+        Vec3 origin = shooter.getEyePosition();
+        fire(level, shooter, gun, origin, direction, false);
+    }
+
+    /**
+     * Fires from an explicit world-space origin and direction while retaining the gun's normal
+     * damage, falloff, spread, penetration, sound, and canister interactions.
+     */
+    public static void fire(
+            ServerLevel level,
+            LivingEntity shooter,
+            GunType gun,
+            Vec3 origin,
+            Vec3 direction) {
+        if (direction.lengthSqr() < 1.0E-8) {
+            return;
+        }
+        fire(level, shooter, gun, origin, direction.normalize(), true);
+    }
+
+    private static void fire(
+            ServerLevel level,
+            LivingEntity shooter,
+            GunType gun,
+            Vec3 origin,
+            Vec3 direction,
+            boolean originIsMuzzle) {
         RandomSource rng = shooter.getRandom();
         GunshotAlerts.emit(level, shooter, gun);
         if (shooter instanceof ServerPlayer player) {
@@ -58,8 +90,8 @@ public final class GunFiring {
             }
         }
 
-        Vec3 eye = shooter.getEyePosition();
-        Vec3 baseDir = shooter.getViewVector(1.0f).normalize();
+        Vec3 eye = origin;
+        Vec3 baseDir = direction;
 
         for (int i = 0; i < gun.pellets(); i++) {
             float spread = gun.spreadDegrees();
@@ -119,9 +151,11 @@ public final class GunFiring {
                 spawnPenetrationEffect(level, path.penetrationExit());
             }
 
-            // Bullet trail: a thin, fast-fading tracer from the muzzle to the impact point.
-            Vec3 muzzle = eye.add(dir.scale(1.2));
-            spawnBulletTrail(level, muzzle, impact, gun.isTech());
+            // Explicit-origin callers supply the real muzzle, while ordinary weapons retain their
+            // legacy eye offset and near-camera particle skip.
+            Vec3 tracerOrigin = originIsMuzzle ? eye : eye.add(dir.scale(1.2));
+            spawnBulletTrail(level, tracerOrigin, impact, gun.isTech(),
+                    originIsMuzzle ? 0 : TRAIL_MUZZLE_SKIP);
         }
 
         playFireSound(level, shooter, gun, rng);
@@ -143,7 +177,7 @@ public final class GunFiring {
      * bloom right in front of the camera.
      */
     private static void spawnBulletTrail(ServerLevel level, Vec3 muzzle, Vec3 impact,
-                                         boolean tech) {
+                                         boolean tech, int muzzleSkip) {
         Vec3 delta = impact.subtract(muzzle);
         double length = delta.length();
         if (length < 1.0e-4) {
@@ -151,9 +185,9 @@ public final class GunFiring {
         }
         int steps = Math.min(TRAIL_MAX_POINTS, Math.max(1, (int) (length / TRAIL_STEP)));
         Vec3 stepVec = delta.scale(1.0 / steps);
-        // Start a little past the muzzle so the tracer doesn't flash across the player's face.
-        Vec3 point = muzzle.add(stepVec.scale(TRAIL_MUZZLE_SKIP));
-        for (int s = TRAIL_MUZZLE_SKIP; s <= steps; s++) {
+        // Ordinary weapons skip the near-camera segment; explicit muzzle shots start at the tip.
+        Vec3 point = muzzle.add(stepVec.scale(muzzleSkip));
+        for (int s = muzzleSkip; s <= steps; s++) {
             if (tech) {
                 // Override the 32-block packet radius so long-range Tech sniper tracers remain
                 // visible to the shooter.
@@ -228,11 +262,36 @@ public final class GunFiring {
         }
         return ProjectileUtil.getEntityHitResult(
                 shooter, start, end, new AABB(start, end).inflate(1.0),
-                entity -> entity instanceof LivingEntity living && entity != shooter
-                        && entity.isAlive() && !entity.isSpectator()
-                        && (!(shooter instanceof FactionEnemy || shooter instanceof CityNpc)
-                        || !(living instanceof CityNpc)),
+                entity -> canHitTarget(shooter, entity),
                 start.distanceToSqr(end));
+    }
+
+    /** Shared hitscan filtering for city combatants. */
+    public static boolean canHitTarget(LivingEntity shooter, Entity entity) {
+        if (!(entity instanceof LivingEntity living)
+                || entity == shooter
+                || !entity.isAlive()
+                || entity.isSpectator()) {
+            return false;
+        }
+        if (shooter instanceof KangTaoTurret) {
+            String missionInstance = shooter.getPersistentData()
+                    .getString(MISSION_INSTANCE_TAG).orElse("");
+            if (!missionInstance.isBlank()
+                    && missionInstance.equals(living.getPersistentData()
+                            .getString(MISSION_INSTANCE_TAG).orElse(""))) {
+                return false;
+            }
+            if (living instanceof CityNpc || living instanceof KangTaoTurret) {
+                return false;
+            }
+            if (living instanceof FactionEnemy guard
+                    && guard.getFaction() == Faction.KANG_TAO) {
+                return false;
+            }
+        }
+        return (!(shooter instanceof FactionEnemy || shooter instanceof CityNpc)
+                || !(living instanceof CityNpc));
     }
 
     private static void spawnPenetrationEffect(ServerLevel level, Vec3 point) {

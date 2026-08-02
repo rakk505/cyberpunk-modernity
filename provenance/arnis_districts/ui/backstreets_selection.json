@@ -1,0 +1,35 @@
+{
+  "atlas_chunks": 16,
+  "candidate_count": 312,
+  "chosen": {
+    "above_surface_blocks": 266140,
+    "developed_chunks": 152,
+    "floating_structural_columns": 13824,
+    "max_height_above_surface": 131,
+    "occupied_chunks": 185,
+    "road_surface_cells": 15538,
+    "score": -15577449,
+    "selection": "backstreets=7,1:22,16",
+    "structural_columns": 17348,
+    "vegetation_blocks": 32857,
+    "water_blocks": 693
+  },
+  "chunk_bounds_scanned": {
+    "max_x": 40,
+    "max_z": 26,
+    "min_x": 0,
+    "min_z": 0
+  },
+  "city": "Singapore / Tiong Bahru",
+  "district": "UI",
+  "kind": "neoncity:arnis_zone_atlas_selection",
+  "quality_tier": "strict",
+  "schema_version": 1,
+  "slug": "singapore_tiong_bahru",
+  "source_osm": {
+    "file": "provenance/arnis_districts/ui/backstreets_singapore_tiong_bahru_osm.json",
+    "sha256": "a7268b0cb7bbe9a3342c60c658b09dec95e92da210203632f467357fa7f0b08b"
+  },
+  "source_world": "build/arnis_perimeter/ui/backstreets/Arnis World 1",
+  "zone": "BACKSTREETS"
+}

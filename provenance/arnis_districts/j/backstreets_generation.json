@@ -1,0 +1,77 @@
+{
+  "bbox": [
+    36.1685,
+    -115.147,
+    36.1725,
+    -115.14
+  ],
+  "city": "Las Vegas / Fremont Street",
+  "culture": "older casino blocks, signs, service streets, and entertainment frontage",
+  "district": "J",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "kind": "neoncity:arnis_zone_source_generation",
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "manifest": {
+    "file": "provenance/arnis_districts/perimeter_manifest.json",
+    "sha256": "ca71ba94724f144d9d947d1095869bebd4749110f68ed7e1200bfd5c74f3f786"
+  },
+  "schema_version": 1,
+  "slug": "las_vegas_fremont",
+  "source": {
+    "osm_file": "provenance/arnis_districts/j/backstreets_las_vegas_fremont_osm.json",
+    "osm_sha256": "144bba179a035a3c0009c8bd3531800b66185449a68bd6ddcf74bcd45e742aef"
+  },
+  "world": {
+    "build_path": "build/arnis_perimeter/j/backstreets/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "248cc6df435fe7cf44b9f69bb0c374d245ce110aeda0e006c7f0e069b074d701",
+    "metadata": {
+      "maxGeoLat": 36.1725,
+      "maxGeoLon": -115.14,
+      "maxMcX": 628,
+      "maxMcZ": 444,
+      "minGeoLat": 36.1685,
+      "minGeoLon": -115.147,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "b179f5af7cd89174ca416c12d2a5090532535fc6d613b393b8cc43beedf350e6",
+    "preview_sha256": "1376f1157c1bd4a894069561ddec1fa7610687237682c788170827abf4a6f1f0",
+    "regions": [
+      {
+        "bytes": 4243456,
+        "file": "r.0.0.mca",
+        "sha256": "9a36fdf07c355df91a0e6a7c4f1fee017015db4a03cbf73feb0cd87c5a0172d6"
+      },
+      {
+        "bytes": 4202496,
+        "file": "r.1.0.mca",
+        "sha256": "40e81966478d7db332c71e088d63472030392cec2cc6a087fd4b6c74a9d791ce"
+      }
+    ]
+  },
+  "zone": "BACKSTREETS"
+}

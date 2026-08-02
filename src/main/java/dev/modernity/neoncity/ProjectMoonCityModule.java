@@ -19,9 +19,9 @@ import net.minecraft.gametest.framework.TestData;
 import net.minecraft.gametest.framework.TestEnvironmentDefinition;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.entity.Mob;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Rotation;
 import net.neoforged.bus.api.IEventBus;
@@ -32,6 +32,7 @@ import net.neoforged.neoforge.event.RegisterGameTestsEvent;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.neoforge.event.entity.living.MobSpawnEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
+import net.neoforged.neoforge.event.entity.player.AttackEntityEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
@@ -88,6 +89,9 @@ public final class ProjectMoonCityModule {
             CONNECTED_TRAVEL_GRAPH = register(
                     "connected_travel_graph", ExampleGameTests::connectedTravelGraph);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            URBAN_FOOTPRINT_CONTINUITY = register(
+                    "urban_footprint_continuity", ExampleGameTests::urbanFootprintContinuity);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             FINITE_CITY_WILDERNESS = register(
                     "finite_city_wilderness", ExampleGameTests::finiteCityWilderness);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
@@ -124,8 +128,18 @@ public final class ProjectMoonCityModule {
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             PEDESTRIAN_POLICY = register(
                     "pedestrian_policy", ExampleGameTests::pedestrianPolicy);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            DISTRICT_ATMOSPHERE = register(
+                    "district_atmosphere", UrbanSystemsGameTests::districtAtmosphere);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            URBAN_SUPPLY_CRATES = register(
+                    "urban_supply_crates", UrbanSystemsGameTests::urbanSupplyCrates);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            BUILDING_INSPECTION = register(
+                    "building_inspection", BuildingInspectionGameTests::commandAndOverlayPlan);
 
     private volatile boolean generationEnabled;
+    private int mainlineSites;
     private final DistrictEntryNotifier districtEntryNotifier = new DistrictEntryNotifier();
     private final Map<UUID, Integer> atmosphereDistricts = new HashMap<>();
     private long vendorRevision = -1L;
@@ -147,6 +161,8 @@ public final class ProjectMoonCityModule {
     @SubscribeEvent
     public void onServerStarted(ServerStartedEvent event) {
         generationEnabled = false;
+        mainlineSites = 0;
+        ArnisBuildingAtlas.clear();
         districtEntryNotifier.clear();
         atmosphereDistricts.clear();
         vendorRevision = -1L;
@@ -165,32 +181,26 @@ public final class ProjectMoonCityModule {
                     "[ProjectMoonCity] overworld is not the dedicated megacity preset");
             return;
         }
-        int prewarmed = NeonCityGenerator.prewarmSpawn(overworld);
-        BlockPos spawn = overworld.getRespawnData().pos();
-        int queued = NeonCityGenerator.enqueueAround(spawn.getX(), spawn.getZ());
-        generationEnabled = true;
-        Cyberdeck.LOGGER.info(
-                "[ProjectMoonCity] finite 26-district generator enabled; "
-                        + "prewarmed {} and queued {} chunks at {}",
-                prewarmed, queued, spawn);
+        // Descriptors are data-only; atlas chunks remain untouched until a mission is accepted.
+        mainlineSites = MainlineQuestService.restoreFixedWorldPlans(overworld);
+        finishStartup(overworld);
     }
 
     @SubscribeEvent
     public void onServerTick(net.neoforged.neoforge.event.tick.ServerTickEvent.Post event) {
+        ServerLevel overworld = event.getServer().overworld();
+        if (overworld == null) {
+            return;
+        }
+        BuildingInspectionService.tick(overworld);
+        if (!generationEnabled) {
+            return;
+        }
         if (event.getServer().getTickCount() % 10 == 0) {
             for (net.minecraft.server.level.ServerPlayer player
                     : event.getServer().getPlayerList().getPlayers()) {
                 AmbientGigService.recordPresence(player);
             }
-        }
-        if (!generationEnabled) {
-            return;
-        }
-        ServerLevel overworld = event.getServer().overworld();
-        if (overworld == null) {
-            return;
-        }
-        if (event.getServer().getTickCount() % 10 == 0) {
             Set<UUID> activePlayers = new HashSet<>();
             for (net.minecraft.server.level.ServerPlayer player : overworld.players()) {
                 activePlayers.add(player.getUUID());
@@ -206,6 +216,7 @@ public final class ProjectMoonCityModule {
                 if (location.insideCity()
                         && sample.zone() != MegacityLayout.Zone.WILDERNESS) {
                     VendorService.ensureDistrictVendors(overworld, location.district());
+                    MainlineQuestService.maintainQuestNpcs(overworld, location.district());
                 }
                 MissionService.tickPlayer(player, location);
                 AmbientGigService.tick(player);
@@ -221,6 +232,7 @@ public final class ProjectMoonCityModule {
                         : null;
                 updateAtmosphere(overworld, player, atmosphereDistrict);
             }
+            MissionService.tickCompletedSites(overworld);
             VendorService.maintainAnchors(overworld);
             long currentVendorRevision = VendorAnchorData.get(overworld).revision();
             if (currentVendorRevision != vendorRevision) {
@@ -233,6 +245,17 @@ public final class ProjectMoonCityModule {
             atmosphereDistricts.keySet().retainAll(activePlayers);
         }
         NeonCityGenerator.tick(overworld);
+    }
+
+    private void finishStartup(ServerLevel overworld) {
+        int prewarmed = NeonCityGenerator.prewarmSpawn(overworld);
+        BlockPos spawn = overworld.getRespawnData().pos();
+        int queued = NeonCityGenerator.enqueueAround(spawn.getX(), spawn.getZ());
+        generationEnabled = true;
+        Cyberdeck.LOGGER.info(
+                "[ProjectMoonCity] finite {}-district generator enabled immediately; restored {} "
+                        + "persisted mainline sites, prewarmed {} and queued {} chunks at {}",
+                District.values().length, mainlineSites, prewarmed, queued, spawn);
     }
 
     /** Reject ambient spawn placement inside the generated city. */
@@ -265,6 +288,7 @@ public final class ProjectMoonCityModule {
             return;
         }
         if (!(event.getEntity() instanceof Mob)
+                || MissionService.isMissionActor(event.getEntity())
                 || CityActorJoinCompatibility.isManagedCityActor(event.getEntity())
                 || DistrictWorldFeatures.isSCorpFarmer(event.getEntity())
                 || MerchantTruckLibrary.isMerchant(event.getEntity())
@@ -292,6 +316,15 @@ public final class ProjectMoonCityModule {
     }
 
     @SubscribeEvent
+    public void onQuestNpcAttack(AttackEntityEvent event) {
+        if (!MainlineQuestService.isQuestNpc(event.getTarget())) return;
+        event.setCanceled(true);
+        if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
+            MissionService.interactStoryNpc(player, event.getTarget());
+        }
+    }
+
+    @SubscribeEvent
     public void onMissionActorDeath(LivingDeathEvent event) {
         MissionService.onEntityDeath(event);
     }
@@ -311,6 +344,7 @@ public final class ProjectMoonCityModule {
     @SubscribeEvent
     public void onPlayerLogout(PlayerEvent.PlayerLoggedOutEvent event) {
         if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
+            BuildingInspectionService.forget(player.getUUID());
             MissionService.forgetPlayer(player);
         }
     }
@@ -321,6 +355,7 @@ public final class ProjectMoonCityModule {
         districtEntryNotifier.clear();
         atmosphereDistricts.clear();
         vendorRevision = -1L;
+        BuildingInspectionService.reset();
         QuicktimeTravelService.clearRuntimeState();
         MissionService.reset();
         NeonCityGenerator.reset();
@@ -379,6 +414,11 @@ public final class ProjectMoonCityModule {
         registerInstance(event, "negative_determinism", NEGATIVE_DETERMINISM, data);
         registerInstance(event, "deterministic_seed_layouts", DETERMINISTIC_SEED_LAYOUTS, data);
         registerInstance(event, "connected_travel_graph", CONNECTED_TRAVEL_GRAPH, data);
+        registerInstance(
+                event,
+                "urban_footprint_continuity",
+                URBAN_FOOTPRINT_CONTINUITY,
+                data);
         registerInstance(event, "finite_city_wilderness", FINITE_CITY_WILDERNESS, data);
         registerInstance(event, "district_zones_and_culture", DISTRICT_ZONES_AND_CULTURE, data);
         registerInstance(event, "connection_continuity", CONNECTION_CONTINUITY, data);
@@ -399,6 +439,9 @@ public final class ProjectMoonCityModule {
         registerInstance(event, "quicktime_routing", QUICKTIME_ROUTING, data);
         registerInstance(event, "city_map_plan", CITY_MAP_PLAN, data);
         registerInstance(event, "pedestrian_policy", PEDESTRIAN_POLICY, data);
+        registerInstance(event, "district_atmosphere", DISTRICT_ATMOSPHERE, data);
+        registerInstance(event, "urban_supply_crates", URBAN_SUPPLY_CRATES, data);
+        registerInstance(event, "building_inspection", BUILDING_INSPECTION, data);
     }
 
     private static void registerInstance(

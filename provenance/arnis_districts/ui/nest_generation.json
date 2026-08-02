@@ -1,0 +1,77 @@
+{
+  "bbox": [
+    1.2815,
+    103.8485,
+    1.2855,
+    103.8545
+  ],
+  "city": "Singapore / Raffles Place",
+  "culture": "tropical financial towers, civic space, and integrated transit",
+  "district": "UI",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "kind": "neoncity:arnis_zone_source_generation",
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "manifest": {
+    "file": "provenance/arnis_districts/perimeter_manifest.json",
+    "sha256": "ca71ba94724f144d9d947d1095869bebd4749110f68ed7e1200bfd5c74f3f786"
+  },
+  "schema_version": 1,
+  "slug": "singapore_raffles_place",
+  "source": {
+    "osm_file": "provenance/arnis_districts/ui/nest_singapore_raffles_place_osm.json",
+    "osm_sha256": "b212b409bfc568aeccb42c5892cf3e150edc5fba26ef57019b0b6eb1c8b77644"
+  },
+  "world": {
+    "build_path": "build/arnis_perimeter/ui/nest/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "171ad7f3a0cf034f5c6ae802b5120279144fab729c14621d33432fe1a914818f",
+    "metadata": {
+      "maxGeoLat": 1.2855,
+      "maxGeoLon": 103.8545,
+      "maxMcX": 667,
+      "maxMcZ": 444,
+      "minGeoLat": 1.2815,
+      "minGeoLon": 103.8485,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "c0f36348f27f14ba367108857e834e33047b6dfd8282939178ed78e08c90a0c2",
+    "preview_sha256": "2e18361a049b602c21d29339a1482bace766ffb5cb46564199a0bf6d9503e5ec",
+    "regions": [
+      {
+        "bytes": 4636672,
+        "file": "r.0.0.mca",
+        "sha256": "81407a8ac1aca8d43383074bc09f1c003c8f1fdbafda7dcf3816ad4585e2c82a"
+      },
+      {
+        "bytes": 4202496,
+        "file": "r.1.0.mca",
+        "sha256": "db12fc7bd18f7e6551e73c51b16232d046275c2468df469a37f883ae98609238"
+      }
+    ]
+  },
+  "zone": "NEST"
+}

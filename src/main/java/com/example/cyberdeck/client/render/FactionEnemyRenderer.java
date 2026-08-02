@@ -36,6 +36,8 @@ public final class FactionEnemyRenderer
     }
     private static final Identifier CYBERPSYCHO_SKIN = Identifier.fromNamespaceAndPath(
             "cyberdeck", "textures/entity/cyberpsycho.png");
+    private static final Identifier FOG_MOTHER_SKIN = Identifier.fromNamespaceAndPath(
+            "cyberdeck", "textures/entity/fog_mother.png");
     private static final Identifier TRAUMA_TEAM_SKIN = Identifier.fromNamespaceAndPath(
             "cyberdeck", "textures/entity/trauma_team.png");
     private static final Identifier EXCISION_SKIN = Identifier.fromNamespaceAndPath(
@@ -63,8 +65,10 @@ public final class FactionEnemyRenderer
         if (state.traumaTeam) {
             return TRAUMA_TEAM_SKIN;
         }
-        return state.cyberpsycho ? CYBERPSYCHO_SKIN
-                : TACTICAL_SKINS[Math.floorMod(state.skinVariant, TACTICAL_SKINS.length)];
+        if (state.cyberpsycho) {
+            return state.skinVariant == 1 ? FOG_MOTHER_SKIN : CYBERPSYCHO_SKIN;
+        }
+        return TACTICAL_SKINS[Math.floorMod(state.skinVariant, TACTICAL_SKINS.length)];
     }
 
     @Override

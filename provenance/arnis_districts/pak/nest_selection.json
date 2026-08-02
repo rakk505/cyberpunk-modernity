@@ -1,0 +1,35 @@
+{
+  "atlas_chunks": 16,
+  "candidate_count": 264,
+  "chosen": {
+    "above_surface_blocks": 367673,
+    "developed_chunks": 92,
+    "floating_structural_columns": 6632,
+    "max_height_above_surface": 246,
+    "occupied_chunks": 162,
+    "road_surface_cells": 14381,
+    "score": -6746067,
+    "selection": "nest=10,11:25,26",
+    "structural_columns": 10193,
+    "vegetation_blocks": 44313,
+    "water_blocks": 16367
+  },
+  "chunk_bounds_scanned": {
+    "max_x": 36,
+    "max_z": 26,
+    "min_x": 0,
+    "min_z": 0
+  },
+  "city": "Dubai / Burj Khalifa Downtown",
+  "district": "PAK",
+  "kind": "neoncity:arnis_zone_atlas_selection",
+  "quality_tier": "strict",
+  "schema_version": 1,
+  "slug": "dubai_downtown",
+  "source_osm": {
+    "file": "provenance/arnis_districts/pak/nest_dubai_downtown_osm.json",
+    "sha256": "eaadf702f76febf3a764989437b398b8899b0e6ac9eaf2339a4430babec21a8e"
+  },
+  "source_world": "build/arnis_perimeter/pak/nest/Arnis World 1",
+  "zone": "NEST"
+}

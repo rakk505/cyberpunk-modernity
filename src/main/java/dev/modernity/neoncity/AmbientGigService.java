@@ -182,7 +182,8 @@ public final class AmbientGigService {
         long generation = previous == null ? 0L : previous.generation() + 1L;
         data.replace(owner, district, generation,
                 generateStoredOffers(
-                        NeonCityGenerator.layout(), level.getSeed(), owner, district, generation));
+                        NeonCityGenerator.layout(), NeonCityGenerator.contentSeed(),
+                        owner, district, generation));
         return true;
     }
 

@@ -1,0 +1,35 @@
+{
+  "atlas_chunks": 16,
+  "candidate_count": 180,
+  "chosen": {
+    "above_surface_blocks": 164053,
+    "developed_chunks": 98,
+    "floating_structural_columns": 5849,
+    "max_height_above_surface": 51,
+    "occupied_chunks": 104,
+    "road_surface_cells": 6962,
+    "score": -6582103,
+    "selection": "backstreets=1,9:16,24",
+    "structural_columns": 7940,
+    "vegetation_blocks": 1517,
+    "water_blocks": 36718
+  },
+  "chunk_bounds_scanned": {
+    "max_x": 29,
+    "max_z": 26,
+    "min_x": 0,
+    "min_z": 0
+  },
+  "city": "Boston / Fort Point",
+  "district": "WANG",
+  "kind": "neoncity:arnis_zone_atlas_selection",
+  "quality_tier": "strict",
+  "schema_version": 1,
+  "slug": "boston_fort_point",
+  "source_osm": {
+    "file": "provenance/arnis_districts/wang/backstreets_boston_fort_point_osm.json",
+    "sha256": "4784fb4c0c0ab6920148cf471e5eb2362936f9f02c36f66684b27c636358226d"
+  },
+  "source_world": "build/arnis_perimeter/wang/backstreets/Arnis World 1",
+  "zone": "BACKSTREETS"
+}

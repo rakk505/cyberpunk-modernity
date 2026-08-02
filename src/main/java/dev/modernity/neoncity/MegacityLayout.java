@@ -21,15 +21,49 @@ import java.util.function.Predicate;
 public final class MegacityLayout {
     public static final long DEFAULT_SEED = 0x50524F4A4543544DL;
     public static final int DISTRICT_COUNT = District.values().length;
-    public static final int NOMINAL_CITY_RADIUS = 4_900;
+    public static final int NOMINAL_CITY_RADIUS = 6_500;
+    public static final double DISTRICT_BLOB_LIMIT = 1.08;
+    static final double CONNECTION_HALF_WIDTH = 13.0;
+    static final double CONNECTION_CLEARANCE_RADIUS = 23.0;
 
     private static final double GOLDEN_ANGLE = Math.PI * (3.0 - Math.sqrt(5.0));
+    private static final int OUTER_RING_SLOTS = 12;
+    private static final int OUTER_RING_CENTER_RADIUS = 5_000;
+    private static final int OUTER_DISTRICT_RADIUS = 1_450;
     public static final double BORDER_SECONDARY_LIMIT = 1.18;
     public static final double BORDER_GAP_LIMIT = 0.11;
     private static final int CONNECTION_PROJECTION_SEGMENTS = 12;
     private static final int CONNECTION_PROJECTION_REFINEMENTS = 5;
     private static final long NODE_SALT = 0x4E4F444553414C54L;
     private static final long EDGE_SALT = 0x4544474553414C54L;
+
+    private static final List<District> OUTER_RING = List.of(
+            District.Y_CORP,
+            District.YI_DISTRICT,
+            District.WANG_DISTRICT,
+            District.X_CORP,
+            District.XI_DISTRICT,
+            District.UI_DISTRICT,
+            District.U_CORP,
+            District.UANG_DISTRICT,
+            District.PAK_DISTRICT,
+            District.POK_DISTRICT,
+            District.PON_DISTRICT,
+            District.AE_DISTRICT);
+
+    private static final Set<District> FIXED_OUTER_DISTRICTS = Set.of(
+            District.AE_DISTRICT,
+            District.Y_CORP,
+            District.YI_DISTRICT,
+            District.WANG_DISTRICT,
+            District.X_CORP,
+            District.XI_DISTRICT,
+            District.UANG_DISTRICT,
+            District.U_CORP,
+            District.UI_DISTRICT,
+            District.PON_DISTRICT,
+            District.POK_DISTRICT,
+            District.PAK_DISTRICT);
 
     public enum Zone {
         NEST,
@@ -143,32 +177,49 @@ public final class MegacityLayout {
     /** Recreates a plan from its already-mixed layout seed without needing the world seed. */
     public static MegacityLayout createFromLayoutSeed(long layoutSeed) {
         long seed = layoutSeed;
+        ArrayList<Node> nodes = new ArrayList<>(DISTRICT_COUNT);
+        double phase = unit(seed) * Math.PI * 2.0;
+        long originIdentity = mix(seed ^ NODE_SALT, 0, District.A_CORP.ordinal());
+        nodes.add(new Node(District.A_CORP, 0, 0, 990, 900, phase, originIdentity));
+
         ArrayList<District> assignment = new ArrayList<>(List.of(District.values()));
-        // A Corp is the monumental origin. U Corp is reserved for the outermost point so its
-        // seeded port can always open toward wilderness and a real ocean biome. Every other
-        // culture changes place with the world seed while preserving the balanced point set.
-        int outermostIndex = assignment.size() - 1;
-        Collections.swap(assignment, assignment.indexOf(District.U_CORP), outermostIndex);
-        for (int index = outermostIndex - 1; index > 1; index--) {
-            int swap = 1 + floorMod((int) mix(seed ^ NODE_SALT, index, 17), index);
+        assignment.remove(District.A_CORP);
+        assignment.removeAll(FIXED_OUTER_DISTRICTS);
+        for (int index = assignment.size() - 1; index > 0; index--) {
+            int swap = floorMod((int) mix(seed ^ NODE_SALT, index, 17), index + 1);
             Collections.swap(assignment, index, swap);
         }
 
-        ArrayList<Node> nodes = new ArrayList<>(DISTRICT_COUNT);
-        double phase = unit(seed) * Math.PI * 2.0;
-        for (int index = 0; index < DISTRICT_COUNT; index++) {
+        // Twelve equal, overlapping blobs form the actual city edge. Their fixed clockwise order
+        // preserves the requested compass anchors without stacking any side into a straight wall.
+        ArrayList<Node> outerRing = new ArrayList<>(OUTER_RING_SLOTS);
+        for (int slot = 0; slot < OUTER_RING_SLOTS; slot++) {
+            District district = OUTER_RING.get(slot);
+            double angle = slot * Math.PI * 2.0 / OUTER_RING_SLOTS;
+            int x = (int) Math.round(Math.sin(angle) * OUTER_RING_CENTER_RADIUS);
+            int z = (int) Math.round(-Math.cos(angle) * OUTER_RING_CENTER_RADIUS);
+            long identity = mix(seed ^ NODE_SALT, 100 + slot, district.ordinal());
+            Node node = new Node(
+                    district,
+                    x,
+                    z,
+                    OUTER_DISTRICT_RADIUS,
+                    OUTER_DISTRICT_RADIUS,
+                    angle,
+                    identity);
+            outerRing.add(node);
+            nodes.add(node);
+        }
+
+        // Preserve the original seeded low-discrepancy interior exactly. Fixed worlds therefore
+        // keep their analyzed Arnis building coordinates while ordinary cultures still shuffle.
+        for (int index = 0; index < assignment.size(); index++) {
             District district = assignment.get(index);
-            long identity = mix(seed ^ NODE_SALT, index, district.ordinal());
-            if (index == 0) {
-                nodes.add(new Node(district, 0, 0, 990, 900, phase, identity));
-                continue;
-            }
-            double radial = district == District.U_CORP
-                    ? 3_820.0 + signedUnit(Long.rotateRight(identity, 9)) * 35.0
-                    : 735.0 * Math.sqrt(index)
-                            + signedUnit(Long.rotateRight(identity, 9)) * 95.0;
+            long identity = mix(seed ^ NODE_SALT, index + 1, district.ordinal());
+            double radial = 760.0 * Math.sqrt(index + 2.0)
+                    + signedUnit(Long.rotateRight(identity, 9)) * 55.0;
             double angle = phase + index * GOLDEN_ANGLE
-                    + signedUnit(Long.rotateRight(identity, 23)) * 0.13;
+                    + signedUnit(Long.rotateRight(identity, 23)) * 0.08;
             int x = (int) Math.round(Math.cos(angle) * radial);
             int z = (int) Math.round(Math.sin(angle) * radial);
             int radius = 960 + floorMod((int) (identity >>> 32), 281);
@@ -178,10 +229,13 @@ public final class MegacityLayout {
                     + signedUnit(Long.rotateRight(identity, 41)) * 0.5;
             nodes.add(new Node(district, x, z, radiusX, radiusZ, rotation, identity));
         }
-        return new MegacityLayout(seed, nodes, buildEdges(seed, nodes));
+        if (nodes.size() != DISTRICT_COUNT) {
+            throw new IllegalStateException("layout omitted a district: " + nodes.size());
+        }
+        return new MegacityLayout(seed, nodes, buildEdges(seed, nodes, outerRing));
     }
 
-    private static List<Edge> buildEdges(long seed, List<Node> nodes) {
+    private static List<Edge> buildEdges(long seed, List<Node> nodes, List<Node> outerRing) {
         ArrayList<Edge> edges = new ArrayList<>();
         Set<Long> pairs = new HashSet<>();
         boolean[] connected = new boolean[nodes.size()];
@@ -223,7 +277,49 @@ public final class MegacityLayout {
                 }
             }
         }
+
+        // The complete outer ring is also a hard road-topology contract, so every neighboring
+        // edge district remains directly connected in addition to the seeded city graph.
+        for (int index = 0; index < outerRing.size(); index++) {
+            District first = outerRing.get(index).district();
+            District second = outerRing.get((index + 1) % outerRing.size()).district();
+            addEdge(
+                    seed,
+                    nodes,
+                    edges,
+                    pairs,
+                    indexOfDistrict(nodes, first),
+                    indexOfDistrict(nodes, second),
+                    false);
+        }
+
+        // Each perimeter district also owns a direct inward route. This prevents a border member
+        // from depending on its two ring neighbors to reach the randomized interior graph.
+        Set<District> outerDistricts = outerRing.stream()
+                .map(Node::district)
+                .collect(java.util.stream.Collectors.toSet());
+        for (Node outer : outerRing) {
+            Node nearestInterior = nodes.stream()
+                    .filter(candidate -> !outerDistricts.contains(candidate.district()))
+                    .min(Comparator.comparingLong(candidate -> distanceSquared(outer, candidate)))
+                    .orElseThrow();
+            addEdge(
+                    seed,
+                    nodes,
+                    edges,
+                    pairs,
+                    indexOfDistrict(nodes, outer.district()),
+                    indexOfDistrict(nodes, nearestInterior.district()),
+                    false);
+        }
         return edges;
+    }
+
+    private static int indexOfDistrict(List<Node> nodes, District district) {
+        for (int index = 0; index < nodes.size(); index++) {
+            if (nodes.get(index).district() == district) return index;
+        }
+        throw new IllegalStateException("layout omitted " + district);
     }
 
     private static void addEdge(long seed, List<Node> nodes, List<Edge> edges,
@@ -267,6 +363,8 @@ public final class MegacityLayout {
         }
         if (primary == null || secondary == null) throw new IllegalStateException("layout has no districts");
 
+        boolean inUrbanHull = insideUrbanHull(worldX, worldZ);
+
         Edge nearestEdge = null;
         double nearestEdgeDistance = Double.MAX_VALUE;
         if (includeConnections) {
@@ -278,17 +376,21 @@ public final class MegacityLayout {
         }
 
         double boundaryGap = secondary.score() - primary.score();
-        boolean inBlob = primary.score() <= 1.08;
-        boolean onConnection = includeConnections && nearestEdgeDistance <= 13.0
+        boolean inBlob = primary.score() <= DISTRICT_BLOB_LIMIT;
+        boolean inUrbanFabric = inBlob || inUrbanHull;
+        boolean inConnectionClearance = includeConnections
+                && nearestEdgeDistance <= CONNECTION_CLEARANCE_RADIUS
                 && betweenEndpoints(nearestEdge, worldX, worldZ, 1.15);
+        boolean onConnection = inConnectionClearance
+                && nearestEdgeDistance <= CONNECTION_HALF_WIDTH;
         Zone zone;
-        if (!inBlob && !onConnection) {
+        if (!inUrbanFabric && !inConnectionClearance) {
             zone = Zone.WILDERNESS;
         } else if (inBlob && primary.score() <= 0.45) {
             zone = Zone.NEST;
-        } else if (inBlob) {
+        } else if (inUrbanFabric) {
             // A district has exactly two inhabited zones. The Backstreets continue to the
-            // irregular blob edge; land beyond it is wilderness except for graph corridors.
+            // irregular blob edge and fill the perimeter hull so the city is one landmass.
             zone = Zone.BACKSTREETS;
         } else {
             // Keep interdistrict roads and bridges generatable without inventing a third
@@ -319,6 +421,12 @@ public final class MegacityLayout {
         return Math.hypot(u, v) / ripple;
     }
 
+    /** Filled ring interior joining every overlapping district blob into one urban landmass. */
+    public boolean insideUrbanHull(int worldX, int worldZ) {
+        return Math.hypot((double) worldX, (double) worldZ)
+                <= OUTER_RING_CENTER_RADIUS + 1.0;
+    }
+
     /** Stable boundary terrain for an overlapping pair of district blobs. */
     public Zone boundaryZone(District first, District second) {
         long border = mix(seed ^ 0x424F52444552534CL,
@@ -333,7 +441,7 @@ public final class MegacityLayout {
 
     /** Shared runtime/map predicate for the full widened district-border band. */
     public static boolean isDistrictBorder(double primaryScore, double secondaryScore) {
-        return primaryScore <= 1.08
+        return primaryScore <= DISTRICT_BLOB_LIMIT
                 && secondaryScore <= BORDER_SECONDARY_LIMIT
                 && secondaryScore - primaryScore < BORDER_GAP_LIMIT;
     }

@@ -113,12 +113,13 @@ public final class LifepathService {
                 cyberware.add(required("nano_plating_t2"));
                 cyberware.add(required("gorilla_arms_t2"));
                 items.add(new ItemStack(WeaponItems.gun(GunType.TECH_SHOTGUN).get()));
+                items.add(new ItemStack(AmmoItems.item(AmmoType.SHOTGUN).get(), 200));
             }
             case MERC -> {
                 cyberware.add(required(startingLeg));
                 cyberware.add(required("mantis_blades_t2"));
                 items.add(new ItemStack(WeaponItems.gun(GunType.ASSAULT_RIFLE).get()));
-                items.add(new ItemStack(AmmoItems.item(AmmoType.HANDGUN).get(), 300));
+                items.add(new ItemStack(AmmoItems.item(AmmoType.HEAVY).get(), 300));
             }
         }
         return new StarterLoadout(List.copyOf(cyberware), List.copyOf(items));

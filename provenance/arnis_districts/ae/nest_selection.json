@@ -1,0 +1,35 @@
+{
+  "atlas_chunks": 16,
+  "candidate_count": 192,
+  "chosen": {
+    "above_surface_blocks": 189791,
+    "developed_chunks": 145,
+    "floating_structural_columns": 13620,
+    "max_height_above_surface": 46,
+    "occupied_chunks": 181,
+    "road_surface_cells": 12707,
+    "score": -15467459,
+    "selection": "nest=0,5:15,20",
+    "structural_columns": 16964,
+    "vegetation_blocks": 20547,
+    "water_blocks": 6451
+  },
+  "chunk_bounds_scanned": {
+    "max_x": 30,
+    "max_z": 26,
+    "min_x": 0,
+    "min_z": 0
+  },
+  "city": "Oslo / Bjorvika",
+  "district": "AE",
+  "kind": "neoncity:arnis_zone_atlas_selection",
+  "quality_tier": "strict",
+  "schema_version": 1,
+  "slug": "oslo_bjorvika",
+  "source_osm": {
+    "file": "provenance/arnis_districts/ae/nest_oslo_bjorvika_osm.json",
+    "sha256": "0677215fcf04919c3e0339b4703199d89f3ec77676800835c0783e6baa13233f"
+  },
+  "source_world": "build/arnis_perimeter/ae/nest/Arnis World 1",
+  "zone": "NEST"
+}

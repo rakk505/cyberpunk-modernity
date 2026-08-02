@@ -1,0 +1,72 @@
+{
+  "bbox": [
+    59.9068,
+    10.75,
+    59.9108,
+    10.759
+  ],
+  "city": "Oslo / Bjorvika",
+  "culture": "Nordic waterfront institutions, contemporary blocks, and maritime public space",
+  "district": "AE",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "kind": "neoncity:arnis_zone_source_generation",
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "manifest": {
+    "file": "provenance/arnis_districts/perimeter_manifest.json",
+    "sha256": "ca71ba94724f144d9d947d1095869bebd4749110f68ed7e1200bfd5c74f3f786"
+  },
+  "schema_version": 1,
+  "slug": "oslo_bjorvika",
+  "source": {
+    "osm_file": "provenance/arnis_districts/ae/nest_oslo_bjorvika_osm.json",
+    "osm_sha256": "0677215fcf04919c3e0339b4703199d89f3ec77676800835c0783e6baa13233f"
+  },
+  "world": {
+    "build_path": "build/arnis_perimeter/ae/nest/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "3018ecfec859b85f681c80dd11e549b5b0a907170f55deea69c39675cfeaed35",
+    "metadata": {
+      "maxGeoLat": 59.9108,
+      "maxGeoLon": 10.759,
+      "maxMcX": 501,
+      "maxMcZ": 444,
+      "minGeoLat": 59.9068,
+      "minGeoLon": 10.75,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "7c9aa658ae914e4644ebd5ba9351dd76577d996213c88b2c1a9a2b689dfa0457",
+    "preview_sha256": "6ddb1b14415beef655a45c1a8ee216f9762d81a343dfd0ec5ce20e256276850f",
+    "regions": [
+      {
+        "bytes": 4325376,
+        "file": "r.0.0.mca",
+        "sha256": "d54920afa9ec2286b2c600d08dbb3764b3d7cce8999907b83f445f8a6f8a4632"
+      }
+    ]
+  },
+  "zone": "NEST"
+}

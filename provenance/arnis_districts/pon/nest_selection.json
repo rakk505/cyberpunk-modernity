@@ -1,0 +1,35 @@
+{
+  "atlas_chunks": 16,
+  "candidate_count": 192,
+  "chosen": {
+    "above_surface_blocks": 454898,
+    "developed_chunks": 210,
+    "floating_structural_columns": 23870,
+    "max_height_above_surface": 71,
+    "occupied_chunks": 229,
+    "road_surface_cells": 7824,
+    "score": -27336633,
+    "selection": "nest=8,4:23,19",
+    "structural_columns": 32732,
+    "vegetation_blocks": 12135,
+    "water_blocks": 86
+  },
+  "chunk_bounds_scanned": {
+    "max_x": 30,
+    "max_z": 26,
+    "min_x": 0,
+    "min_z": 0
+  },
+  "city": "Madrid / Gran Via-Callao",
+  "district": "PON",
+  "kind": "neoncity:arnis_zone_atlas_selection",
+  "quality_tier": "strict",
+  "schema_version": 1,
+  "slug": "madrid_gran_via",
+  "source_osm": {
+    "file": "provenance/arnis_districts/pon/nest_madrid_gran_via_osm.json",
+    "sha256": "406c5804a370b862da547e8cf0dfd882b8d23bccb1ca93b1a84567171a7cfa23"
+  },
+  "source_world": "build/arnis_perimeter/pon/nest/Arnis World 1",
+  "zone": "NEST"
+}

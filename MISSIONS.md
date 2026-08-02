@@ -54,3 +54,57 @@ active.
 `start` stages an exact configured definition for the executing player. It is intended for mission
 authoring and visual verification; ordinary players accept the same definitions from black fixer
 trucks.
+
+## Mainline Campaign
+
+Mainline missions are server authoritative and loaded from
+`config/cyberdeck/story_missions.json`. Schema version 2 is seeded from
+`src/main/resources/data/neoncity/missions/story.json`. A schema-version-1 config is backed up as
+`story_missions.v1.backup.json` before the bundled campaign replaces it.
+
+The Journal always lists the one unlocked mainline mission under `AVAILABLE MAINLINE`. Acceptance
+uses the same active contract slot as a gig. Completing the configured DAG completion node settles
+the shared party reward, records story completion, and exposes the next mission. The equivalent
+commands are:
+
+```text
+/missions list
+/missions status
+/missions start <mission_id>
+/missions abandon
+```
+
+Mainline generation uses canonical city seed `50520260801`. The mod bundles five pre-analyzed Arnis
+building descriptors: two distinct G Corp buildings, one five-floor O Corp building, and two
+distinct D Corp buildings. New saves persist those exact descriptors at startup without loading,
+scanning, or rendering their chunks. Acceptance reuses the descriptor; deployment installs the
+selected interior only when the party approaches the active site, and restarts reuse the saved
+descriptor. The live atlas scanner and purpose-built tower generator remain emergency recovery
+paths if the bundled catalog or a modified story configuration is incompatible. Reservations
+compare complete building footprints with normal mission-site clearance and keep same-district
+missions in different buildings. Rejected candidates are never modified; accepted edits are
+snapshotted and restored transactionally.
+
+Game masters can inspect the compiler without changing the world:
+
+```text
+/neoncity buildings summary [radius]
+/neoncity buildings inspect [radius]
+/neoncity buildings inspect off
+```
+
+`summary` reports stable building IDs, bounds, inferred floor heights and cell counts, readiness,
+and rejection reasons. `inspect` adds a player-local, ten-second particle overlay for the nearest
+label, including exact mission masks, entrance, stairs, patrol points, and objective when accepted.
+The radius is bounded to zero through two chunks.
+
+Talk and delivery characters are persistent, invulnerable NPCs with a visible `!` name marker.
+Left-click advances only the currently ready node. Cargo is contract-tagged, party-counted, and can
+be reissued by its source NPC if lost. Combat targets stay invulnerable until their assassination or
+cyberpsycho node becomes current.
+
+Save recovery is conservative: missing DAG progress restarts a valid active mainline at its opening
+node after deployed actors are cleaned up; a removed mission definition fails the stale contract so
+it cannot occupy the player's contract slot permanently. Party acceptance requires all snapshotted
+members online, node completion is idempotent, and early or duplicate interactions do not advance
+the DAG.

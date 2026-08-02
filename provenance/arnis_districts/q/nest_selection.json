@@ -1,0 +1,35 @@
+{
+  "atlas_chunks": 16,
+  "candidate_count": 264,
+  "chosen": {
+    "above_surface_blocks": 343132,
+    "developed_chunks": 145,
+    "floating_structural_columns": 10194,
+    "max_height_above_surface": 98,
+    "occupied_chunks": 155,
+    "road_surface_cells": 12596,
+    "score": -11199008,
+    "selection": "nest=12,8:27,23",
+    "structural_columns": 13516,
+    "vegetation_blocks": 792,
+    "water_blocks": 0
+  },
+  "chunk_bounds_scanned": {
+    "max_x": 36,
+    "max_z": 26,
+    "min_x": 0,
+    "min_z": 0
+  },
+  "city": "Fukuoka / Tenjin",
+  "district": "Q",
+  "kind": "neoncity:arnis_zone_atlas_selection",
+  "quality_tier": "strict",
+  "schema_version": 1,
+  "slug": "fukuoka_tenjin",
+  "source_osm": {
+    "file": "provenance/arnis_districts/q/nest_fukuoka_tenjin_osm.json",
+    "sha256": "512b03c521067309aaad1dfc6671a8bffd30268dc5b137cb14f913281946dd95"
+  },
+  "source_world": "build/arnis_perimeter/q/nest/Arnis World 1",
+  "zone": "NEST"
+}

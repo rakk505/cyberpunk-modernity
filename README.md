@@ -24,17 +24,24 @@ grenades, cyberware, faction soldiers, and a procedurally generated neon city.
 - **Cyberware** — 121 wiki-sourced implant families across all ten body systems, represented by
   1,025 distinct Tier 1 through Tier 5++ variants. The ripperdoc screen selects a physical socket,
   implant family, and exact tier while showing that tier's capacity, armor, and source effect text.
-- **Project Moon Megacity** — a finite, irregular A-Z city with separate Nest and Backstreets
-  zones, wilderness outside the city, district roads/bridges/rail, and 52 coherent 16x16 Arnis
-  atlases containing 13,312 literal source chunks in their original materials. Each district adds
+- **Project Moon Megacity** — a finite, irregular 35-district city with separate Nest and Backstreets
+  zones, an exact 12-district circular perimeter, district roads/bridges/rail, and 70 coherent 16x16
+  Arnis
+  atlases containing 17,920 literal source chunks in their original materials. Each district adds
   its own three-color emblem banners without recoloring the source buildings. Parks use 68 curated
   Exsilit tree structures with district-appropriate foliage plus bounded merchant-truck clusters. Gray,
   yellow, cyan, brown, and black trucks provide weapons, sub-Tier-4 cyberware, armor, food/Slop,
-  and waypoint-driven fixer deliveries respectively. All buildings come from the Arnis atlases;
+  and waypoint-driven fixer deliveries respectively. Ordinary city buildings come from the Arnis
+  atlases;
   procedural column overlays add infrastructure and open space without discarding unaffected
-  imported buildings or synthesizing towers. It is built directly into the Cyberdeck JAR.
-- **U Corp container coast** — U Corp opens into a seeded ocean-biome corridor with a colored
-  container terminal, working-scale cranes, harbor basins, and two or three 75x75 Portships. Each
+  imported buildings or synthesizing routine towers. A purpose-built mission tower remains an
+  emergency fallback if a modified story catalog has no compatible predefined site. Sparse seeded
+  supply crates add ammunition, currency,
+  consumables, and technical salvage after structures are placed. It is built directly into the
+  Cyberdeck JAR.
+- **U Corp container coast** — U Corp contains a localized port without replacing the vanilla biome
+  beyond the city, including a colored container terminal, working-scale cranes, harbor basins, and
+  two or three 75x75 Portships. Each
   Portship is a floating settlement of staggered container homes, decks, lights, and a crane; the
   first ship also carries a central harbor tower.
 - **City civilians** — eight corporate-worker variants populate only the Cyberpunk City and Neon
@@ -58,13 +65,25 @@ The built mod jar is written to `build/libs/`.
 The Project Moon generator is part of the root Cyberdeck mod. Install only the Cyberdeck JAR,
 create a fresh world, and select **Project Moon Megacity**. The data namespace remains
 `neoncity:` for compatibility with the original world preset and saved generator state, but there
-is no separate runtime mod dependency.
+is no separate runtime mod dependency. The authored city always uses seed `50520260801`; enter the
+same Minecraft seed (or set `level-seed=50520260801`) when the surrounding vanilla wilderness must
+also be identical between demo clients and servers.
 
-The city contains 26 seeded A-Z district blobs connected by roads, bridges, and rail. Each district
-has a Nest and Backstreets atlas sourced from its own Arnis city study; leaving the city reaches
-ordinary wilderness. Entering an inhabited district displays its letter once. Operators can use
-`/neoncity teleport <A-Z>` to jump to any district's central plaza. `/neoncity port` reports the
-seeded U Corp terminal, shoreline, ocean bounds, and Portship coordinates for inspection.
+The city contains the original A-Z districts plus District Æ, Yi, 王, Xi, Ui, Uang, Pon,
+Pok, and Pak. Its exact clockwise perimeter is Y, Yi, 王, X, Xi, Ui, U, Uang, Pak, Pok, Pon,
+and Æ. Y is northernmost, X easternmost, U southernmost, and Pok westernmost. Each adjacent pair
+shares a standard district divider and connects inward to the seeded interior, producing one
+continuous city footprint. Terrain outside the perimeter is left to vanilla world generation.
+Every district has a Nest and
+Backstreets atlas sourced from an audited Arnis city study. Operators can use `/neoncity teleport
+<code>` to jump to a central plaza; the new ASCII command codes are `AE`, `YI`, `WANG`, `XI`, `UI`,
+`UANG`, `PON`, `POK`, and `PAK`. `/neoncity port` reports the U Corp terminal, shoreline, ocean
+bounds, and Portship coordinates for inspection.
+
+City content uses canonical seed `50520260801`. Five pre-analyzed G/G/O/D/D Arnis building
+descriptors are bundled for the mainline campaign and persisted into new saves without scanning or
+generating those chunks at startup. The v22 layout changes the generator fingerprint; older
+megacity saves are left untouched, so use a fresh world for this layout.
 
 Mission configuration and authoring commands are documented in [MISSIONS.md](MISSIONS.md).
 

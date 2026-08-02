@@ -1,0 +1,72 @@
+{
+  "bbox": [
+    55.75,
+    37.5835,
+    55.754,
+    37.5915
+  ],
+  "city": "Moscow / New Arbat",
+  "culture": "Moscow-centered Soviet towers, broad prospects, and monumental infrastructure",
+  "district": "YI",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "kind": "neoncity:arnis_zone_source_generation",
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "manifest": {
+    "file": "provenance/arnis_districts/perimeter_manifest.json",
+    "sha256": "ca71ba94724f144d9d947d1095869bebd4749110f68ed7e1200bfd5c74f3f786"
+  },
+  "schema_version": 1,
+  "slug": "moscow_new_arbat",
+  "source": {
+    "osm_file": "provenance/arnis_districts/yi/nest_moscow_new_arbat_osm.json",
+    "osm_sha256": "86a8a6f9424aad9c74962a83bd12d39aa3c4961b8c1bde529fb6fb3320a479db"
+  },
+  "world": {
+    "build_path": "build/arnis_perimeter/yi/nest/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "c6d6e0fb81befcf46012c6b2ec520c1f2a934a54da495289ae63bd4f546b7e88",
+    "metadata": {
+      "maxGeoLat": 55.754,
+      "maxGeoLon": 37.5915,
+      "maxMcX": 500,
+      "maxMcZ": 444,
+      "minGeoLat": 55.75,
+      "minGeoLon": 37.5835,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "43acbfc3fad92809d528bff09247a9a7e7bdc0b662533bd3725eb4e66a68d409",
+    "preview_sha256": "3301a6e99dc3aa4b033ae597caa277edfb3180e5652108bf51c8c37a171d4bf5",
+    "regions": [
+      {
+        "bytes": 4284416,
+        "file": "r.0.0.mca",
+        "sha256": "c664ff8db38bc6cb80f99e45995b3badd386c032da5812b091a398858fe66cab"
+      }
+    ]
+  },
+  "zone": "NEST"
+}

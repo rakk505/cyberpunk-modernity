@@ -4,6 +4,7 @@ import com.example.cyberdeck.Cyberdeck;
 import com.example.cyberdeck.defense.KangTaoTurret;
 import com.example.cyberdeck.faction.FactionEnemy;
 import com.example.cyberdeck.npc.CityNpc;
+import dev.modernity.neoncity.MissionService;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.neoforged.bus.api.EventPriority;
@@ -31,7 +32,10 @@ public final class CityActorJoinCompatibility {
 
     /** Purely parameterized compatibility seam used by the regression suite. */
     public static void restoreManagedCityActor(EntityJoinLevelEvent event, boolean supportedCity) {
-        if (event.isCanceled() && supportedCity && isManagedCityActor(event.getEntity())) {
+        if (event.isCanceled()
+                && supportedCity
+                && isManagedCityActor(event.getEntity())
+                && !MissionService.isMissionActor(event.getEntity())) {
             event.setCanceled(false);
             Cyberdeck.LOGGER.debug("Restored canceled city actor join for {}",
                     event.getEntity().getType());

@@ -1,0 +1,35 @@
+{
+  "atlas_chunks": 16,
+  "candidate_count": 204,
+  "chosen": {
+    "above_surface_blocks": 260271,
+    "developed_chunks": 238,
+    "floating_structural_columns": 23200,
+    "max_height_above_surface": 33,
+    "occupied_chunks": 250,
+    "road_surface_cells": 9195,
+    "score": -26708378,
+    "selection": "backstreets=0,1:15,16",
+    "structural_columns": 32178,
+    "vegetation_blocks": 15332,
+    "water_blocks": 171
+  },
+  "chunk_bounds_scanned": {
+    "max_x": 31,
+    "max_z": 26,
+    "min_x": 0,
+    "min_z": 0
+  },
+  "city": "Lisbon / Alfama",
+  "district": "PON",
+  "kind": "neoncity:arnis_zone_atlas_selection",
+  "quality_tier": "strict",
+  "schema_version": 1,
+  "slug": "lisbon_alfama",
+  "source_osm": {
+    "file": "provenance/arnis_districts/pon/backstreets_lisbon_alfama_osm.json",
+    "sha256": "dec9e8ef2a9f241add12fc890ab978b120f70250413d929e392fbf994b85b56f"
+  },
+  "source_world": "build/arnis_perimeter/pon/backstreets/Arnis World 1",
+  "zone": "BACKSTREETS"
+}

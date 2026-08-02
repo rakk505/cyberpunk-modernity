@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the compact A-Z top-down occupancy atlas used by the city map UI."""
+"""Build the compact per-district top-down occupancy atlas used by the city map UI."""
 
 from __future__ import annotations
 
@@ -22,9 +22,13 @@ STRUCTURES = CATALOG.parent
 OUTPUT = ROOT / "src/main/resources/assets/cyberdeck/textures/gui/project_moon_map_atlas.png"
 ATLAS_AXIS_CHUNKS = 16
 ATLAS_AXIS_BLOCKS = ATLAS_AXIS_CHUNKS * 16
-WIDTH = 26 * ATLAS_AXIS_BLOCKS
+DISTRICT_CODES = tuple("ABCDEFGHIJKLMNOPQRSTUVWXYZ") + (
+    "AE", "YI", "WANG", "XI", "UI", "UANG", "PON", "POK", "PAK",
+)
+DISTRICT_INDEX = {code.lower(): index for index, code in enumerate(DISTRICT_CODES)}
+WIDTH = len(DISTRICT_CODES) * ATLAS_AXIS_BLOCKS
 HEIGHT = 2 * ATLAS_AXIS_BLOCKS
-TILE_ID = re.compile(r"^([a-z])/((?:nest|backstreets))_([0-9]+)_([0-9]+)$")
+TILE_ID = re.compile(r"^([a-z][a-z0-9_]*)/((?:nest|backstreets))_([0-9]+)_([0-9]+)$")
 
 EMPTY = 0
 SURFACE = 1
@@ -121,7 +125,9 @@ def main() -> None:
                 f"atlas tile is outside {ATLAS_AXIS_CHUNKS}x{ATLAS_AXIS_CHUNKS}: "
                 f"{patch['id']}"
             )
-        district = ord(district_code) - ord("a")
+        if district_code not in DISTRICT_INDEX:
+            raise ValueError(f"unknown district code in atlas: {district_code}")
+        district = DISTRICT_INDEX[district_code]
         zone_row = 0 if zone == "nest" else 1
         anchor = patch["footprint"]["anchor"]
         surface_y = anchor["surface_y"] - anchor["source_y"]
@@ -142,7 +148,7 @@ def main() -> None:
                 pixels[(atlas_y + z) * WIDTH + atlas_x + x] = value
                 counts[value] += 1
 
-    expected = 26 * 2 * ATLAS_AXIS_BLOCKS * ATLAS_AXIS_BLOCKS
+    expected = len(DISTRICT_CODES) * 2 * ATLAS_AXIS_BLOCKS * ATLAS_AXIS_BLOCKS
     if sum(counts) != expected:
         raise ValueError(f"atlas is incomplete: {sum(counts)} of {expected} pixels")
     write_grayscale_png(OUTPUT, WIDTH, HEIGHT, pixels)

@@ -1,0 +1,35 @@
+{
+  "atlas_chunks": 16,
+  "candidate_count": 300,
+  "chosen": {
+    "above_surface_blocks": 392065,
+    "developed_chunks": 190,
+    "floating_structural_columns": 18466,
+    "max_height_above_surface": 188,
+    "occupied_chunks": 209,
+    "road_surface_cells": 13395,
+    "score": -20797459,
+    "selection": "nest=21,1:36,16",
+    "structural_columns": 22265,
+    "vegetation_blocks": 6923,
+    "water_blocks": 269
+  },
+  "chunk_bounds_scanned": {
+    "max_x": 39,
+    "max_z": 26,
+    "min_x": 0,
+    "min_z": 0
+  },
+  "city": "Bangkok / Ratchaprasong",
+  "district": "XI",
+  "kind": "neoncity:arnis_zone_atlas_selection",
+  "quality_tier": "strict",
+  "schema_version": 1,
+  "slug": "bangkok_ratchaprasong",
+  "source_osm": {
+    "file": "provenance/arnis_districts/xi/nest_bangkok_ratchaprasong_osm.json",
+    "sha256": "91da9c9c2f6d4372a932eb07818a63a3f014a00c9185d71307148a7de0b4d521"
+  },
+  "source_world": "build/arnis_perimeter/xi/nest/Arnis World 1",
+  "zone": "NEST"
+}

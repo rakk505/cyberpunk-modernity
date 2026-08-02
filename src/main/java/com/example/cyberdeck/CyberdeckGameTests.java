@@ -4,6 +4,7 @@ import com.mojang.authlib.GameProfile;
 import com.example.cyberdeck.city.CityWorlds;
 import com.example.cyberdeck.city.CityActorJoinCompatibility;
 import com.example.cyberdeck.city.AmmoCacheBlock;
+import com.example.cyberdeck.city.BlackLootCacheBlock;
 import com.example.cyberdeck.city.BlackLootCacheBlockEntity;
 import com.example.cyberdeck.city.CityLootBlocks;
 import com.example.cyberdeck.city.CityLootGeneration;
@@ -17,13 +18,13 @@ import com.example.cyberdeck.cyberware.CyberwareItems;
 import com.example.cyberdeck.cyberware.CyberwareItem;
 import com.example.cyberdeck.cyberware.SandevistanProfile;
 import com.example.cyberdeck.cyberware.SlotUnlock;
+import com.example.cyberdeck.defense.DefenseContent;
+import com.example.cyberdeck.defense.KangTaoTurret;
 import com.example.cyberdeck.effect.SandevistanMechanics;
 import com.example.cyberdeck.effect.SandevistanState;
 import com.example.cyberdeck.effect.CyberwareEffects;
 import com.example.cyberdeck.effect.DoubleJumpGuard;
 import com.example.cyberdeck.economy.Emmies;
-import com.example.cyberdeck.defense.DefenseContent;
-import com.example.cyberdeck.defense.KangTaoTurret;
 import com.example.cyberdeck.faction.Faction;
 import com.example.cyberdeck.faction.FactionEnemy;
 import com.example.cyberdeck.faction.FactionEntities;
@@ -1286,7 +1287,13 @@ public final class CyberdeckGameTests {
         EntityJoinLevelEvent turretJoin = canceledJoin(turret, level);
         CityActorJoinCompatibility.restoreManagedCityActor(turretJoin, true);
         helper.assertFalse(turretJoin.isCanceled(),
-                "a placed turret canceled by a companion generator must be restored");
+                "a Kang Tao turret canceled by a companion generator must be restored");
+
+        enemy.getPersistentData().putBoolean("cyberdeck_mission_actor", true);
+        EntityJoinLevelEvent missionActorJoin = canceledJoin(enemy, level);
+        CityActorJoinCompatibility.restoreManagedCityActor(missionActorJoin, true);
+        helper.assertTrue(missionActorJoin.isCanceled(),
+                "mission lifecycle rejections must not be undone by city compatibility");
 
         EntityJoinLevelEvent unrelatedJoin = canceledJoin(unrelated, level);
         CityActorJoinCompatibility.restoreManagedCityActor(unrelatedJoin, true);
@@ -1587,6 +1594,7 @@ public final class CyberdeckGameTests {
         CityLootGeneration.populate(cache, RandomSource.create(0xCAFE));
         boolean hasGun = false;
         boolean hasCyberware = false;
+        boolean hasAmmo = false;
         int rewards = 0;
         for (int slot = 0; slot < cache.getContainerSize(); slot++) {
             ItemStack stack = cache.getItem(slot);
@@ -1596,12 +1604,13 @@ public final class CyberdeckGameTests {
             rewards++;
             hasGun |= stack.getItem() instanceof GunItem;
             hasCyberware |= stack.getItem() instanceof CyberwareItem;
+            hasAmmo |= stack.getItem() instanceof AmmoItem;
         }
         helper.assertValueEqual(cache.getContainerSize(), 54, "black cache inventory size");
-        helper.assertTrue(hasGun && hasCyberware,
-                "every black cache must guarantee at least one gun and one cyberware item");
-        helper.assertTrue(rewards >= 3 && rewards <= 5,
-                "black cache must contain the guaranteed pair plus one to three extras");
+        helper.assertTrue(hasGun && hasCyberware && hasAmmo,
+                "every black cache must guarantee a gun, cyberware, and ammunition");
+        helper.assertTrue(rewards >= 4 && rewards <= 6,
+                "black cache must contain three guaranteed rewards plus one to three extras");
 
         for (AmmoType type : AmmoType.values()) {
             ItemStack ammo = new ItemStack(AmmoItems.item(type).get());
@@ -1689,6 +1698,110 @@ public final class CyberdeckGameTests {
                         CityLootGeneration.CacheKind.BLACK_LOOT,
                         CityLootGeneration.CacheKind.AMMO)),
                 "the city generation pass must emit both cache variants");
+
+        BlockPos generatedPosition = helper.absolutePos(new BlockPos(6, 2, 4));
+        level.setBlock(generatedPosition.below(), Blocks.STONE.defaultBlockState(),
+                net.minecraft.world.level.block.Block.UPDATE_ALL);
+        level.setBlock(generatedPosition, Blocks.AIR.defaultBlockState(),
+                net.minecraft.world.level.block.Block.UPDATE_ALL);
+        level.setBlock(generatedPosition.above(), Blocks.AIR.defaultBlockState(),
+                net.minecraft.world.level.block.Block.UPDATE_ALL);
+        for (net.minecraft.core.Direction direction
+                : net.minecraft.core.Direction.Plane.HORIZONTAL) {
+            level.setBlock(generatedPosition.relative(direction), Blocks.AIR.defaultBlockState(),
+                    net.minecraft.world.level.block.Block.UPDATE_ALL);
+        }
+        helper.assertFalse(CityLootGeneration.place(
+                        level,
+                        generatedPosition,
+                        CityLootGeneration.CacheKind.AMMO,
+                        net.minecraft.core.Direction.SOUTH,
+                        0x57414C4C4241434BL),
+                "a generated cache must not spawn in an open area");
+        level.setBlock(generatedPosition.north(), Blocks.STONE.defaultBlockState(),
+                net.minecraft.world.level.block.Block.UPDATE_ALL);
+        level.setBlock(generatedPosition.above(), Blocks.STONE.defaultBlockState(),
+                net.minecraft.world.level.block.Block.UPDATE_ALL);
+        helper.assertFalse(CityLootGeneration.place(
+                        level,
+                        generatedPosition,
+                        CityLootGeneration.CacheKind.AMMO,
+                        net.minecraft.core.Direction.SOUTH,
+                        0x57414C4C4241434BL),
+                "a generated cache must keep its overhead block clear");
+        level.setBlock(generatedPosition.above(), Blocks.AIR.defaultBlockState(),
+                net.minecraft.world.level.block.Block.UPDATE_ALL);
+        helper.assertTrue(CityLootGeneration.place(
+                        level,
+                        generatedPosition,
+                        CityLootGeneration.CacheKind.AMMO,
+                        net.minecraft.core.Direction.SOUTH,
+                        0x57414C4C4241434BL)
+                        && level.getBlockState(generatedPosition)
+                                .getValue(AmmoCacheBlock.FACING)
+                                == net.minecraft.core.Direction.SOUTH
+                        && level.isEmptyBlock(generatedPosition.above()),
+                "a wall-backed generated cache was not placed facing open space");
+        helper.assertFalse(CityLootGeneration.place(
+                        level,
+                        generatedPosition,
+                        CityLootGeneration.CacheKind.AMMO,
+                        net.minecraft.core.Direction.SOUTH,
+                        0x57414C4C4241434BL),
+                "cache generation overwrote an occupied cache position");
+
+        BlockPos widePosition = helper.absolutePos(new BlockPos(8, 2, 4));
+        for (BlockPos floorPosition : List.of(
+                widePosition.below(),
+                widePosition.east().below(),
+                widePosition.west().below())) {
+            level.setBlock(floorPosition, Blocks.STONE.defaultBlockState(),
+                    net.minecraft.world.level.block.Block.UPDATE_ALL);
+        }
+        for (BlockPos clearPosition : List.of(
+                widePosition,
+                widePosition.above(),
+                widePosition.east(),
+                widePosition.east().above(),
+                widePosition.west(),
+                widePosition.west().above(),
+                widePosition.north())) {
+            level.setBlock(clearPosition, Blocks.AIR.defaultBlockState(),
+                    net.minecraft.world.level.block.Block.UPDATE_ALL);
+        }
+        helper.assertFalse(CityLootGeneration.place(
+                        level,
+                        widePosition,
+                        CityLootGeneration.CacheKind.BLACK_LOOT,
+                        net.minecraft.core.Direction.SOUTH,
+                        0x424C41434B57414CL),
+                "a wide black cache must not spawn without a backing wall");
+        level.setBlock(widePosition.north(), Blocks.STONE.defaultBlockState(),
+                net.minecraft.world.level.block.Block.UPDATE_ALL);
+        level.setBlock(widePosition.east(), Blocks.STONE.defaultBlockState(),
+                net.minecraft.world.level.block.Block.UPDATE_ALL);
+        helper.assertFalse(CityLootGeneration.place(
+                        level,
+                        widePosition,
+                        CityLootGeneration.CacheKind.BLACK_LOOT,
+                        net.minecraft.core.Direction.SOUTH,
+                        0x424C41434B57414CL),
+                "a wide black cache accepted an obstructed side footprint");
+        level.setBlock(widePosition.east(), Blocks.AIR.defaultBlockState(),
+                net.minecraft.world.level.block.Block.UPDATE_ALL);
+        helper.assertTrue(CityLootGeneration.place(
+                        level,
+                        widePosition,
+                        CityLootGeneration.CacheKind.BLACK_LOOT,
+                        net.minecraft.core.Direction.SOUTH,
+                        0x424C41434B57414CL)
+                        && level.getBlockState(widePosition)
+                                .getValue(BlackLootCacheBlock.FACING)
+                                == net.minecraft.core.Direction.SOUTH
+                        && level.isEmptyBlock(widePosition.above())
+                        && level.isEmptyBlock(widePosition.east().above())
+                        && level.isEmptyBlock(widePosition.west().above()),
+                "a clear wall-backed black cache did not preserve its full footprint");
         helper.succeed();
     }
 

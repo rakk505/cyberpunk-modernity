@@ -1,0 +1,72 @@
+{
+  "bbox": [
+    60.16,
+    24.9355,
+    60.164,
+    24.9445
+  ],
+  "city": "Helsinki / Punavuori",
+  "culture": "Nordic masonry perimeter blocks and intimate design-district streets",
+  "district": "AE",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "kind": "neoncity:arnis_zone_source_generation",
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "manifest": {
+    "file": "provenance/arnis_districts/perimeter_manifest.json",
+    "sha256": "ca71ba94724f144d9d947d1095869bebd4749110f68ed7e1200bfd5c74f3f786"
+  },
+  "schema_version": 1,
+  "slug": "helsinki_punavuori",
+  "source": {
+    "osm_file": "provenance/arnis_districts/ae/backstreets_helsinki_punavuori_osm.json",
+    "osm_sha256": "1c4a36c32a618f96cc4415a242f78c195fb70763909b97df9a42f880c12e44ee"
+  },
+  "world": {
+    "build_path": "build/arnis_perimeter/ae/backstreets/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "4eff37771ed4726de72155120045a5a7535579aa004e99d7764f8f3bf4fb36de",
+    "metadata": {
+      "maxGeoLat": 60.164,
+      "maxGeoLon": 24.9445,
+      "maxMcX": 497,
+      "maxMcZ": 444,
+      "minGeoLat": 60.16,
+      "minGeoLon": 24.9355,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "f87dcba6ee39c2892b98346c8aeb9aa09d24960677845382de127d2171884cfb",
+    "preview_sha256": "b9a9efa50ed0be6eeda42902e9780e5cfb52264e1899079bc7d1c3022d029e6e",
+    "regions": [
+      {
+        "bytes": 4333568,
+        "file": "r.0.0.mca",
+        "sha256": "2ee02897be989a8064cfc74f45b6ad79f48f2b35270805d35e64f8ba54bf0ea4"
+      }
+    ]
+  },
+  "zone": "BACKSTREETS"
+}

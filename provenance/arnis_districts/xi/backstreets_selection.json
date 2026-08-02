@@ -1,0 +1,35 @@
+{
+  "atlas_chunks": 16,
+  "candidate_count": 300,
+  "chosen": {
+    "above_surface_blocks": 157300,
+    "developed_chunks": 168,
+    "floating_structural_columns": 20674,
+    "max_height_above_surface": 23,
+    "occupied_chunks": 175,
+    "road_surface_cells": 17974,
+    "score": -23920286,
+    "selection": "backstreets=13,11:28,26",
+    "structural_columns": 25134,
+    "vegetation_blocks": 1183,
+    "water_blocks": 0
+  },
+  "chunk_bounds_scanned": {
+    "max_x": 39,
+    "max_z": 26,
+    "min_x": 0,
+    "min_z": 0
+  },
+  "city": "Bangkok / Yaowarat",
+  "district": "XI",
+  "kind": "neoncity:arnis_zone_atlas_selection",
+  "quality_tier": "strict",
+  "schema_version": 1,
+  "slug": "bangkok_yaowarat",
+  "source_osm": {
+    "file": "provenance/arnis_districts/xi/backstreets_bangkok_yaowarat_osm.json",
+    "sha256": "7f7052821da8b22f0f14f1c43a02dbad2b4a5d50066b09510afe15e3febb25b5"
+  },
+  "source_world": "build/arnis_perimeter/xi/backstreets/Arnis World 1",
+  "zone": "BACKSTREETS"
+}

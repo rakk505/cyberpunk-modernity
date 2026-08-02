@@ -1,0 +1,35 @@
+{
+  "atlas_chunks": 16,
+  "candidate_count": 288,
+  "chosen": {
+    "above_surface_blocks": 230456,
+    "developed_chunks": 199,
+    "floating_structural_columns": 30828,
+    "max_height_above_surface": 79,
+    "occupied_chunks": 213,
+    "road_surface_cells": 5015,
+    "score": -36090792,
+    "selection": "backstreets=23,0:38,15",
+    "structural_columns": 34142,
+    "vegetation_blocks": 1399,
+    "water_blocks": 2
+  },
+  "chunk_bounds_scanned": {
+    "max_x": 38,
+    "max_z": 26,
+    "min_x": 0,
+    "min_z": 0
+  },
+  "city": "Las Vegas / Fremont Street",
+  "district": "J",
+  "kind": "neoncity:arnis_zone_atlas_selection",
+  "quality_tier": "strict",
+  "schema_version": 1,
+  "slug": "las_vegas_fremont",
+  "source_osm": {
+    "file": "provenance/arnis_districts/j/backstreets_las_vegas_fremont_osm.json",
+    "sha256": "144bba179a035a3c0009c8bd3531800b66185449a68bd6ddcf74bcd45e742aef"
+  },
+  "source_world": "build/arnis_perimeter/j/backstreets/Arnis World 1",
+  "zone": "BACKSTREETS"
+}
