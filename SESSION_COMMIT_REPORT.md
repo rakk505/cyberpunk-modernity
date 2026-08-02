@@ -6,16 +6,15 @@ Generated: 2026-08-01
 
 - Current working branch: `codex/district-patrol-enemies`
 - Remote tracking branch after publication: `origin/codex/district-patrol-enemies`
-- Current implementation HEAD: `4d762bf61a4f099a578944db5e9a4e06fe3beaba`
+- Current implementation HEAD: `d7010d0d0a8f83a57f6380cfcc18ad834a023af9`
 - Parent feature branch: `codex/npc-voicelines-lifepaths` at
   `4b381ce0af55f6785910fafa7fab14d3815d0fd6`
 - Scanner/Trauma milestone branch: `codex/eye-implant-scanner-trauma` at `fb6633ba47fe5d893def098a690ecb2f91697435`
 - Current `origin/main`: `3ad54be5d795c2a5d9e2274f5b51c01f0faabdb4`
-- Relationship including this report update: 7 commits behind and 4 commits ahead of `origin/main`;
-  this branch intentionally continues the requested feature branch rather than rebasing its lineage.
+- Relationship including this report update: 0 commits behind and 6 commits ahead of `origin/main`.
 - Latest installed test JAR: `cyberdeck-1.5.0.jar`
 - Installed JAR SHA-256 after the district-patrol overhaul:
-  `368d5ec4d200ce2a6fc06511e82a06ab81f5cfebf59e203a21c062d190a756b6`
+  `822f2e7463c59308dd6c975c48c009ad5e5baa4902de0dce2a4628b777a7a08d`
 
 The current branch descends from the scanner/Trauma branch, so it contains every scanner,
 Trauma Team, mission-integration, Excision, voiceline, lifepath, currency, shard-icon, dialogue,
@@ -47,6 +46,7 @@ feature, merge-resolution, and follow-up commits produced during this session.
 | `c68e7c7` | Direct feature | District A, E, and N authored voiceline pools and routing |
 | `ba4bf14` | Direct feature | District patrol spawning, tactical skins, district identity, and Bulletproof Vest overhaul |
 | `4d762bf` | Direct follow-up | Exact 3/5 patrol squads, 30% reactive reinforcements, and groupwide skin diversity |
+| `d7010d0` | Direct integration | Current mainline quest stack, schema-2 mission compatibility, and patrol reconciliation |
 
 ## Integrated Feature Lineage
 
@@ -782,6 +782,39 @@ branch.
 - Installed artifact and sandbox artifact both hash to
   `368d5ec4d200ce2a6fc06511e82a06ab81f5cfebf59e203a21c062d190a756b6`.
 
+### `d7010d0` - Current Mainline Mission Integration And Crash Fix
+
+- Diagnosed the integrated-server crash as a code/config version mismatch rather than malformed
+  user data.
+- Confirmed the installed `story_missions.json` is schema 2 and byte-identical to the current
+  `origin/main` bundled story catalog, SHA-256
+  `a21dbe320d7119acad8be02e1f13e52e21515004ba4c72e1298bf852008c1c4c`.
+- Confirmed the prior branch JAR accepted only schema 1 and failed before parsing any mission or
+  character entry with `unsupported story mission schema`.
+- Merged all seven commits previously missing from `origin/main` instead of deleting or
+  downgrading the valid configuration.
+- Restored the schema-2 story catalog, mainline characters, node DAG, generated mainline sites,
+  mission-specific guard scaling, story acceptance packet, urban systems, and fixed-seed startup
+  stabilization.
+- Retained schema-1 migration: older files are backed up and replaced by the bundled schema-2
+  catalog on first load.
+- Reconciled mainline guards with district tactical skins, hidden ballistic stats, mission-instance
+  alert groups, the one-time reinforcement ledger, and contract cleanup inheritance.
+- Preserved Fog Mother rendering precedence ahead of ordinary tactical skin selection.
+- Preserved the Lifepath overflow timing stabilization while accepting mainline's current Merc ammo
+  definition.
+- Full Gradle build passed.
+- All 74 required NeoForge GameTests passed in 23.82 seconds.
+- A dedicated server booted to ready state in 9.13 seconds using the exact schema-2 configuration
+  that caused the client crash.
+- Startup logged five loaded story missions with no schema or configuration error.
+- The managed Minecraft client loaded the merged mod, connected to that server, and rendered the
+  existing five-member tactical patrol successfully.
+- Schema-2 client-load capture SHA-256:
+  `dbb9c45650ee77258678aa8e067213b7d92d31ed10457d188f5308946dd96ddf`.
+- Corrected packaged artifact SHA-256:
+  `822f2e7463c59308dd6c975c48c009ad5e5baa4902de0dce2a4628b777a7a08d`.
+
 ## Multiplayer And Private Two-Player Review Summary
 
 - Scanner mode is per-player and synchronized from server-owned attachments.
@@ -833,6 +866,8 @@ branch.
 - Reactive-squad follow-up: full build passed; all 70 required GameTests passed; a real
   client-rendered five-member O Corp formation verified five distinct tactical skins and vests;
   the replacement JAR was installed and hash-matched.
+- Mainline compatibility fix: merged current `origin/main`, passed all 74 required GameTests, and
+  booted successfully with the exact persisted schema-2 story catalog that previously crashed.
 - Each completed implementation commit was pushed to
   its named remote feature branch.
 - The final packaged JAR was installed in the local Minecraft `mods` directory and hash-matched to
