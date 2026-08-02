@@ -2,13 +2,18 @@ package com.example.cyberdeck.faction;
 
 import com.example.cyberdeck.weapon.GunFiring;
 import com.example.cyberdeck.weapon.GunItem;
+import com.example.cyberdeck.city.CityWorlds;
 import com.example.cyberdeck.npc.CityNpc;
+import dev.modernity.neoncity.District;
+import dev.modernity.neoncity.NeonCityGenerator;
 
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -18,6 +23,8 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal;
 import net.minecraft.world.entity.ai.goal.MeleeAttackGoal;
@@ -89,6 +96,25 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
             SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<Boolean> DATA_EXCISION =
             SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Boolean> DATA_AMBIENT_PATROL =
+            SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Integer> DATA_DISTRICT =
+            SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Integer> DATA_SKIN =
+            SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.INT);
+
+    public static final int TACTICAL_SKIN_COUNT = 8;
+    public static final double MISSION_DETECTION_RANGE = 24.0;
+    public static final double AMBIENT_DETECTION_RANGE = 14.0;
+    private static final double MISSION_ALERT_RADIUS = 20.0;
+    private static final double AMBIENT_ALERT_RADIUS = 10.0;
+    private static final Identifier BALLISTIC_ARMOR_MODIFIER =
+            Identifier.fromNamespaceAndPath("cyberdeck", "ballistic_armor");
+    private static final Identifier BALLISTIC_TOUGHNESS_MODIFIER =
+            Identifier.fromNamespaceAndPath("cyberdeck", "ballistic_toughness");
+    private static final Identifier BALLISTIC_KNOCKBACK_MODIFIER =
+            Identifier.fromNamespaceAndPath("cyberdeck", "ballistic_knockback_resistance");
+    private static final String LEGACY_MISSION_INSTANCE_TAG = "cyberdeck_mission_instance";
 
     private static final int WEAPON_GLITCH_NONE = 0;
     private static final int WEAPON_GLITCH_FIDDLING = 1;
@@ -123,9 +149,6 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
 
     /** Detection points needed to become hostile. Gained ~1/tick while the player is close + visible. */
     private static final int DETECTION_THRESHOLD = 60; // ~3 seconds of exposure
-    /** How far a soldier can notice the player. Wider than before so they engage from range. */
-    private static final double DETECTION_RANGE = 24.0;
-    private static final double ALERT_RADIUS = 20.0;
     /** Radius (blocks) a soldier patrols around its spawn point when idle. */
     private static final double PATROL_RADIUS = 12.0;
     /**
@@ -157,6 +180,9 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
     private UUID traumaTargetId;
     private boolean traumaAllowsCreative;
     private UUID excisionTargetId;
+    private UUID alertGroupId;
+    private String ballisticTier = "";
+    private int ambientWithoutPlayerTicks;
 
     public FactionEnemy(EntityType<? extends FactionEnemy> type, Level level) {
         super(type, level);
@@ -192,6 +218,9 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         entityData.define(DATA_DETECTION, 0);
         entityData.define(DATA_TRAUMA_TEAM, false);
         entityData.define(DATA_EXCISION, false);
+        entityData.define(DATA_AMBIENT_PATROL, false);
+        entityData.define(DATA_DISTRICT, -1);
+        entityData.define(DATA_SKIN, 0);
     }
 
     @Override
@@ -216,7 +245,8 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         // Authored mission routes take precedence; ordinary squads retain their bounded area patrol.
         this.goalSelector.addGoal(6, new PatrolRouteGoal(this, 0.8));
         this.goalSelector.addGoal(7, new PatrolAreaGoal(
-                this, 0.8, this::getHome, PATROL_RADIUS, () -> patrolRoute.isEmpty()));
+                this, 0.8, this::getHome, PATROL_RADIUS, () -> patrolRoute.isEmpty(),
+                this::isAllowedPatrolPosition));
         this.goalSelector.addGoal(8, new LookAtPlayerGoal(this, Player.class, 12.0f));
         this.goalSelector.addGoal(8, new RandomLookAroundGoal(this));
         // Retaliate if attacked even before detection completes.
@@ -229,6 +259,114 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
 
     public void setFaction(Faction faction) {
         this.getEntityData().set(DATA_FACTION, faction.ordinal());
+    }
+
+    public boolean isAmbientPatrol() {
+        return this.getEntityData().get(DATA_AMBIENT_PATROL);
+    }
+
+    public void setAmbientPatrol(boolean ambientPatrol) {
+        this.getEntityData().set(DATA_AMBIENT_PATROL, ambientPatrol);
+    }
+
+    public double detectionRange() {
+        return isAmbientPatrol() ? AMBIENT_DETECTION_RANGE : MISSION_DETECTION_RANGE;
+    }
+
+    public District getDistrict() {
+        int ordinal = this.getEntityData().get(DATA_DISTRICT);
+        return ordinal >= 0 && ordinal < District.values().length
+                ? District.values()[ordinal] : null;
+    }
+
+    public void setDistrict(District district) {
+        this.getEntityData().set(DATA_DISTRICT, district == null ? -1 : district.ordinal());
+    }
+
+    public void assignDistrictFromPosition() {
+        if (this.level() instanceof ServerLevel level
+                && CityWorlds.kind(level) == CityWorlds.Kind.NEON_MEGACITY) {
+            setDistrict(NeonCityGenerator.sample(getBlockX(), getBlockZ()).district());
+        }
+    }
+
+    public int getSkinVariant() {
+        return Math.floorMod(this.getEntityData().get(DATA_SKIN), TACTICAL_SKIN_COUNT);
+    }
+
+    public void setSkinVariant(int variant) {
+        this.getEntityData().set(DATA_SKIN, Math.floorMod(variant, TACTICAL_SKIN_COUNT));
+    }
+
+    public UUID getAlertGroupId() {
+        return alertGroupId;
+    }
+
+    public void setAlertGroupId(UUID alertGroupId) {
+        this.alertGroupId = alertGroupId;
+    }
+
+    public boolean sharesAlertGroup(FactionEnemy other) {
+        return other != null && java.util.Objects.equals(alertGroupId, other.alertGroupId);
+    }
+
+    @Override
+    public Component getName() {
+        if (this.hasCustomName() || this instanceof CyberpsychoEntity || isExcision()) {
+            return super.getName();
+        }
+        if (isTraumaTeam()) {
+            return Component.translatable("entity.cyberdeck.trauma_team_responder");
+        }
+        District district = getDistrict();
+        return district == null
+                ? super.getName()
+                : Component.translatable("entity.cyberdeck.faction_enemy.district", district.code());
+    }
+
+    public String getBallisticTier() {
+        return ballisticTier;
+    }
+
+    /** Preserves the former four-piece light/heavy defense as invisible entity modifiers. */
+    public void setBallisticTier(String tier) {
+        ballisticTier = "heavy".equals(tier) ? "heavy" : "light".equals(tier) ? "light" : "";
+        double armor = "heavy".equals(ballisticTier) ? 20.0
+                : "light".equals(ballisticTier) ? 15.0 : 0.0;
+        double toughness = "heavy".equals(ballisticTier) ? 12.0
+                : "light".equals(ballisticTier) ? 8.0 : 0.0;
+        double knockback = "heavy".equals(ballisticTier) ? 0.60
+                : "light".equals(ballisticTier) ? 0.20 : 0.0;
+        replaceBallisticModifier(Attributes.ARMOR, BALLISTIC_ARMOR_MODIFIER, armor);
+        replaceBallisticModifier(
+                Attributes.ARMOR_TOUGHNESS, BALLISTIC_TOUGHNESS_MODIFIER, toughness);
+        replaceBallisticModifier(
+                Attributes.KNOCKBACK_RESISTANCE, BALLISTIC_KNOCKBACK_MODIFIER, knockback);
+    }
+
+    private void replaceBallisticModifier(
+            net.minecraft.core.Holder<net.minecraft.world.entity.ai.attributes.Attribute> attribute,
+            Identifier id,
+            double amount) {
+        AttributeInstance instance = getAttribute(attribute);
+        if (instance == null) {
+            return;
+        }
+        instance.removeModifier(id);
+        if (amount != 0.0) {
+            instance.addTransientModifier(
+                    new AttributeModifier(id, amount, AttributeModifier.Operation.ADD_VALUE));
+        }
+    }
+
+    public boolean isAllowedPatrolPosition(BlockPos position) {
+        if (!isAmbientPatrol() || !(this.level() instanceof ServerLevel level)
+                || CityWorlds.kind(level) != CityWorlds.Kind.NEON_MEGACITY) {
+            return true;
+        }
+        NeonCityGenerator.UrbanSample sample =
+                NeonCityGenerator.sample(position.getX(), position.getZ());
+        return sample.district() == getDistrict() && FactionSpawns.isPublicPatrolArea(sample);
     }
 
     /** The point this soldier patrols around. Falls back to its current position if unset. */
@@ -415,10 +553,26 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         } else {
             accumulateDetection(level);
         }
+        if (tickAmbientRetirement(level)) {
+            return;
+        }
         applyTeammateSpacing(level);
         // --- BEGIN throwable-distraction hook (self-contained; see distraction block below) ---
         applyDistractionLook();
         // --- END throwable-distraction hook ---
+    }
+
+    private boolean tickAmbientRetirement(ServerLevel level) {
+        if (!isAmbientPatrol()) {
+            return false;
+        }
+        Player nearby = level.getNearestPlayer(this, 128.0);
+        ambientWithoutPlayerTicks = nearby == null ? ambientWithoutPlayerTicks + 1 : 0;
+        if (ambientWithoutPlayerTicks >= 600) {
+            discard();
+            return true;
+        }
+        return false;
     }
 
     private void maintainAssignedAggro(ServerLevel level, UUID assignedTargetId,
@@ -974,13 +1128,14 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
     private void accumulateDetection(ServerLevel level) {
         Player exposedPlayer = null;
         double bestExposureScore = Double.MAX_VALUE;
+        double detectionRange = detectionRange();
         List<Player> candidates = level.getEntitiesOfClass(
                 Player.class,
-                this.getBoundingBox().inflate(DETECTION_RANGE),
+                this.getBoundingBox().inflate(detectionRange),
                 player -> !player.isCreative() && !player.isSpectator());
         for (Player candidate : candidates) {
             double distance = this.distanceTo(candidate);
-            double acquisitionRange = DETECTION_RANGE
+            double acquisitionRange = detectionRange
                     * CrouchCombat.detectionRangeMultiplier(candidate);
             // Proximity alone is not enough: require a real line of sight and that the player sits
             // inside the forward view cone so a soldier can be approached from behind unseen.
@@ -1075,9 +1230,13 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         level.playSound(null, this, SoundEvents.PILLAGER_CELEBRATE, SoundSource.HOSTILE, 1.0f, 0.9f);
 
         Faction faction = getFaction();
+        double alertRadius = isAmbientPatrol() ? AMBIENT_ALERT_RADIUS : MISSION_ALERT_RADIUS;
         List<FactionEnemy> allies = level.getEntitiesOfClass(FactionEnemy.class,
-                new AABB(this.blockPosition()).inflate(ALERT_RADIUS),
-                e -> e != this && e.isAlive() && e.getFaction() == faction && !e.isTriggered());
+                new AABB(this.blockPosition()).inflate(alertRadius),
+                e -> e != this && e.isAlive() && e.getFaction() == faction
+                        && e.isAmbientPatrol() == isAmbientPatrol()
+                        && sharesAlertGroup(e)
+                        && !e.isTriggered());
 
         int simultaneous = 1;
         for (FactionEnemy ally : allies) {
@@ -1087,7 +1246,7 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         }
 
         // Kang Tao squads call in an airborne reinforcement drop the first time 3+ trigger at once.
-        if (faction == Faction.KANG_TAO && simultaneous >= 3) {
+        if (!isAmbientPatrol() && faction == Faction.KANG_TAO && simultaneous >= 3) {
             FactionSquads.tryKangTaoReinforcement(level, this, target, simultaneous);
         }
     }
@@ -1152,6 +1311,18 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         output.putBoolean("TraumaTeam", isTraumaTeam());
         output.putBoolean("TraumaAllowsCreative", traumaAllowsCreative);
         output.putBoolean("Excision", isExcision());
+        output.putBoolean("AmbientPatrol", isAmbientPatrol());
+        District district = getDistrict();
+        if (district != null) {
+            output.putString("District", district.name());
+        }
+        output.putInt("SkinVariant", getSkinVariant());
+        if (!ballisticTier.isEmpty()) {
+            output.putString("BallisticTier", ballisticTier);
+        }
+        if (alertGroupId != null) {
+            output.putString("AlertGroup", alertGroupId.toString());
+        }
         if (traumaTargetId != null) {
             output.putString("TraumaTarget", traumaTargetId.toString());
         }
@@ -1198,6 +1369,34 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
                 && input.getBooleanOr("TraumaAllowsCreative", false);
         boolean excision = input.getBooleanOr("Excision", false);
         this.getEntityData().set(DATA_EXCISION, excision);
+        boolean legacyDeployment = input.read(
+                "AmbientPatrol", com.mojang.serialization.Codec.BOOL).isEmpty();
+        setAmbientPatrol(legacyDeployment
+                ? !this.isPersistenceRequired() && !traumaTeam && !excision
+                        && !(this instanceof CyberpsychoEntity)
+                : input.getBooleanOr("AmbientPatrol", false));
+        String districtId = input.getStringOr("District", "");
+        try {
+            setDistrict(districtId.isEmpty() ? null : District.valueOf(districtId));
+        } catch (IllegalArgumentException ignored) {
+            setDistrict(null);
+        }
+        if (districtId.isEmpty()) {
+            assignDistrictFromPosition();
+        }
+        setSkinVariant(input.getInt("SkinVariant").isPresent()
+                ? input.getIntOr("SkinVariant", 0)
+                : Math.floorMod(getUUID().hashCode(), TACTICAL_SKIN_COUNT));
+        String alertGroup = input.getStringOr("AlertGroup", "");
+        if (alertGroup.isEmpty()) {
+            alertGroup = this.getPersistentData().getString(LEGACY_MISSION_INSTANCE_TAG)
+                    .orElse("");
+        }
+        try {
+            alertGroupId = alertGroup.isEmpty() ? null : UUID.fromString(alertGroup);
+        } catch (IllegalArgumentException ignored) {
+            alertGroupId = null;
+        }
         String traumaTarget = input.getStringOr("TraumaTarget", "");
         try {
             traumaTargetId = traumaTarget.isEmpty() ? null : UUID.fromString(traumaTarget);
@@ -1245,6 +1444,13 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
                     input.getIntOr("HomeZ", 0));
         }
         patrolRoute = decodePatrolRoute(input.getStringOr("PatrolRoute", ""));
+        FactionSquads.restoreBallisticLoadout(
+                this, input.getStringOr("BallisticTier", ""));
+    }
+
+    @Override
+    public boolean shouldBeSaved() {
+        return !isAmbientPatrol() && super.shouldBeSaved();
     }
 
     public static String encodePatrolRoute(List<BlockPos> route) {

@@ -9,6 +9,7 @@ public final class FactionEnemyRenderState extends HumanoidRenderState {
     public boolean cyberpsycho;
     public boolean traumaTeam;
     public boolean excision;
+    public int skinVariant;
     public TacticalPoseData tacticalPose = new TacticalPoseData(
             TacticalAction.NONE,
             0.0F,

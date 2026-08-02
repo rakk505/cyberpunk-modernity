@@ -3,6 +3,7 @@ package com.example.cyberdeck.weapon;
 import com.example.cyberdeck.Cyberdeck;
 import com.example.cyberdeck.CyberdeckItems;
 import com.example.cyberdeck.faction.BallisticArmor;
+import com.example.cyberdeck.faction.BulletproofVestItem;
 import com.example.cyberdeck.faction.Faction;
 
 import net.minecraft.core.component.DataComponents;
@@ -44,6 +45,12 @@ public final class WeaponItems {
             ITEMS.registerItem(GrenadeType.POISON.id(),
                     props -> new GrenadeItem(props, GrenadeType.POISON));
 
+    /** The only ballistic armor issued to newly generated corporate soldiers. */
+    public static final DeferredItem<Item> BULLETPROOF_VEST =
+            ITEMS.registerItem("bulletproof_vest", props -> new BulletproofVestItem(props
+                    .humanoidArmor(BallisticArmor.VEST, ArmorType.CHESTPLATE)
+                    .component(DataComponents.DYED_COLOR, new DyedItemColor(0x1D1D21))));
+
     // --- Ballistic armor ---
     /** Armor lookup: tier ("light"/"heavy") x faction x ArmorType -> item. */
     private static final Map<String, DeferredItem<Item>> ARMOR = new java.util.HashMap<>();
@@ -82,7 +89,10 @@ public final class WeaponItems {
         return ARMOR.get(armorKey(tier, faction, type));
     }
 
-    /** All registered items in a stable order, for the creative tab. */
+    /**
+     * Player-facing weapon/equipment list. Legacy branded armor remains registered for old saves,
+     * but is no longer issued or advertised in the creative tab.
+     */
     public static List<DeferredItem<Item>> all() {
         List<DeferredItem<Item>> list = new ArrayList<>();
         for (GunType gun : GunType.values()) {
@@ -90,7 +100,7 @@ public final class WeaponItems {
         }
         list.add(INCENDIARY_GRENADE);
         list.add(POISON_GRENADE);
-        list.addAll(ARMOR.values());
+        list.add(BULLETPROOF_VEST);
         return list;
     }
 

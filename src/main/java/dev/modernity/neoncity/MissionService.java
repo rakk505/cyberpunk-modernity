@@ -1509,6 +1509,9 @@ public final class MissionService {
         data.putString(ACTOR_DEFINITION, definition.id());
         data.putString(ACTOR_ROLE, role);
         data.putString(ACTOR_INSTANCE, context.instanceId().toString());
+        if (entity instanceof FactionEnemy enemy) {
+            enemy.setAlertGroupId(context.instanceId());
+        }
     }
 
     private static ActiveMission withActor(ActiveMission mission, UUID actor) {

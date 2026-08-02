@@ -93,7 +93,7 @@ public final class GunFiring {
                 impact = hit.getLocation();
                 double dist = eye.distanceTo(impact);
                 float dmg = gun.damageAtDistance(dist);
-                DamageSource source = damageSource(shooter);
+                DamageSource source = damageSource(shooter, gun);
                 if (shooter instanceof ServerPlayer player) {
                     SandevistanMechanics.hurtWithGunModifiers(
                             level, player, target, source, dmg, impact);
@@ -274,7 +274,10 @@ public final class GunFiring {
         return dir.add(right.scale(Math.tan(yaw))).add(realUp.scale(Math.tan(pitch))).normalize();
     }
 
-    private static DamageSource damageSource(LivingEntity shooter) {
+    private static DamageSource damageSource(LivingEntity shooter, GunType gun) {
+        if (gun.baseGun() != GunType.MANTIS_BLADE) {
+            return shooter.damageSources().source(CyberdeckDamageTypes.BULLET, shooter, shooter);
+        }
         if (shooter instanceof Player player) {
             return shooter.damageSources().playerAttack(player);
         }

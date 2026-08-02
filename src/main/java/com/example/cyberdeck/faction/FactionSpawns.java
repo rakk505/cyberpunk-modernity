@@ -2,6 +2,7 @@ package com.example.cyberdeck.faction;
 
 import com.example.cyberdeck.Cyberdeck;
 import com.example.cyberdeck.city.CityWorlds;
+import dev.modernity.neoncity.NeonCityGenerator;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -18,18 +19,22 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.tick.LevelTickEvent;
 
 /**
- * Deterministic faction squad generation. Each occupied spatial cell gets at most one spawn attempt
- * per epoch; a successful spawn is a fixed four-member formation sharing one faction and patrol
- * anchor. This avoids singleton trickles, duplicate offsets, and partial pseudo-squads.
+ * Sparse public-area patrol generation. Each occupied spatial cell gets at most one probability-
+ * gated attempt per epoch; successful patrols contain one or two soldiers and are inserted only
+ * outside every nearby player's line of sight.
  */
 public final class FactionSpawns {
-    public static final int SPAWN_INTERVAL = 600;
-    public static final int CLUSTER_SIZE = 4;
-    public static final int MIN_CLUSTER_SIZE = CLUSTER_SIZE;
-    public static final int NEARBY_CAP = 12;
-    private static final int MIN_DISTANCE = 26;
-    private static final int MAX_DISTANCE = 46;
-    private static final double NEARBY_RADIUS = 72.0;
+    public static final int SPAWN_INTERVAL = 1_200;
+    public static final int SPAWN_CHANCE_DENOMINATOR = 4;
+    public static final int MIN_PATROL_SIZE = 1;
+    public static final int MAX_PATROL_SIZE = 2;
+    public static final int NEARBY_CAP = 4;
+    public static final int LOADED_WORLD_CAP = 12;
+    private static final int MIN_DISTANCE = 48;
+    private static final int MAX_DISTANCE = 72;
+    private static final double NEARBY_RADIUS = 96.0;
+    private static final int POPULATION_CELL_SIZE = 64;
+    private static final double PATROL_SEPARATION = 24.0;
     private static final long CLUSTER_SALT = 0x434C55535445524CL;
     private static final int[][] BASE_FORMATION = {
             {0, 0}, {2, 1}, {-2, 1}, {1, -2}, {-1, -2}, {3, 0}
@@ -39,6 +44,7 @@ public final class FactionSpawns {
     public void onLevelTick(LevelTickEvent.Post event) {
         if (!(event.getLevel() instanceof ServerLevel level)
                 || level.dimension() != Level.OVERWORLD
+                || CityWorlds.kind(level) != CityWorlds.Kind.NEON_MEGACITY
                 || level.getGameTime() % SPAWN_INTERVAL != 0) {
             return;
         }
@@ -46,15 +52,18 @@ public final class FactionSpawns {
         long epoch = level.getGameTime() / SPAWN_INTERVAL;
         Map<Long, ServerPlayer> populationCells = new TreeMap<>();
         for (ServerPlayer player : level.players()) {
-            int cellX = Math.floorDiv(player.getBlockX(), 128);
-            int cellZ = Math.floorDiv(player.getBlockZ(), 128);
+            if (!player.isAlive() || player.isCreative() || player.isSpectator()) {
+                continue;
+            }
+            int cellX = Math.floorDiv(player.getBlockX(), POPULATION_CELL_SIZE);
+            int cellZ = Math.floorDiv(player.getBlockZ(), POPULATION_CELL_SIZE);
             long cellKey = pack(cellX, cellZ);
             populationCells.merge(cellKey, player, FactionSpawns::stableRepresentative);
         }
         for (Map.Entry<Long, ServerPlayer> entry : populationCells.entrySet()) {
             ServerPlayer player = entry.getValue();
-            int cellX = Math.floorDiv(player.getBlockX(), 128);
-            int cellZ = Math.floorDiv(player.getBlockZ(), 128);
+            int cellX = Math.floorDiv(player.getBlockX(), POPULATION_CELL_SIZE);
+            int cellZ = Math.floorDiv(player.getBlockZ(), POPULATION_CELL_SIZE);
             RandomSource random = RandomSource.create(clusterSeed(
                     level.getSeed(), epoch, cellX, cellZ));
             trySpawnCluster(level, player, random);
@@ -62,17 +71,35 @@ public final class FactionSpawns {
     }
 
     private void trySpawnCluster(ServerLevel level, ServerPlayer player, RandomSource random) {
-        AABB nearbyArea = player.getBoundingBox().inflate(NEARBY_RADIUS);
-        int nearby = level.getEntitiesOfClass(FactionEnemy.class, nearbyArea,
-                FactionEnemy::isAlive).size();
-        int capacity = NEARBY_CAP - nearby;
-        if (capacity < MIN_CLUSTER_SIZE) {
+        if (random.nextInt(SPAWN_CHANCE_DENOMINATOR) != 0) {
             return;
         }
-        int requested = CLUSTER_SIZE;
+        AABB nearbyArea = player.getBoundingBox().inflate(NEARBY_RADIUS);
+        int nearby = level.getEntitiesOfClass(FactionEnemy.class, nearbyArea,
+                enemy -> enemy.isAlive() && enemy.isAmbientPatrol()).size();
+        int capacity = NEARBY_CAP - nearby;
+        int loadedPatrols = 0;
+        for (net.minecraft.world.entity.Entity entity : level.getAllEntities()) {
+            if (entity instanceof FactionEnemy enemy
+                    && enemy.isAlive() && enemy.isAmbientPatrol()) {
+                loadedPatrols++;
+            }
+        }
+        capacity = Math.min(capacity, LOADED_WORLD_CAP - loadedPatrols);
+        if (capacity < MIN_PATROL_SIZE) {
+            return;
+        }
+        int requested = Math.min(capacity,
+                MIN_PATROL_SIZE + random.nextInt(MAX_PATROL_SIZE - MIN_PATROL_SIZE + 1));
 
         BlockPos anchor = findSpawnAnchor(level, player, random);
         if (anchor == null) {
+            return;
+        }
+        if (!level.getEntitiesOfClass(
+                FactionEnemy.class,
+                new AABB(anchor).inflate(PATROL_SEPARATION),
+                enemy -> enemy.isAlive() && enemy.isAmbientPatrol()).isEmpty()) {
             return;
         }
         int rotation = random.nextInt(4);
@@ -82,6 +109,7 @@ public final class FactionSpawns {
         }
 
         Faction faction = Faction.VALUES[random.nextInt(Faction.VALUES.length)];
+        java.util.UUID patrolId = new java.util.UUID(random.nextLong(), random.nextLong());
         List<FactionEnemy> members = new ArrayList<>(requested);
         for (BlockPos position : positions) {
             FactionEnemy enemy = createMember(level, position, anchor, faction, random);
@@ -91,7 +119,16 @@ public final class FactionSpawns {
                 }
                 return;
             }
+            enemy.setAlertGroupId(patrolId);
             members.add(enemy);
+        }
+        for (FactionEnemy member : members) {
+            if (!isConcealedFromPlayers(level, member)) {
+                for (FactionEnemy squadMember : members) {
+                    squadMember.discard();
+                }
+                return;
+            }
         }
         for (FactionEnemy member : members) {
             if (!level.addFreshEntity(member)) {
@@ -103,24 +140,20 @@ public final class FactionSpawns {
                 return;
             }
         }
-        Cyberdeck.LOGGER.info("Spawned {} {} faction enemies near {} in {}",
-                members.size(), faction.id(), player.getScoreboardName(), CityWorlds.kind(level));
+        Cyberdeck.LOGGER.info("Spawned {}-member {} district patrol near {}",
+                members.size(), members.getFirst().getDistrict().code(), player.getScoreboardName());
     }
 
     private static BlockPos findSpawnAnchor(ServerLevel level, ServerPlayer player,
                                             RandomSource random) {
-        if (CityWorlds.isCity(level)) {
-            return CityWorlds.findStreetNear(level, player.blockPosition(),
-                    MIN_DISTANCE, MAX_DISTANCE, 36, random);
-        }
-        for (int attempt = 0; attempt < 12; attempt++) {
+        for (int attempt = 0; attempt < 48; attempt++) {
             double angle = random.nextDouble() * Math.PI * 2.0;
             int distance = MIN_DISTANCE + random.nextInt(MAX_DISTANCE - MIN_DISTANCE + 1);
             int x = player.getBlockX() + (int) Math.round(Math.cos(angle) * distance);
             int z = player.getBlockZ() + (int) Math.round(Math.sin(angle) * distance);
-            BlockPos position = level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING,
-                    new BlockPos(x, 0, z));
-            if (isSafeFeet(level, position)) {
+            BlockPos position = CityWorlds.resolvePedestrianFeet(
+                    level, x, z, player.getBlockY());
+            if (position != null && isPublicPatrolArea(NeonCityGenerator.sample(x, z))) {
                 return position;
             }
         }
@@ -134,9 +167,11 @@ public final class FactionSpawns {
             BlockPos horizontal = anchor.offset(offset.getX(), 0, offset.getZ());
             BlockPos position;
             if (CityWorlds.isCity(level)) {
-                position = CityWorlds.resolveStreetFeet(
+                position = CityWorlds.resolvePedestrianFeet(
                         level, horizontal.getX(), horizontal.getZ(), anchor.getY());
-                if (position == null) {
+                if (position == null
+                        || !isPublicPatrolArea(NeonCityGenerator.sample(
+                                position.getX(), position.getZ()))) {
                     return List.of();
                 }
             } else {
@@ -166,8 +201,41 @@ public final class FactionSpawns {
         enemy.finalizeSpawn(level, level.getCurrentDifficultyAt(position),
                 EntitySpawnReason.NATURAL, null);
         enemy.setHome(home);
+        enemy.setAmbientPatrol(true);
         FactionSquads.equip(enemy, faction, random);
         return enemy;
+    }
+
+    private static boolean isConcealedFromPlayers(ServerLevel level, FactionEnemy enemy) {
+        for (ServerPlayer observer : level.players()) {
+            if (observer.isSpectator()) {
+                continue;
+            }
+            if (observer.distanceToSqr(enemy) < MIN_DISTANCE * MIN_DISTANCE
+                    || observer.hasLineOfSight(enemy)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public static boolean isPublicPatrolArea(NeonCityGenerator.UrbanSample sample) {
+        if (sample == null || sample.district() == null
+                || sample.zone() == dev.modernity.neoncity.MegacityLayout.Zone.OUTSKIRTS
+                || sample.zone() == dev.modernity.neoncity.MegacityLayout.Zone.BORDER_WALLED
+                || sample.zone() == dev.modernity.neoncity.MegacityLayout.Zone.BORDER_FOREST
+                || sample.zone() == dev.modernity.neoncity.MegacityLayout.Zone.BORDER_CLIFF
+                || sample.zone() == dev.modernity.neoncity.MegacityLayout.Zone.WILDERNESS) {
+            return false;
+        }
+        return isPublicPatrolRoadClass(sample.roadClass());
+    }
+
+    public static boolean isPublicPatrolRoadClass(NeonCityGenerator.RoadClass roadClass) {
+        return switch (roadClass) {
+            case CENTRAL_PLAZA, DISTRICT_BOULEVARD, LOCAL_STREET, PARK -> true;
+            default -> false;
+        };
     }
 
     private static boolean isSafeFeet(ServerLevel level, BlockPos position) {

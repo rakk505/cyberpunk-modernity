@@ -26,9 +26,13 @@ public final class FactionEnemyRenderer
         extends HumanoidMobRenderer<FactionEnemy, FactionEnemyRenderState,
                 TacticalFactionModel> {
 
-    /** Vanilla default (wide) Steve skin. */
-    private static final Identifier STEVE_SKIN =
-            Identifier.withDefaultNamespace("textures/entity/player/wide/steve.png");
+    private static final Identifier[] TACTICAL_SKINS = new Identifier[8];
+    static {
+        for (int index = 0; index < TACTICAL_SKINS.length; index++) {
+            TACTICAL_SKINS[index] = Identifier.fromNamespaceAndPath(
+                    "cyberdeck", "textures/entity/faction_enemy/tactical_" + index + ".png");
+        }
+    }
     private static final Identifier CYBERPSYCHO_SKIN = Identifier.fromNamespaceAndPath(
             "cyberdeck", "textures/entity/cyberpsycho.png");
     private static final Identifier TRAUMA_TEAM_SKIN = Identifier.fromNamespaceAndPath(
@@ -58,7 +62,8 @@ public final class FactionEnemyRenderer
         if (state.traumaTeam) {
             return TRAUMA_TEAM_SKIN;
         }
-        return state.cyberpsycho ? CYBERPSYCHO_SKIN : STEVE_SKIN;
+        return state.cyberpsycho ? CYBERPSYCHO_SKIN
+                : TACTICAL_SKINS[Math.floorMod(state.skinVariant, TACTICAL_SKINS.length)];
     }
 
     @Override
@@ -79,6 +84,7 @@ public final class FactionEnemyRenderer
         state.cyberpsycho = enemy instanceof CyberpsychoEntity;
         state.traumaTeam = enemy.isTraumaTeam();
         state.excision = enemy.isExcision();
+        state.skinVariant = enemy.getSkinVariant();
 
         // The off-hand slot is this entity's holster, not a second simultaneously wielded gun.
         // Hide that model so the synchronized hand swap visibly replaces the primary with the

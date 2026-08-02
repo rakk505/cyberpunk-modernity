@@ -18,7 +18,7 @@ import net.minecraft.world.phys.Vec3;
 import java.util.List;
 
 /**
- * Faction squad helpers: equipping a soldier's weapon + armor loadout when it spawns, and the Kang
+ * Faction squad helpers: equipping a soldier's weapon + ballistic profile when it spawns, and the Kang
  * Tao airborne reinforcement drop. Kept separate from {@link FactionEnemy} so spawn logic and combat
  * behavior stay decoupled.
  */
@@ -37,9 +37,11 @@ public final class FactionSquads {
     private FactionSquads() {
     }
 
-    /** Rolls and applies a full weapon + armor loadout for the given faction. */
+    /** Rolls and applies a weapon loadout plus exact-stat, vest-only ballistic profile. */
     public static void equip(FactionEnemy enemy, Faction faction, RandomSource rng) {
         enemy.setFaction(faction);
+        enemy.assignDistrictFromPosition();
+        enemy.setSkinVariant(rng.nextInt(FactionEnemy.TACTICAL_SKIN_COUNT));
 
         // Primary weapon: a cyberpunk gun, or (Arasaka only) a melee sword.
         List<GunType> guns = faction.weapons();
@@ -67,19 +69,68 @@ public final class FactionSquads {
             enemy.setGrenadeCount(MIN_GRENADES + rng.nextInt(MAX_GRENADES - MIN_GRENADES + 1));
         }
 
-        // Armor: heavier tier is rarer.
+        // Ballistics: heavier tier is rarer, but both tiers render only the common black vest.
         String tier = rng.nextInt(3) == 0 ? "heavy" : "light";
-        equipArmorPiece(enemy, tier, faction, ArmorType.HELMET, EquipmentSlot.HEAD);
-        equipArmorPiece(enemy, tier, faction, ArmorType.CHESTPLATE, EquipmentSlot.CHEST);
-        equipArmorPiece(enemy, tier, faction, ArmorType.LEGGINGS, EquipmentSlot.LEGS);
-        equipArmorPiece(enemy, tier, faction, ArmorType.BOOTS, EquipmentSlot.FEET);
+        equipBallisticTier(enemy, tier);
     }
 
-    private static void equipArmorPiece(FactionEnemy enemy, String tier, Faction faction,
-                                        ArmorType type, EquipmentSlot slot) {
-        ItemStack stack = new ItemStack(WeaponItems.armor(tier, faction, type).get());
-        enemy.setItemSlot(slot, stack);
-        enemy.setDropChance(slot, 0.08f);
+    public static void equipBallisticTier(FactionEnemy enemy, String tier) {
+        enemy.setBallisticTier(tier);
+        enemy.setItemSlot(EquipmentSlot.HEAD, ItemStack.EMPTY);
+        enemy.setItemSlot(EquipmentSlot.LEGS, ItemStack.EMPTY);
+        enemy.setItemSlot(EquipmentSlot.FEET, ItemStack.EMPTY);
+        enemy.setItemSlot(EquipmentSlot.CHEST,
+                new ItemStack(WeaponItems.BULLETPROOF_VEST.get()));
+        enemy.setDropChance(EquipmentSlot.CHEST, 0.28f);
+    }
+
+    /** Restores current loadouts and upgrades persistent legacy four-piece faction armor. */
+    static void restoreBallisticLoadout(FactionEnemy enemy, String savedTier) {
+        if ("heavy".equals(savedTier) || "light".equals(savedTier)) {
+            enemy.setBallisticTier(savedTier);
+            enemy.setItemSlot(EquipmentSlot.HEAD, ItemStack.EMPTY);
+            enemy.setItemSlot(EquipmentSlot.LEGS, ItemStack.EMPTY);
+            enemy.setItemSlot(EquipmentSlot.FEET, ItemStack.EMPTY);
+            if (enemy.getItemBySlot(EquipmentSlot.CHEST)
+                    .is(WeaponItems.BULLETPROOF_VEST.get())) {
+                enemy.setDropChance(EquipmentSlot.CHEST, 0.28f);
+            }
+            return;
+        }
+        String legacyTier = inferLegacyTier(enemy);
+        if (!legacyTier.isEmpty()) {
+            equipBallisticTier(enemy, legacyTier);
+        }
+    }
+
+    private static String inferLegacyTier(FactionEnemy enemy) {
+        for (Faction faction : Faction.VALUES) {
+            for (ArmorType type : new ArmorType[]{
+                    ArmorType.HELMET, ArmorType.CHESTPLATE,
+                    ArmorType.LEGGINGS, ArmorType.BOOTS}) {
+                EquipmentSlot slot = type == ArmorType.HELMET ? EquipmentSlot.HEAD
+                        : type == ArmorType.CHESTPLATE ? EquipmentSlot.CHEST
+                        : type == ArmorType.LEGGINGS ? EquipmentSlot.LEGS
+                        : EquipmentSlot.FEET;
+                if (enemy.getItemBySlot(slot).is(WeaponItems.armor("heavy", faction, type).get())) {
+                    return "heavy";
+                }
+            }
+        }
+        for (Faction faction : Faction.VALUES) {
+            for (ArmorType type : new ArmorType[]{
+                    ArmorType.HELMET, ArmorType.CHESTPLATE,
+                    ArmorType.LEGGINGS, ArmorType.BOOTS}) {
+                EquipmentSlot slot = type == ArmorType.HELMET ? EquipmentSlot.HEAD
+                        : type == ArmorType.CHESTPLATE ? EquipmentSlot.CHEST
+                        : type == ArmorType.LEGGINGS ? EquipmentSlot.LEGS
+                        : EquipmentSlot.FEET;
+                if (enemy.getItemBySlot(slot).is(WeaponItems.armor("light", faction, type).get())) {
+                    return "light";
+                }
+            }
+        }
+        return "";
     }
 
     /**
@@ -109,6 +160,7 @@ public final class FactionSquads {
             reinforcement.finalizeSpawn(level, level.getCurrentDifficultyAt(drop),
                     EntitySpawnReason.EVENT, null);
             reinforcement.setHome(BlockPos.containing(center.x, center.y, center.z));
+            reinforcement.setAlertGroupId(leader.getAlertGroupId());
             equip(reinforcement, Faction.KANG_TAO, rng);
             // Arrive already hostile so the drop is an immediate threat.
             reinforcement.trigger(level, target);

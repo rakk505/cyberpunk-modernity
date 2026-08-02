@@ -27,6 +27,7 @@ import com.example.cyberdeck.defense.KangTaoTurret;
 import com.example.cyberdeck.faction.FactionEnemy;
 import com.example.cyberdeck.faction.FactionEntities;
 import com.example.cyberdeck.faction.FactionSpawns;
+import com.example.cyberdeck.faction.FactionSquads;
 import com.example.cyberdeck.faction.TacticalManeuver;
 import com.example.cyberdeck.healing.HealingConsumable;
 import com.example.cyberdeck.healing.HealingState;
@@ -52,6 +53,8 @@ import com.example.cyberdeck.weapon.GunItem;
 import com.example.cyberdeck.weapon.AmmoItem;
 import com.example.cyberdeck.weapon.AmmoItems;
 import com.example.cyberdeck.weapon.AmmoType;
+import com.example.cyberdeck.weapon.CyberdeckDamageTypes;
+import com.example.cyberdeck.weapon.WeaponItems;
 import dev.modernity.neoncity.MegacityLayout;
 import dev.modernity.neoncity.District;
 import dev.modernity.neoncity.NeonCityGenerator;
@@ -65,6 +68,7 @@ import net.minecraft.core.Holder;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.Connection;
 import net.minecraft.network.chat.Component;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.gametest.framework.FunctionGameTestInstance;
@@ -82,6 +86,8 @@ import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Input;
 import net.minecraft.world.level.GameType;
@@ -114,6 +120,9 @@ public final class CyberdeckGameTests {
                     "city_layer_classification", CyberdeckGameTests::cityLayerClassification);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             CLUSTER_PLAN = register("cluster_plan", CyberdeckGameTests::clusterPlan);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            DISTRICT_PATROL_LOADOUT = register(
+                    "district_patrol_loadout", CyberdeckGameTests::districtPatrolLoadout);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             GUNSHOT_RADIUS = register("gunshot_radius", CyberdeckGameTests::gunshotRadius);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
@@ -283,18 +292,138 @@ public final class CyberdeckGameTests {
         helper.assertTrue(seed != FactionSpawns.clusterSeed(8675309L, 42L, -6, 11),
                 "cluster seed must change between spatial cells");
 
-        for (int rotation = 0; rotation < 4; rotation++) {
-            List<BlockPos> first = FactionSpawns.formationOffsets(
-                    rotation, FactionSpawns.CLUSTER_SIZE);
-            List<BlockPos> second = FactionSpawns.formationOffsets(
-                    rotation, FactionSpawns.CLUSTER_SIZE);
-            helper.assertTrue(first.equals(second),
-                    "formation plan changed for rotation " + rotation);
-            helper.assertTrue(first.size() == FactionSpawns.CLUSTER_SIZE,
-                    "formation returned the wrong member count for rotation " + rotation);
-            helper.assertTrue(new HashSet<>(first).size() == first.size(),
-                    "formation contains duplicate member offsets for rotation " + rotation);
+        helper.assertTrue(FactionSpawns.SPAWN_INTERVAL == 1_200
+                        && FactionSpawns.SPAWN_CHANCE_DENOMINATOR == 4,
+                "ambient patrol checks must be sparse and probability gated");
+        helper.assertTrue(FactionSpawns.MIN_PATROL_SIZE == 1
+                        && FactionSpawns.MAX_PATROL_SIZE == 2
+                        && FactionSpawns.NEARBY_CAP == 4
+                        && FactionSpawns.LOADED_WORLD_CAP == 12,
+                "ambient patrol population must remain bounded for small multiplayer servers");
+
+        for (int size = FactionSpawns.MIN_PATROL_SIZE;
+             size <= FactionSpawns.MAX_PATROL_SIZE; size++) {
+            for (int rotation = 0; rotation < 4; rotation++) {
+                List<BlockPos> first = FactionSpawns.formationOffsets(rotation, size);
+                List<BlockPos> second = FactionSpawns.formationOffsets(rotation, size);
+                helper.assertTrue(first.equals(second),
+                        "formation plan changed for rotation " + rotation);
+                helper.assertTrue(first.size() == size,
+                        "formation returned the wrong patrol member count");
+                helper.assertTrue(new HashSet<>(first).size() == first.size(),
+                        "formation contains duplicate patrol offsets");
+            }
         }
+        for (NeonCityGenerator.RoadClass publicRoad : List.of(
+                NeonCityGenerator.RoadClass.CENTRAL_PLAZA,
+                NeonCityGenerator.RoadClass.DISTRICT_BOULEVARD,
+                NeonCityGenerator.RoadClass.LOCAL_STREET,
+                NeonCityGenerator.RoadClass.PARK)) {
+            helper.assertTrue(FactionSpawns.isPublicPatrolRoadClass(publicRoad),
+                    publicRoad + " should accept ambient patrols");
+        }
+        for (NeonCityGenerator.RoadClass excluded : List.of(
+                NeonCityGenerator.RoadClass.SERVICE_ALLEY,
+                NeonCityGenerator.RoadClass.INTERDISTRICT_ROAD,
+                NeonCityGenerator.RoadClass.BRIDGE,
+                NeonCityGenerator.RoadClass.ELEVATED_RAIL,
+                NeonCityGenerator.RoadClass.HIGHWAY_BUFFER)) {
+            helper.assertFalse(FactionSpawns.isPublicPatrolRoadClass(excluded),
+                    excluded + " must reject ambient patrols");
+        }
+        helper.succeed();
+    }
+
+    private static void districtPatrolLoadout(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        FactionEnemy light = FactionEntities.FACTION_ENEMY.get().create(
+                level, EntitySpawnReason.EVENT);
+        FactionEnemy heavy = FactionEntities.FACTION_ENEMY.get().create(
+                level, EntitySpawnReason.EVENT);
+        FactionEnemy control = FactionEntities.FACTION_ENEMY.get().create(
+                level, EntitySpawnReason.EVENT);
+        helper.assertTrue(light != null && heavy != null && control != null,
+                "could not create district patrol loadout fixtures");
+
+        FactionSquads.equipBallisticTier(light, "light");
+        helper.assertValueEqual(light.getAttributeValue(Attributes.ARMOR), 15.0,
+                "light patrol armor total");
+        helper.assertValueEqual(light.getAttributeValue(Attributes.ARMOR_TOUGHNESS), 8.0,
+                "light patrol toughness total");
+        helper.assertValueEqual(light.getAttributeValue(Attributes.KNOCKBACK_RESISTANCE), 0.20,
+                "light patrol knockback resistance");
+        FactionSquads.equipBallisticTier(light, "light");
+        helper.assertValueEqual(light.getAttributeValue(Attributes.ARMOR), 15.0,
+                "reapplying a patrol loadout must not stack armor modifiers");
+
+        FactionSquads.equipBallisticTier(heavy, "heavy");
+        helper.assertValueEqual(heavy.getAttributeValue(Attributes.ARMOR), 20.0,
+                "heavy patrol armor total");
+        helper.assertValueEqual(heavy.getAttributeValue(Attributes.ARMOR_TOUGHNESS), 12.0,
+                "heavy patrol toughness total");
+        helper.assertValueEqual(heavy.getAttributeValue(Attributes.KNOCKBACK_RESISTANCE), 0.60,
+                "heavy patrol knockback resistance");
+
+        for (FactionEnemy enemy : List.of(light, heavy)) {
+            helper.assertTrue(enemy.getItemBySlot(EquipmentSlot.CHEST)
+                            .is(WeaponItems.BULLETPROOF_VEST.get()),
+                    "new patrol loadout must wear only the Bulletproof Vest");
+            helper.assertTrue(enemy.getItemBySlot(EquipmentSlot.HEAD).isEmpty()
+                            && enemy.getItemBySlot(EquipmentSlot.LEGS).isEmpty()
+                            && enemy.getItemBySlot(EquipmentSlot.FEET).isEmpty(),
+                    "legacy branded armor pieces must not be visible on new patrols");
+        }
+        ItemStack vest = light.getItemBySlot(EquipmentSlot.CHEST);
+        helper.assertTrue(new net.minecraft.world.item.component.DyedItemColor(0x1D1D21)
+                        .equals(vest.get(DataComponents.DYED_COLOR)),
+                "Bulletproof Vest must use the authored black leather dye");
+        helper.assertFalse(vest.hasFoil(),
+                "Bulletproof Vest must provide projectile protection without enchantment glint");
+
+        light.setDistrict(District.O_CORP);
+        helper.assertValueEqual(light.getName().getString(), "O Corp. Soldier",
+                "district patrol display name");
+        helper.assertValueEqual(light.detectionRange(), FactionEnemy.MISSION_DETECTION_RANGE,
+                "mission guard detection range");
+        light.setPersistenceRequired();
+        helper.assertTrue(light.shouldBeSaved(), "mission guards must remain persistent");
+        light.setAmbientPatrol(true);
+        helper.assertValueEqual(light.detectionRange(), FactionEnemy.AMBIENT_DETECTION_RANGE,
+                "ambient patrol detection range");
+        helper.assertFalse(light.shouldBeSaved(),
+                "ambient patrols must not accumulate in world saves");
+        FactionEnemy unrelatedMission = FactionEntities.FACTION_ENEMY.get().create(
+                level, EntitySpawnReason.EVENT);
+        helper.assertTrue(unrelatedMission != null,
+                "could not create mission alert-isolation fixture");
+        light.setAlertGroupId(UUID.randomUUID());
+        unrelatedMission.setAlertGroupId(UUID.randomUUID());
+        helper.assertFalse(light.sharesAlertGroup(unrelatedMission),
+                "separate multiplayer contracts must not share combat alerts");
+
+        control.setBallisticTier("light");
+        control.setItemSlot(EquipmentSlot.CHEST, new ItemStack(Items.LEATHER_CHESTPLATE));
+        light.setHealth(light.getMaxHealth());
+        control.setHealth(control.getMaxHealth());
+        BlockPos lightPos = helper.absolutePos(new BlockPos(1, 2, 1));
+        BlockPos controlPos = helper.absolutePos(new BlockPos(3, 2, 1));
+        light.snapTo(lightPos.getX() + 0.5, lightPos.getY(), lightPos.getZ() + 0.5,
+                0.0F, 0.0F);
+        control.snapTo(controlPos.getX() + 0.5, controlPos.getY(), controlPos.getZ() + 0.5,
+                0.0F, 0.0F);
+        helper.assertTrue(level.addFreshEntity(light) && level.addFreshEntity(control),
+                "could not add projectile mitigation fixtures");
+        var bullet = level.damageSources().source(CyberdeckDamageTypes.BULLET);
+        helper.assertTrue(bullet.is(net.minecraft.tags.DamageTypeTags.IS_PROJECTILE),
+                "hitscan bullet damage must carry the projectile tag");
+        light.hurtServer(level, bullet, 10.0F);
+        control.hurtServer(level, bullet, 10.0F);
+        helper.assertTrue(light.getHealth() > control.getHealth(),
+                "Bulletproof Vest must reduce tagged projectile and hitscan bullet damage");
+        light.discard();
+        control.discard();
+        heavy.discard();
+        unrelatedMission.discard();
         helper.succeed();
     }
 
@@ -2277,6 +2406,7 @@ public final class CyberdeckGameTests {
                 0);
         registerInstance(event, "city_layer_classification", CITY_LAYER_CLASSIFICATION, data);
         registerInstance(event, "cluster_plan", CLUSTER_PLAN, data);
+        registerInstance(event, "district_patrol_loadout", DISTRICT_PATROL_LOADOUT, data);
         registerInstance(event, "gunshot_radius", GUNSHOT_RADIUS, data);
         registerInstance(event, "civilian_noncombat", CIVILIAN_NONCOMBAT, data);
         registerInstance(event, "civilian_population", CIVILIAN_POPULATION, data);

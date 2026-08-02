@@ -6,6 +6,8 @@ import com.example.cyberdeck.cyberware.CyberwareAttachments;
 import com.example.cyberdeck.cyberware.CyberwareData;
 import com.example.cyberdeck.cyberware.SandevistanProfile;
 import com.example.cyberdeck.ram.RamAttachments;
+import com.example.cyberdeck.faction.BallisticArmor;
+import com.example.cyberdeck.weapon.WeaponItems;
 
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
@@ -73,6 +75,12 @@ public final class CyberwareCombatHandler {
                     amount *= (float) (1.0 + 0.50 * missing);
                 }
             }
+        }
+
+        if (event.getEntity().getItemBySlot(net.minecraft.world.entity.EquipmentSlot.CHEST)
+                        .is(WeaponItems.BULLETPROOF_VEST.get())
+                && source.is(DamageTypeTags.IS_PROJECTILE)) {
+            amount *= BallisticArmor.PROJECTILE_DAMAGE_MULTIPLIER;
         }
 
         if (event.getEntity() instanceof ServerPlayer victim) {
