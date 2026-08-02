@@ -1,5 +1,6 @@
 package dev.modernity.neoncity;
 
+import com.example.cyberdeck.city.CityLootGeneration;
 import com.mojang.logging.LogUtils;
 import com.mojang.serialization.MapCodec;
 import java.util.ArrayDeque;
@@ -461,7 +462,9 @@ public final class NeonCityGenerator {
                         placement.patch().district(),
                         placement.selectionHash());
             }
-            UrbanCrateGeneration.decorateChunk(level, chunk, samples);
+            if (!CityLootGeneration.decorateMegacityChunk(level, chunk, samples)) {
+                UrbanCrateGeneration.decorateChunk(level, chunk, samples);
+            }
             applyEdgeBiomes(level, chunk);
             return true;
         } catch (RuntimeException exception) {

@@ -1,6 +1,7 @@
 package dev.modernity.neoncity;
 
 import com.example.cyberdeck.CyberdeckItems;
+import com.example.cyberdeck.economy.Emmies;
 import com.example.cyberdeck.defense.DefenseContent;
 import com.example.cyberdeck.defense.KangTaoTurret;
 import com.example.cyberdeck.faction.CyberpsychoEntity;
@@ -2645,14 +2646,13 @@ public final class ExampleGameTests {
                                 MissionService::isMissionActor).isEmpty(),
                 "completed-site fixture did not deploy a persistent mission turret");
 
-        int emmies = inventoryCount(player, CyberdeckItems.EMMIES.get());
+        int emmies = Emmies.count(player);
         MissionService.onEntityDeath(new LivingDeathEvent(
                 (net.minecraft.world.entity.LivingEntity) target,
                 level.damageSources().playerAttack(player)));
         MissionSiteData.CompletedSite retained = sites.completedSite(instanceId).orElse(null);
         helper.assertTrue(MissionService.activeMission(player).isEmpty()
-                        && inventoryCount(player, CyberdeckItems.EMMIES.get())
-                                == emmies + mission.reward()
+                        && Emmies.count(player) == emmies + mission.reward()
                         && sites.hasReservation(instanceId)
                         && retained != null
                         && !retained.combatCleared()

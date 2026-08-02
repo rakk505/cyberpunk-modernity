@@ -21,6 +21,7 @@ import net.neoforged.neoforge.event.level.LevelEvent;
 import net.neoforged.neoforge.event.tick.LevelTickEvent;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
@@ -56,6 +57,9 @@ public final class CityBuilder {
      *                  street instead of on a raised plinth of dirt/grass.
      */
     private record BuildingType(String id, int footprint, int surfaceY) {
+    }
+
+    private record CacheCandidate(BlockPos position, Direction facing) {
     }
 
     /**
@@ -215,6 +219,7 @@ public final class CityBuilder {
                         .setKnownShape(true)
                         .addProcessor(new ColorSwapProcessor(shift));
                 shift++;
+                List<CacheCandidate> cacheCandidates = new ArrayList<>();
 
                 for (int ix = 0; ix < BLOCK_DIM; ix++) {
                     for (int iz = 0; iz < BLOCK_DIM; iz++) {
@@ -232,30 +237,54 @@ public final class CityBuilder {
                         int x = cellX + Math.max(0, (CELL - type.footprint()) / 2);
                         int z = cellZ + Math.max(0, (CELL - type.footprint()) / 2);
                         enqueueBuilding(level, template, settings, type, x, z);
+                        addCacheCandidates(cacheCandidates, x, z, type.footprint());
                     }
                 }
 
-                // One deterministic street cache per city block. The western road provides a
-                // consistent clear strip, while the long cache aligns with the road instead of
-                // protruding into a building parcel.
+                // Try one deterministic facade-backed cache per city block after its structures
+                // have been stamped. Live geometry rejects entrances, obstructions, and gaps.
                 CityLootGeneration.CacheKind cacheKind = rng.nextInt(3) == 0
                         ? CityLootGeneration.CacheKind.BLACK_LOOT
                         : CityLootGeneration.CacheKind.AMMO;
-                int cacheX = blockOriginX - 3;
-                int cacheZ = blockOriginZ + 8
-                        + rng.nextInt(Math.max(1, cityBlockSpan - 16));
+                List<CacheCandidate> candidates = List.copyOf(cacheCandidates);
+                int cacheStart = candidates.isEmpty() ? 0 : rng.nextInt(candidates.size());
                 long cacheSeed = rng.nextLong();
-                queue.add(() -> CityLootGeneration.place(
-                        level,
-                        new BlockPos(cacheX, GROUND_TOP_Y + 1, cacheZ),
-                        cacheKind,
-                        Direction.EAST,
-                        cacheSeed));
+                queue.add(() -> placeCityBlockCache(
+                        level, candidates, cacheStart, cacheKind, cacheSeed));
             }
         }
 
         if (!queue.isEmpty()) {
             building = level;
+        }
+    }
+
+    private static void addCacheCandidates(
+            List<CacheCandidate> candidates, int x, int z, int footprint) {
+        for (int offset = 1; offset < footprint - 1; offset += 2) {
+            candidates.add(new CacheCandidate(
+                    new BlockPos(x + offset, GROUND_TOP_Y + 1, z - 1), Direction.NORTH));
+            candidates.add(new CacheCandidate(
+                    new BlockPos(x + offset, GROUND_TOP_Y + 1, z + footprint), Direction.SOUTH));
+            candidates.add(new CacheCandidate(
+                    new BlockPos(x - 1, GROUND_TOP_Y + 1, z + offset), Direction.WEST));
+            candidates.add(new CacheCandidate(
+                    new BlockPos(x + footprint, GROUND_TOP_Y + 1, z + offset), Direction.EAST));
+        }
+    }
+
+    private static void placeCityBlockCache(
+            ServerLevel level,
+            List<CacheCandidate> candidates,
+            int start,
+            CityLootGeneration.CacheKind kind,
+            long seed) {
+        for (int offset = 0; offset < candidates.size(); offset++) {
+            CacheCandidate candidate = candidates.get((start + offset) % candidates.size());
+            if (CityLootGeneration.place(
+                    level, candidate.position(), kind, candidate.facing(), seed)) {
+                return;
+            }
         }
     }
 

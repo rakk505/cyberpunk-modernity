@@ -2,8 +2,9 @@
 
 Date: 2026-08-01
 Repository: `rakk505/cyberpunk-modernity`
-Local branch: `feature/mainline-questline`
-Git baseline: `6dc1a27`
+Final branch: `main`
+Integration inputs: `origin/main` (`ae72a8b3`), `feature/mainline-questline`
+(`161b00d8`), and `codex/npc-voicelines-lifepaths` (`4b381ce0`)
 Mod version: `1.5.0`
 
 ## Scope And Attribution
@@ -40,6 +41,35 @@ discussed and audited. Other co-shipped dirty-tree work is listed separately.
   persists until the party leaves the district.
 - Kang Tao turret rendering, muzzle origin, burst behavior, target filtering,
   mission spawning, and destruction explosion were corrected.
+- Protocol-13 NPC voicelines and one-time Netrunner, Brawler, and Merc
+  lifepaths are integrated with the mainline mission network packets.
+- Emmies now use vanilla emeralds; generated crate loot no longer emits the
+  hidden legacy currency item.
+
+## Three-Branch Integration
+
+The integration target was the current remote `main`, not the stale local
+branch. The merge history is preserved:
+
+- `444ba5c3` merges `codex/npc-voicelines-lifepaths` into `main`.
+- `a9f7e7c1` merges the complete questline/megacity checkpoint from
+  `feature/mainline-questline` into `main`.
+
+Semantic merge repairs made after those merge commits:
+
+- `CyberdeckNetwork` retains all 29 unique protocol-13 payloads, including
+  `AcceptStoryMissionPacket` and the four lifepath/voiceline payloads.
+- Brawlers receive shotgun ammunition and Mercs receive heavy ammunition for
+  their actual starter weapons.
+- The city actor compatibility listener cannot undo a mission-lifecycle actor
+  rejection.
+- Custom black/ammo caches and tiered supply barrels share a final placement
+  phase, allow at most one generated container per chunk, require a wall and
+  clear overhead, and guarantee ammunition.
+- The old Cyberpunk City builder scans real building facades instead of trying
+  to place caches in an open road lane.
+- The lifepath overflow test uses a loaded chunk and waits for entity insertion,
+  eliminating its inherited tick-zero race.
 
 ## Districts And Atlases
 
@@ -386,19 +416,21 @@ See [MISSIONS.md](MISSIONS.md) for the mainline campaign contract.
 
 ## Verification Record
 
-The following checks ran against the session source before this ledger was
-created:
+The following checks ran against the final merged source:
 
 | Check | Result |
 |---|---|
-| Standalone `District` and `MegacityLayout` Java compile | Passed |
-| 768x768 exact layout raster over five seeds | One component per seed; zero hull wilderness cells |
+| Static registration audit | 72 explicit unique GameTests; 29 unique network payloads |
+| Standalone layout raster/continuity coverage | One component per seed; zero hull wilderness cells |
 | Modernity quick compile | Passed |
 | Modernity full Gradle build | Passed |
-| NeoForge GameTests | **65/65 required tests passed** in 23.65 seconds |
-| Dedicated server boot | Ready; `Done` matched after 1.374 seconds |
-| `git diff --check` | Passed before ledger creation |
-| Nine new source atlas directories | 512 `.nbt` files each |
+| NeoForge GameTests | **73/73 passed three consecutive times** after the overflow-race fix |
+| Normal dedicated server boot | Ready in 11.13 seconds |
+| Fresh `neoncity:megacity` boot | Ready; generator enabled with 35 districts and five reserved mainline sites |
+| `/neoncity status` | `enabled=true`, 35 districts, 143 generated chunks, v20 fingerprint |
+| Packaged edge atlases | Nine districts x 512 NBTs = 4,608 tiles |
+| Package inspection | 20,335 entries; voicelines, three loot tables, and key packets present |
+| `git diff --check` | Passed |
 
 Important registered regression tests include:
 
@@ -421,31 +453,29 @@ Most mission-planner geometry tests use synthetic structures. The session did
 not retain a screenshot or fly-through artifact for naturally selected Arnis
 mission buildings.
 
-## Artifact Baseline And Drift Warning
+## Artifact Baseline And Install
 
 The verified build artifact is:
 
 ```text
 build/libs/cyberdeck-1.5.0.jar
-SHA-256: edf75e05a4a88cf27b58ec27a28213d8966d63f6480754c0d76515150c58143f
-Entries: 20,280
+SHA-256: 5ea444ba6a176bc394456db496bbb5dcd7375a7cc143b233e172da6251080392
+Size: 64,437,149 bytes
+Entries: 20,335
 ```
 
-At the time this ledger was written, the Minecraft-installed JAR did **not**
-match the verified artifact:
+The Minecraft-installed JAR matches the verified artifact. A second hash check
+after a ten-second delay confirmed it was not replaced by the earlier
+concurrent installer:
 
 ```text
 ~/Library/Application Support/minecraft/mods/cyberdeck-1.5.0.jar
-SHA-256: edac02f2b7a40bd9e9a2e6bb5626daea12e493124a724ad7e0624f49bb760401
-Entries: 15,646
-Status: stale / not the session build
+SHA-256: 5ea444ba6a176bc394456db496bbb5dcd7375a7cc143b233e172da6251080392
+Status: installed and verified
 ```
 
-The installed JAR currently lacks the crate generator, crate loot tables,
-mainline classes, new edge atlas structures, new skins, and the latest
-`MegacityLayout`/map implementation. A concurrent local process replaced the
-JAR after the verified artifact was installed. Use the `build/libs` SHA above as
-the regression baseline, not the currently installed JAR.
+All multiplayer clients and the dedicated server must use this same
+protocol-13 JAR.
 
 Hash comparison:
 
@@ -464,10 +494,15 @@ shasum -a 256 build/libs/cyberdeck-1.5.0.jar \
    valid geometry is required.
 3. **Legacy completion sites:** sites without persisted rollback data clean up
    immediately on completion.
-4. **Visual mission coverage:** synthetic GameTests are strong, but no durable
+4. **Pre-limit development sites:** a version-2 active mission site generated
+   by an earlier development JAR with more than 144 cells on one floor will be
+   rejected by the new 144-cell contract. Use a fresh demo world or abandon the
+   old active contract.
+5. **Visual mission coverage:** synthetic GameTests are strong, but no durable
    naturally selected Arnis gig fly-through was saved.
-5. **Installed artifact drift:** the current Minecraft JAR is stale and must not
-   be treated as the verified session build.
+6. **Live multiplayer coverage:** dedicated boot and per-player FakePlayer tests
+   passed, but no automated two-real-client handshake, subtitle render, or party
+   reconnect test was available.
 
 ## Regression Checklist
 
@@ -496,6 +531,8 @@ shasum -a 256 build/libs/cyberdeck-1.5.0.jar \
 - [ ] The block above every generated crate is air.
 - [ ] Opened managed crates are not rerolled or overwritten.
 - [ ] Common, Tech, and Rare crate tiers each always yield ammo.
+- [ ] Black caches always include a gun, cyberware, and ammunition.
+- [ ] Generated currency is `minecraft:emerald`, never the legacy item.
 
 ### Missions And Gigs
 
@@ -525,4 +562,6 @@ shasum -a 256 build/libs/cyberdeck-1.5.0.jar \
 - [ ] Combat actors persist until every participant is more than 96 blocks away.
 - [ ] Generated geometry persists until all participants leave the district.
 - [ ] The built and installed JAR hashes match the verified baseline.
-- [ ] Full GameTest count remains at least 65 with zero required failures.
+- [ ] Full GameTest count remains 73 with zero required failures.
+- [ ] Every multiplayer client and the server uses protocol-13 build hash
+      `5ea444ba6a176bc394456db496bbb5dcd7375a7cc143b233e172da6251080392`.

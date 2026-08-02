@@ -13,6 +13,7 @@ import com.mojang.authlib.GameProfile;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Consumer;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.FunctionGameTestInstance;
@@ -98,6 +99,8 @@ public final class LifepathGameTests {
                 "gorilla_arms_t2");
         assertCount(helper, brawler, WeaponItems.gun(GunType.TECH_SHOTGUN).get(), 1,
                 "Brawler Tech Shotgun count");
+        assertCount(helper, brawler, AmmoItems.item(AmmoType.SHOTGUN).get(), 200,
+                "Brawler shotgun ammo");
         CyberwareData brawlerData = CyberwareAttachments.get(brawler);
         int expectedBrawlerBonus = Math.max(0,
                 brawlerData.capacityUsed() - CyberwareCapacity.baseMaximum(brawler));
@@ -119,8 +122,8 @@ public final class LifepathGameTests {
                 "mantis_blades_t2");
         assertCount(helper, merc, WeaponItems.gun(GunType.ASSAULT_RIFLE).get(), 1,
                 "Merc Assault Rifle count");
-        assertCount(helper, merc, AmmoItems.item(AmmoType.HANDGUN).get(), 300,
-                "Merc handgun ammo");
+        assertCount(helper, merc, AmmoItems.item(AmmoType.HEAVY).get(), 300,
+                "Merc heavy ammo");
         assertValidCapacity(helper, merc);
 
         CyberwareData veteranData = new CyberwareData();
@@ -144,31 +147,36 @@ public final class LifepathGameTests {
         }
         helper.assertTrue(LifepathService.select(overflow, Lifepath.MERC.id()),
                 "full-inventory starter claim failed");
-        List<ItemEntity> overflowDrops = helper.getLevel().getEntitiesOfClass(
-                ItemEntity.class, overflow.getBoundingBox().inflate(2.0),
-                drop -> drop.getItem().is(WeaponItems.gun(GunType.ASSAULT_RIFLE).get())
-                        || drop.getItem().is(AmmoItems.item(AmmoType.HANDGUN).get()));
-        helper.assertValueEqual(overflowDrops.size(), 2,
-                "full-inventory starter drop count");
-        helper.assertTrue(overflowDrops.stream().allMatch(
-                        drop -> overflow.getUUID().equals(drop.getTarget())),
-                "starter overflow drops must remain exclusive to their selecting player");
+        helper.succeedWhen(() -> {
+            List<ItemEntity> overflowDrops = helper.getLevel().getEntitiesOfClass(
+                    ItemEntity.class, overflow.getBoundingBox().inflate(2.0),
+                    drop -> drop.getItem().is(WeaponItems.gun(GunType.ASSAULT_RIFLE).get())
+                            || drop.getItem().is(AmmoItems.item(AmmoType.HEAVY).get()));
+            helper.assertValueEqual(overflowDrops.size(), 2,
+                    "full-inventory starter drop count");
+            helper.assertTrue(overflowDrops.stream().allMatch(
+                            drop -> overflow.getUUID().equals(drop.getTarget())),
+                    "starter overflow drops must remain exclusive to their selecting player");
 
-        // Claims are attachment-backed per player: selecting Brawler and Merc must not mutate the
-        // first player's path or add either archetype's exclusive equipment to their inventory.
-        assertState(helper, netrunner, Lifepath.NETRUNNER);
-        helper.assertFalse(CyberwareAttachments.get(netrunner)
-                        .hasFamily("gorilla_arms"),
-                "Brawler state leaked into the Netrunner player");
-        assertCount(helper, netrunner, WeaponItems.gun(GunType.TECH_SHOTGUN).get(), 0,
-                "cross-player Tech Shotgun count");
-        helper.succeed();
+            // Claims are attachment-backed per player: selecting Brawler and Merc must not mutate
+            // the first player's path or add either archetype's equipment to their inventory.
+            assertState(helper, netrunner, Lifepath.NETRUNNER);
+            helper.assertFalse(CyberwareAttachments.get(netrunner)
+                            .hasFamily("gorilla_arms"),
+                    "Brawler state leaked into the Netrunner player");
+            assertCount(helper, netrunner, WeaponItems.gun(GunType.TECH_SHOTGUN).get(), 0,
+                    "cross-player Tech Shotgun count");
+        });
     }
 
     private static FakePlayer player(GameTestHelper helper, String role) {
         UUID id = UUID.randomUUID();
-        return new FakePlayer(helper.getLevel(),
+        FakePlayer player = new FakePlayer(helper.getLevel(),
                 new GameProfile(id, role + "-" + id.toString().substring(0, 7)));
+        BlockPos position = helper.absolutePos(new BlockPos(1, 2, 1));
+        player.snapTo(position.getX() + 0.5, position.getY(), position.getZ() + 0.5,
+                0.0F, 0.0F);
+        return player;
     }
 
     /** Forces the random package onto Leeroy or Reinforced Tendons (8 capacity => +13 total). */
