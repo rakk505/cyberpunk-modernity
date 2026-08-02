@@ -716,6 +716,23 @@ public final class ExampleGameTests {
     }
 
     public static void finiteCityWilderness(GameTestHelper helper) {
+        EnumSet<EntitySpawnReason> blockedSpawnReasons = EnumSet.of(
+                EntitySpawnReason.NATURAL,
+                EntitySpawnReason.CHUNK_GENERATION,
+                EntitySpawnReason.SPAWNER,
+                EntitySpawnReason.JOCKEY,
+                EntitySpawnReason.REINFORCEMENT,
+                EntitySpawnReason.PATROL,
+                EntitySpawnReason.TRIAL_SPAWNER);
+        for (EntitySpawnReason reason : EntitySpawnReason.values()) {
+            helper.assertTrue(ProjectMoonCityModule.blocksAmbientSpawnReason(reason)
+                            == blockedSpawnReasons.contains(reason),
+                    "incorrect city spawn policy for " + reason);
+        }
+        helper.assertTrue(!ProjectMoonCityModule.blocksAmbientSpawnReason(
+                        EntitySpawnReason.SPAWN_ITEM_USE),
+                "item-placed vehicles must be allowed inside the city");
+
         MegacityLayout layout = MegacityLayout.create(TEST_SEED);
         for (MegacityLayout.Node node : layout.nodes()) {
             helper.assertTrue(layout.locate(node.x(), node.z()).insideCity(),

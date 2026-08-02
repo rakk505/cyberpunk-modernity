@@ -21,6 +21,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Rotation;
@@ -30,6 +31,7 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.RegisterGameTestsEvent;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
+import net.neoforged.neoforge.event.entity.living.FinalizeSpawnEvent;
 import net.neoforged.neoforge.event.entity.living.MobSpawnEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.player.AttackEntityEvent;
@@ -262,13 +264,26 @@ public final class ProjectMoonCityModule {
     @SubscribeEvent
     public void onSpawnPlacement(MobSpawnEvent.SpawnPlacementCheck event) {
         ServerLevel level = event.getLevel().getLevel();
-        if (NeonCityGenerator.isInsideCity(
-                level, event.getPos().getX(), event.getPos().getZ())) {
+        if (blocksAmbientSpawnReason(event.getSpawnType())
+                && NeonCityGenerator.isInsideCity(
+                        level, event.getPos().getX(), event.getPos().getZ())) {
             event.setResult(MobSpawnEvent.SpawnPlacementCheck.Result.FAIL);
         }
     }
 
-    /** Block ambient mobs while preserving Cyberdeck-managed civilians and faction actors. */
+    /** Catch ambient spawn paths, including spawners with custom placement rules. */
+    @SubscribeEvent
+    public void onFinalizeSpawn(FinalizeSpawnEvent event) {
+        Mob mob = event.getEntity();
+        ServerLevel level = event.getLevel().getLevel();
+        if (blocksAmbientSpawnReason(event.getSpawnType())
+                && !isManagedCityMob(mob)
+                && NeonCityGenerator.isInsideCity(level, mob.getBlockX(), mob.getBlockZ())) {
+            event.setSpawnCancelled(true);
+        }
+    }
+
+    /** Maintain mission, cargo, and vendor lifecycle state when entities join the level. */
     @SubscribeEvent
     public void onEntityJoin(EntityJoinLevelEvent event) {
         if (event.getLevel() instanceof ServerLevel level
@@ -287,18 +302,22 @@ public final class ProjectMoonCityModule {
             VendorService.registerLoadedMerchant(level, event.getEntity());
             return;
         }
-        if (!(event.getEntity() instanceof Mob)
-                || MissionService.isMissionActor(event.getEntity())
-                || CityActorJoinCompatibility.isManagedCityActor(event.getEntity())
-                || DistrictWorldFeatures.isSCorpFarmer(event.getEntity())
-                || MerchantTruckLibrary.isMerchant(event.getEntity())
-                || !(event.getLevel() instanceof ServerLevel level)) {
-            return;
-        }
-        if (NeonCityGenerator.isInsideCity(
-                level, event.getEntity().getBlockX(), event.getEntity().getBlockZ())) {
-            event.setCanceled(true);
-        }
+    }
+
+    static boolean blocksAmbientSpawnReason(EntitySpawnReason reason) {
+        return switch (reason) {
+            case NATURAL, CHUNK_GENERATION, SPAWNER, JOCKEY, REINFORCEMENT, PATROL,
+                    TRIAL_SPAWNER -> true;
+            case STRUCTURE, BREEDING, MOB_SUMMONED, EVENT, CONVERSION, TRIGGERED, BUCKET,
+                    SPAWN_ITEM_USE, COMMAND, DISPENSER, LOAD, DIMENSION_TRAVEL -> false;
+        };
+    }
+
+    private static boolean isManagedCityMob(Mob mob) {
+        return MissionService.isMissionActor(mob)
+                || CityActorJoinCompatibility.isManagedCityActor(mob)
+                || DistrictWorldFeatures.isSCorpFarmer(mob)
+                || MerchantTruckLibrary.isMerchant(mob);
     }
 
     @SubscribeEvent
