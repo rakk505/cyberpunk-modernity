@@ -30,7 +30,8 @@ discussed and audited. Other co-shipped dirty-tree work is listed separately.
   Pok, Pon, and Æ. Its circular blobs overlap through normal dividers and connect
   inward into one continuous city footprint.
 - City systems use canonical seed `50520260801`; five pre-analyzed mainline Arnis
-  sites are bundled and persisted without a startup scan or remote chunk generation.
+  sites and a precomputed gig-marker catalog are bundled and hydrated before players
+  join, without a startup or player-triggered atlas scan.
 - Artificial tundra, land, extraction, and ocean-biome bands outside the city were
   removed. Vanilla generation owns terrain beyond the irregular perimeter.
 - J Corp uses only Las Vegas sources and Q Corp now uses Fukuoka.
@@ -39,8 +40,8 @@ discussed and audited. Other co-shipped dirty-tree work is listed separately.
 - Sparse urban supply crates require a wall, clear overhead, and a sturdy floor.
   Every crate tier guarantees ammunition.
 - Mission and gig planners create usable entrances, multi-floor circulation,
-  furnishings, cover, guards, canisters, and Kang Tao turret placements, then
-  validate the installed site with DFS.
+  furnishings, cover, guards, canisters, and Kang Tao turret placements where
+  space permits, then validate the installed site with DFS.
 - Completing a mission no longer immediately removes its generated site.
   Combat persists until the party is far enough away; generated geometry
   persists until the party leaves the district.
@@ -62,7 +63,7 @@ branch. The merge history is preserved:
 
 Semantic merge repairs made after those merge commits:
 
-- `CyberdeckNetwork` retains all 29 unique protocol-13 payloads, including
+- `CyberdeckNetwork` retains all 30 unique protocol-14 payloads, including
   `AcceptStoryMissionPacket` and the four lifepath/voiceline payloads.
 - Brawlers receive shotgun ammunition and Mercs receive heavy ammunition for
   their actual starter weapons.
@@ -212,12 +213,14 @@ Crates are deliberately sparse and geometry-dependent. There is no guarantee of
 one crate per district or selected chunk when no valid wall-backed location
 exists. The current visual container is a Minecraft barrel.
 
-## Fixed Seed And Mainline Building Catalog
+## Fixed Seed And Precomputed Building Catalog
 
 All authored megacity systems use canonical content seed `50520260801`. The
 Minecraft seed can still control vanilla terrain outside the city; the demo
 server should also set `level-seed=50520260801` when identical wilderness is
 required.
+
+### Mainline Sites
 
 The recovered fixed-site catalog is packaged at
 `data/neoncity/missions/mainline_sites_50520260801.dat` with SHA-256
@@ -231,13 +234,42 @@ The recovered fixed-site catalog is packaged at
 | `m04_assassinate_fixer` | D | 3 | `d:-197:-59:1cb4b96cfc3905f0` | `-3169,72,-969 .. -3162,92,-951` |
 | `m05_kill_cyberpsycho` | D | 3 | `d:-196:-58:c8a7958c6b587fbf` | `-3149,72,-898 .. -3140,92,-888` |
 
-Each descriptor has complete floor masks, a ground-level generated entrance,
-an upper-floor target, stairs, patrol routes, furnishings, and one explosive
-canister. Startup copies these descriptors into save data without loading their
-chunks or invoking the live atlas scanner. Deployment near the active site
-installs the interior, canister, and validated turret plan. Repeated live
-deployment failure can replace a damaged descriptor with a persisted emergency
-atlas/tower plan instead of retrying forever.
+Each descriptor retains the complete structural plan: floor masks, a
+ground-level generated entrance, an upper-floor target, stairs, and patrol
+routes. Furnishings, corridors, cover, explosive canisters, and safe turret
+placements are generated deterministically when the mission activates. Startup
+copies the structural descriptors into save data without loading their chunks
+or invoking the live atlas scanner. Repeated live deployment failure can replace
+a damaged descriptor with a persisted emergency atlas/tower plan instead of
+retrying forever.
+
+### Gig Markers
+
+The fixed-seed gig catalog is packaged at
+`data/neoncity/missions/gig_sites_50520260801.dat`. It contains pre-analyzed
+building descriptors, including their ground-level entrances, floor masks,
+objectives, patrol routes, and structural plans. Reversible interior edits are
+planned only when a contract activates.
+
+See [GIG_SITE_CATALOG_50520260801.md](GIG_SITE_CATALOG_50520260801.md) for the
+deterministic three-worker scan and merge report covering 274 verified sites
+across all 35 districts. Post-generation DFS validation retained 263 sites
+after rebuilding D, P, and X and pruning descriptors whose finalized facade
+geometry obstructed their entrance route.
+
+- `ServerStartedEvent` hydrates the mainline and gig catalogs before players can
+  drive district-board updates.
+- Catalog hydration is data-only: it does not load or generate remote chunks and
+  does not invoke the Arnis building scanner.
+- Player movement, district entry, journal use, and gig-board refreshes only read
+  persisted markers. They never initiate an Arnis scan.
+- A district with no persisted usable marker exposes no gig offers instead of
+  scanning the world in response to a player.
+- Each board deterministically selects up to five available markers and persists
+  the exact building descriptor with the offer. Acceptance pins that descriptor;
+  activation later installs and populates that building.
+- Explicit operator catalog tooling may scan or rebuild markers, but that work is
+  outside the player-triggered runtime path.
 
 ## Mission And Gig Building Planning
 
@@ -247,7 +279,10 @@ small point encounter.
 
 ### Building And Entrance Selection
 
-- Generated Arnis building geometry is inspected in the target district.
+- Generated Arnis building geometry is inspected under the canonical seed while
+  authoring or explicitly rebuilding the catalog, not when a player enters a
+  district or opens a gig board.
+- Runtime gig selection uses the fixed descriptors hydrated at server startup.
 - Candidate entrances are ranked toward city ground level and by usable
   approach and floor count.
 - Existing entrances must connect to an exposed exterior path.
@@ -295,10 +330,11 @@ required path. Vending machines require wall-adjacent placement.
 - Exact floor masks are persisted with the site.
 - DFS checks the exterior entrance, every selected floor, stair landings,
   patrol waypoints, and an interaction-adjacent objective cell.
-- DFS runs against the plan and again after real blocks and turret footprints
-  are installed.
-- Unsafe building candidates are rejected; deployment retries another candidate
-  instead of leaving a partial encounter.
+- DFS runs against the plan and again after real blocks and any planned turret
+  footprints are installed.
+- Unsafe building candidates are excluded before advertisement. A pinned marker
+  that is no longer usable is rejected or delayed without launching a
+  player-triggered replacement scan.
 - Original block states are captured before editing.
 - Installation rolls back transactionally if an edit or post-install
   circulation check fails.
@@ -339,9 +375,12 @@ cannot use completion retention and fall back to immediate cleanup.
 
 ### Mission Placement
 
-- A mission/gig is accepted only when the selected site can safely fit at least
-  one turret. An unsuitable building is rejected and another candidate is tried.
-- Up to two turrets can be planned per site.
+- Turret capacity is not a mission-site eligibility requirement. A structurally
+  usable building remains valid when it has no safe turret slot.
+- At activation, the installed site makes a best-effort attempt to plan and spawn
+  up to two safe turrets.
+- Zero planned slots or a failed turret spawn does not cancel an otherwise usable
+  mission or gig and does not trigger a replacement building scan.
 - Positions three to nine blocks inside the entrance are preferred and face the
   doorway when that arc is valid.
 - Fallback positions maximize forward and side firing space.
@@ -432,17 +471,20 @@ The following checks ran against the final merged source:
 
 | Check | Result |
 |---|---|
-| Static registration audit | 72 explicit unique GameTests; 29 unique network payloads |
+| Static registration audit | 72 explicit unique GameTests; 30 unique network payloads |
 | Standalone layout raster/continuity coverage | One blob; exact 12-member ring, 12 dividers, and 12 inward links |
 | Modernity quick compile | Passed |
 | Modernity full Gradle build | Passed |
-| NeoForge GameTests | **73/73 passed** on the final v22 source |
-| Fresh `neoncity:megacity` boot | Ready in 11.06s; five sites restored with no atlas scan |
-| Clean restart | Minecraft ready in 2.07s; five saved sites and nine generated chunks restored with no rescan |
+| NeoForge GameTests | **73/73 passed** on the final v22 source, including real catalog-offer acceptance and selected-only chunk loading |
+| Fresh `neoncity:megacity` boot | Ready in 1.143s after Minecraft startup; five mainline sites and 263 gig markers restored with no atlas scan |
+| Clean restart | Minecraft ready in 0.396s; five saved sites, 263 gig markers, and 272 generated chunks restored with no rescan |
 | `/neoncity status` | `enabled=true`, 35 districts, 64 edges, 9 generated chunks, v22 fingerprint |
 | Packaged edge atlases | Nine districts x 512 NBTs = 4,608 tiles |
-| Fixed-site catalog | Five exact G/G/O/D/D descriptors; restore left all five remote chunks unloaded |
-| Package inspection | 20,332 entries; fixed-site NBT and both compatible world-preset IDs present |
+| Fixed mainline catalog | Five exact G/G/O/D/D descriptors; restore left all five remote chunks unloaded |
+| Fixed gig catalog | 263 unique descriptors across all 35 districts; observed minimum six per district; no mainline overlap |
+| Read-only gig audits | C, G, and Æ each returned five board/map/journal offers with zero scans and zero candidate chunks loaded |
+| Live gig plan audits | Rebuilt D, P, and X passed `6/6`, `7/7`, and `8/8` with decorated DFS and scans `0->0` |
+| Package inspection | 20,345 entries; both fixed-site NBT resources and compatible world-preset IDs present |
 | `git diff --check` | Passed |
 
 Important registered regression tests include:
@@ -472,21 +514,21 @@ The verified v22 build artifact is:
 
 ```text
 build/libs/cyberdeck-1.5.0.jar
-SHA-256: 636cc03c996e89efac8f839460873fb661c5024e51988569a0006c319e6860a9
-Size: 64,440,300 bytes
-Entries: 20,332
+SHA-256: 8f777e1c3084d213742e8e840e389186b97d3dcd518e20953642e1ea522fbab6
+Size: 64,663,520 bytes
+Entries: 20,345
 ```
 
 The Minecraft-installed JAR is verified against this artifact after installation:
 
 ```text
 ~/Library/Application Support/minecraft/mods/cyberdeck-1.5.0.jar
-SHA-256: 636cc03c996e89efac8f839460873fb661c5024e51988569a0006c319e6860a9
-Status: installed and hash-verified twice
+SHA-256: 8f777e1c3084d213742e8e840e389186b97d3dcd518e20953642e1ea522fbab6
+Status: installed from the final sandbox build and hash-verified
 ```
 
 All multiplayer clients and the dedicated server must use this same
-protocol-13 JAR.
+protocol-14 JAR.
 
 Hash comparison:
 
@@ -538,12 +580,15 @@ shasum -a 256 build/libs/cyberdeck-1.5.0.jar \
 - [ ] X extraction equipment appears only inside its east-facing district edge.
 - [ ] U's port and Portships remain inside the U Corp district blob.
 
-### Fixed Seed And Mainline Sites
+### Fixed Seed And Precomputed Sites
 
 - [ ] City layout and content seed are always `50520260801`.
 - [ ] Startup restores exactly five G/G/O/D/D pre-analyzed site descriptors.
 - [ ] Descriptor restoration does not generate or load remote mission chunks.
 - [ ] Restart reuses persisted descriptors without an Arnis atlas scan.
+- [ ] Startup hydrates the bundled gig-marker catalog before players join.
+- [ ] District entry, journal use, and board refresh never trigger an Arnis scan.
+- [ ] Gig offers persist and activate their exact precomputed building descriptor.
 - [ ] Mission activation, not startup, installs interior decorations and actors.
 
 ### Crates
@@ -569,7 +614,10 @@ shasum -a 256 build/libs/cyberdeck-1.5.0.jar \
 
 ### Turrets And Canisters
 
-- [ ] Every deployed mission/gig has at least one turret and one canister.
+- [ ] Every successfully deployed mission/gig has at least one explosive canister.
+- [ ] A usable site with no safe turret slot can still be advertised and deployed.
+- [ ] Activation attempts safe turret placements without failing the mission when
+  no turret can be planned or spawned.
 - [ ] Turrets prefer entrance coverage when sufficient space exists.
 - [ ] The visible barrel, muzzle tracer, and hitscan all point forward.
 - [ ] Bursts last five or six seconds and use heavy-ammo assault-rifle behavior.
@@ -584,5 +632,5 @@ shasum -a 256 build/libs/cyberdeck-1.5.0.jar \
 - [ ] Generated geometry persists until all participants leave the district.
 - [ ] The built and installed JAR hashes match the verified baseline.
 - [ ] Full GameTest count remains 73 with zero required failures.
-- [ ] Every multiplayer client and the server uses protocol-13 build hash
-      `5ea444ba6a176bc394456db496bbb5dcd7375a7cc143b233e172da6251080392`.
+- [ ] Every multiplayer client and the server uses protocol-14 build hash
+      `8f777e1c3084d213742e8e840e389186b97d3dcd518e20953642e1ea522fbab6`.

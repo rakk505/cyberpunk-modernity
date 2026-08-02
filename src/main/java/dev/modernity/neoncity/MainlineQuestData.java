@@ -96,7 +96,8 @@ final class MainlineQuestData extends SavedData {
     }
 
     static Optional<MissionBuildingPlanner.Site> fixedSite(String missionId) {
-        return Optional.ofNullable(fixedSites().get(missionId));
+        return Optional.ofNullable(fixedSites().get(missionId))
+                .map(MissionBuildingPlanner::withoutMissionInteriorPlan);
     }
 
     static Map<String, MissionBuildingPlanner.Site> fixedSites() {
@@ -112,11 +113,12 @@ final class MainlineQuestData extends SavedData {
         CompoundTag encoded = plans.get(missionId);
         return encoded == null
                 ? Optional.empty()
-                : MissionBuildingPlanner.Site.load(encoded.copy());
+                : MissionBuildingPlanner.Site.load(encoded.copy())
+                        .map(MissionBuildingPlanner::withoutMissionInteriorPlan);
     }
 
     void putSite(String missionId, MissionBuildingPlanner.Site site) {
-        CompoundTag encoded = site.save();
+        CompoundTag encoded = MissionBuildingPlanner.withoutMissionInteriorPlan(site).save();
         CompoundTag previous = plans.put(missionId, encoded);
         if (previous == null || !previous.equals(encoded)) setDirty();
     }
@@ -136,6 +138,7 @@ final class MainlineQuestData extends SavedData {
         return plans.values().stream()
                 .map(MissionBuildingPlanner.Site::load)
                 .flatMap(Optional::stream)
+                .map(MissionBuildingPlanner::withoutMissionInteriorPlan)
                 .toList();
     }
 
@@ -181,14 +184,23 @@ final class MainlineQuestData extends SavedData {
                 throw new IOException("missing " + FIXED_SITE_RESOURCE);
             }
             CompoundTag root = NbtIo.readCompressed(stream, NbtAccounter.defaultQuota());
+            CompoundTag encodedData = root.getCompoundOrEmpty("data");
+            int encodedPlanCount = encodedData.getListOrEmpty("plans").size();
             MainlineQuestData catalog = CODEC.parse(
-                            NbtOps.INSTANCE, root.getCompoundOrEmpty("data"))
+                            NbtOps.INSTANCE, encodedData)
                     .getOrThrow(IllegalStateException::new);
+            if (catalog.plans.size() != encodedPlanCount) {
+                throw new IOException("fixed mainline catalog contains a duplicate or empty plan");
+            }
             Map<String, MissionBuildingPlanner.Site> sites = new LinkedHashMap<>();
             catalog.plans.entrySet().stream()
                     .sorted(Map.Entry.comparingByKey())
                     .forEach(entry -> MissionBuildingPlanner.Site.load(entry.getValue())
+                            .map(MissionBuildingPlanner::withoutMissionInteriorPlan)
                             .ifPresent(site -> sites.put(entry.getKey(), site)));
+            if (sites.size() != catalog.plans.size()) {
+                throw new IOException("fixed mainline catalog contains an invalid site descriptor");
+            }
             Cyberdeck.LOGGER.info(
                     "[Mainline] loaded {} pre-analyzed sites for fixed city seed {}",
                     sites.size(), NeonCityGenerator.contentSeed());

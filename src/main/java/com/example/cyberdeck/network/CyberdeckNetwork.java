@@ -10,7 +10,7 @@ public final class CyberdeckNetwork {
     }
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        PayloadRegistrar registrar = event.registrar(Cyberdeck.MODID).versioned("13");
+        PayloadRegistrar registrar = event.registrar(Cyberdeck.MODID).versioned("14");
         registrar.playToServer(
                 ToggleInterfacePacket.TYPE,
                 ToggleInterfacePacket.STREAM_CODEC,
@@ -63,6 +63,10 @@ public final class CyberdeckNetwork {
                 RequestCityMapPacket.TYPE,
                 RequestCityMapPacket.STREAM_CODEC,
                 RequestCityMapPacket::handle);
+        registrar.playToServer(
+                RequestNavigationTrailPacket.TYPE,
+                RequestNavigationTrailPacket.STREAM_CODEC,
+                RequestNavigationTrailPacket::handle);
         registrar.playToClient(
                 OpenCityMapPacket.TYPE,
                 OpenCityMapPacket.STREAM_CODEC,

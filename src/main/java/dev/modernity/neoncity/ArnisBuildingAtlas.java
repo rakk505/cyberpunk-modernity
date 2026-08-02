@@ -72,8 +72,29 @@ public final class ArnisBuildingAtlas {
             int minimumFloors,
             int maximumFloors,
             boolean generateChunks) {
+        return compileInternal(
+                level, district, origin, searchRadiusChunks, selectionSalt,
+                minimumFloors, maximumFloors, generateChunks,
+                0, site -> true, true);
+    }
+
+    private static Compilation compileInternal(
+            ServerLevel level,
+            District district,
+            BlockPos origin,
+            int searchRadiusChunks,
+            long selectionSalt,
+            int minimumFloors,
+            int maximumFloors,
+            boolean generateChunks,
+            int requestedSites,
+            Predicate<MissionBuildingPlanner.Site> acceptanceFilter,
+            boolean cacheCompilation) {
         if (level == null || district == null || origin == null) {
             throw new IllegalArgumentException("incomplete Arnis building compilation request");
+        }
+        if (acceptanceFilter == null) {
+            throw new IllegalArgumentException("missing Arnis building acceptance filter");
         }
         compilationRequests++;
         int radius = Math.max(1, Math.min(MAX_SEARCH_RADIUS_CHUNKS, searchRadiusChunks));
@@ -82,7 +103,7 @@ public final class ArnisBuildingAtlas {
         CompilationKey compilationKey = new CompilationKey(
                 NeonCityGenerator.contentSeed(), NeonCityGenerator.layout().seed(), district,
                 centerChunkX, centerChunkZ, radius, minimumFloors, maximumFloors);
-        Compilation existing = COMPILATIONS.get(compilationKey);
+        Compilation existing = cacheCompilation ? COMPILATIONS.get(compilationKey) : null;
         if (existing != null) {
             LATEST.put(district, existing);
             return existing;
@@ -91,9 +112,11 @@ public final class ArnisBuildingAtlas {
                 NeonCityGenerator.contentSeed()
                         ^ NeonCityGenerator.layout().seed() ^ REGION_SALT,
                 district.ordinal(), minimumFloors * 31 + maximumFloors);
-        int desiredSites = Math.max(1, (int) StoryMissionCatalog.definitions().stream()
-                .filter(mission -> mission.primaryDistrict() == district)
-                .count());
+        int desiredSites = requestedSites > 0
+                ? requestedSites
+                : Math.max(1, (int) StoryMissionCatalog.definitions().stream()
+                        .filter(mission -> mission.primaryDistrict() == district)
+                        .count());
         List<RegionCandidate> candidates = new ArrayList<>();
         for (int dz = -radius; dz <= radius; dz++) {
             for (int dx = -radius; dx <= radius; dx++) {
@@ -171,7 +194,8 @@ public final class ArnisBuildingAtlas {
                 if (!sites.containsKey(buildingId)
                         && siteBuildings.values().stream().noneMatch(
                                 existingBounds -> footprintsOverlap(
-                                        existingBounds, buildingBounds, 3))) {
+                                        existingBounds, buildingBounds, 3))
+                        && acceptanceFilter.test(site)) {
                     sites.put(buildingId, site);
                     siteBuildings.put(buildingId, buildingBounds);
                 }
@@ -179,7 +203,7 @@ public final class ArnisBuildingAtlas {
             if (sites.size() >= desiredSites) break;
         }
         Compilation result = new Compilation(district, scans, List.copyOf(sites.values()));
-        COMPILATIONS.put(compilationKey, result);
+        if (cacheCompilation) COMPILATIONS.put(compilationKey, result);
         LATEST.put(district, result);
         long readyBuildings = scans.stream().flatMap(scan -> scan.buildings().stream())
                 .filter(MissionBuildingPlanner.BuildingLabel::missionReady).count();
@@ -208,6 +232,23 @@ public final class ArnisBuildingAtlas {
                         district.commandCode(), label.id(), label.bounds(), label.floorYs(),
                         label.walkableCellsPerFloor(), label.decision()));
         return result;
+    }
+
+    /** Counts only fully verified sites and keeps scanning after rejected structural candidates. */
+    static Compilation compileGigCatalog(
+            ServerLevel level,
+            District district,
+            BlockPos origin,
+            int searchRadiusChunks,
+            long selectionSalt,
+            int minimumFloors,
+            int maximumFloors,
+            int requestedSites,
+            Predicate<MissionBuildingPlanner.Site> acceptanceFilter) {
+        return compileInternal(
+                level, district, origin, searchRadiusChunks, selectionSalt,
+                minimumFloors, maximumFloors, true,
+                requestedSites, acceptanceFilter, false);
     }
 
     public static Optional<Compilation> latest(District district) {

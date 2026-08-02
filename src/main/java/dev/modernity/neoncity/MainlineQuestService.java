@@ -30,8 +30,12 @@ import net.minecraft.world.phys.AABB;
 final class MainlineQuestService {
     static final String NPC_CHARACTER = "cyberdeck_mainline_character";
     private static final long PLAN_SALT = 0x4D41494E4C494E45L;
-    private static final int NPC_SEARCH_RADIUS = 3;
+    private static final int NPC_SEARCH_RADIUS = 48;
     private static final int MINIMUM_FALLBACK_ENEMIES = 2;
+    private static final int STORY_STREET_SEARCH_RADIUS = 256;
+    private static final int[][] CARDINAL_DIRECTIONS = {
+            {1, 0}, {-1, 0}, {0, 1}, {0, -1}
+    };
 
     private MainlineQuestService() {
     }
@@ -41,7 +45,10 @@ final class MainlineQuestService {
         MainlineQuestData data = MainlineQuestData.get(level);
         for (StoryMissionCatalog.StoryMission mission : StoryMissionCatalog.definitions()) {
             MissionBuildingPlanner.Site existing = data.site(mission.id()).orElse(null);
-            if (validSite(mission, existing)) continue;
+            if (validSite(mission, existing)) {
+                data.putSite(mission.id(), existing);
+                continue;
+            }
             MissionBuildingPlanner.Site fixed = MainlineQuestData.fixedSite(
                     mission.id()).orElse(null);
             if (!validSite(mission, fixed) || data.conflicts(fixed, mission.id())) {
@@ -136,6 +143,7 @@ final class MainlineQuestService {
                     mission.primaryDistrict().commandCode());
             return Optional.empty();
         }
+        selected = MissionBuildingPlanner.withoutMissionInteriorPlan(selected);
         data.putSite(mission.id(), selected);
         Cyberdeck.LOGGER.info(
                 "[Mainline] persisted {} {} site with {} floors at {} for {} in District {}",
@@ -160,9 +168,35 @@ final class MainlineQuestService {
 
     private static boolean validSite(
             StoryMissionCatalog.StoryMission mission, MissionBuildingPlanner.Site site) {
-        return site != null
-                && site.district() == mission.primaryDistrict()
-                && site.floorYs().size() >= mission.requestedFloors();
+        if (site == null
+                || site.district() != mission.primaryDistrict()
+                || site.floorYs().size() < mission.requestedFloors()
+                || site.floorMasks().size() != site.floorYs().size()
+                || site.stairs().size() != site.floorYs().size() - 1
+                || site.patrolRoutes().size() != site.floorYs().size()
+                || site.floorYs().getFirst() != NeonCityGenerator.CITY_GROUND_Y + 1
+                || site.entrance().position().getY() != site.floorYs().getFirst()
+                || !site.floorYs().contains(site.target().getY())
+                || (site.floorYs().size() >= 2
+                        && site.target().getY() < site.floorYs().get(1))) {
+            return false;
+        }
+        Set<Integer> floors = new HashSet<>(site.floorYs());
+        if (floors.size() != site.floorYs().size()) return false;
+        Set<Integer> masks = new HashSet<>();
+        for (MissionBuildingPlanner.FloorMask mask : site.floorMasks()) {
+            if (!floors.contains(mask.floorY())
+                    || !masks.add(mask.floorY())
+                    || mask.cells().isEmpty()
+                    || mask.cells().stream().anyMatch(cell -> cell.getY() != mask.floorY())) {
+                return false;
+            }
+        }
+        Set<Integer> routes = new HashSet<>();
+        for (MissionBuildingPlanner.PatrolRoute route : site.patrolRoutes()) {
+            if (!floors.contains(route.floorY()) || !routes.add(route.floorY())) return false;
+        }
+        return masks.equals(floors) && routes.equals(floors);
     }
 
     static Optional<MissionBuildingPlanner.Site> reservedSite(
@@ -433,6 +467,18 @@ final class MainlineQuestService {
         StoryMissionCatalog.CharacterDefinition character = StoryMissionCatalog.character(characterId);
         if (existing != null) {
             protect(existing, character);
+            if (!existing.blockPosition().equals(position)) {
+                double oldX = existing.getX();
+                double oldY = existing.getY();
+                double oldZ = existing.getZ();
+                float oldYaw = existing.getYRot();
+                float oldPitch = existing.getXRot();
+                existing.snapTo(position.getX() + 0.5, position.getY(), position.getZ() + 0.5,
+                        oldYaw, oldPitch);
+                if (!level.noCollision(existing)) {
+                    existing.snapTo(oldX, oldY, oldZ, oldYaw, oldPitch);
+                }
+            }
             return;
         }
         CityNpc npc = CityNpcEntities.CITY_NPC.get().create(level, EntitySpawnReason.EVENT);
@@ -477,7 +523,7 @@ final class MainlineQuestService {
                 : site.target();
     }
 
-    private static BlockPos nodePosition(
+    static BlockPos nodePosition(
             ServerLevel level,
             StoryMissionCatalog.StoryMission mission,
             StoryMissionCatalog.StoryNode node) {
@@ -491,10 +537,31 @@ final class MainlineQuestService {
                     .filter(candidate -> candidate.type() == StoryMissionCatalog.NodeType.DELIVER
                             && candidate.characterId().equals(node.characterId()))
                     .findFirst().orElseThrow();
-            MissionBuildingPlanner.Site site = reservedSite(level, deliveryHome.id()).orElse(null);
+            MissionBuildingPlanner.Site site = activeSiteForNode(
+                            level, deliveryHome.id(), deliveryNode.id())
+                    .or(() -> reservedSite(level, deliveryHome.id()))
+                    .orElse(null);
             if (site != null) return floorPosition(site, deliveryNode.floor(), node.characterId());
         }
         return streetPosition(level, mission, node);
+    }
+
+    private static Optional<MissionBuildingPlanner.Site> activeSiteForNode(
+            ServerLevel level, String missionId, String nodeId) {
+        return level.players().stream()
+                .sorted(Comparator.comparing(ServerPlayer::getUUID))
+                .filter(player -> MissionService.activeMission(player)
+                        .map(active -> active.definitionId().equals(missionId)).orElse(false))
+                .filter(player -> MissionService.contractContext(player)
+                        .filter(context -> context.kind()
+                                        == MissionService.ContractKind.STORY_MISSION
+                                && context.deployed()
+                                && currentNode(level, context)
+                                        .map(node -> node.id().equals(nodeId)).orElse(false))
+                        .isPresent())
+                .map(MissionService::site)
+                .flatMap(Optional::stream)
+                .findFirst();
     }
 
     private static BlockPos floorPosition(
@@ -514,7 +581,7 @@ final class MainlineQuestService {
         return site.entrance().position().atY(y);
     }
 
-    private static BlockPos streetPosition(
+    static BlockPos streetPosition(
             ServerLevel level,
             StoryMissionCatalog.StoryMission mission,
             StoryMissionCatalog.StoryNode node) {
@@ -525,11 +592,79 @@ final class MainlineQuestService {
                 district.ordinal(), mission.id().hashCode());
         int x = center.x() - 96 + Math.floorMod((int) hash, 193);
         int z = center.z() - 96 + Math.floorMod((int) Long.rotateLeft(hash, 29), 193);
-        NeonCityGenerator.generateNow(level, Math.floorDiv(x, 16), Math.floorDiv(z, 16), 1);
-        BlockPos street = CityWorlds.resolveStreetFeet(
-                level, x, z, NeonCityGenerator.CITY_GROUND_Y + 1);
+        BlockPos street = findExteriorStoryStreet(
+                level, district, x, z, STORY_STREET_SEARCH_RADIUS);
+        if (street == null) {
+            street = findExteriorStoryStreet(
+                    level, district, center.x(), center.z(), STORY_STREET_SEARCH_RADIUS * 2);
+        }
         if (street != null) return street;
-        return new BlockPos(center.x(), NeonCityGenerator.CITY_GROUND_Y + 1, center.z());
+        throw new IllegalStateException(
+                "No connected exterior story-NPC location in District " + district.commandCode());
+    }
+
+    private static BlockPos findExteriorStoryStreet(
+            ServerLevel level,
+            District district,
+            int originX,
+            int originZ,
+            int maximumRadius) {
+        for (int radius = 0; radius <= maximumRadius; radius += 2) {
+            if (radius == 0) {
+                BlockPos exact = exteriorStoryStreet(level, district, originX, originZ);
+                if (exact != null) return exact;
+                continue;
+            }
+            for (int offset = -radius; offset <= radius; offset += 2) {
+                BlockPos north = exteriorStoryStreet(
+                        level, district, originX + offset, originZ - radius);
+                if (north != null) return north;
+                BlockPos south = exteriorStoryStreet(
+                        level, district, originX - offset, originZ + radius);
+                if (south != null) return south;
+                if (Math.abs(offset) == radius) continue;
+                BlockPos west = exteriorStoryStreet(
+                        level, district, originX - radius, originZ - offset);
+                if (west != null) return west;
+                BlockPos east = exteriorStoryStreet(
+                        level, district, originX + radius, originZ + offset);
+                if (east != null) return east;
+            }
+        }
+        return null;
+    }
+
+    private static BlockPos exteriorStoryStreet(
+            ServerLevel level, District district, int x, int z) {
+        MegacityLayout.Location location = NeonCityGenerator.layout().locateDistrict(x, z);
+        NeonCityGenerator.RoadClass road = NeonCityGenerator.roadAt(x, z);
+        if (!location.insideCity() || location.district() != district || !publicStoryRoad(road)) {
+            return null;
+        }
+        NeonCityGenerator.generateNow(level, Math.floorDiv(x, 16), Math.floorDiv(z, 16), 1);
+        BlockPos feet = CityWorlds.resolveStreetFeet(
+                level, x, z, NeonCityGenerator.CITY_GROUND_Y + 1);
+        if (feet == null || feet.getY() != NeonCityGenerator.CITY_GROUND_Y + 1
+                || !level.canSeeSky(feet.above())) {
+            return null;
+        }
+        int connected = 0;
+        for (int[] direction : CARDINAL_DIRECTIONS) {
+            int neighborX = x + direction[0];
+            int neighborZ = z + direction[1];
+            if (!publicStoryRoad(NeonCityGenerator.roadAt(neighborX, neighborZ))) continue;
+            BlockPos neighbor = CityWorlds.resolveStreetFeet(
+                    level, neighborX, neighborZ, NeonCityGenerator.CITY_GROUND_Y + 1);
+            if (neighbor != null && Math.abs(neighbor.getY() - feet.getY()) <= 1) connected++;
+        }
+        return connected >= 2 ? feet : null;
+    }
+
+    private static boolean publicStoryRoad(NeonCityGenerator.RoadClass road) {
+        return switch (road) {
+            case CENTRAL_PLAZA, DISTRICT_BOULEVARD, LOCAL_STREET, SERVICE_ALLEY, PARK -> true;
+            default -> false;
+        };
     }
 
     private static String objective(
