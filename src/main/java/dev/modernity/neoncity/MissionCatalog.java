@@ -262,12 +262,7 @@ public final class MissionCatalog {
                 districts.addAll(EnumSet.allOf(District.class));
                 continue;
             }
-            for (District district : District.values()) {
-                if (district.code().equals(value)) {
-                    districts.add(district);
-                    break;
-                }
-            }
+            District.fromCode(value).ifPresent(districts::add);
         }
         if (districts.isEmpty()) {
             throw new IllegalArgumentException("mission has no valid target districts");

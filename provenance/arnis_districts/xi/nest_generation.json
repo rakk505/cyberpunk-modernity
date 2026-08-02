@@ -1,0 +1,77 @@
+{
+  "bbox": [
+    13.7425,
+    100.537,
+    13.7465,
+    100.543
+  ],
+  "city": "Bangkok / Ratchaprasong",
+  "culture": "tropical high-rise commerce, layered transit, and metropolitan density",
+  "district": "XI",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "kind": "neoncity:arnis_zone_source_generation",
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "manifest": {
+    "file": "provenance/arnis_districts/perimeter_manifest.json",
+    "sha256": "ca71ba94724f144d9d947d1095869bebd4749110f68ed7e1200bfd5c74f3f786"
+  },
+  "schema_version": 1,
+  "slug": "bangkok_ratchaprasong",
+  "source": {
+    "osm_file": "provenance/arnis_districts/xi/nest_bangkok_ratchaprasong_osm.json",
+    "osm_sha256": "91da9c9c2f6d4372a932eb07818a63a3f014a00c9185d71307148a7de0b4d521"
+  },
+  "world": {
+    "build_path": "build/arnis_perimeter/xi/nest/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "ec63d4e24187b533255302bba57f28154517d6cf7d045e7bcde2bc79506b21a0",
+    "metadata": {
+      "maxGeoLat": 13.7465,
+      "maxGeoLon": 100.543,
+      "maxMcX": 648,
+      "maxMcZ": 444,
+      "minGeoLat": 13.7425,
+      "minGeoLon": 100.537,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "d1ad47301cd0511542d606850222b351a66bf0b75bd827c0c29c9d3221cf2f2d",
+    "preview_sha256": "75a2caca26dc2a2283c374f90ea9dd3a2ad901d8fba02b3ebec3fbb56eacd981",
+    "regions": [
+      {
+        "bytes": 4210688,
+        "file": "r.0.0.mca",
+        "sha256": "857adf6f3534a79cfec3025718ba09828817e6a002381c9b887b13a1204750b1"
+      },
+      {
+        "bytes": 4227072,
+        "file": "r.1.0.mca",
+        "sha256": "d97aa8cf2b2baa014a53b2aa8ceff56f54fd85dbe793b2028679b9739672579c"
+      }
+    ]
+  },
+  "zone": "NEST"
+}

@@ -41,6 +41,7 @@ public final class JournalScreen extends Screen {
     private static final Rect LIST_PANEL = new Rect(34, 72, 330, 414);
     private static final Rect DETAIL_PANEL = new Rect(386, 72, 540, 414);
     private static final Rect ABANDON_ACTION = new Rect(706, 411, 192, 25);
+    private static final Rect ACCEPT_ACTION = new Rect(706, 411, 192, 25);
     private static final Rect CONFIRM_ABANDON_ACTION = new Rect(706, 411, 116, 25);
     private static final Rect CANCEL_ABANDON_ACTION = new Rect(828, 411, 70, 25);
     private static final Rect MAP_ACTION = new Rect(706, 443, 192, 25);
@@ -91,7 +92,7 @@ public final class JournalScreen extends Screen {
 
     private void renderFrame(GuiGraphicsExtractor graphics) {
         graphics.text(font, "JOURNAL", 35, 50, RED, false);
-        graphics.text(font, "ACCEPTED MISSIONS & GIGS", 106, 50, TEXT_DIM, false);
+        graphics.text(font, "MAINLINE MISSIONS & CONTRACTS", 106, 50, TEXT_DIM, false);
         graphics.fill(LIST_PANEL.x(), LIST_PANEL.y(), LIST_PANEL.right(), LIST_PANEL.bottom(), PANEL);
         graphics.outline(LIST_PANEL.x(), LIST_PANEL.y(), LIST_PANEL.width(), LIST_PANEL.height(), RED_DIM);
         graphics.fill(DETAIL_PANEL.x(), DETAIL_PANEL.y(), DETAIL_PANEL.right(), DETAIL_PANEL.bottom(), PANEL);
@@ -206,6 +207,8 @@ public final class JournalScreen extends Screen {
             graphics.text(font, "DISTANCE", x, infoY, TEXT_DARK, false);
             graphics.text(font, distance(contract), x + 80, infoY, AMBER, false);
             renderAbandonAction(graphics, contract, mouseX, mouseY);
+        } else if (status == MissionService.JournalStatus.AVAILABLE) {
+            renderAcceptAction(graphics, mouseX, mouseY);
         }
 
         String payout = contract.reward() + " EM POOL  //  " + contract.streetCred() + " STREET CRED";
@@ -220,6 +223,20 @@ public final class JournalScreen extends Screen {
                     MAP_ACTION.y() + 7, hovered ? AMBER : TEXT_DIM);
             if (hovered) graphics.requestCursor(CursorTypes.POINTING_HAND);
         }
+    }
+
+    private void renderAcceptAction(
+            GuiGraphicsExtractor graphics, double mouseX, double mouseY) {
+        boolean hovered = ACCEPT_ACTION.contains(mouseX, mouseY);
+        graphics.fill(ACCEPT_ACTION.x(), ACCEPT_ACTION.y(),
+                ACCEPT_ACTION.right(), ACCEPT_ACTION.bottom(),
+                hovered ? 0xE71C3638 : 0xD912171B);
+        graphics.outline(ACCEPT_ACTION.x(), ACCEPT_ACTION.y(),
+                ACCEPT_ACTION.width(), ACCEPT_ACTION.height(), hovered ? CYAN : RED_DIM);
+        graphics.centeredText(font, "ACCEPT MAINLINE MISSION",
+                ACCEPT_ACTION.x() + ACCEPT_ACTION.width() / 2,
+                ACCEPT_ACTION.y() + 7, hovered ? CYAN : TEXT_DIM);
+        if (hovered) graphics.requestCursor(CursorTypes.POINTING_HAND);
     }
 
     private void renderAbandonAction(
@@ -298,6 +315,12 @@ public final class JournalScreen extends Screen {
             return true;
         }
         GigJournalPacket.Contract selected = selected();
+        if (selected != null && status(selected) == MissionService.JournalStatus.AVAILABLE
+                && ACCEPT_ACTION.contains(mouseX, mouseY)) {
+            confirmAbandonId = null;
+            GigJournalClient.requestAcceptStory(selected.definitionId());
+            return true;
+        }
         if (selected != null && status(selected) == MissionService.JournalStatus.ACTIVE) {
             boolean confirming = selected.instanceId().equals(confirmAbandonId);
             if (confirming && CONFIRM_ABANDON_ACTION.contains(mouseX, mouseY)) {
@@ -365,13 +388,19 @@ public final class JournalScreen extends Screen {
     }
 
     private List<ListRow> rows() {
+        List<GigJournalPacket.Contract> available = contracts().stream()
+                .filter(contract -> status(contract) == MissionService.JournalStatus.AVAILABLE)
+                .toList();
         List<GigJournalPacket.Contract> active = contracts().stream()
                 .filter(contract -> status(contract) == MissionService.JournalStatus.ACTIVE)
                 .toList();
         List<GigJournalPacket.Contract> history = contracts().stream()
-                .filter(contract -> status(contract) != MissionService.JournalStatus.ACTIVE)
+                .filter(contract -> status(contract) != MissionService.JournalStatus.ACTIVE
+                        && status(contract) != MissionService.JournalStatus.AVAILABLE)
                 .toList();
         ArrayList<ListRow> rows = new ArrayList<>();
+        rows.add(ListRow.heading("AVAILABLE MAINLINE"));
+        available.forEach(contract -> rows.add(ListRow.contract(contract)));
         rows.add(ListRow.heading("ACTIVE"));
         active.forEach(contract -> rows.add(ListRow.contract(contract)));
         rows.add(ListRow.heading("HISTORY"));
@@ -389,7 +418,10 @@ public final class JournalScreen extends Screen {
                 .anyMatch(contract -> contract.instanceId().equals(selectedId))) return;
         selectedId = contracts().stream()
                 .filter(contract -> status(contract) == MissionService.JournalStatus.ACTIVE)
-                .findFirst().or(() -> contracts().stream().findFirst())
+                .findFirst()
+                .or(() -> contracts().stream().filter(contract ->
+                        status(contract) == MissionService.JournalStatus.AVAILABLE).findFirst())
+                .or(() -> contracts().stream().findFirst())
                 .map(GigJournalPacket.Contract::instanceId).orElse(null);
     }
 
@@ -420,6 +452,7 @@ public final class JournalScreen extends Screen {
             case COMPLETED -> GREEN;
             case FAILED -> RED;
             case ABANDONED -> TEXT_DIM;
+            case AVAILABLE -> CYAN;
         };
     }
 

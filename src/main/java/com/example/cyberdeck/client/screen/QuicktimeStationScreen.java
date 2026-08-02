@@ -130,6 +130,7 @@ public final class QuicktimeStationScreen extends Screen {
         }
 
         int scroll = (int) Math.round(displayedScroll);
+        int districtTextX = listLeft + 20 + maxDistrictCodeWidth();
         graphics.enableScissor(listLeft, listTop, listRight, listBottom);
         for (int index = 0; index < destinations.size(); index++) {
             int rowTop = listTop + index * ROW_HEIGHT - scroll;
@@ -153,11 +154,11 @@ public final class QuicktimeStationScreen extends Screen {
             String distance = formatDistance(destination.distanceBlocks());
 
             graphics.text(font, code, listLeft + 12, rowTop + 10, selected ? CYAN : RED, false);
-            graphics.text(font, label.toUpperCase(Locale.ROOT), listLeft + 32, rowTop + 5,
+            graphics.text(font, label.toUpperCase(Locale.ROOT), districtTextX, rowTop + 5,
                     selected ? TEXT : 0xFFBBD0CC, false);
             int availableFlavorWidth = Math.max(30,
-                    listRight - 85 - (listLeft + 32));
-            graphics.text(font, elide(flavor, availableFlavorWidth), listLeft + 32, rowTop + 16,
+                    listRight - 85 - districtTextX);
+            graphics.text(font, elide(flavor, availableFlavorWidth), districtTextX, rowTop + 16,
                     TEXT_DIM, false);
             graphics.text(font, distance, listRight - 14 - font.width(distance), rowTop + 10,
                     selected ? CYAN : TEXT_DIM, false);
@@ -177,6 +178,14 @@ public final class QuicktimeStationScreen extends Screen {
             graphics.fill(trackX, listTop, trackX + 2, listBottom, 0x55264847);
             graphics.fill(trackX, thumbTop, trackX + 2, thumbTop + thumbHeight, CYAN_DIM);
         }
+    }
+
+    private int maxDistrictCodeWidth() {
+        int width = font.width("?");
+        for (District district : District.values()) {
+            width = Math.max(width, font.width(district.code()));
+        }
+        return width;
     }
 
     private void renderFooter(GuiGraphicsExtractor graphics, Layout layout,

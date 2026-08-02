@@ -1,0 +1,72 @@
+{
+  "bbox": [
+    42.348,
+    -71.0865,
+    42.352,
+    -71.0805
+  ],
+  "city": "Boston / Newbury Street",
+  "culture": "Back Bay brownstones, historic row blocks, and tree-lined streets",
+  "district": "WANG",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "kind": "neoncity:arnis_zone_source_generation",
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "manifest": {
+    "file": "provenance/arnis_districts/perimeter_manifest.json",
+    "sha256": "ca71ba94724f144d9d947d1095869bebd4749110f68ed7e1200bfd5c74f3f786"
+  },
+  "schema_version": 1,
+  "slug": "boston_newbury",
+  "source": {
+    "osm_file": "provenance/arnis_districts/wang/nest_boston_newbury_osm.json",
+    "osm_sha256": "47fa26656977e8fcbf402809c28ba16fa3767531540195e17b30d8918b30509e"
+  },
+  "world": {
+    "build_path": "build/arnis_perimeter/wang/nest/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "c4631b5e7e9c1fff1f87bde9fa50a429602a605c11c90ec4a8e4d915744f69c6",
+    "metadata": {
+      "maxGeoLat": 42.352,
+      "maxGeoLon": -71.0805,
+      "maxMcX": 493,
+      "maxMcZ": 444,
+      "minGeoLat": 42.348,
+      "minGeoLon": -71.0865,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "8bb14a19be6948c62f84f0705d2cca819762d84c88c78ee738e218620b1aa3c4",
+    "preview_sha256": "4f98ece93afc3de54a6e92a2217bed91d7cb5503bae626f5b8ced87f25b9ebb3",
+    "regions": [
+      {
+        "bytes": 4349952,
+        "file": "r.0.0.mca",
+        "sha256": "b72454ad4b380265615c449c0a9eaa9aa171b98e633865b0053779c072909e8c"
+      }
+    ]
+  },
+  "zone": "NEST"
+}

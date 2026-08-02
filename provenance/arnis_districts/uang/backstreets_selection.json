@@ -1,0 +1,35 @@
+{
+  "atlas_chunks": 16,
+  "candidate_count": 228,
+  "chosen": {
+    "above_surface_blocks": 327143,
+    "developed_chunks": 175,
+    "floating_structural_columns": 7684,
+    "max_height_above_surface": 34,
+    "occupied_chunks": 253,
+    "road_surface_cells": 2125,
+    "score": -7773754,
+    "selection": "backstreets=6,0:21,15",
+    "structural_columns": 13807,
+    "vegetation_blocks": 213822,
+    "water_blocks": 107
+  },
+  "chunk_bounds_scanned": {
+    "max_x": 33,
+    "max_z": 26,
+    "min_x": 0,
+    "min_z": 0
+  },
+  "city": "Amsterdam / De Pijp",
+  "district": "UANG",
+  "kind": "neoncity:arnis_zone_atlas_selection",
+  "quality_tier": "strict",
+  "schema_version": 1,
+  "slug": "amsterdam_de_pijp",
+  "source_osm": {
+    "file": "provenance/arnis_districts/uang/backstreets_amsterdam_de_pijp_osm.json",
+    "sha256": "42fe8d1af1328295c403056c373083daa8e53373e15348460d55bff1f9c2bd13"
+  },
+  "source_world": "build/arnis_perimeter/uang/backstreets/Arnis World 1",
+  "zone": "BACKSTREETS"
+}

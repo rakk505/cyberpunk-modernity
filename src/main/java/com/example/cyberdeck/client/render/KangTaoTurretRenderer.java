@@ -72,6 +72,7 @@ public final class KangTaoTurretRenderer
             int color = state.destroyed ? DESTROYED_TINT : 0xFFFFFFFF;
 
             poseStack.pushPose();
+            // The supplied model's barrel extends along +Z, matching Minecraft yaw 0.
             poseStack.mulPose(Axis.YP.rotationDegrees(-state.baseYaw));
             poseStack.scale(-1.0F, -1.0F, 1.0F);
             poseStack.translate(0.0F, -1.501F, 0.0F);

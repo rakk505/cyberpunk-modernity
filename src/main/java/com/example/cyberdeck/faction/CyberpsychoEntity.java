@@ -25,7 +25,7 @@ import org.jspecify.annotations.Nullable;
 /** Dedicated gun-and-grenade boss entity with configurable installed cyberware. */
 public final class CyberpsychoEntity extends FactionEnemy {
     private static final float DEFAULT_HEALTH = 75.0F;
-    private static final int MAX_CONFIGURED_HEALTH = 90;
+    private static final int MAX_CONFIGURED_HEALTH = 180;
     private static final int HEAL_RECHARGE_TICKS = 400;
     private static final float HEAL_AMOUNT = 1.0F;
     /**

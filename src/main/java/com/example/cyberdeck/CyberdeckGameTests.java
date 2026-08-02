@@ -17,6 +17,8 @@ import com.example.cyberdeck.cyberware.CyberwareItems;
 import com.example.cyberdeck.cyberware.CyberwareItem;
 import com.example.cyberdeck.cyberware.SandevistanProfile;
 import com.example.cyberdeck.cyberware.SlotUnlock;
+import com.example.cyberdeck.defense.DefenseContent;
+import com.example.cyberdeck.defense.KangTaoTurret;
 import com.example.cyberdeck.effect.SandevistanMechanics;
 import com.example.cyberdeck.effect.SandevistanState;
 import com.example.cyberdeck.effect.CyberwareEffects;
@@ -1005,7 +1007,7 @@ public final class CyberdeckGameTests {
         EntityJoinLevelEvent turretJoin = canceledJoin(turret, level);
         CityActorJoinCompatibility.restoreManagedCityActor(turretJoin, true);
         helper.assertFalse(turretJoin.isCanceled(),
-                "a placed turret canceled by a companion generator must be restored");
+                "a Kang Tao turret canceled by a companion generator must be restored");
 
         EntityJoinLevelEvent unrelatedJoin = canceledJoin(unrelated, level);
         CityActorJoinCompatibility.restoreManagedCityActor(unrelatedJoin, true);

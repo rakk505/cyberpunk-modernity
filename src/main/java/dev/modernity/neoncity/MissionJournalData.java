@@ -142,6 +142,51 @@ final class MissionJournalData extends SavedData {
         accept(participants, context, mission, navigation, true, updatedTick);
     }
 
+    /** Records the authoritative deployed-to-staged transition after district cleanup. */
+    void suspend(
+            PartyService.ParticipantSnapshot participants,
+            MissionService.ContractContext context,
+            MissionService.ActiveMission mission,
+            long updatedTick) {
+        if (context.deployed()) {
+            throw new IllegalArgumentException("suspended mission context is still deployed");
+        }
+        MissionService.JournalEntry suspended = new MissionService.JournalEntry(
+                context.instanceId(), context.kind(), mission.type(),
+                mission.definitionId(), mission.title(), mission.briefing(), mission.objective(),
+                mission.targetDistrict(), mission.target().getX(), mission.target().getY(),
+                mission.target().getZ(), mission.target().getX(), mission.target().getZ(), false,
+                mission.reward(), context.streetCred(), mission.acceptedTick(),
+                MissionService.JournalStatus.ACTIVE, updatedTick);
+        boolean changed = false;
+        for (UUID participant : participants.playerIds()) {
+            ArrayList<MissionService.JournalEntry> entries = new ArrayList<>(
+                    entriesByPlayer.getOrDefault(participant, List.of()));
+            MissionService.JournalEntry current = entries.stream()
+                    .filter(value -> value.instanceId().equals(context.instanceId()))
+                    .findFirst().orElse(null);
+            if (current != null
+                    && current.status() != MissionService.JournalStatus.ACTIVE) {
+                continue;
+            }
+            entries.removeIf(value -> value.instanceId().equals(context.instanceId()));
+            entries.add(suspended);
+            entriesByPlayer.put(participant, trim(entries));
+            changed = true;
+        }
+        if (changed) setDirty();
+    }
+
+    /** Returns the canonical active deployment state when this instance is journaled. */
+    java.util.Optional<Boolean> deploymentState(UUID instanceId) {
+        return entriesByPlayer.values().stream()
+                .flatMap(List::stream)
+                .filter(entry -> entry.instanceId().equals(instanceId))
+                .filter(entry -> entry.status() == MissionService.JournalStatus.ACTIVE)
+                .map(MissionService.JournalEntry::deployed)
+                .findFirst();
+    }
+
     private void accept(
             PartyService.ParticipantSnapshot participants,
             MissionService.ContractContext context,

@@ -31,6 +31,8 @@ public final class FactionEnemyRenderer
             Identifier.withDefaultNamespace("textures/entity/player/wide/steve.png");
     private static final Identifier CYBERPSYCHO_SKIN = Identifier.fromNamespaceAndPath(
             "cyberdeck", "textures/entity/cyberpsycho.png");
+    private static final Identifier FOG_MOTHER_SKIN = Identifier.fromNamespaceAndPath(
+            "cyberdeck", "textures/entity/fog_mother.png");
     private static final Identifier TRAUMA_TEAM_SKIN = Identifier.fromNamespaceAndPath(
             "cyberdeck", "textures/entity/trauma_team.png");
     private static final Identifier EXCISION_SKIN = Identifier.fromNamespaceAndPath(
@@ -58,7 +60,10 @@ public final class FactionEnemyRenderer
         if (state.traumaTeam) {
             return TRAUMA_TEAM_SKIN;
         }
-        return state.cyberpsycho ? CYBERPSYCHO_SKIN : STEVE_SKIN;
+        if (state.cyberpsycho) {
+            return state.skinVariant == 1 ? FOG_MOTHER_SKIN : CYBERPSYCHO_SKIN;
+        }
+        return STEVE_SKIN;
     }
 
     @Override
@@ -79,6 +84,7 @@ public final class FactionEnemyRenderer
         state.cyberpsycho = enemy instanceof CyberpsychoEntity;
         state.traumaTeam = enemy.isTraumaTeam();
         state.excision = enemy.isExcision();
+        state.skinVariant = enemy.getSkinVariant();
 
         // The off-hand slot is this entity's holster, not a second simultaneously wielded gun.
         // Hide that model so the synchronized hand swap visibly replaces the primary with the

@@ -140,6 +140,8 @@ public final class CityMapScreen extends Screen {
                 12, layout.headerHeight() + 23, TEXT_DARK, false);
         int rowY = layout.headerHeight() + 39;
         int rowHeight = 25;
+        int signalTextX = 25 + maxDistrictCodeWidth();
+        int signalTextWidth = Math.max(16, layout.leftWidth() - signalTextX - 14);
         int visibleRows = Math.min(contractSignals.size(), visibleMissionRows(layout));
         contractScroll = Math.min(contractScroll,
                 Math.max(0, contractSignals.size() - visibleRows));
@@ -158,12 +160,12 @@ public final class CityMapScreen extends Screen {
             graphics.text(font,
                     CityMapRenderUtil.isGigMarker(marker) ? "!" : code,
                     17, top + 8, selected ? AMBER : RED, false);
-            graphics.text(font, elide(markerLabel(marker), layout.leftWidth() - 50),
-                    36, top + 3, selected ? TEXT : 0xFFB2C8C5, false);
+            graphics.text(font, elide(markerLabel(marker), signalTextWidth),
+                    signalTextX, top + 3, selected ? TEXT : 0xFFB2C8C5, false);
             String location = (district == null ? "UNKNOWN" : district.code())
                     + " // " + distanceTo(marker.x(), marker.z());
-            graphics.text(font, elide(location, layout.leftWidth() - 50),
-                    36, top + 14, TEXT_DIM, false);
+            graphics.text(font, elide(location, signalTextWidth),
+                    signalTextX, top + 14, TEXT_DIM, false);
             if (hovered) graphics.requestCursor(CursorTypes.POINTING_HAND);
         }
         if (contractSignals.size() > visibleRows && visibleRows > 0) {
@@ -183,6 +185,14 @@ public final class CityMapScreen extends Screen {
         int detailsY = rowY + visibleRows * rowHeight + 8;
         renderSelectedSignal(graphics, layout, detailsY, mouseX, mouseY);
         renderLayerToggles(graphics, layout, mouseX, mouseY);
+    }
+
+    private int maxDistrictCodeWidth() {
+        int width = font.width("?");
+        for (District district : District.values()) {
+            width = Math.max(width, font.width(district.code()));
+        }
+        return width;
     }
 
     private void renderSelectedGig(
@@ -416,9 +426,12 @@ public final class CityMapScreen extends Screen {
             int x = worldToScreenX(map, node.x());
             int y = worldToScreenY(map, node.z());
             if (!map.contains(x, y)) continue;
-            graphics.fill(x - 7, y - 7, x + 8, y + 8, 0xA8071014);
-            graphics.outline(x - 7, y - 7, 15, 15, RED_DIM);
-            graphics.centeredText(font, node.district().code(), x, y - 4, RED);
+            String code = node.district().code();
+            int markerWidth = Math.max(15, font.width(code) + 6);
+            int markerLeft = x - markerWidth / 2;
+            graphics.fill(markerLeft, y - 7, markerLeft + markerWidth, y + 8, 0xA8071014);
+            graphics.outline(markerLeft, y - 7, markerWidth, 15, RED_DIM);
+            graphics.centeredText(font, code, x, y - 4, RED);
             if (zoom >= 2.0) {
                 graphics.text(font, node.district().label().toUpperCase(Locale.ROOT),
                         x + 11, y - 4, TEXT_DIM, false);

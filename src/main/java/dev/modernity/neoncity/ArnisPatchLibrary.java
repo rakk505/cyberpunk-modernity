@@ -32,7 +32,7 @@ import net.minecraft.world.level.block.Rotation;
 /**
  * Runtime index and coherent mapper for district-scale Arnis atlases.
  *
- * <p>Every A-Z district owns a separate source atlas for its Nest and
+ * <p>Every district owns a separate source atlas for its Nest and
  * Backstreets. Destination chunks map to source chunks as one
  * continuous reflected atlas: source neighbours remain neighbours, roads do
  * not get shuffled, and reflection makes repeated atlas edges meet their own
@@ -430,7 +430,10 @@ public final class ArnisPatchLibrary {
                 Patch patch = new Patch(
                         catalogId,
                         Identifier.fromNamespaceAndPath("neoncity", templatePath),
-                        District.valueOf(value.get("district").getAsString() + "_CORP"),
+                        District.fromCode(value.get("district").getAsString())
+                                .orElseThrow(() -> new IllegalStateException(
+                                        "unknown Arnis district code "
+                                                + value.get("district").getAsString())),
                         Collections.unmodifiableSet(EnumSet.copyOf(zones)),
                         sourceMinY,
                         sourceSurfaceY,
@@ -502,6 +505,9 @@ public final class ArnisPatchLibrary {
 
             LinkedHashSet<String> auditedIds = new LinkedHashSet<>();
             EnumMap<District, Integer> districtCounts = new EnumMap<>(District.class);
+            for (District district : District.values()) {
+                districtCounts.put(district, 0);
+            }
             LinkedHashMap<Integer, Integer> heightCounts = new LinkedHashMap<>();
             JsonObject groups = root.getAsJsonObject(
                     "tiles_by_max_occupied_blocks_above_surface");
@@ -543,8 +549,10 @@ public final class ArnisPatchLibrary {
             EnumMap<District, Integer> declaredDistrictCounts = new EnumMap<>(District.class);
             for (Map.Entry<String, JsonElement> entry
                     : root.getAsJsonObject("district_counts").entrySet()) {
-                declaredDistrictCounts.put(
-                        District.valueOf(entry.getKey() + "_CORP"), entry.getValue().getAsInt());
+                District district = District.fromCode(entry.getKey()).orElseThrow(() ->
+                        new IllegalStateException(
+                                "unknown open-park district code " + entry.getKey()));
+                declaredDistrictCounts.put(district, entry.getValue().getAsInt());
             }
             if (declaredDistrictCounts.size() != District.values().length
                     || !declaredDistrictCounts.equals(districtCounts)) {

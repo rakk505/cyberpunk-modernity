@@ -1,0 +1,202 @@
+{
+  "schema_version": 1,
+  "arnis_version": "3.0.0",
+  "arnis_binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+  "generation": {
+    "projection": "local",
+    "scale": 1.0,
+    "ground_level": -62,
+    "terrain": false,
+    "fillground": true,
+    "overture": false,
+    "external_3d_and_schematic_props": false,
+    "map_preview": true,
+    "map_item": false,
+    "gamemode": "creative",
+    "world_time": 18000
+  },
+  "atlas": {
+    "chunks_per_axis": 16,
+    "source_min_y": -62,
+    "source_max_y": 184,
+    "surface_y": -62
+  },
+  "sources": [
+    {
+      "district": "J",
+      "zone": "NEST",
+      "slug": "las_vegas_strip",
+      "city": "Las Vegas / Bellagio-Paris Strip",
+      "culture": "casino megablocks, resort towers, and spectacle boulevards",
+      "bbox": [36.1095, -115.1785, 36.1135, -115.1705]
+    },
+    {
+      "district": "J",
+      "zone": "BACKSTREETS",
+      "slug": "las_vegas_fremont",
+      "city": "Las Vegas / Fremont Street",
+      "culture": "older casino blocks, signs, service streets, and entertainment frontage",
+      "bbox": [36.1685, -115.147, 36.1725, -115.14]
+    },
+    {
+      "district": "Q",
+      "zone": "NEST",
+      "slug": "fukuoka_tenjin",
+      "city": "Fukuoka / Tenjin",
+      "culture": "compact Japanese metropolitan blocks without a mainline rail megablock",
+      "bbox": [33.5883, 130.3965, 33.5923, 130.403]
+    },
+    {
+      "district": "Q",
+      "zone": "BACKSTREETS",
+      "slug": "fukuoka_daimyo",
+      "city": "Fukuoka / Daimyo",
+      "culture": "fine-grained maker, retail, and residential lanes",
+      "bbox": [33.5848, 130.391, 33.5888, 130.3975]
+    },
+    {
+      "district": "AE",
+      "zone": "NEST",
+      "slug": "oslo_bjorvika",
+      "city": "Oslo / Bjorvika",
+      "culture": "Nordic waterfront institutions, contemporary blocks, and maritime public space",
+      "bbox": [59.9068, 10.75, 59.9108, 10.759]
+    },
+    {
+      "district": "AE",
+      "zone": "BACKSTREETS",
+      "slug": "helsinki_punavuori",
+      "city": "Helsinki / Punavuori",
+      "culture": "Nordic masonry perimeter blocks and intimate design-district streets",
+      "bbox": [60.16, 24.9355, 60.164, 24.9445]
+    },
+    {
+      "district": "YI",
+      "zone": "NEST",
+      "slug": "moscow_new_arbat",
+      "city": "Moscow / New Arbat",
+      "culture": "Moscow-centered Soviet towers, broad prospects, and monumental infrastructure",
+      "bbox": [55.75, 37.5835, 55.754, 37.5915]
+    },
+    {
+      "district": "YI",
+      "zone": "BACKSTREETS",
+      "slug": "yekaterinburg_uralmash",
+      "city": "Yekaterinburg / Uralmash",
+      "culture": "constructivist worker-city blocks and heavy industrial avenues",
+      "bbox": [56.886, 60.609, 56.89, 60.618]
+    },
+    {
+      "district": "WANG",
+      "zone": "NEST",
+      "slug": "boston_newbury",
+      "city": "Boston / Newbury Street",
+      "culture": "Back Bay brownstones, historic row blocks, and tree-lined streets",
+      "bbox": [42.348, -71.0865, 42.352, -71.0805]
+    },
+    {
+      "district": "WANG",
+      "zone": "BACKSTREETS",
+      "slug": "boston_fort_point",
+      "city": "Boston / Fort Point",
+      "culture": "historic brick warehouses, channel infrastructure, and industrial streets",
+      "bbox": [42.3485, -71.055, 42.3525, -71.049]
+    },
+    {
+      "district": "XI",
+      "zone": "NEST",
+      "slug": "bangkok_ratchaprasong",
+      "city": "Bangkok / Ratchaprasong",
+      "culture": "tropical high-rise commerce, layered transit, and metropolitan density",
+      "bbox": [13.7425, 100.537, 13.7465, 100.543]
+    },
+    {
+      "district": "XI",
+      "zone": "BACKSTREETS",
+      "slug": "bangkok_yaowarat",
+      "city": "Bangkok / Yaowarat",
+      "culture": "dense Chinatown shophouses, markets, and narrow sois",
+      "bbox": [13.7415, 100.5025, 13.7455, 100.5085]
+    },
+    {
+      "district": "UI",
+      "zone": "NEST",
+      "slug": "singapore_raffles_place",
+      "city": "Singapore / Raffles Place",
+      "culture": "tropical financial towers, civic space, and integrated transit",
+      "bbox": [1.2815, 103.8485, 1.2855, 103.8545]
+    },
+    {
+      "district": "UI",
+      "zone": "BACKSTREETS",
+      "slug": "singapore_tiong_bahru",
+      "city": "Singapore / Tiong Bahru",
+      "culture": "streamline housing, shophouses, markets, and planted local streets",
+      "bbox": [1.2828, 103.8295, 1.2868, 103.8355]
+    },
+    {
+      "district": "UANG",
+      "zone": "NEST",
+      "slug": "amsterdam_nine_streets",
+      "city": "Amsterdam / Nine Streets",
+      "culture": "canal houses, bridges, narrow parcels, and historic commercial streets",
+      "bbox": [52.3668, 4.881, 52.3708, 4.889]
+    },
+    {
+      "district": "UANG",
+      "zone": "BACKSTREETS",
+      "slug": "amsterdam_de_pijp",
+      "city": "Amsterdam / De Pijp",
+      "culture": "dense neighborhood blocks, local markets, and fine-grained streets",
+      "bbox": [52.3513, 4.893, 52.3553, 4.901]
+    },
+    {
+      "district": "PON",
+      "zone": "NEST",
+      "slug": "madrid_gran_via",
+      "city": "Madrid / Gran Via-Callao",
+      "culture": "grand Iberian avenues, ornate perimeter blocks, and civic plazas",
+      "bbox": [40.4185, -3.71, 40.4225, -3.704]
+    },
+    {
+      "district": "PON",
+      "zone": "BACKSTREETS",
+      "slug": "lisbon_alfama",
+      "city": "Lisbon / Alfama",
+      "culture": "steep intimate lanes, tiled masonry, and irregular historic blocks",
+      "bbox": [38.7095, -9.132, 38.7135, -9.126]
+    },
+    {
+      "district": "POK",
+      "zone": "NEST",
+      "slug": "austin_downtown",
+      "city": "Austin / Congress and Sixth",
+      "culture": "Texas downtown towers, technology offices, and a walkable street grid",
+      "bbox": [30.265, -97.7445, 30.269, -97.7385]
+    },
+    {
+      "district": "POK",
+      "zone": "BACKSTREETS",
+      "slug": "austin_east_cesar_chavez",
+      "city": "Austin / East Cesar Chavez",
+      "culture": "low-rise creative industry, warehouses, homes, and neighborhood streets",
+      "bbox": [30.2538, -97.735, 30.2578, -97.729]
+    },
+    {
+      "district": "PAK",
+      "zone": "NEST",
+      "slug": "dubai_downtown",
+      "city": "Dubai / Burj Khalifa Downtown",
+      "culture": "desert supertalls, monumental podiums, and engineered boulevards",
+      "bbox": [25.195, 55.271, 25.199, 55.277]
+    },
+    {
+      "district": "PAK",
+      "zone": "BACKSTREETS",
+      "slug": "dubai_al_fahidi",
+      "city": "Dubai / Al Fahidi",
+      "culture": "historic Gulf lanes, courtyard compounds, and wind-tower fabric",
+      "bbox": [25.262, 55.297, 25.266, 55.303]
+    }
+  ]
+}

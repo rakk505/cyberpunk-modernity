@@ -1,0 +1,77 @@
+{
+  "bbox": [
+    1.2828,
+    103.8295,
+    1.2868,
+    103.8355
+  ],
+  "city": "Singapore / Tiong Bahru",
+  "culture": "streamline housing, shophouses, markets, and planted local streets",
+  "district": "UI",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "kind": "neoncity:arnis_zone_source_generation",
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "manifest": {
+    "file": "provenance/arnis_districts/perimeter_manifest.json",
+    "sha256": "ca71ba94724f144d9d947d1095869bebd4749110f68ed7e1200bfd5c74f3f786"
+  },
+  "schema_version": 1,
+  "slug": "singapore_tiong_bahru",
+  "source": {
+    "osm_file": "provenance/arnis_districts/ui/backstreets_singapore_tiong_bahru_osm.json",
+    "osm_sha256": "a7268b0cb7bbe9a3342c60c658b09dec95e92da210203632f467357fa7f0b08b"
+  },
+  "world": {
+    "build_path": "build/arnis_perimeter/ui/backstreets/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "c6277b6c165e52174ec35aef7fa01c8063b890de146af62906796f8e7a3acde1",
+    "metadata": {
+      "maxGeoLat": 1.2868,
+      "maxGeoLon": 103.8355,
+      "maxMcX": 667,
+      "maxMcZ": 444,
+      "minGeoLat": 1.2828,
+      "minGeoLon": 103.8295,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "a0e74fad773f36df5095d76bf82e5bf2294b9c3006d5418d43215e4070f4d64c",
+    "preview_sha256": "13e199be61b8458307887f2845fac6473034ed2147bb4fdb4dccace99b73de84",
+    "regions": [
+      {
+        "bytes": 4251648,
+        "file": "r.0.0.mca",
+        "sha256": "8997360c05db05a3bfd91ac0aed9a7f3dcb996821f94c4500d11051eb4446358"
+      },
+      {
+        "bytes": 4210688,
+        "file": "r.1.0.mca",
+        "sha256": "cc15f9df8cf793f4371096501c36542c1d15f67f4864e91fd7a90cb2b9f27df6"
+      }
+    ]
+  },
+  "zone": "BACKSTREETS"
+}

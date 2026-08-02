@@ -58,10 +58,11 @@ public final class KangTaoTurretItem extends Item {
             return fail(context.getPlayer(), "message.cyberdeck.turret.blocked");
         }
 
-        float yaw = Mth.floor((Mth.wrapDegrees(context.getRotation() - 180.0F) + 22.5F)
-                / 45.0F) * 45.0F;
-        turret.setBaseYaw(yaw);
-        level.addFreshEntityWithPassengers(turret);
+        turret.setBaseYaw(snappedPlacementYaw(context.getRotation()));
+        if (!level.addFreshEntity(turret)) {
+            turret.discard();
+            return fail(context.getPlayer(), "message.cyberdeck.turret.blocked");
+        }
         level.playSound(null, turret.getX(), turret.getY(), turret.getZ(),
                 SoundEvents.ARMOR_STAND_PLACE, SoundSource.BLOCKS, 0.8F, 0.75F);
         turret.gameEvent(GameEvent.ENTITY_PLACE, context.getPlayer());
@@ -75,6 +76,10 @@ public final class KangTaoTurretItem extends Item {
         Vec3 center = Vec3.atBottomCenterOf(pos);
         AABB bounds = type.getDimensions().makeBoundingBox(center.x(), center.y(), center.z());
         return level.noBlockCollision(null, bounds);
+    }
+
+    static float snappedPlacementYaw(float playerYaw) {
+        return Mth.floor((Mth.wrapDegrees(playerYaw) + 22.5F) / 45.0F) * 45.0F;
     }
 
     private static InteractionResult fail(Player player, String messageKey) {

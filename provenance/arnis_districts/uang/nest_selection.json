@@ -1,0 +1,35 @@
+{
+  "atlas_chunks": 16,
+  "candidate_count": 228,
+  "chosen": {
+    "above_surface_blocks": 273329,
+    "developed_chunks": 185,
+    "floating_structural_columns": 18942,
+    "max_height_above_surface": 43,
+    "occupied_chunks": 192,
+    "road_surface_cells": 1604,
+    "score": -21827890,
+    "selection": "nest=14,11:29,26",
+    "structural_columns": 27985,
+    "vegetation_blocks": 28106,
+    "water_blocks": 17419
+  },
+  "chunk_bounds_scanned": {
+    "max_x": 33,
+    "max_z": 26,
+    "min_x": 0,
+    "min_z": 0
+  },
+  "city": "Amsterdam / Nine Streets",
+  "district": "UANG",
+  "kind": "neoncity:arnis_zone_atlas_selection",
+  "quality_tier": "strict",
+  "schema_version": 1,
+  "slug": "amsterdam_nine_streets",
+  "source_osm": {
+    "file": "provenance/arnis_districts/uang/nest_amsterdam_nine_streets_osm.json",
+    "sha256": "53e5fe5aabf9c879204bf13961536f513456bc0b6fbab94ea145c4dd0b33c21e"
+  },
+  "source_world": "build/arnis_perimeter/uang/nest/Arnis World 1",
+  "zone": "NEST"
+}

@@ -104,7 +104,7 @@ public final class DefenseContent {
                 1,
                 1,
                 false,
-                0);
+                4);
 
         event.registerTest(
                 Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "turret_arc"),

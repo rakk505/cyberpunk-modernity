@@ -1,0 +1,35 @@
+{
+  "atlas_chunks": 16,
+  "candidate_count": 228,
+  "chosen": {
+    "above_surface_blocks": 183719,
+    "developed_chunks": 88,
+    "floating_structural_columns": 5831,
+    "max_height_above_surface": 51,
+    "occupied_chunks": 183,
+    "road_surface_cells": 11067,
+    "score": -6025460,
+    "selection": "backstreets=2,8:17,23",
+    "structural_columns": 8765,
+    "vegetation_blocks": 109950,
+    "water_blocks": 1
+  },
+  "chunk_bounds_scanned": {
+    "max_x": 33,
+    "max_z": 26,
+    "min_x": 0,
+    "min_z": 0
+  },
+  "city": "Yekaterinburg / Uralmash",
+  "district": "YI",
+  "kind": "neoncity:arnis_zone_atlas_selection",
+  "quality_tier": "strict",
+  "schema_version": 1,
+  "slug": "yekaterinburg_uralmash",
+  "source_osm": {
+    "file": "provenance/arnis_districts/yi/backstreets_yekaterinburg_uralmash_osm.json",
+    "sha256": "01af2acfddf0bfc9511056f855f3835d748ef751c658b74d531e9f191efff776"
+  },
+  "source_world": "build/arnis_perimeter/yi/backstreets/Arnis World 1",
+  "zone": "BACKSTREETS"
+}

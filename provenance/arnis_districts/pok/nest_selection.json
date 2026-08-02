@@ -1,0 +1,35 @@
+{
+  "atlas_chunks": 16,
+  "candidate_count": 252,
+  "chosen": {
+    "above_surface_blocks": 257173,
+    "developed_chunks": 178,
+    "floating_structural_columns": 18388,
+    "max_height_above_surface": 127,
+    "occupied_chunks": 196,
+    "road_surface_cells": 8468,
+    "score": -20975868,
+    "selection": "nest=19,11:34,26",
+    "structural_columns": 23136,
+    "vegetation_blocks": 21015,
+    "water_blocks": 0
+  },
+  "chunk_bounds_scanned": {
+    "max_x": 35,
+    "max_z": 26,
+    "min_x": 0,
+    "min_z": 0
+  },
+  "city": "Austin / Congress and Sixth",
+  "district": "POK",
+  "kind": "neoncity:arnis_zone_atlas_selection",
+  "quality_tier": "strict",
+  "schema_version": 1,
+  "slug": "austin_downtown",
+  "source_osm": {
+    "file": "provenance/arnis_districts/pok/nest_austin_downtown_osm.json",
+    "sha256": "c35863f3a3146ad230de96d49de031ec77bf0ed3714027388804565db2157449"
+  },
+  "source_world": "build/arnis_perimeter/pok/nest/Arnis World 1",
+  "zone": "NEST"
+}

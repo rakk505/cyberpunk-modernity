@@ -1,0 +1,35 @@
+{
+  "atlas_chunks": 16,
+  "candidate_count": 192,
+  "chosen": {
+    "above_surface_blocks": 233336,
+    "developed_chunks": 181,
+    "floating_structural_columns": 18572,
+    "max_height_above_surface": 111,
+    "occupied_chunks": 200,
+    "road_surface_cells": 13712,
+    "score": -21193423,
+    "selection": "nest=15,8:30,23",
+    "structural_columns": 24108,
+    "vegetation_blocks": 13890,
+    "water_blocks": 15
+  },
+  "chunk_bounds_scanned": {
+    "max_x": 30,
+    "max_z": 26,
+    "min_x": 0,
+    "min_z": 0
+  },
+  "city": "Moscow / New Arbat",
+  "district": "YI",
+  "kind": "neoncity:arnis_zone_atlas_selection",
+  "quality_tier": "strict",
+  "schema_version": 1,
+  "slug": "moscow_new_arbat",
+  "source_osm": {
+    "file": "provenance/arnis_districts/yi/nest_moscow_new_arbat_osm.json",
+    "sha256": "86a8a6f9424aad9c74962a83bd12d39aa3c4961b8c1bde529fb6fb3320a479db"
+  },
+  "source_world": "build/arnis_perimeter/yi/nest/Arnis World 1",
+  "zone": "NEST"
+}

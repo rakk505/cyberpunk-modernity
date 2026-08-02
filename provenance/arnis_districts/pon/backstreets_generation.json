@@ -1,0 +1,77 @@
+{
+  "bbox": [
+    38.7095,
+    -9.132,
+    38.7135,
+    -9.126
+  ],
+  "city": "Lisbon / Alfama",
+  "culture": "steep intimate lanes, tiled masonry, and irregular historic blocks",
+  "district": "PON",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "kind": "neoncity:arnis_zone_source_generation",
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "manifest": {
+    "file": "provenance/arnis_districts/perimeter_manifest.json",
+    "sha256": "ca71ba94724f144d9d947d1095869bebd4749110f68ed7e1200bfd5c74f3f786"
+  },
+  "schema_version": 1,
+  "slug": "lisbon_alfama",
+  "source": {
+    "osm_file": "provenance/arnis_districts/pon/backstreets_lisbon_alfama_osm.json",
+    "osm_sha256": "dec9e8ef2a9f241add12fc890ab978b120f70250413d929e392fbf994b85b56f"
+  },
+  "world": {
+    "build_path": "build/arnis_perimeter/pon/backstreets/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "3b4a799fdda534af4c2defb07ef3b72c4130f5e5d28973af40daf8ef9e02899c",
+    "metadata": {
+      "maxGeoLat": 38.7135,
+      "maxGeoLon": -9.126,
+      "maxMcX": 520,
+      "maxMcZ": 444,
+      "minGeoLat": 38.7095,
+      "minGeoLon": -9.132,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "ea8ac889b51200511f051769094b5aedcc2c29f26fefa04c860699023d9b8b8d",
+    "preview_sha256": "30f7b157ff2568657737a91bd12867fdf6f1d5913d23c51ea32c1c8e77ebd1f1",
+    "regions": [
+      {
+        "bytes": 4669440,
+        "file": "r.0.0.mca",
+        "sha256": "8497bae344818c475e948dd092d4d33c46620413797c94a4a33fdb35d47e8c09"
+      },
+      {
+        "bytes": 4210688,
+        "file": "r.1.0.mca",
+        "sha256": "733ecf77386c74b9806e4251886304c72fb58531a9834150fb4546dc7d347688"
+      }
+    ]
+  },
+  "zone": "BACKSTREETS"
+}

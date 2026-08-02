@@ -1,0 +1,35 @@
+{
+  "atlas_chunks": 16,
+  "candidate_count": 252,
+  "chosen": {
+    "above_surface_blocks": 197477,
+    "developed_chunks": 167,
+    "floating_structural_columns": 6948,
+    "max_height_above_surface": 36,
+    "occupied_chunks": 234,
+    "road_surface_cells": 9249,
+    "score": -7127411,
+    "selection": "backstreets=0,11:15,26",
+    "structural_columns": 11953,
+    "vegetation_blocks": 140042,
+    "water_blocks": 60
+  },
+  "chunk_bounds_scanned": {
+    "max_x": 35,
+    "max_z": 26,
+    "min_x": 0,
+    "min_z": 0
+  },
+  "city": "Austin / East Cesar Chavez",
+  "district": "POK",
+  "kind": "neoncity:arnis_zone_atlas_selection",
+  "quality_tier": "strict",
+  "schema_version": 1,
+  "slug": "austin_east_cesar_chavez",
+  "source_osm": {
+    "file": "provenance/arnis_districts/pok/backstreets_austin_east_cesar_chavez_osm.json",
+    "sha256": "86a90223ffbaacc748dd016ede12643aff633e60cb8a5a108b349454377800aa"
+  },
+  "source_world": "build/arnis_perimeter/pok/backstreets/Arnis World 1",
+  "zone": "BACKSTREETS"
+}

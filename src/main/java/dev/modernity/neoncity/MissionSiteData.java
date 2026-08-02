@@ -3,18 +3,27 @@ package dev.modernity.neoncity;
 import com.example.cyberdeck.Cyberdeck;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import net.minecraft.core.UUIDUtil;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.saveddata.SavedDataType;
 
-/** Persistent one-contract ownership for buildings whose geometry has been mission-decorated. */
+/** Persistent ownership, visit state, and rollback data for mission-decorated buildings. */
 final class MissionSiteData extends SavedData {
+    static final int SITE_CLEARANCE = 10;
+    private static final int UNKNOWN = Integer.MIN_VALUE;
+    private static final String LIFECYCLE_ACTIVE = "active";
+    private static final String LIFECYCLE_COMPLETED_COMBAT_LIVE = "completed_combat_live";
+    private static final String LIFECYCLE_COMPLETED_COMBAT_CLEARED = "completed_combat_cleared";
     private static final Codec<MissionSiteData> CODEC = Reservation.CODEC.listOf()
             .xmap(MissionSiteData::new, MissionSiteData::serialized);
     static final SavedDataType<MissionSiteData> TYPE = new SavedDataType<>(
@@ -22,14 +31,28 @@ final class MissionSiteData extends SavedData {
             MissionSiteData::new,
             CODEC);
 
-    private final Map<String, UUID> reservations = new HashMap<>();
+    private final Map<String, Reservation> reservations = new HashMap<>();
+
+    record CompletedSite(
+            UUID instanceId,
+            District district,
+            int minX,
+            int minZ,
+            int maxX,
+            int maxZ,
+            List<UUID> participants,
+            boolean combatCleared) {
+        CompletedSite {
+            participants = List.copyOf(participants);
+        }
+    }
 
     private MissionSiteData() {
     }
 
     private MissionSiteData(List<Reservation> reservations) {
         for (Reservation reservation : reservations) {
-            this.reservations.putIfAbsent(reservation.siteId(), reservation.instanceId());
+            this.reservations.putIfAbsent(reservation.siteId(), reservation);
         }
     }
 
@@ -38,44 +61,306 @@ final class MissionSiteData extends SavedData {
     }
 
     boolean reserve(String siteId, UUID instanceId) {
-        UUID existing = reservations.get(siteId);
-        if (existing != null) return existing.equals(instanceId);
-        reservations.put(siteId, instanceId);
+        Reservation existing = reservations.get(siteId);
+        if (existing != null) return existing.instanceId().equals(instanceId);
+        reservations.put(siteId, Reservation.legacy(siteId, instanceId));
         setDirty();
         return true;
     }
 
+    /** Reserves this physical mission area and excludes other sites within its safety buffer. */
+    boolean reserve(
+            String siteId, MissionBuildingPlanner.Site site, UUID instanceId) {
+        if (site == null || isReservedByOther(siteId, site, instanceId)) return false;
+        Reservation existing = reservations.get(siteId);
+        Set<UUID> entered = existing == null
+                ? Set.of()
+                : Set.copyOf(existing.enteredPlayers());
+        CompoundTag restoration = existing == null
+                ? new CompoundTag()
+                : existing.restoration().copy();
+        Reservation enriched = Reservation.from(
+                siteId, site, instanceId, entered, restoration,
+                existing == null ? List.of() : existing.participants(),
+                existing == null ? LIFECYCLE_ACTIVE : existing.lifecycle());
+        if (!enriched.equals(existing)) {
+            reservations.put(siteId, enriched);
+            setDirty();
+        }
+        return true;
+    }
+
     void releaseIfOwned(String siteId, UUID instanceId) {
-        if (reservations.remove(siteId, instanceId)) setDirty();
+        Reservation existing = reservations.get(siteId);
+        if (existing != null && existing.instanceId().equals(instanceId)) {
+            reservations.remove(siteId);
+            setDirty();
+        }
     }
 
     void releaseOwned(UUID instanceId) {
         boolean changed = reservations.entrySet().removeIf(
-                entry -> entry.getValue().equals(instanceId));
+                entry -> entry.getValue().instanceId().equals(instanceId));
         if (changed) setDirty();
     }
 
     boolean isReservedByOther(String siteId, UUID instanceId) {
-        UUID existing = reservations.get(siteId);
-        return existing != null && !existing.equals(instanceId);
+        Reservation existing = reservations.get(siteId);
+        return existing != null && !existing.instanceId().equals(instanceId);
+    }
+
+    boolean isReservedByOther(
+            String siteId, MissionBuildingPlanner.Site site, UUID instanceId) {
+        if (site == null) return true;
+        for (Reservation reservation : reservations.values()) {
+            if (reservation.instanceId().equals(instanceId)) continue;
+            if (reservation.siteId().equals(siteId) || reservation.conflicts(site)) return true;
+        }
+        return false;
     }
 
     boolean hasReservation(UUID instanceId) {
-        return instanceId != null && reservations.containsValue(instanceId);
+        return instanceId != null && reservations.values().stream()
+                .anyMatch(reservation -> reservation.instanceId().equals(instanceId));
     }
 
-    private List<Reservation> serialized() {
-        return reservations.entrySet().stream()
-                .sorted(Map.Entry.comparingByKey())
-                .map(entry -> new Reservation(entry.getKey(), entry.getValue()))
+    /** Records which online contract members have physically entered the target district. */
+    void markEntered(UUID instanceId, List<UUID> playerIds) {
+        if (instanceId == null || playerIds == null || playerIds.isEmpty()) return;
+        Set<UUID> additions = new HashSet<>(playerIds);
+        boolean changed = false;
+        for (Map.Entry<String, Reservation> entry : reservations.entrySet()) {
+            Reservation reservation = entry.getValue();
+            if (!reservation.instanceId().equals(instanceId)) continue;
+            HashSet<UUID> entered = new HashSet<>(reservation.enteredPlayers());
+            if (entered.addAll(additions)) {
+                entry.setValue(reservation.withEntered(entered));
+                changed = true;
+            }
+        }
+        if (changed) setDirty();
+    }
+
+    boolean hasEntered(UUID instanceId) {
+        return instanceId != null && reservations.values().stream()
+                .filter(reservation -> reservation.instanceId().equals(instanceId))
+                .anyMatch(reservation -> !reservation.enteredPlayers().isEmpty());
+    }
+
+    void storeRestoration(UUID instanceId, CompoundTag restoration) {
+        if (instanceId == null || restoration == null || restoration.isEmpty()) return;
+        boolean changed = false;
+        for (Map.Entry<String, Reservation> entry : reservations.entrySet()) {
+            Reservation reservation = entry.getValue();
+            if (!reservation.instanceId().equals(instanceId)) continue;
+            entry.setValue(reservation.withRestoration(restoration));
+            changed = true;
+        }
+        if (changed) setDirty();
+    }
+
+    java.util.Optional<CompoundTag> restoration(UUID instanceId) {
+        if (instanceId == null) return java.util.Optional.empty();
+        return reservations.values().stream()
+                .filter(reservation -> reservation.instanceId().equals(instanceId))
+                .map(Reservation::restoration)
+                .filter(tag -> !tag.isEmpty())
+                .findFirst()
+                .map(CompoundTag::copy);
+    }
+
+    /** Retains a completed mission site until its combat and district cleanup gates are met. */
+    boolean retainCompleted(UUID instanceId, List<UUID> participantIds) {
+        if (instanceId == null || participantIds == null || participantIds.isEmpty()) return false;
+        List<UUID> participants = participantIds.stream()
+                .filter(id -> id != null).distinct().sorted().toList();
+        if (participants.isEmpty()) return false;
+        boolean retained = false;
+        boolean changed = false;
+        for (Map.Entry<String, Reservation> entry : reservations.entrySet()) {
+            Reservation reservation = entry.getValue();
+            if (!reservation.instanceId().equals(instanceId)
+                    || !reservation.canRetainCompletion()) continue;
+            retained = true;
+            String lifecycle = LIFECYCLE_COMPLETED_COMBAT_CLEARED.equals(
+                    reservation.lifecycle())
+                    ? LIFECYCLE_COMPLETED_COMBAT_CLEARED
+                    : LIFECYCLE_COMPLETED_COMBAT_LIVE;
+            Reservation completed = reservation.withCompletion(
+                    participants, lifecycle);
+            if (!completed.equals(reservation)) {
+                entry.setValue(completed);
+                changed = true;
+            }
+        }
+        if (changed) setDirty();
+        return retained;
+    }
+
+    boolean isRetainedCompletion(UUID instanceId) {
+        return completedSite(instanceId).isPresent();
+    }
+
+    java.util.Optional<CompletedSite> completedSite(UUID instanceId) {
+        if (instanceId == null) return java.util.Optional.empty();
+        return reservations.values().stream()
+                .filter(reservation -> reservation.instanceId().equals(instanceId))
+                .map(Reservation::completedSite)
+                .flatMap(java.util.Optional::stream)
+                .findFirst();
+    }
+
+    List<CompletedSite> completedSites() {
+        Map<UUID, CompletedSite> completed = new HashMap<>();
+        for (Reservation reservation : reservations.values()) {
+            reservation.completedSite().ifPresent(site ->
+                    completed.putIfAbsent(site.instanceId(), site));
+        }
+        return completed.values().stream()
+                .sorted(java.util.Comparator.comparing(CompletedSite::instanceId))
                 .toList();
     }
 
-    private record Reservation(String siteId, UUID instanceId) {
+    void markCombatCleared(UUID instanceId) {
+        if (instanceId == null) return;
+        boolean changed = false;
+        for (Map.Entry<String, Reservation> entry : reservations.entrySet()) {
+            Reservation reservation = entry.getValue();
+            if (!reservation.instanceId().equals(instanceId)
+                    || !LIFECYCLE_COMPLETED_COMBAT_LIVE.equals(reservation.lifecycle())) continue;
+            entry.setValue(reservation.withCompletion(
+                    reservation.participants(), LIFECYCLE_COMPLETED_COMBAT_CLEARED));
+            changed = true;
+        }
+        if (changed) setDirty();
+    }
+
+    private List<Reservation> serialized() {
+        return reservations.values().stream()
+                .sorted(java.util.Comparator.comparing(Reservation::siteId))
+                .toList();
+    }
+
+    private record Reservation(
+            String siteId,
+            UUID instanceId,
+            int district,
+            int minX,
+            int minZ,
+            int maxX,
+            int maxZ,
+            List<UUID> enteredPlayers,
+            CompoundTag restoration,
+            List<UUID> participants,
+            String lifecycle) {
         private static final Codec<Reservation> CODEC = RecordCodecBuilder.create(instance ->
                 instance.group(
                         Codec.STRING.fieldOf("site").forGetter(Reservation::siteId),
-                        UUIDUtil.CODEC.fieldOf("instance").forGetter(Reservation::instanceId))
+                        UUIDUtil.CODEC.fieldOf("instance").forGetter(Reservation::instanceId),
+                        Codec.INT.optionalFieldOf("district", UNKNOWN)
+                                .forGetter(Reservation::district),
+                        Codec.INT.optionalFieldOf("min_x", UNKNOWN).forGetter(Reservation::minX),
+                        Codec.INT.optionalFieldOf("min_z", UNKNOWN).forGetter(Reservation::minZ),
+                        Codec.INT.optionalFieldOf("max_x", UNKNOWN).forGetter(Reservation::maxX),
+                        Codec.INT.optionalFieldOf("max_z", UNKNOWN).forGetter(Reservation::maxZ),
+                        UUIDUtil.CODEC.listOf().optionalFieldOf("entered_players", List.of())
+                                .forGetter(Reservation::enteredPlayers),
+                        CompoundTag.CODEC.optionalFieldOf("restoration", new CompoundTag())
+                                .forGetter(Reservation::restoration),
+                        UUIDUtil.CODEC.listOf().optionalFieldOf("participants", List.of())
+                                .forGetter(Reservation::participants),
+                        Codec.STRING.optionalFieldOf("lifecycle", LIFECYCLE_ACTIVE)
+                                .forGetter(Reservation::lifecycle))
                         .apply(instance, Reservation::new));
+
+        private Reservation {
+            enteredPlayers = enteredPlayers == null
+                    ? List.of()
+                    : enteredPlayers.stream().filter(id -> id != null).distinct().sorted().toList();
+            restoration = restoration == null ? new CompoundTag() : restoration.copy();
+            participants = participants == null
+                    ? List.of()
+                    : participants.stream().filter(id -> id != null).distinct().sorted().toList();
+            lifecycle = lifecycle == null ? LIFECYCLE_ACTIVE : lifecycle;
+            lifecycle = switch (lifecycle) {
+                case LIFECYCLE_COMPLETED_COMBAT_LIVE,
+                        LIFECYCLE_COMPLETED_COMBAT_CLEARED -> lifecycle;
+                default -> LIFECYCLE_ACTIVE;
+            };
+        }
+
+        private static Reservation legacy(String siteId, UUID instanceId) {
+            return new Reservation(
+                    siteId, instanceId, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
+                    List.of(), new CompoundTag(), List.of(), LIFECYCLE_ACTIVE);
+        }
+
+        private static Reservation from(
+                String siteId,
+                MissionBuildingPlanner.Site site,
+                UUID instanceId,
+                Set<UUID> enteredPlayers,
+                CompoundTag restoration,
+                List<UUID> participants,
+                String lifecycle) {
+            return new Reservation(
+                    siteId,
+                    instanceId,
+                    site.district().ordinal(),
+                    site.bounds().minX(),
+                    site.bounds().minZ(),
+                    site.bounds().maxX(),
+                    site.bounds().maxZ(),
+                    new ArrayList<>(enteredPlayers),
+                    restoration,
+                    participants,
+                    lifecycle);
+        }
+
+        private Reservation withEntered(Set<UUID> entered) {
+            return new Reservation(
+                    siteId, instanceId, district, minX, minZ, maxX, maxZ,
+                    new ArrayList<>(entered), restoration, participants, lifecycle);
+        }
+
+        private Reservation withRestoration(CompoundTag nextRestoration) {
+            return new Reservation(
+                    siteId, instanceId, district, minX, minZ, maxX, maxZ,
+                    enteredPlayers, nextRestoration, participants, lifecycle);
+        }
+
+        private Reservation withCompletion(
+                List<UUID> completionParticipants, String completionLifecycle) {
+            return new Reservation(
+                    siteId, instanceId, district, minX, minZ, maxX, maxZ,
+                    enteredPlayers, restoration, completionParticipants, completionLifecycle);
+        }
+
+        private boolean canRetainCompletion() {
+            return district >= 0 && district < District.values().length
+                    && minX != UNKNOWN && minZ != UNKNOWN && maxX != UNKNOWN && maxZ != UNKNOWN
+                    && !restoration.isEmpty();
+        }
+
+        private java.util.Optional<CompletedSite> completedSite() {
+            if (LIFECYCLE_ACTIVE.equals(lifecycle) || !canRetainCompletion()
+                    || participants.isEmpty()) {
+                return java.util.Optional.empty();
+            }
+            return java.util.Optional.of(new CompletedSite(
+                    instanceId, District.values()[district], minX, minZ, maxX, maxZ,
+                    participants, LIFECYCLE_COMPLETED_COMBAT_CLEARED.equals(lifecycle)));
+        }
+
+        private boolean conflicts(MissionBuildingPlanner.Site site) {
+            if (district == UNKNOWN || minX == UNKNOWN || minZ == UNKNOWN
+                    || maxX == UNKNOWN || maxZ == UNKNOWN) {
+                return false;
+            }
+            return minX <= site.bounds().maxX() + SITE_CLEARANCE
+                    && maxX + SITE_CLEARANCE >= site.bounds().minX()
+                    && minZ <= site.bounds().maxZ() + SITE_CLEARANCE
+                    && maxZ + SITE_CLEARANCE >= site.bounds().minZ();
+        }
     }
 }

@@ -22,9 +22,6 @@ public final class UCorpPortGeneration {
     private static final long PLAN_SALT = 0x55434F52504F5254L;
     private static final long CONTAINER_SALT = 0x434F4E5441494E52L;
     private static final long PORTSHIP_SALT = 0x504F525453484950L;
-    private static final int[][] CARDINAL_DIRECTIONS = {
-            {1, 0}, {0, 1}, {-1, 0}, {0, -1}
-    };
     private static final DyeColor[] CONTAINER_COLORS = {
             DyeColor.BLUE,
             DyeColor.LIGHT_BLUE,
@@ -79,6 +76,7 @@ public final class UCorpPortGeneration {
             int portStart,
             int shoreline,
             int oceanEnd,
+            int portHalfWidth,
             int oceanHalfWidth,
             long identity,
             List<Portship> portships) {
@@ -122,6 +120,9 @@ public final class UCorpPortGeneration {
             int localShoreline = shorelineAt(lateral);
             if (forward >= localShoreline && forward <= oceanEnd) {
                 return Feature.OCEAN;
+            }
+            if (Math.abs(lateral) > portHalfWidth) {
+                return Feature.NONE;
             }
             if (forward < portStart || forward >= localShoreline) {
                 return Feature.NONE;
@@ -203,16 +204,24 @@ public final class UCorpPortGeneration {
         MegacityLayout.Node node = layout.node(District.U_CORP);
         long identity = MegacityLayout.mix(layout.seed() ^ PLAN_SALT, node.x(), node.z());
         int shipCount = MIN_PORTSHIPS + Math.floorMod((int) identity, 2);
-        int[] direction = chooseCoastDirection(layout, node, shipCount);
-        int forwardX = direction[0];
-        int forwardZ = direction[1];
+        int forwardX = 0;
+        int forwardZ = 1;
         int rightX = -forwardZ;
         int rightZ = forwardX;
         int forwardRadius = (int) Math.round(directionalRadius(node, forwardX, forwardZ));
         int lateralRadius = (int) Math.round(directionalRadius(node, rightX, rightZ));
-        int portStart = (int) Math.round(forwardRadius * 0.50);
-        int shoreline = (int) Math.round(forwardRadius * 0.72);
-        int oceanHalfWidth = Math.min(520, Math.max(360, (int) Math.round(lateralRadius * 0.42)));
+        int portStart = (int) Math.round(forwardRadius * 0.54);
+        // Begin inside the minimum rippled ellipse envelope so Uang/U/Ui can never leave a
+        // wilderness seam between their authored street fabric and the southern waterline.
+        int shoreline = (int) Math.round(forwardRadius * 0.82);
+        int portHalfWidth = Math.min(520, Math.max(360,
+                (int) Math.round(lateralRadius * 0.42)));
+        MegacityLayout.Node westCoast = layout.node(District.UANG_DISTRICT);
+        MegacityLayout.Node eastCoast = layout.node(District.UI_DISTRICT);
+        int oceanHalfWidth = Math.max(
+                node.x() - westCoast.x() + westCoast.radiusX(),
+                eastCoast.x() - node.x() + eastCoast.radiusX())
+                + PerimeterOutskirts.BAND_WIDTH;
         int shipBaseForward = (int) Math.round(forwardRadius * 1.12) + 120;
         ArrayList<Portship> ships = new ArrayList<>(shipCount);
         for (int index = 0; index < shipCount; index++) {
@@ -222,7 +231,7 @@ public final class UCorpPortGeneration {
                     : (index - 1) * 0.31;
             int shipForward = shipBaseForward + (index % 2) * 135
                     + signedRange(shipIdentity, 17);
-            int shipLateral = (int) Math.round(oceanHalfWidth * lateralFactor)
+            int shipLateral = (int) Math.round(portHalfWidth * lateralFactor)
                     + signedRange(Long.rotateLeft(shipIdentity, 23), 16);
             ships.add(new Portship(
                     index,
@@ -237,49 +246,8 @@ public final class UCorpPortGeneration {
         return new Plan(
                 layout.seed(), node.x(), node.z(),
                 forwardX, forwardZ, rightX, rightZ,
-                portStart, shoreline, oceanEnd, oceanHalfWidth,
+                portStart, shoreline, oceanEnd, portHalfWidth, oceanHalfWidth,
                 identity, ships);
-    }
-
-    private static int[] chooseCoastDirection(
-            MegacityLayout layout, MegacityLayout.Node node, int shipCount) {
-        double centerLength = Math.max(1.0, Math.hypot(node.x(), node.z()));
-        int[] best = CARDINAL_DIRECTIONS[0];
-        double bestScore = -Double.MAX_VALUE;
-        for (int[] direction : CARDINAL_DIRECTIONS) {
-            double forwardRadius = directionalRadius(node, direction[0], direction[1]);
-            double lateralRadius = directionalRadius(node, -direction[1], direction[0]);
-            double halfWidth = Math.min(520.0, Math.max(360.0, lateralRadius * 0.42));
-            double shipBase = forwardRadius * 1.12 + 120.0;
-            double clearance = Double.MAX_VALUE;
-            double[] forwardSamples = {
-                    forwardRadius * 0.72,
-                    forwardRadius * 1.08,
-                    shipBase,
-                    shipBase + (shipCount > 1 ? 135.0 : 0.0)
-            };
-            double[] lateralSamples = {-halfWidth * 0.34, 0.0, halfWidth * 0.34};
-            for (MegacityLayout.Node other : layout.nodes()) {
-                if (other.district() == District.U_CORP) continue;
-                for (double forward : forwardSamples) {
-                    for (double lateral : lateralSamples) {
-                        int x = (int) Math.round(node.x() + forward * direction[0]
-                                - lateral * direction[1]);
-                        int z = (int) Math.round(node.z() + forward * direction[1]
-                                + lateral * direction[0]);
-                        clearance = Math.min(clearance, layout.normalizedDistanceTo(other, x, z));
-                    }
-                }
-            }
-            double outwardAlignment = (node.x() * direction[0] + node.z() * direction[1])
-                    / centerLength;
-            double score = clearance * 4.0 + outwardAlignment * 2.5;
-            if (score > bestScore) {
-                bestScore = score;
-                best = direction;
-            }
-        }
-        return best;
     }
 
     private static double directionalRadius(
@@ -326,12 +294,12 @@ public final class UCorpPortGeneration {
         }
         int depth = forward - plan.portStart();
         int row = Math.floorDiv(depth, 10);
-        int aisle = Math.floorDiv(lateral + plan.oceanHalfWidth(), 32);
+        int aisle = Math.floorDiv(lateral + plan.portHalfWidth(), 32);
         if (Math.floorMod(row, 5) == 4 || Math.floorMod(aisle, 6) == 5) {
             return null;
         }
         int localWidth = Math.floorMod(depth, 10);
-        int localLength = Math.floorMod(lateral + plan.oceanHalfWidth(), 32);
+        int localLength = Math.floorMod(lateral + plan.portHalfWidth(), 32);
         if (localWidth >= 7 || localLength >= 28) {
             return null;
         }
@@ -371,9 +339,9 @@ public final class UCorpPortGeneration {
 
     static int portCraneLateral(Plan plan, int index) {
         int target = switch (index) {
-            case 0 -> -plan.oceanHalfWidth() * 3 / 5;
+            case 0 -> -plan.portHalfWidth() * 3 / 5;
             case 1 -> 0;
-            case 2 -> plan.oceanHalfWidth() * 3 / 5;
+            case 2 -> plan.portHalfWidth() * 3 / 5;
             default -> throw new IllegalArgumentException("crane index must be 0..2");
         };
         return safeCraneLateral(plan, target);

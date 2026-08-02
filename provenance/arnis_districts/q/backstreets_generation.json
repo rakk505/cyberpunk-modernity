@@ -1,0 +1,77 @@
+{
+  "bbox": [
+    33.5848,
+    130.391,
+    33.5888,
+    130.3975
+  ],
+  "city": "Fukuoka / Daimyo",
+  "culture": "fine-grained maker, retail, and residential lanes",
+  "district": "Q",
+  "generator": {
+    "binary_sha256": "48c4d2abe8b0b6be16c77e3d2d839277ef9ea1d2a3bca36a75bf6e21ffd71319",
+    "name": "Arnis",
+    "settings": {
+      "external_3d_and_schematic_props": false,
+      "fillground": true,
+      "gamemode": "creative",
+      "ground_level": -62,
+      "map_item": false,
+      "map_preview": true,
+      "overture": false,
+      "projection": "local",
+      "scale": 1.0,
+      "terrain": false,
+      "world_time": 18000
+    },
+    "version": "3.0.0"
+  },
+  "kind": "neoncity:arnis_zone_source_generation",
+  "license": {
+    "attribution": "OpenStreetMap contributors",
+    "id": "ODbL-1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "manifest": {
+    "file": "provenance/arnis_districts/perimeter_manifest.json",
+    "sha256": "ca71ba94724f144d9d947d1095869bebd4749110f68ed7e1200bfd5c74f3f786"
+  },
+  "schema_version": 1,
+  "slug": "fukuoka_daimyo",
+  "source": {
+    "osm_file": "provenance/arnis_districts/q/backstreets_fukuoka_daimyo_osm.json",
+    "osm_sha256": "e2aa6760967a313e8c4164b52f79a27cb6f98d6ba8671ccff78cdfa43ff657de"
+  },
+  "world": {
+    "build_path": "build/arnis_perimeter/q/backstreets/Arnis World 1",
+    "bundled": false,
+    "level_dat_sha256": "0455e35f144636c4c5f8cca0f89e3b09d1b942bcf8556a5c17328efe85777020",
+    "metadata": {
+      "maxGeoLat": 33.5888,
+      "maxGeoLon": 130.3975,
+      "maxMcX": 602,
+      "maxMcZ": 444,
+      "minGeoLat": 33.5848,
+      "minGeoLon": 130.391,
+      "minMcX": 0,
+      "minMcZ": 0,
+      "projection": "local",
+      "scale": 1.0
+    },
+    "metadata_sha256": "3600f765dee67bf59c1fd426c0df40d010003e22f63f7ea44a18cf9f59a53d01",
+    "preview_sha256": "642f40a63ebf44617105cd3dc3d9b08fc086308d07f3ab1673be34cecaedbc50",
+    "regions": [
+      {
+        "bytes": 4210688,
+        "file": "r.0.0.mca",
+        "sha256": "542aca999726501480a26126bc88d0c08b771f6ae9e9dd4b93f1d3eb3874010b"
+      },
+      {
+        "bytes": 4202496,
+        "file": "r.1.0.mca",
+        "sha256": "99399762eed7f8352a67ac99f09b5432277e4353d7eac153dc615238557f1da7"
+      }
+    ]
+  },
+  "zone": "BACKSTREETS"
+}

@@ -131,7 +131,7 @@ final class DistrictWorldFeatures {
         for (int localZ = 0; localZ < 16; localZ++) {
             for (int localX = 0; localX < 16; localX++) {
                 NeonCityGenerator.UrbanSample sample = samples[localZ + 1][localX + 1];
-                if (sample.district() != District.Y_CORP
+                if (!sample.district().isSharedWinter()
                         || sample.zone() == MegacityLayout.Zone.WILDERNESS) {
                     continue;
                 }

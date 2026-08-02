@@ -92,6 +92,10 @@ public final class CyberdeckNetwork {
                 AcceptDiscoveredGigPacket.STREAM_CODEC,
                 AcceptDiscoveredGigPacket::handle);
         registrar.playToServer(
+                AcceptStoryMissionPacket.TYPE,
+                AcceptStoryMissionPacket.STREAM_CODEC,
+                AcceptStoryMissionPacket::handle);
+        registrar.playToServer(
                 AbandonContractPacket.TYPE,
                 AbandonContractPacket.STREAM_CODEC,
                 AbandonContractPacket::handle);

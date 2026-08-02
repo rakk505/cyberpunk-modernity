@@ -1,0 +1,35 @@
+{
+  "atlas_chunks": 16,
+  "candidate_count": 264,
+  "chosen": {
+    "above_surface_blocks": 201551,
+    "developed_chunks": 220,
+    "floating_structural_columns": 19684,
+    "max_height_above_surface": 18,
+    "occupied_chunks": 225,
+    "road_surface_cells": 8847,
+    "score": -22646569,
+    "selection": "backstreets=0,11:15,26",
+    "structural_columns": 28443,
+    "vegetation_blocks": 128,
+    "water_blocks": 0
+  },
+  "chunk_bounds_scanned": {
+    "max_x": 36,
+    "max_z": 26,
+    "min_x": 0,
+    "min_z": 0
+  },
+  "city": "Fukuoka / Daimyo",
+  "district": "Q",
+  "kind": "neoncity:arnis_zone_atlas_selection",
+  "quality_tier": "strict",
+  "schema_version": 1,
+  "slug": "fukuoka_daimyo",
+  "source_osm": {
+    "file": "provenance/arnis_districts/q/backstreets_fukuoka_daimyo_osm.json",
+    "sha256": "e2aa6760967a313e8c4164b52f79a27cb6f98d6ba8671ccff78cdfa43ff657de"
+  },
+  "source_world": "build/arnis_perimeter/q/backstreets/Arnis World 1",
+  "zone": "BACKSTREETS"
+}

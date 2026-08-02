@@ -6,6 +6,7 @@ import com.mojang.blaze3d.platform.NativeImage;
 import dev.modernity.neoncity.CityMapProjection;
 import dev.modernity.neoncity.District;
 import dev.modernity.neoncity.MegacityLayout;
+import dev.modernity.neoncity.PerimeterOutskirts;
 import dev.modernity.neoncity.UCorpPortGeneration;
 import java.io.IOException;
 import java.io.InputStream;
@@ -229,6 +230,7 @@ public final class CityMapTextureCache {
             long requestGeneration) {
         District[] districts = District.values();
         UCorpPortGeneration.Plan port = UCorpPortGeneration.plan(layout);
+        PerimeterOutskirts.Plan outskirts = PerimeterOutskirts.plan(layout);
         for (int pixelZ = 0; pixelZ < TEXTURE_SIZE; pixelZ++) {
             if ((pixelZ & 15) == 0) ensureCurrent(requestGeneration);
             int worldZ = worldCoordinates[pixelZ];
@@ -243,20 +245,40 @@ public final class CityMapTextureCache {
                     continue;
                 }
                 double distance = nearestDistance[index];
-                if (distance > 1.08 || nearestDistrict[index] < 0) {
-                    output.setPixel(pixelX, pixelZ,
-                            checker(worldX, worldZ, 0xFF02060B, 0xFF03080E));
+                MegacityLayout.Location exactLocation = null;
+                boolean needsHullLookup = layout.insideUrbanHull(worldX, worldZ)
+                        && (distance > MegacityLayout.DISTRICT_BLOB_LIMIT
+                                || nearestDistrict[index] < 0
+                                || layout.insidePerimeterDistrictBand(worldX, worldZ));
+                if (needsHullLookup) {
+                    exactLocation = layout.locateDistrict(worldX, worldZ);
+                }
+                if (exactLocation == null
+                        && (distance > MegacityLayout.DISTRICT_BLOB_LIMIT
+                                || nearestDistrict[index] < 0)) {
+                    PerimeterOutskirts.Feature feature = outskirts.featureAt(worldX, worldZ);
+                    output.setPixel(pixelX, pixelZ, feature == PerimeterOutskirts.Feature.NONE
+                            ? checker(worldX, worldZ, 0xFF02060B, 0xFF03080E)
+                            : outskirtsColor(feature, worldX, worldZ));
                     continue;
                 }
 
-                District district = districts[Byte.toUnsignedInt(nearestDistrict[index])];
-                MegacityLayout.Zone zone = distance <= 0.45
-                        ? MegacityLayout.Zone.NEST : MegacityLayout.Zone.BACKSTREETS;
-                if (secondDistrict[index] >= 0
-                        && MegacityLayout.isDistrictBorder(
-                                distance, secondDistance[index])) {
-                    District other = districts[Byte.toUnsignedInt(secondDistrict[index])];
-                    zone = layout.boundaryZone(district, other);
+                District district;
+                MegacityLayout.Zone zone;
+                if (exactLocation != null) {
+                    distance = exactLocation.normalizedDistance();
+                    district = exactLocation.district();
+                    zone = exactLocation.zone();
+                } else {
+                    district = districts[Byte.toUnsignedInt(nearestDistrict[index])];
+                    zone = distance <= 0.45
+                            ? MegacityLayout.Zone.NEST : MegacityLayout.Zone.BACKSTREETS;
+                    if (secondDistrict[index] >= 0
+                            && MegacityLayout.isDistrictBorder(
+                                    distance, secondDistance[index])) {
+                        District other = districts[Byte.toUnsignedInt(secondDistrict[index])];
+                        zone = layout.boundaryZone(district, other);
+                    }
                 }
 
                 MegacityLayout.Node node = layout.node(district);
@@ -285,6 +307,17 @@ public final class CityMapTextureCache {
             case HARBOR_WATER -> checker(worldX, worldZ, 0xFF08647A, 0xFF0A7182);
             case OCEAN -> checker(worldX, worldZ, 0xFF06384D, 0xFF07475C);
             case PORTSHIP -> checker(worldX, worldZ, 0xFF87542D, 0xFFB46D32);
+            case NONE -> checker(worldX, worldZ, 0xFF02060B, 0xFF03080E);
+        };
+    }
+
+    private static int outskirtsColor(
+            PerimeterOutskirts.Feature feature, int worldX, int worldZ) {
+        return switch (feature) {
+            case NORTH_TUNDRA -> checker(worldX, worldZ, 0xFFD7E5E7, 0xFFAFC7CD);
+            case WEST_LAND -> checker(worldX, worldZ, 0xFF31513A, 0xFF3E5D43);
+            case EAST_LAND -> checker(worldX, worldZ, 0xFF35483A, 0xFF465044);
+            case EAST_EXTRACTION -> checker(worldX, worldZ, 0xFF66513A, 0xFF3E3B38);
             case NONE -> checker(worldX, worldZ, 0xFF02060B, 0xFF03080E);
         };
     }
