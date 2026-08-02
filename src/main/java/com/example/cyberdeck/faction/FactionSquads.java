@@ -3,6 +3,7 @@ package com.example.cyberdeck.faction;
 import com.example.cyberdeck.weapon.GrenadeType;
 import com.example.cyberdeck.weapon.GunType;
 import com.example.cyberdeck.weapon.WeaponItems;
+import dev.modernity.neoncity.MissionService;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.RandomSource;
@@ -15,19 +16,20 @@ import net.minecraft.world.item.equipment.ArmorType;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.UUID;
 
 /**
- * Faction squad helpers: equipping a soldier's weapon + ballistic profile when it spawns, and the Kang
- * Tao airborne reinforcement drop. Kept separate from {@link FactionEnemy} so spawn logic and combat
- * behavior stay decoupled.
+ * Faction squad helpers: equipping a soldier's weapon + ballistic profile when it spawns, and the
+ * corporate airborne reinforcement drop. Kept separate from {@link FactionEnemy} so spawn logic
+ * and combat behavior stay decoupled.
  */
 public final class FactionSquads {
-    /** Tracks Kang Tao squads (by leader UUID chain) that have already used their one reinforcement. */
-    private static final java.util.Set<java.util.UUID> KANG_TAO_REINFORCED =
-            java.util.concurrent.ConcurrentHashMap.newKeySet();
-
-    private static final int KANG_TAO_REINFORCEMENTS = 4;
+    public static final float REINFORCEMENT_CHANCE = 0.30F;
+    public static final int REINFORCEMENT_COUNT = 4;
+    private static final double SKIN_DIVERSITY_RADIUS = 48.0;
 
     /** Chance a grenade-capable soldier actually spawns carrying grenades. */
     private static final int GRENADE_SPAWN_CHANCE = 2;    // 1-in-2 for grenade factions
@@ -39,9 +41,15 @@ public final class FactionSquads {
 
     /** Rolls and applies a weapon loadout plus exact-stat, vest-only ballistic profile. */
     public static void equip(FactionEnemy enemy, Faction faction, RandomSource rng) {
+        equip(enemy, faction, rng, locallyDistinctSkinVariant(enemy, rng));
+    }
+
+    /** Applies a loadout with an explicitly planned skin, used for duplicate-free patrol squads. */
+    public static void equip(
+            FactionEnemy enemy, Faction faction, RandomSource rng, int skinVariant) {
         enemy.setFaction(faction);
         enemy.assignDistrictFromPosition();
-        enemy.setSkinVariant(rng.nextInt(FactionEnemy.TACTICAL_SKIN_COUNT));
+        enemy.setSkinVariant(skinVariant);
 
         // Primary weapon: a cyberpunk gun, or (Arasaka only) a melee sword.
         List<GunType> guns = faction.weapons();
@@ -72,6 +80,64 @@ public final class FactionSquads {
         // Ballistics: heavier tier is rarer, but both tiers render only the common black vest.
         String tier = rng.nextInt(3) == 0 ? "heavy" : "light";
         equipBallisticTier(enemy, tier);
+    }
+
+    /** Returns a deterministic shuffled subset, guaranteeing no repeated skin inside one squad. */
+    public static List<Integer> uniqueSkinVariants(RandomSource rng, int requested) {
+        return uniqueSkinVariants(rng, requested, List.of());
+    }
+
+    /**
+     * Returns unique variants while preferring the least-used skins from an existing deployment.
+     * This keeps each reinforcement wave unique and balances mission groups larger than eight.
+     */
+    public static List<Integer> uniqueSkinVariants(
+            RandomSource rng, int requested, List<Integer> alreadyUsed) {
+        int count = Math.min(Math.max(0, requested), FactionEnemy.TACTICAL_SKIN_COUNT);
+        int[] usage = new int[FactionEnemy.TACTICAL_SKIN_COUNT];
+        for (int variant : alreadyUsed) {
+            if (variant >= 0 && variant < usage.length) {
+                usage[variant]++;
+            }
+        }
+        List<Integer> variants = new ArrayList<>(FactionEnemy.TACTICAL_SKIN_COUNT);
+        for (int variant = 0; variant < FactionEnemy.TACTICAL_SKIN_COUNT; variant++) {
+            variants.add(variant);
+        }
+        for (int index = variants.size() - 1; index > 0; index--) {
+            int swap = rng.nextInt(index + 1);
+            int value = variants.get(index);
+            variants.set(index, variants.get(swap));
+            variants.set(swap, value);
+        }
+        variants.sort(Comparator.comparingInt(variant -> usage[variant]));
+        return List.copyOf(variants.subList(0, count));
+    }
+
+    private static int locallyDistinctSkinVariant(FactionEnemy enemy, RandomSource rng) {
+        List<Integer> alreadyUsed = new ArrayList<>();
+        UUID groupId = enemy.getAlertGroupId();
+        if (groupId != null && enemy.level() instanceof ServerLevel serverLevel) {
+            for (net.minecraft.world.entity.Entity entity : serverLevel.getAllEntities()) {
+                if (entity instanceof FactionEnemy member
+                        && member != enemy && member.isAlive()
+                        && groupId.equals(member.getAlertGroupId())
+                        && !(member instanceof CyberpsychoEntity)
+                        && !member.isTraumaTeam() && !member.isExcision()) {
+                    alreadyUsed.add(member.getSkinVariant());
+                }
+            }
+        } else {
+            for (FactionEnemy nearby : enemy.level().getEntitiesOfClass(
+                    FactionEnemy.class,
+                    enemy.getBoundingBox().inflate(SKIN_DIVERSITY_RADIUS),
+                    candidate -> candidate != enemy && candidate.isAlive()
+                            && !(candidate instanceof CyberpsychoEntity)
+                            && !candidate.isTraumaTeam() && !candidate.isExcision())) {
+                alreadyUsed.add(nearby.getSkinVariant());
+            }
+        }
+        return uniqueSkinVariants(rng, 1, alreadyUsed).getFirst();
     }
 
     public static void equipBallisticTier(FactionEnemy enemy, String tier) {
@@ -133,19 +199,55 @@ public final class FactionSquads {
         return "";
     }
 
-    /**
-     * Kang Tao only: drop {@value #KANG_TAO_REINFORCEMENTS} additional soldiers from the sky near the
-     * fight, once per squad. The squad is identified by the triggering leader so it can never fire
-     * more than once.
-     */
-    public static void tryKangTaoReinforcement(ServerLevel level, FactionEnemy leader,
-                                               LivingEntity target, int simultaneous) {
-        if (!KANG_TAO_REINFORCED.add(leader.getUUID())) {
-            return; // already reinforced for this leader
+    /** Attempts the one persisted 30% airborne reinforcement roll for this soldier's whole squad. */
+    public static boolean tryReinforcementsOnAttack(
+            ServerLevel level, FactionEnemy leader, LivingEntity target) {
+        return tryReinforcementsOnAttack(
+                level, leader, target, level.getRandom().nextFloat());
+    }
+
+    /** Explicit-roll overload used by deterministic server simulations and regression tests. */
+    public static boolean tryReinforcementsOnAttack(
+            ServerLevel level, FactionEnemy leader, LivingEntity target, float roll) {
+        if (!leader.canRequestReinforcements()) {
+            return false;
         }
+        UUID groupId = leader.getAlertGroupId();
+        if (groupId == null) {
+            groupId = leader.getUUID();
+            leader.setAlertGroupId(groupId);
+        }
+
+        List<FactionEnemy> group = reinforcementGroup(level, leader, groupId);
+        boolean entityResolved = group.stream()
+                .anyMatch(FactionEnemy::hasResolvedReinforcementRoll);
+        if (entityResolved) {
+            if (!leader.isAmbientPatrol()) {
+                ReinforcementSavedData.get(level).resolve(groupId);
+            }
+            group.forEach(member -> member.setReinforcementRollResolved(true));
+            return false;
+        }
+        if (!leader.isAmbientPatrol()
+                && !ReinforcementSavedData.get(level).resolve(groupId)) {
+            group.forEach(member -> member.setReinforcementRollResolved(true));
+            return false;
+        }
+        // Consume the roll before RNG or spawning so simultaneous hits and spawned members cannot
+        // recursively create more drops.
+        group.forEach(member -> member.setReinforcementRollResolved(true));
+        if (!reinforcementRollSucceeds(roll)) {
+            return false;
+        }
+
         RandomSource rng = level.getRandom();
         Vec3 center = leader.position();
-        for (int i = 0; i < KANG_TAO_REINFORCEMENTS; i++) {
+        List<Integer> waveSkins = uniqueSkinVariants(
+                rng,
+                REINFORCEMENT_COUNT,
+                group.stream().map(FactionEnemy::getSkinVariant).toList());
+        int spawned = 0;
+        for (int i = 0; i < REINFORCEMENT_COUNT; i++) {
             double ox = (rng.nextDouble() - 0.5) * 8.0;
             double oz = (rng.nextDouble() - 0.5) * 8.0;
             BlockPos drop = BlockPos.containing(center.x + ox, center.y + 14, center.z + oz);
@@ -160,16 +262,38 @@ public final class FactionSquads {
             reinforcement.finalizeSpawn(level, level.getCurrentDifficultyAt(drop),
                     EntitySpawnReason.EVENT, null);
             reinforcement.setHome(BlockPos.containing(center.x, center.y, center.z));
-            reinforcement.setAlertGroupId(leader.getAlertGroupId());
-            equip(reinforcement, Faction.KANG_TAO, rng);
+            reinforcement.setAlertGroupId(groupId);
+            reinforcement.setAmbientPatrol(leader.isAmbientPatrol());
+            reinforcement.setReinforcementRollResolved(true);
+            reinforcement.setReinforcementDeployment(true);
+            equip(reinforcement, leader.getFaction(), rng, waveSkins.get(i));
+            reinforcement.setDistrict(leader.getDistrict());
+            MissionService.inheritGuardActor(leader, reinforcement);
             // Arrive already hostile so the drop is an immediate threat.
             reinforcement.trigger(level, target);
-            level.addFreshEntity(reinforcement);
+            if (level.addFreshEntity(reinforcement)) {
+                spawned++;
+            }
         }
+        return spawned > 0;
     }
 
-    /** Clears reinforcement bookkeeping (used on world unload to avoid leaking UUIDs). */
-    public static void reset() {
-        KANG_TAO_REINFORCED.clear();
+    private static List<FactionEnemy> reinforcementGroup(
+            ServerLevel level, FactionEnemy leader, UUID groupId) {
+        List<FactionEnemy> members = new ArrayList<>();
+        for (net.minecraft.world.entity.Entity entity : level.getAllEntities()) {
+            if (entity instanceof FactionEnemy member
+                    && groupId.equals(member.getAlertGroupId())) {
+                members.add(member);
+            }
+        }
+        if (!members.contains(leader)) {
+            members.add(leader);
+        }
+        return members;
+    }
+
+    public static boolean reinforcementRollSucceeds(float roll) {
+        return roll >= 0.0F && roll < REINFORCEMENT_CHANCE;
     }
 }

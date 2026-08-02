@@ -26,7 +26,8 @@ public final class FactionEnemyRenderer
         extends HumanoidMobRenderer<FactionEnemy, FactionEnemyRenderState,
                 TacticalFactionModel> {
 
-    private static final Identifier[] TACTICAL_SKINS = new Identifier[8];
+    private static final Identifier[] TACTICAL_SKINS =
+            new Identifier[FactionEnemy.TACTICAL_SKIN_COUNT];
     static {
         for (int index = 0; index < TACTICAL_SKINS.length; index++) {
             TACTICAL_SKINS[index] = Identifier.fromNamespaceAndPath(

@@ -13,6 +13,7 @@ import com.mojang.authlib.GameProfile;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Consumer;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.FunctionGameTestInstance;
@@ -139,30 +140,36 @@ public final class LifepathGameTests {
         helper.assertValueEqual(occupiedSlots(veteran), 0,
                 "rejected veteran inventory slots");
 
+        BlockPos overflowPosition = helper.absolutePos(new BlockPos(1, 2, 1));
+        overflow.snapTo(
+                overflowPosition.getX() + 0.5, overflowPosition.getY(),
+                overflowPosition.getZ() + 0.5, 0.0F, 0.0F);
         for (int slot = 0; slot < overflow.getInventory().getContainerSize(); slot++) {
             overflow.getInventory().setItem(slot, new ItemStack(Blocks.COBBLESTONE, 64));
         }
         helper.assertTrue(LifepathService.select(overflow, Lifepath.MERC.id()),
                 "full-inventory starter claim failed");
-        List<ItemEntity> overflowDrops = helper.getLevel().getEntitiesOfClass(
-                ItemEntity.class, overflow.getBoundingBox().inflate(2.0),
-                drop -> drop.getItem().is(WeaponItems.gun(GunType.ASSAULT_RIFLE).get())
-                        || drop.getItem().is(AmmoItems.item(AmmoType.HANDGUN).get()));
-        helper.assertValueEqual(overflowDrops.size(), 2,
-                "full-inventory starter drop count");
-        helper.assertTrue(overflowDrops.stream().allMatch(
-                        drop -> overflow.getUUID().equals(drop.getTarget())),
-                "starter overflow drops must remain exclusive to their selecting player");
+        helper.runAtTickTime(2, () -> {
+            List<ItemEntity> overflowDrops = helper.getLevel().getEntitiesOfClass(
+                    ItemEntity.class, overflow.getBoundingBox().inflate(2.0),
+                    drop -> drop.getItem().is(WeaponItems.gun(GunType.ASSAULT_RIFLE).get())
+                            || drop.getItem().is(AmmoItems.item(AmmoType.HANDGUN).get()));
+            helper.assertValueEqual(overflowDrops.size(), 2,
+                    "full-inventory starter drop count");
+            helper.assertTrue(overflowDrops.stream().allMatch(
+                            drop -> overflow.getUUID().equals(drop.getTarget())),
+                    "starter overflow drops must remain exclusive to their selecting player");
 
-        // Claims are attachment-backed per player: selecting Brawler and Merc must not mutate the
-        // first player's path or add either archetype's exclusive equipment to their inventory.
-        assertState(helper, netrunner, Lifepath.NETRUNNER);
-        helper.assertFalse(CyberwareAttachments.get(netrunner)
-                        .hasFamily("gorilla_arms"),
-                "Brawler state leaked into the Netrunner player");
-        assertCount(helper, netrunner, WeaponItems.gun(GunType.TECH_SHOTGUN).get(), 0,
-                "cross-player Tech Shotgun count");
-        helper.succeed();
+            // Claims are attachment-backed per player: selecting Brawler and Merc must not mutate
+            // the first player's path or add either archetype's equipment to their inventory.
+            assertState(helper, netrunner, Lifepath.NETRUNNER);
+            helper.assertFalse(CyberwareAttachments.get(netrunner)
+                            .hasFamily("gorilla_arms"),
+                    "Brawler state leaked into the Netrunner player");
+            assertCount(helper, netrunner, WeaponItems.gun(GunType.TECH_SHOTGUN).get(), 0,
+                    "cross-player Tech Shotgun count");
+            helper.succeed();
+        });
     }
 
     private static FakePlayer player(GameTestHelper helper, String role) {

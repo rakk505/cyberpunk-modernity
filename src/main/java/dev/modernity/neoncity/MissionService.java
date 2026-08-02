@@ -1480,9 +1480,25 @@ public final class MissionService {
         guard.setHome(position);
         guard.setPatrolRoute(patrolRoute);
         guard.setPersistenceRequired();
-        FactionSquads.equip(guard, Faction.ARASAKA, random);
         tagActor(guard, player, definition, ROLE_GUARD);
+        FactionSquads.equip(guard, Faction.ARASAKA, random);
         return level.noCollision(guard) && level.addFreshEntity(guard) ? guard : null;
+    }
+
+    /** Makes an airborne reinforcement part of the source guard's contract cleanup lifecycle. */
+    public static void inheritGuardActor(FactionEnemy source, FactionEnemy reinforcement) {
+        CompoundTag sourceData = source.getPersistentData();
+        if (!sourceData.getBoolean(ACTOR_TAG).orElse(false)) {
+            return;
+        }
+        CompoundTag targetData = reinforcement.getPersistentData();
+        targetData.putBoolean(ACTOR_TAG, true);
+        targetData.putString(ACTOR_OWNER, sourceData.getString(ACTOR_OWNER).orElse(""));
+        targetData.putString(
+                ACTOR_DEFINITION, sourceData.getString(ACTOR_DEFINITION).orElse(""));
+        targetData.putString(ACTOR_INSTANCE, sourceData.getString(ACTOR_INSTANCE).orElse(""));
+        targetData.putString(ACTOR_ROLE, ROLE_GUARD);
+        reinforcement.setPersistenceRequired();
     }
 
     private static void tagActor(

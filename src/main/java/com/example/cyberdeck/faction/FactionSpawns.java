@@ -20,16 +20,19 @@ import net.neoforged.neoforge.event.tick.LevelTickEvent;
 
 /**
  * Sparse public-area patrol generation. Each occupied spatial cell gets at most one probability-
- * gated attempt per epoch; successful patrols contain one or two soldiers and are inserted only
- * outside every nearby player's line of sight.
+ * gated attempt per epoch; successful patrols contain exactly three or five soldiers and are
+ * inserted only outside every nearby player's line of sight.
  */
 public final class FactionSpawns {
     public static final int SPAWN_INTERVAL = 1_200;
     public static final int SPAWN_CHANCE_DENOMINATOR = 4;
-    public static final int MIN_PATROL_SIZE = 1;
-    public static final int MAX_PATROL_SIZE = 2;
-    public static final int NEARBY_CAP = 4;
-    public static final int LOADED_WORLD_CAP = 12;
+    public static final int SMALL_PATROL_SIZE = 3;
+    public static final int LARGE_PATROL_SIZE = 5;
+    public static final int NEARBY_CAP = 5;
+    public static final int LOADED_WORLD_CAP = 10;
+    public static final int MAX_REACTIVE_AMBIENT_POPULATION =
+            Math.floorDiv(LOADED_WORLD_CAP, SMALL_PATROL_SIZE)
+                    * (SMALL_PATROL_SIZE + FactionSquads.REINFORCEMENT_COUNT);
     private static final int MIN_DISTANCE = 48;
     private static final int MAX_DISTANCE = 72;
     private static final double NEARBY_RADIUS = 96.0;
@@ -86,11 +89,10 @@ public final class FactionSpawns {
             }
         }
         capacity = Math.min(capacity, LOADED_WORLD_CAP - loadedPatrols);
-        if (capacity < MIN_PATROL_SIZE) {
+        int requested = plannedPatrolSize(random.nextBoolean(), capacity);
+        if (requested == 0) {
             return;
         }
-        int requested = Math.min(capacity,
-                MIN_PATROL_SIZE + random.nextInt(MAX_PATROL_SIZE - MIN_PATROL_SIZE + 1));
 
         BlockPos anchor = findSpawnAnchor(level, player, random);
         if (anchor == null) {
@@ -110,9 +112,11 @@ public final class FactionSpawns {
 
         Faction faction = Faction.VALUES[random.nextInt(Faction.VALUES.length)];
         java.util.UUID patrolId = new java.util.UUID(random.nextLong(), random.nextLong());
+        List<Integer> skinVariants = FactionSquads.uniqueSkinVariants(random, requested);
         List<FactionEnemy> members = new ArrayList<>(requested);
-        for (BlockPos position : positions) {
-            FactionEnemy enemy = createMember(level, position, anchor, faction, random);
+        for (int index = 0; index < positions.size(); index++) {
+            FactionEnemy enemy = createMember(
+                    level, positions.get(index), anchor, faction, skinVariants.get(index), random);
             if (enemy == null) {
                 for (FactionEnemy member : members) {
                     member.discard();
@@ -186,7 +190,8 @@ public final class FactionSpawns {
     }
 
     private static FactionEnemy createMember(ServerLevel level, BlockPos position, BlockPos home,
-                                             Faction faction, RandomSource random) {
+                                             Faction faction, int skinVariant,
+                                             RandomSource random) {
         FactionEnemy enemy = FactionEntities.FACTION_ENEMY.get().create(
                 level, EntitySpawnReason.NATURAL);
         if (enemy == null) {
@@ -202,8 +207,19 @@ public final class FactionSpawns {
                 EntitySpawnReason.NATURAL, null);
         enemy.setHome(home);
         enemy.setAmbientPatrol(true);
-        FactionSquads.equip(enemy, faction, random);
+        FactionSquads.equip(enemy, faction, random, skinVariant);
         return enemy;
+    }
+
+    /** Selects one of the only two authored squad sizes without ever clipping to a partial squad. */
+    public static int plannedPatrolSize(boolean largeRoll, int capacity) {
+        if (capacity < SMALL_PATROL_SIZE) {
+            return 0;
+        }
+        if (capacity < LARGE_PATROL_SIZE) {
+            return SMALL_PATROL_SIZE;
+        }
+        return largeRoll ? LARGE_PATROL_SIZE : SMALL_PATROL_SIZE;
     }
 
     private static boolean isConcealedFromPlayers(ServerLevel level, FactionEnemy enemy) {

@@ -18,6 +18,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -49,13 +50,13 @@ import java.util.UUID;
  * never burns in sunlight, ignores villagers, has no baby form and makes generic hostile sounds
  * rather than zombie groans. A faction enemy stays passive until the player lingers nearby long
  * enough to build up "detection"; when detection crosses {@link #DETECTION_THRESHOLD} it turns
- * hostile and alerts every allied faction enemy within {@link #ALERT_RADIUS} so a whole squad
- * activates together.
+ * hostile and alerts the nearby members of its deployment group so a whole squad activates
+ * together.
  *
  * <p>It fights with whatever weapon it holds: a primary gun (hitscan via {@link GunFiring}), an
      * stowed secondary sidearm, a melee sword, and — if issued grenades — it lobs {@link
- * com.example.cyberdeck.weapon.ThrownGrenade}s at the player. Kang Tao squads additionally call in
- * an airborne reinforcement drop the first time three or more members are triggered at once (see
+ * com.example.cyberdeck.weapon.ThrownGrenade}s at the player. The first player attack against an
+ * ordinary corporate squad also resolves one persisted 30% airborne reinforcement roll (see
  * {@link FactionSquads}).
  */
 public class FactionEnemy extends Monster implements RangedAttackMob {
@@ -183,6 +184,8 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
     private UUID alertGroupId;
     private String ballisticTier = "";
     private int ambientWithoutPlayerTicks;
+    private boolean reinforcementRollResolved;
+    private boolean reinforcementDeployment;
 
     public FactionEnemy(EntityType<? extends FactionEnemy> type, Level level) {
         super(type, level);
@@ -307,7 +310,31 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
     }
 
     public boolean sharesAlertGroup(FactionEnemy other) {
-        return other != null && java.util.Objects.equals(alertGroupId, other.alertGroupId);
+        return other != null && alertGroupId != null && alertGroupId.equals(other.alertGroupId);
+    }
+
+    public boolean hasResolvedReinforcementRoll() {
+        return reinforcementRollResolved;
+    }
+
+    public void setReinforcementRollResolved(boolean resolved) {
+        reinforcementRollResolved = resolved;
+    }
+
+    public boolean isReinforcementDeployment() {
+        return reinforcementDeployment;
+    }
+
+    public void setReinforcementDeployment(boolean reinforcement) {
+        reinforcementDeployment = reinforcement;
+    }
+
+    /** Story-specific hostile actors do not summon ordinary corporate airborne troops. */
+    public boolean canRequestReinforcements() {
+        return !ballisticTier.isEmpty()
+                && !(this instanceof CyberpsychoEntity)
+                && !isTraumaTeam()
+                && !isExcision();
     }
 
     @Override
@@ -1238,16 +1265,9 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
                         && sharesAlertGroup(e)
                         && !e.isTriggered());
 
-        int simultaneous = 1;
         for (FactionEnemy ally : allies) {
             ally.setTriggered(true);
             ally.setTarget(target);
-            simultaneous++;
-        }
-
-        // Kang Tao squads call in an airborne reinforcement drop the first time 3+ trigger at once.
-        if (!isAmbientPatrol() && faction == Faction.KANG_TAO && simultaneous >= 3) {
-            FactionSquads.tryKangTaoReinforcement(level, this, target, simultaneous);
         }
     }
 
@@ -1298,6 +1318,28 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
     }
 
     @Override
+    public boolean hurtServer(ServerLevel level, DamageSource source, float damage) {
+        Player attacker = source.getEntity() instanceof Player player
+                && player.isAlive() && !player.isCreative() && !player.isSpectator()
+                ? player : null;
+        boolean hurt = super.hurtServer(level, source, damage);
+        if (hurt && attacker != null) {
+            onSuccessfulPlayerAttack(level, attacker);
+        }
+        return hurt;
+    }
+
+    /** Shared entry point for direct damage and damaging quickhacks attributed to a player. */
+    public void onSuccessfulPlayerAttack(ServerLevel level, Player attacker) {
+        if (attacker == null || !attacker.isAlive()
+                || attacker.isCreative() || attacker.isSpectator()) {
+            return;
+        }
+        trigger(level, attacker);
+        FactionSquads.tryReinforcementsOnAttack(level, this, attacker);
+    }
+
+    @Override
     public boolean canAttack(LivingEntity target) {
         return !(target instanceof CityNpc) && super.canAttack(target);
     }
@@ -1323,6 +1365,8 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         if (alertGroupId != null) {
             output.putString("AlertGroup", alertGroupId.toString());
         }
+        output.putBoolean("ReinforcementRollResolved", reinforcementRollResolved);
+        output.putBoolean("ReinforcementDeployment", reinforcementDeployment);
         if (traumaTargetId != null) {
             output.putString("TraumaTarget", traumaTargetId.toString());
         }
@@ -1397,6 +1441,9 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         } catch (IllegalArgumentException ignored) {
             alertGroupId = null;
         }
+        reinforcementRollResolved = input.getBooleanOr(
+                "ReinforcementRollResolved", false);
+        reinforcementDeployment = input.getBooleanOr("ReinforcementDeployment", false);
         String traumaTarget = input.getStringOr("TraumaTarget", "");
         try {
             traumaTargetId = traumaTarget.isEmpty() ? null : UUID.fromString(traumaTarget);

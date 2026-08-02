@@ -24,6 +24,7 @@ import com.example.cyberdeck.effect.DoubleJumpGuard;
 import com.example.cyberdeck.economy.Emmies;
 import com.example.cyberdeck.defense.DefenseContent;
 import com.example.cyberdeck.defense.KangTaoTurret;
+import com.example.cyberdeck.faction.Faction;
 import com.example.cyberdeck.faction.FactionEnemy;
 import com.example.cyberdeck.faction.FactionEntities;
 import com.example.cyberdeck.faction.FactionSpawns;
@@ -44,6 +45,7 @@ import com.example.cyberdeck.trauma.TraumaTeamEvents;
 import com.example.cyberdeck.player.StreetCredState;
 import com.example.cyberdeck.skill.QuickhackUploads;
 import com.example.cyberdeck.skill.Skill;
+import com.example.cyberdeck.skill.SkillExecutor;
 import com.example.cyberdeck.ram.RamAttachments;
 import com.example.cyberdeck.movement.TacticalAction;
 import com.example.cyberdeck.movement.TacticalMovement;
@@ -295,14 +297,24 @@ public final class CyberdeckGameTests {
         helper.assertTrue(FactionSpawns.SPAWN_INTERVAL == 1_200
                         && FactionSpawns.SPAWN_CHANCE_DENOMINATOR == 4,
                 "ambient patrol checks must be sparse and probability gated");
-        helper.assertTrue(FactionSpawns.MIN_PATROL_SIZE == 1
-                        && FactionSpawns.MAX_PATROL_SIZE == 2
-                        && FactionSpawns.NEARBY_CAP == 4
-                        && FactionSpawns.LOADED_WORLD_CAP == 12,
+        helper.assertTrue(FactionSpawns.SMALL_PATROL_SIZE == 3
+                        && FactionSpawns.LARGE_PATROL_SIZE == 5
+                        && FactionSpawns.NEARBY_CAP == 5
+                        && FactionSpawns.LOADED_WORLD_CAP == 10
+                        && FactionSpawns.MAX_REACTIVE_AMBIENT_POPULATION == 21,
                 "ambient patrol population must remain bounded for small multiplayer servers");
 
-        for (int size = FactionSpawns.MIN_PATROL_SIZE;
-             size <= FactionSpawns.MAX_PATROL_SIZE; size++) {
+        helper.assertValueEqual(FactionSpawns.plannedPatrolSize(false, 2), 0,
+                "capacity below three must reject a partial patrol");
+        helper.assertValueEqual(FactionSpawns.plannedPatrolSize(true, 4), 3,
+                "capacity four must fall back to an intact three-soldier patrol");
+        helper.assertValueEqual(FactionSpawns.plannedPatrolSize(false, 5), 3,
+                "small patrol roll");
+        helper.assertValueEqual(FactionSpawns.plannedPatrolSize(true, 5), 5,
+                "large patrol roll");
+
+        for (int size : List.of(
+                FactionSpawns.SMALL_PATROL_SIZE, FactionSpawns.LARGE_PATROL_SIZE)) {
             for (int rotation = 0; rotation < 4; rotation++) {
                 List<BlockPos> first = FactionSpawns.formationOffsets(rotation, size);
                 List<BlockPos> second = FactionSpawns.formationOffsets(rotation, size);
@@ -313,6 +325,51 @@ public final class CyberdeckGameTests {
                 helper.assertTrue(new HashSet<>(first).size() == first.size(),
                         "formation contains duplicate patrol offsets");
             }
+            List<Integer> firstSkins = FactionSquads.uniqueSkinVariants(
+                    RandomSource.create(913_557L + size), size);
+            List<Integer> secondSkins = FactionSquads.uniqueSkinVariants(
+                    RandomSource.create(913_557L + size), size);
+            helper.assertTrue(firstSkins.equals(secondSkins),
+                    "equal seeds must produce the same tactical skin plan");
+            helper.assertTrue(firstSkins.size() == size
+                            && new HashSet<>(firstSkins).size() == size,
+                    "every generated squad member must receive a unique tactical skin");
+            helper.assertTrue(firstSkins.stream().allMatch(
+                            variant -> variant >= 0
+                                    && variant < FactionEnemy.TACTICAL_SKIN_COUNT),
+                    "tactical skin plan returned an out-of-range variant");
+        }
+        List<Integer> smallSquad = FactionSquads.uniqueSkinVariants(
+                RandomSource.create(37L), FactionSpawns.SMALL_PATROL_SIZE);
+        List<Integer> smallWave = FactionSquads.uniqueSkinVariants(
+                RandomSource.create(38L), FactionSquads.REINFORCEMENT_COUNT, smallSquad);
+        HashSet<Integer> smallEncounter = new HashSet<>(smallSquad);
+        smallEncounter.addAll(smallWave);
+        helper.assertTrue(smallEncounter.size() == 7,
+                "a three-soldier squad and reinforcement wave should all look unique");
+
+        List<Integer> largeSquad = FactionSquads.uniqueSkinVariants(
+                RandomSource.create(39L), FactionSpawns.LARGE_PATROL_SIZE);
+        List<Integer> largeWave = FactionSquads.uniqueSkinVariants(
+                RandomSource.create(40L), FactionSquads.REINFORCEMENT_COUNT, largeSquad);
+        HashSet<Integer> largeEncounter = new HashSet<>(largeSquad);
+        largeEncounter.addAll(largeWave);
+        helper.assertTrue(new HashSet<>(largeWave).size() == FactionSquads.REINFORCEMENT_COUNT
+                        && largeEncounter.size() == FactionEnemy.TACTICAL_SKIN_COUNT,
+                "a five-soldier encounter must use all skins before one balanced repeat");
+
+        List<Integer> missionSequence = new java.util.ArrayList<>();
+        for (int index = 0; index < FactionEnemy.TACTICAL_SKIN_COUNT * 2; index++) {
+            missionSequence.add(FactionSquads.uniqueSkinVariants(
+                    RandomSource.create(8_000L + index), 1, missionSequence).getFirst());
+        }
+        helper.assertTrue(new HashSet<>(missionSequence.subList(
+                        0, FactionEnemy.TACTICAL_SKIN_COUNT)).size()
+                        == FactionEnemy.TACTICAL_SKIN_COUNT,
+                "mission guards must exhaust all tactical skins before repeating");
+        for (int variant = 0; variant < FactionEnemy.TACTICAL_SKIN_COUNT; variant++) {
+            helper.assertTrue(java.util.Collections.frequency(missionSequence, variant) == 2,
+                    "mission skin reuse must remain balanced after two complete cycles");
         }
         for (NeonCityGenerator.RoadClass publicRoad : List.of(
                 NeonCityGenerator.RoadClass.CENTRAL_PLAZA,
@@ -396,10 +453,105 @@ public final class CyberdeckGameTests {
                 level, EntitySpawnReason.EVENT);
         helper.assertTrue(unrelatedMission != null,
                 "could not create mission alert-isolation fixture");
+        helper.assertFalse(light.sharesAlertGroup(unrelatedMission),
+                "unassigned enemies must not collapse into one global alert group");
         light.setAlertGroupId(UUID.randomUUID());
         unrelatedMission.setAlertGroupId(UUID.randomUUID());
         helper.assertFalse(light.sharesAlertGroup(unrelatedMission),
                 "separate multiplayer contracts must not share combat alerts");
+        helper.assertValueEqual(FactionSquads.REINFORCEMENT_CHANCE, 0.30F,
+                "corporate reinforcement chance");
+        helper.assertTrue(FactionSquads.reinforcementRollSucceeds(0.0F)
+                        && FactionSquads.reinforcementRollSucceeds(0.299_999F),
+                "the lower 30% of reinforcement rolls must succeed");
+        helper.assertFalse(FactionSquads.reinforcementRollSucceeds(0.30F)
+                        || FactionSquads.reinforcementRollSucceeds(0.999_999F),
+                "reinforcement rolls at or above 30% must fail");
+        helper.assertTrue(light.canRequestReinforcements(),
+                "an equipped ordinary corporate soldier must be reinforcement eligible");
+        light.setReinforcementRollResolved(true);
+        helper.assertTrue(light.hasResolvedReinforcementRoll(),
+                "the one-time reinforcement roll must retain its consumed state");
+
+        FactionEnemy reinforcementLeader = FactionEntities.FACTION_ENEMY.get().create(
+                level, EntitySpawnReason.EVENT);
+        helper.assertTrue(reinforcementLeader != null,
+                "could not create reinforcement inheritance fixture");
+        BlockPos reinforcementPos = helper.absolutePos(new BlockPos(5, 2, 5));
+        reinforcementLeader.snapTo(
+                reinforcementPos.getX() + 0.5, reinforcementPos.getY(),
+                reinforcementPos.getZ() + 0.5, 0.0F, 0.0F);
+        FactionSquads.equip(
+                reinforcementLeader, Faction.MILITECH, RandomSource.create(71L), 2);
+        reinforcementLeader.setDistrict(District.N_CORP);
+        UUID reinforcementGroup = UUID.randomUUID();
+        reinforcementLeader.setAlertGroupId(reinforcementGroup);
+        CompoundTag actorData = reinforcementLeader.getPersistentData();
+        actorData.putBoolean("cyberdeck_mission_actor", true);
+        actorData.putString("cyberdeck_mission_owner", UUID.randomUUID().toString());
+        actorData.putString("cyberdeck_mission_definition", "reinforcement_test");
+        actorData.putString("cyberdeck_mission_instance", reinforcementGroup.toString());
+        actorData.putString("cyberdeck_mission_role", "guard");
+        reinforcementLeader.setPersistenceRequired();
+        helper.assertTrue(level.addFreshEntity(reinforcementLeader),
+                "could not add reinforcement inheritance fixture");
+        helper.assertTrue(FactionSquads.tryReinforcementsOnAttack(
+                        level, reinforcementLeader, unrelatedMission, 0.0F),
+                "a successful 30% roll must deploy airborne reinforcements");
+        List<FactionEnemy> reinforcements = level.getEntitiesOfClass(
+                FactionEnemy.class,
+                new AABB(reinforcementPos).inflate(32.0),
+                enemy -> reinforcementGroup.equals(enemy.getAlertGroupId())
+                        && enemy.isReinforcementDeployment());
+        helper.assertValueEqual(
+                reinforcements.size(), FactionSquads.REINFORCEMENT_COUNT,
+                "airborne reinforcement count");
+        helper.assertTrue(reinforcements.stream().allMatch(enemy ->
+                        enemy.getFaction() == Faction.MILITECH
+                                && enemy.getDistrict() == District.N_CORP
+                                && enemy.hasResolvedReinforcementRoll()
+                                && enemy.shouldBeSaved()
+                                && reinforcementGroup.toString().equals(
+                                        enemy.getPersistentData().getString(
+                                                "cyberdeck_mission_instance").orElse(""))),
+                "reinforcements must inherit faction, district, consumed state, and mission cleanup");
+        helper.assertTrue(reinforcements.stream().map(FactionEnemy::getSkinVariant)
+                        .collect(java.util.stream.Collectors.toSet()).size()
+                        == FactionSquads.REINFORCEMENT_COUNT,
+                "one reinforcement wave must not repeat tactical skins");
+        reinforcementLeader.setReinforcementRollResolved(false);
+        reinforcements.forEach(enemy -> enemy.setReinforcementRollResolved(false));
+        helper.assertFalse(FactionSquads.tryReinforcementsOnAttack(
+                        level, reinforcementLeader, unrelatedMission, 0.0F),
+                "the persisted group ledger must reject a second reinforcement roll");
+        reinforcements.forEach(Entity::discard);
+        reinforcementLeader.discard();
+
+        FakePlayer combatPlayer = new FakePlayer(
+                level, new GameProfile(UUID.randomUUID(), "reinforcement_attack_test"));
+        combatPlayer.getAbilities().invulnerable = false;
+        combatPlayer.setInvulnerable(false);
+        FactionEnemy directAttackTarget = FactionEntities.FACTION_ENEMY.get().create(
+                level, EntitySpawnReason.EVENT);
+        FactionEnemy quickhackTarget = FactionEntities.FACTION_ENEMY.get().create(
+                level, EntitySpawnReason.EVENT);
+        helper.assertTrue(directAttackTarget != null && quickhackTarget != null,
+                "could not create reinforcement attack-hook fixtures");
+        for (FactionEnemy enemy : List.of(directAttackTarget, quickhackTarget)) {
+            FactionSquads.equipBallisticTier(enemy, "light");
+            enemy.setAlertGroupId(UUID.randomUUID());
+            enemy.setReinforcementRollResolved(true);
+        }
+        helper.assertTrue(directAttackTarget.hurtServer(
+                        level, level.damageSources().playerAttack(combatPlayer), 1.0F),
+                "direct player attack must damage a corporate soldier");
+        helper.assertTrue(directAttackTarget.isTriggered(),
+                "direct player attack must enter the reinforcement/retaliation path");
+        SkillExecutor.execute(Skill.OVERHEAT, combatPlayer, quickhackTarget, level);
+        helper.assertTrue(quickhackTarget.isTriggered(),
+                "damaging quickhacks must enter the reinforcement/retaliation path");
+        directAttackTarget.discard();
+        quickhackTarget.discard();
 
         control.setBallisticTier("light");
         control.setItemSlot(EquipmentSlot.CHEST, new ItemStack(Items.LEATHER_CHESTPLATE));
