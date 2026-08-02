@@ -13,31 +13,37 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.tick.LevelTickEvent;
 
 /**
- * Sparse public-area patrol generation. Each occupied spatial cell gets at most one probability-
- * gated attempt per epoch; successful patrols contain exactly three or five soldiers and are
- * inserted only outside every nearby player's line of sight.
+ * Reliable street-patrol generation. Each occupied spatial cell gets one attempt per epoch;
+ * successful patrols contain exactly three or five soldiers in a bounded formation.
  */
 public final class FactionSpawns {
     public static final int SPAWN_INTERVAL = 1_200;
-    public static final int SPAWN_CHANCE_DENOMINATOR = 4;
     public static final int SMALL_PATROL_SIZE = 3;
     public static final int LARGE_PATROL_SIZE = 5;
-    public static final int NEARBY_CAP = 5;
-    public static final int LOADED_WORLD_CAP = 10;
+    public static final int NEARBY_CAP = 10;
+    public static final int LOADED_WORLD_CAP = 20;
     public static final int MAX_REACTIVE_AMBIENT_POPULATION =
-            Math.floorDiv(LOADED_WORLD_CAP, SMALL_PATROL_SIZE)
-                    * (SMALL_PATROL_SIZE + FactionSquads.REINFORCEMENT_COUNT);
-    private static final int MIN_DISTANCE = 48;
-    private static final int MAX_DISTANCE = 72;
-    private static final double NEARBY_RADIUS = 96.0;
-    private static final int POPULATION_CELL_SIZE = 64;
-    private static final double PATROL_SEPARATION = 24.0;
+            LOADED_WORLD_CAP + Math.floorDiv(LOADED_WORLD_CAP, SMALL_PATROL_SIZE)
+                    * FactionSquads.REINFORCEMENT_COUNT;
+    public static final int MIN_SPAWN_DISTANCE = 26;
+    public static final int MAX_SPAWN_DISTANCE = 46;
+    public static final int POPULATION_CELL_SIZE = 128;
+    public static final double NEARBY_RADIUS = 72.0;
+    public static final double PATROL_SEPARATION = 24.0;
+    private static final int RANDOM_ANCHOR_ATTEMPTS = 48;
+    private static final int PERIMETER_ANCHOR_ATTEMPTS = 128;
+    private static final double MIN_PLAYER_DISTANCE = 24.0;
+    private static final double MAX_OBSERVER_VISIBILITY_DISTANCE = 160.0;
+    private static final double FORWARD_VIEW_DOT = 0.5;
     private static final long CLUSTER_SALT = 0x434C55535445524CL;
     private static final int[][] BASE_FORMATION = {
             {0, 0}, {2, 1}, {-2, 1}, {1, -2}, {-1, -2}, {3, 0}
@@ -55,7 +61,7 @@ public final class FactionSpawns {
         long epoch = level.getGameTime() / SPAWN_INTERVAL;
         Map<Long, ServerPlayer> populationCells = new TreeMap<>();
         for (ServerPlayer player : level.players()) {
-            if (!player.isAlive() || player.isCreative() || player.isSpectator()) {
+            if (!canDrivePatrolSpawns(player)) {
                 continue;
             }
             int cellX = Math.floorDiv(player.getBlockX(), POPULATION_CELL_SIZE);
@@ -74,12 +80,9 @@ public final class FactionSpawns {
     }
 
     private void trySpawnCluster(ServerLevel level, ServerPlayer player, RandomSource random) {
-        if (random.nextInt(SPAWN_CHANCE_DENOMINATOR) != 0) {
-            return;
-        }
         AABB nearbyArea = player.getBoundingBox().inflate(NEARBY_RADIUS);
         int nearby = level.getEntitiesOfClass(FactionEnemy.class, nearbyArea,
-                enemy -> enemy.isAlive() && enemy.isAmbientPatrol()).size();
+                FactionEnemy::isAlive).size();
         int capacity = NEARBY_CAP - nearby;
         int loadedPatrols = 0;
         for (net.minecraft.world.entity.Entity entity : level.getAllEntities()) {
@@ -94,29 +97,20 @@ public final class FactionSpawns {
             return;
         }
 
-        BlockPos anchor = findSpawnAnchor(level, player, random);
-        if (anchor == null) {
+        SpawnPlan plan = findSpawnPlan(level, player, random, requested);
+        if (plan == null) {
             return;
         }
-        if (!level.getEntitiesOfClass(
-                FactionEnemy.class,
-                new AABB(anchor).inflate(PATROL_SEPARATION),
-                enemy -> enemy.isAlive() && enemy.isAmbientPatrol()).isEmpty()) {
-            return;
-        }
-        int rotation = random.nextInt(4);
-        List<BlockPos> positions = resolveFormation(level, anchor, rotation, requested);
-        if (positions.size() < requested) {
-            return; // all-or-nothing: never emit a broken partial squad
-        }
+        requested = plan.positions().size();
 
         Faction faction = Faction.VALUES[random.nextInt(Faction.VALUES.length)];
         java.util.UUID patrolId = new java.util.UUID(random.nextLong(), random.nextLong());
         List<Integer> skinVariants = FactionSquads.uniqueSkinVariants(random, requested);
         List<FactionEnemy> members = new ArrayList<>(requested);
-        for (int index = 0; index < positions.size(); index++) {
+        for (int index = 0; index < plan.positions().size(); index++) {
             FactionEnemy enemy = createMember(
-                    level, positions.get(index), anchor, faction, skinVariants.get(index), random);
+                    level, plan.positions().get(index), plan.anchor(), faction,
+                    skinVariants.get(index), random);
             if (enemy == null) {
                 for (FactionEnemy member : members) {
                     member.discard();
@@ -125,14 +119,6 @@ public final class FactionSpawns {
             }
             enemy.setAlertGroupId(patrolId);
             members.add(enemy);
-        }
-        for (FactionEnemy member : members) {
-            if (!isConcealedFromPlayers(level, member)) {
-                for (FactionEnemy squadMember : members) {
-                    squadMember.discard();
-                }
-                return;
-            }
         }
         for (FactionEnemy member : members) {
             if (!level.addFreshEntity(member)) {
@@ -148,20 +134,114 @@ public final class FactionSpawns {
                 members.size(), members.getFirst().getDistrict().code(), player.getScoreboardName());
     }
 
-    private static BlockPos findSpawnAnchor(ServerLevel level, ServerPlayer player,
-                                            RandomSource random) {
-        for (int attempt = 0; attempt < 48; attempt++) {
+    private static SpawnPlan findSpawnPlan(
+            ServerLevel level, ServerPlayer player, RandomSource random, int size) {
+        for (int attempt = 0; attempt < RANDOM_ANCHOR_ATTEMPTS; attempt++) {
             double angle = random.nextDouble() * Math.PI * 2.0;
-            int distance = MIN_DISTANCE + random.nextInt(MAX_DISTANCE - MIN_DISTANCE + 1);
+            int distance = MIN_SPAWN_DISTANCE
+                    + random.nextInt(MAX_SPAWN_DISTANCE - MIN_SPAWN_DISTANCE + 1);
             int x = player.getBlockX() + (int) Math.round(Math.cos(angle) * distance);
             int z = player.getBlockZ() + (int) Math.round(Math.sin(angle) * distance);
-            BlockPos position = CityWorlds.resolvePedestrianFeet(
-                    level, x, z, player.getBlockY());
-            if (position != null && isPublicPatrolArea(NeonCityGenerator.sample(x, z))) {
-                return position;
+            SpawnPlan plan = planAt(level, x, z, player.getBlockY(), random.nextInt(4), size);
+            if (plan != null) {
+                return plan;
+            }
+        }
+
+        // A deterministic perimeter fallback prevents random misses from suppressing a full cycle
+        // around sparse parcels or imported atlas streets.
+        int rotation = random.nextInt(4);
+        int perimeterAttempts = 0;
+        for (int radius = MIN_SPAWN_DISTANCE; radius <= MAX_SPAWN_DISTANCE; radius += 2) {
+            for (int offset = -radius; offset <= radius; offset += 2) {
+                SpawnPlan plan = planAt(level,
+                        player.getBlockX() + offset, player.getBlockZ() - radius,
+                        player.getBlockY(), rotation, size);
+                if (plan != null) return plan;
+                if (++perimeterAttempts >= PERIMETER_ANCHOR_ATTEMPTS) return null;
+
+                plan = planAt(level,
+                        player.getBlockX() + offset, player.getBlockZ() + radius,
+                        player.getBlockY(), rotation, size);
+                if (plan != null) return plan;
+                if (++perimeterAttempts >= PERIMETER_ANCHOR_ATTEMPTS) return null;
+
+                plan = planAt(level,
+                        player.getBlockX() - radius, player.getBlockZ() + offset,
+                        player.getBlockY(), rotation, size);
+                if (plan != null) return plan;
+                if (++perimeterAttempts >= PERIMETER_ANCHOR_ATTEMPTS) return null;
+
+                plan = planAt(level,
+                        player.getBlockX() + radius, player.getBlockZ() + offset,
+                        player.getBlockY(), rotation, size);
+                if (plan != null) return plan;
+                if (++perimeterAttempts >= PERIMETER_ANCHOR_ATTEMPTS) return null;
             }
         }
         return null;
+    }
+
+    private static SpawnPlan planAt(
+            ServerLevel level, int x, int z, int preferredY, int firstRotation, int size) {
+        BlockPos anchor = CityWorlds.resolveStreetFeet(level, x, z, preferredY);
+        if (anchor == null || !isPublicPatrolPosition(level, anchor)
+                || hasNearbyPatrol(level, anchor)) {
+            return null;
+        }
+        for (int rotationOffset = 0; rotationOffset < 4; rotationOffset++) {
+            List<BlockPos> positions = resolveFormation(
+                    level, anchor, firstRotation + rotationOffset, size);
+            if (positions.size() == size && isAcceptableToPlayers(level, positions)) {
+                return new SpawnPlan(anchor, positions);
+            }
+        }
+        if (size == LARGE_PATROL_SIZE) {
+            for (int rotationOffset = 0; rotationOffset < 4; rotationOffset++) {
+                List<BlockPos> positions = resolveFormation(
+                        level, anchor, firstRotation + rotationOffset, SMALL_PATROL_SIZE);
+                if (positions.size() == SMALL_PATROL_SIZE
+                        && isAcceptableToPlayers(level, positions)) {
+                    return new SpawnPlan(anchor, positions);
+                }
+            }
+        }
+        return null;
+    }
+
+    private static boolean isAcceptableToPlayers(ServerLevel level, List<BlockPos> positions) {
+        double minimumDistanceSquared = MIN_PLAYER_DISTANCE * MIN_PLAYER_DISTANCE;
+        double visibilityDistanceSquared =
+                MAX_OBSERVER_VISIBILITY_DISTANCE * MAX_OBSERVER_VISIBILITY_DISTANCE;
+        for (ServerPlayer observer : level.players()) {
+            if (!canDrivePatrolSpawns(observer)) continue;
+            Vec3 eye = observer.getEyePosition();
+            Vec3 look = observer.getLookAngle();
+            for (BlockPos position : positions) {
+                Vec3 target = Vec3.atBottomCenterOf(position).add(0.0, 0.9, 0.0);
+                Vec3 offset = target.subtract(eye);
+                double distanceSquared = offset.lengthSqr();
+                if (distanceSquared < minimumDistanceSquared) {
+                    return false;
+                }
+                if (distanceSquared <= visibilityDistanceSquared
+                        && offset.normalize().dot(look) >= FORWARD_VIEW_DOT
+                        && level.clip(new ClipContext(
+                                eye, target, ClipContext.Block.COLLIDER,
+                                ClipContext.Fluid.NONE, observer)).getType()
+                                != HitResult.Type.BLOCK) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private static boolean hasNearbyPatrol(ServerLevel level, BlockPos anchor) {
+        return !level.getEntitiesOfClass(
+                FactionEnemy.class,
+                new AABB(anchor).inflate(PATROL_SEPARATION),
+                enemy -> enemy.isAlive() && enemy.isAmbientPatrol()).isEmpty();
     }
 
     private static List<BlockPos> resolveFormation(ServerLevel level, BlockPos anchor,
@@ -171,11 +251,10 @@ public final class FactionSpawns {
             BlockPos horizontal = anchor.offset(offset.getX(), 0, offset.getZ());
             BlockPos position;
             if (CityWorlds.isCity(level)) {
-                position = CityWorlds.resolvePedestrianFeet(
+                position = CityWorlds.resolveStreetFeet(
                         level, horizontal.getX(), horizontal.getZ(), anchor.getY());
-                if (position == null
-                        || !isPublicPatrolArea(NeonCityGenerator.sample(
-                                position.getX(), position.getZ()))) {
+                if (position == null || position.getY() != anchor.getY()
+                        || !isPublicPatrolPosition(level, position)) {
                     return List.of();
                 }
             } else {
@@ -222,17 +301,9 @@ public final class FactionSpawns {
         return largeRoll ? LARGE_PATROL_SIZE : SMALL_PATROL_SIZE;
     }
 
-    private static boolean isConcealedFromPlayers(ServerLevel level, FactionEnemy enemy) {
-        for (ServerPlayer observer : level.players()) {
-            if (observer.isSpectator()) {
-                continue;
-            }
-            if (observer.distanceToSqr(enemy) < MIN_DISTANCE * MIN_DISTANCE
-                    || observer.hasLineOfSight(enemy)) {
-                return false;
-            }
-        }
-        return true;
+    /** Creative players still populate the city; only dead and spectator players are ignored. */
+    public static boolean canDrivePatrolSpawns(ServerPlayer player) {
+        return player != null && player.isAlive() && !player.isSpectator();
     }
 
     public static boolean isPublicPatrolArea(NeonCityGenerator.UrbanSample sample) {
@@ -247,9 +318,22 @@ public final class FactionSpawns {
         return isPublicPatrolRoadClass(sample.roadClass());
     }
 
+    /** Level-aware public-space check used for spawn anchors and patrol destinations. */
+    public static boolean isPublicPatrolPosition(ServerLevel level, BlockPos position) {
+        NeonCityGenerator.UrbanSample sample =
+                NeonCityGenerator.sample(position.getX(), position.getZ());
+        if (position.getY() != sample.groundY() + 1 || !isPublicPatrolArea(sample)) {
+            return false;
+        }
+        return sample.roadClass() != NeonCityGenerator.RoadClass.NONE
+                || NeonCityGenerator.isCivilianPedestrianArea(
+                        level, position.getX(), position.getZ());
+    }
+
     public static boolean isPublicPatrolRoadClass(NeonCityGenerator.RoadClass roadClass) {
         return switch (roadClass) {
-            case CENTRAL_PLAZA, DISTRICT_BOULEVARD, LOCAL_STREET, PARK -> true;
+            case NONE, CENTRAL_PLAZA, DISTRICT_BOULEVARD, LOCAL_STREET, SERVICE_ALLEY,
+                    PARK, HARBOR, CONTAINER_PORT -> true;
             default -> false;
         };
     }
@@ -301,5 +385,11 @@ public final class FactionSpawns {
 
     private static ServerPlayer stableRepresentative(ServerPlayer first, ServerPlayer second) {
         return first.getUUID().compareTo(second.getUUID()) <= 0 ? first : second;
+    }
+
+    private record SpawnPlan(BlockPos anchor, List<BlockPos> positions) {
+        private SpawnPlan {
+            positions = List.copyOf(positions);
+        }
     }
 }

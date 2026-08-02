@@ -296,14 +296,31 @@ public final class CyberdeckGameTests {
                 "cluster seed must change between spatial cells");
 
         helper.assertTrue(FactionSpawns.SPAWN_INTERVAL == 1_200
-                        && FactionSpawns.SPAWN_CHANCE_DENOMINATOR == 4,
-                "ambient patrol checks must be sparse and probability gated");
+                        && FactionSpawns.MIN_SPAWN_DISTANCE == 26
+                        && FactionSpawns.MAX_SPAWN_DISTANCE == 46
+                        && FactionSpawns.POPULATION_CELL_SIZE == 128
+                        && FactionSpawns.NEARBY_RADIUS == 72.0,
+                "ambient patrol timing and range must be reliable but half the original rate");
         helper.assertTrue(FactionSpawns.SMALL_PATROL_SIZE == 3
                         && FactionSpawns.LARGE_PATROL_SIZE == 5
-                        && FactionSpawns.NEARBY_CAP == 5
-                        && FactionSpawns.LOADED_WORLD_CAP == 10
-                        && FactionSpawns.MAX_REACTIVE_AMBIENT_POPULATION == 21,
+                        && FactionSpawns.NEARBY_CAP == 10
+                        && FactionSpawns.LOADED_WORLD_CAP == 20
+                        && FactionSpawns.MAX_REACTIVE_AMBIENT_POPULATION == 44,
                 "ambient patrol population must remain bounded for small multiplayer servers");
+
+        FakePlayer spawnDriver = new FakePlayer(
+                helper.getLevel(), new GameProfile(UUID.randomUUID(), "patrol_driver"));
+        spawnDriver.setHealth(spawnDriver.getMaxHealth());
+        spawnDriver.setGameMode(GameType.CREATIVE);
+        helper.assertTrue(FactionSpawns.canDrivePatrolSpawns(spawnDriver),
+                "creative players must drive ambient patrol population");
+        spawnDriver.setGameMode(GameType.SPECTATOR);
+        helper.assertFalse(FactionSpawns.canDrivePatrolSpawns(spawnDriver),
+                "spectators must not drive ambient patrol population");
+        spawnDriver.setGameMode(GameType.SURVIVAL);
+        spawnDriver.setHealth(0.0F);
+        helper.assertFalse(FactionSpawns.canDrivePatrolSpawns(spawnDriver),
+                "dead players must not drive ambient patrol population");
 
         helper.assertValueEqual(FactionSpawns.plannedPatrolSize(false, 2), 0,
                 "capacity below three must reject a partial patrol");
@@ -373,19 +390,31 @@ public final class CyberdeckGameTests {
                     "mission skin reuse must remain balanced after two complete cycles");
         }
         for (NeonCityGenerator.RoadClass publicRoad : List.of(
+                NeonCityGenerator.RoadClass.NONE,
                 NeonCityGenerator.RoadClass.CENTRAL_PLAZA,
                 NeonCityGenerator.RoadClass.DISTRICT_BOULEVARD,
                 NeonCityGenerator.RoadClass.LOCAL_STREET,
-                NeonCityGenerator.RoadClass.PARK)) {
+                NeonCityGenerator.RoadClass.SERVICE_ALLEY,
+                NeonCityGenerator.RoadClass.PARK,
+                NeonCityGenerator.RoadClass.HARBOR,
+                NeonCityGenerator.RoadClass.CONTAINER_PORT)) {
             helper.assertTrue(FactionSpawns.isPublicPatrolRoadClass(publicRoad),
                     publicRoad + " should accept ambient patrols");
         }
         for (NeonCityGenerator.RoadClass excluded : List.of(
-                NeonCityGenerator.RoadClass.SERVICE_ALLEY,
                 NeonCityGenerator.RoadClass.INTERDISTRICT_ROAD,
                 NeonCityGenerator.RoadClass.BRIDGE,
                 NeonCityGenerator.RoadClass.ELEVATED_RAIL,
-                NeonCityGenerator.RoadClass.HIGHWAY_BUFFER)) {
+                NeonCityGenerator.RoadClass.HIGHWAY_BUFFER,
+                NeonCityGenerator.RoadClass.CANAL,
+                NeonCityGenerator.RoadClass.OCEAN,
+                NeonCityGenerator.RoadClass.PORTSHIP,
+                NeonCityGenerator.RoadClass.FARM,
+                NeonCityGenerator.RoadClass.EXTRACTION_SITE,
+                NeonCityGenerator.RoadClass.BORDER_WALLED,
+                NeonCityGenerator.RoadClass.BORDER_FOREST,
+                NeonCityGenerator.RoadClass.BORDER_CLIFF,
+                NeonCityGenerator.RoadClass.WILDERNESS)) {
             helper.assertFalse(FactionSpawns.isPublicPatrolRoadClass(excluded),
                     excluded + " must reject ambient patrols");
         }

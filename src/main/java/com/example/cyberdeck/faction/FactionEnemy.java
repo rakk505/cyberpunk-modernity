@@ -395,7 +395,8 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         }
         NeonCityGenerator.UrbanSample sample =
                 NeonCityGenerator.sample(position.getX(), position.getZ());
-        return sample.district() == getDistrict() && FactionSpawns.isPublicPatrolArea(sample);
+        return sample.district() == getDistrict()
+                && FactionSpawns.isPublicPatrolPosition(level, position);
     }
 
     /** The point this soldier patrols around. Falls back to its current position if unset. */
