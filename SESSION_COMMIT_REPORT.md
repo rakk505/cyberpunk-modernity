@@ -6,12 +6,13 @@ Generated: 2026-08-01
 
 - Current working branch: `codex/npc-voicelines-lifepaths`
 - Remote tracking branch: `origin/codex/npc-voicelines-lifepaths`
-- Implementation HEAD before this report: `782cc3427a77508bf9ca1164e98fa61e8f796ad9`
+- Current implementation HEAD: `c68e7c7964c6af051d96e1a1d528a8d28d9a7e81`
 - Scanner/Trauma milestone branch: `codex/eye-implant-scanner-trauma` at `fb6633ba47fe5d893def098a690ecb2f91697435`
 - Current `origin/main` integrated by this branch: `e178028ca7191ae421b8083a4fdf51923a22f07e`
-- Relationship before this report: 0 commits behind and 15 commits ahead of `origin/main`
+- Relationship including this report update: 0 commits behind and 18 commits ahead of `origin/main`
 - Latest installed test JAR: `cyberdeck-1.5.0.jar`
-- Installed JAR SHA-256 after the turret fix: `f1a228294d4a39aa61acc66efb755757011c3dea714d8c42f423bc34f7186408`
+- Installed JAR SHA-256 after the district-dialogue expansion:
+  `edac02f2b7a40bd9e9a2e6bb5626daea12e493124a724ad7e0624f49bb760401`
 
 The current branch descends from the scanner/Trauma branch, so it contains every scanner,
 Trauma Team, mission-integration, Excision, voiceline, lifepath, currency, shard-icon, dialogue,
@@ -20,8 +21,8 @@ and turret-orientation change described below.
 ## Commit Map
 
 The first eight commits below were existing feature-lineage commits explicitly preserved and
-integrated while resolving the stale-copy concern. The final seven commits were the direct feature,
-merge-resolution, and follow-up commits produced during this session.
+integrated while resolving the stale-copy concern. The remaining listed commits were the direct
+feature, merge-resolution, and follow-up commits produced during this session.
 
 | Commit | Classification | Summary |
 | --- | --- | --- |
@@ -40,6 +41,7 @@ merge-resolution, and follow-up commits produced during this session.
 | `f76da14` | Direct feature | Emerald-backed Emmies and custom shard inventory icons |
 | `925a1e2` | Direct correction | Resident dialogue moved from attack to right-click |
 | `782cc34` | Direct correction | Thin turret barrel aligned with the firing direction |
+| `c68e7c7` | Direct feature | District A, E, and N authored voiceline pools and routing |
 
 ## Integrated Feature Lineage
 
@@ -555,6 +557,36 @@ branch.
   each failed one unrelated tick-zero/tick-one assertion in Lifepath, merchant-anchor, or mission
   actor registration. This was not addressed in the renderer-only commit.
 
+### `c68e7c7` - District A, E, And N Voiceline Expansion
+
+- Added all 47 newly authored lines without changing the existing 123 lines.
+- Expanded the bundled catalog from 10 location pools/30 role pools/123 lines to 13 location
+  pools/39 role pools/170 lines.
+- Added District A, The Archive:
+  - 5 Resident lines.
+  - 5 Corpo lines.
+  - 5 Exec lines.
+- Added District E, The Stage:
+  - 5 Resident lines.
+  - 5 Corpo lines.
+  - 5 Exec lines.
+- Added District N, The Campus:
+  - 6 Resident lines.
+  - 5 Corpo lines.
+  - 6 Exec lines.
+- Added `DISTRICT_A`, `DISTRICT_E`, and `DISTRICT_N` to the strict catalog enum, so all three role
+  arrays are required at startup and unknown/missing data still fails validation.
+- Routed `A_CORP`, `E_CORP`, and `N_CORP` urban samples to their authored pools.
+- Preserved location precedence: Border Slums overrides Great Highway, Great Highway overrides the
+  district pool, and unsupported districts such as C continue to use the generic pool.
+- Extended `npc_voiceline_pools` to assert the exact 170-line total, A/E/N per-role counts, and all
+  three new mappings.
+- Full Gradle build passed.
+- Failed suite attempts passed the new voiceline test but hit known unrelated tick-zero Lifepath
+  drop-visibility/turret-placement timing failures; the final full run passed all 69 required tests.
+- No rendering or subtitle-layout code changed, so no new visual capture was required.
+- Installed the verified `cyberdeck-1.5.0.jar` in the local Minecraft client.
+
 ## Multiplayer And Private Two-Player Review Summary
 
 - Scanner mode is per-player and synchronized from server-owned attachments.
@@ -586,6 +618,8 @@ branch.
 - Turret-orientation milestone: full build, real client load, server boot, combat capture, and all
   turret tests passed. The aggregate runner showed unrelated nondeterministic timing failures as
   documented above.
+- District-dialogue expansion: all 47 supplied lines matched the source text, full build passed,
+  final full run passed 69/69 required GameTests, and the verified JAR was installed.
 - Each completed implementation commit was pushed to
   `origin/codex/npc-voicelines-lifepaths`.
 - The final packaged JAR was installed in the local Minecraft `mods` directory and hash-matched to
