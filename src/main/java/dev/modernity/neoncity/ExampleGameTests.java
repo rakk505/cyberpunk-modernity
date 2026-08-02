@@ -4676,6 +4676,42 @@ public final class ExampleGameTests {
                     "a non-building cross-section requested facade blocks");
         }
 
+        DistrictLogoBanners.SearchResult boundedBannerSearch =
+                DistrictLogoBanners.findArnisBannerSite(
+                        helper.getLevel(), chunk, 0x42414E4E45524C31L);
+        helper.assertTrue(
+                boundedBannerSearch.facadeProbes()
+                                <= DistrictLogoBanners.MAX_FACADE_PROBES
+                        && boundedBannerSearch.heightQueries()
+                                == DistrictLogoBanners.HEIGHT_QUERIES_PER_CHUNK
+                        && DistrictLogoBanners.hasContainedExterior(
+                                chunk,
+                                chunk.getMinBlockX() + 3,
+                                chunk.getMinBlockZ() + 8,
+                                Direction.WEST)
+                        && !DistrictLogoBanners.hasContainedExterior(
+                                chunk,
+                                chunk.getMinBlockX() + 2,
+                                chunk.getMinBlockZ() + 8,
+                                Direction.WEST),
+                "district banner search escaped its chunk or probe budget");
+        boundedBannerSearch.site().ifPresent(site -> helper.assertTrue(
+                DistrictLogoBanners.hasContainedExterior(
+                        chunk, site.support().getX(), site.support().getZ(), site.outward()),
+                "district banner selected a cross-chunk exterior ray"));
+
+        NeonCitySavedData deferredBannerLedger = new NeonCitySavedData();
+        NeonCitySavedData.DeferredBanner deferredBanner =
+                new NeonCitySavedData.DeferredBanner(12, 90, -34, 2, 5);
+        helper.assertTrue(
+                deferredBannerLedger.addPendingBanner(deferredBanner)
+                        && !deferredBannerLedger.addPendingBanner(deferredBanner)
+                        && deferredBannerLedger.pendingBanners().equals(List.of(deferredBanner))
+                        && deferredBannerLedger.removePendingBanner(deferredBanner.key())
+                                .equals(deferredBanner)
+                        && deferredBannerLedger.pendingBanners().isEmpty(),
+                "deferred banner ledger did not preserve bounded queue identity");
+
         BlockPos bannerSupport = new BlockPos(
                 chunk.getMinBlockX() + 8, minY + 20, chunk.getMinBlockZ() + 8);
         helper.getLevel().setBlock(bannerSupport, Blocks.STONE.defaultBlockState(), Block.UPDATE_ALL);

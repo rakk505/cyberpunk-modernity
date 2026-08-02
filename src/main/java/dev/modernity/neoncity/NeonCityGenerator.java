@@ -68,7 +68,7 @@ public final class NeonCityGenerator {
             "project-moon-megacity-v22-district-ring-fixed-seed-20260801";
     public static final int CITY_GROUND_Y = 72;
     public static final int WATER_Y = 67;
-    public static final int ENQUEUE_RADIUS_CHUNKS = 7;
+    public static final int ENQUEUE_RADIUS_CHUNKS = 10;
     public static final int SPAWN_PREWARM_RADIUS_CHUNKS = 1;
     public static final int MAX_PENDING_CHUNKS = 768;
     public static final int TRAVEL_LOOKAHEAD_TICKS = 100;
@@ -117,6 +117,7 @@ public final class NeonCityGenerator {
     private static final Map<ParkSiteKey, ParkSitePlan> PARK_SITE_PLANS =
             new ConcurrentHashMap<>();
     private static final Map<UUID, TravelMotion> TRAVEL_MOTIONS = new HashMap<>();
+    private static long lastActiveTravelGameTime = Long.MIN_VALUE;
     private static MegacityLayout layout = MegacityLayout.create(FIXED_CITY_SEED);
     private static boolean layoutInitialized;
     private static NeonCitySavedData savedData;
@@ -262,6 +263,7 @@ public final class NeonCityGenerator {
         BRIDGE_PROFILES.clear();
         PARK_SITE_PLANS.clear();
         TRAVEL_MOTIONS.clear();
+        lastActiveTravelGameTime = Long.MIN_VALUE;
         CityChunkPlanner.reset();
         ArnisPatchLibrary.clearSelectionCache();
         MerchantTruckLibrary.clearCaches();
@@ -349,6 +351,7 @@ public final class NeonCityGenerator {
                                 player.getBlockX(), player.getBlockZ()).roadClass()))) {
             return 0;
         }
+        lastActiveTravelGameTime = level.getGameTime();
 
         List<ChunkPos> corridor = travelCorridorChunks(
                 player.getBlockX(), player.getBlockZ(), movement.x, movement.z);
@@ -371,6 +374,11 @@ public final class NeonCityGenerator {
                 promoted,
                 velocity.positionFallback());
         return promoted;
+    }
+
+    static boolean hasActiveTravel(ServerLevel level) {
+        return lastActiveTravelGameTime != Long.MIN_VALUE
+                && level.getGameTime() - lastActiveTravelGameTime <= 20L;
     }
 
     static TravelVelocity selectTravelVelocity(
@@ -888,14 +896,17 @@ public final class NeonCityGenerator {
             DistrictWorldFeatures.decorateChunk(level, chunk, samples);
             if (trace != null) trace.phase(CityGenerationTrace.Phase.STATIONS);
             QuicktimeTravelService.installCanonicalStations(level, chunk);
-            if (trace != null) trace.phase(CityGenerationTrace.Phase.LOGO_BANNERS);
+            if (trace != null) trace.phase(CityGenerationTrace.Phase.BANNER_SCAN);
             if (patchPlacement.isPresent()) {
                 ArnisPatchLibrary.Placement placement = patchPlacement.get();
-                DistrictLogoBanners.decorateArnisChunk(
-                        level,
-                        chunk,
-                        placement.patch().district(),
-                        placement.selectionHash());
+                DistrictLogoBanners.SearchResult bannerSearch =
+                        DistrictLogoBanners.findArnisBannerSite(
+                                level, chunk, placement.selectionHash());
+                if (trace != null) trace.phase(CityGenerationTrace.Phase.BANNER_QUEUE);
+                bannerSearch.site().ifPresent(site -> DistrictLogoBanners.enqueue(
+                        level, site, placement.patch().district()));
+            } else if (trace != null) {
+                trace.phase(CityGenerationTrace.Phase.BANNER_QUEUE);
             }
             if (trace != null) trace.phase(CityGenerationTrace.Phase.CITY_LOOT);
             boolean placedLoot = CityLootGeneration.decorateMegacityChunk(

@@ -254,10 +254,16 @@ public final class ProjectMoonCityModule {
             atmosphereDistricts.keySet().retainAll(activePlayers);
         }
         boolean foregroundGeneratedChunk = NeonCityGenerator.tick(overworld);
-        CityPriorityPreGenerator.tick(overworld, foregroundGeneratedChunk);
+        boolean placedDeferredBanner = DistrictLogoBanners.tickDeferred(
+                overworld,
+                foregroundGeneratedChunk,
+                NeonCityGenerator.hasActiveTravel(overworld));
+        CityPriorityPreGenerator.tick(
+                overworld, foregroundGeneratedChunk || placedDeferredBanner);
     }
 
     private void finishStartup(ServerLevel overworld) {
+        DistrictLogoBanners.initialize(overworld);
         int prewarmed = NeonCityGenerator.prewarmSpawn(overworld);
         BlockPos spawn = overworld.getRespawnData().pos();
         int queued = NeonCityGenerator.enqueueAround(spawn.getX(), spawn.getZ());
@@ -390,6 +396,7 @@ public final class ProjectMoonCityModule {
         BuildingInspectionService.reset();
         QuicktimeTravelService.clearRuntimeState();
         MissionService.reset();
+        DistrictLogoBanners.reset();
         NeonCityGenerator.reset();
     }
 
