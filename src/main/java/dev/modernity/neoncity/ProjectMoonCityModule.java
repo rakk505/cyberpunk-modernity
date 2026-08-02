@@ -177,6 +177,7 @@ public final class ProjectMoonCityModule {
                 storyMissionCount,
                 StoryMissionCatalog.configurationPath().toAbsolutePath());
         ServerLevel overworld = event.getServer().overworld();
+        CityGenerationTrace.reset();
         if (overworld == null || !NeonCityGenerator.initialize(overworld)) {
             NeonCityGenerator.reset();
             Cyberdeck.LOGGER.info(
@@ -194,9 +195,15 @@ public final class ProjectMoonCityModule {
         if (overworld == null) {
             return;
         }
+        CityGenerationTrace.tick(overworld);
         BuildingInspectionService.tick(overworld);
         if (!generationEnabled) {
             return;
+        }
+        if (event.getServer().getTickCount() % 5 == 0) {
+            for (net.minecraft.server.level.ServerPlayer player : overworld.players()) {
+                NeonCityGenerator.enqueueTravelCorridor(overworld, player);
+            }
         }
         if (event.getServer().getTickCount() % 10 == 0) {
             for (net.minecraft.server.level.ServerPlayer player
@@ -206,7 +213,7 @@ public final class ProjectMoonCityModule {
             Set<UUID> activePlayers = new HashSet<>();
             for (net.minecraft.server.level.ServerPlayer player : overworld.players()) {
                 activePlayers.add(player.getUUID());
-                NeonCityGenerator.enqueueAround(player.getBlockX(), player.getBlockZ());
+                NeonCityGenerator.enqueueAroundPlayer(player);
                 ChunkPos playerChunk = new ChunkPos(
                         player.getBlockX() >> 4, player.getBlockZ() >> 4);
                 if (NeonCityGenerator.isGenerated(playerChunk)) {
@@ -246,13 +253,15 @@ public final class ProjectMoonCityModule {
             districtEntryNotifier.retainPlayers(activePlayers);
             atmosphereDistricts.keySet().retainAll(activePlayers);
         }
-        NeonCityGenerator.tick(overworld);
+        boolean foregroundGeneratedChunk = NeonCityGenerator.tick(overworld);
+        CityPriorityPreGenerator.tick(overworld, foregroundGeneratedChunk);
     }
 
     private void finishStartup(ServerLevel overworld) {
         int prewarmed = NeonCityGenerator.prewarmSpawn(overworld);
         BlockPos spawn = overworld.getRespawnData().pos();
         int queued = NeonCityGenerator.enqueueAround(spawn.getX(), spawn.getZ());
+        CityPriorityPreGenerator.initialize(overworld);
         generationEnabled = true;
         Cyberdeck.LOGGER.info(
                 "[ProjectMoonCity] finite {}-district generator enabled immediately; restored {} "
@@ -364,6 +373,7 @@ public final class ProjectMoonCityModule {
     public void onPlayerLogout(PlayerEvent.PlayerLoggedOutEvent event) {
         if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
             BuildingInspectionService.forget(player.getUUID());
+            NeonCityGenerator.forgetTravelMotion(player.getUUID());
             MissionService.forgetPlayer(player);
         }
     }
@@ -371,6 +381,9 @@ public final class ProjectMoonCityModule {
     @SubscribeEvent
     public void onServerStopped(ServerStoppedEvent ignoredEvent) {
         generationEnabled = false;
+        ServerLevel overworld = ignoredEvent.getServer().overworld();
+        if (overworld != null) CityPriorityPreGenerator.stop(overworld);
+        CityGenerationTrace.stop();
         districtEntryNotifier.clear();
         atmosphereDistricts.clear();
         vendorRevision = -1L;
