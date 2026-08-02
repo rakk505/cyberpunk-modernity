@@ -49,6 +49,7 @@ final class VendorService {
             entity.discard();
             return;
         }
+        MerchantTruckLibrary.refreshOffersIfNeeded((Villager) entity, role);
         VendorAnchorData data = VendorAnchorData.get(level);
         VendorAnchorData.Anchor existing = data.anchor(siteId(sitePos)).orElse(null);
         if (existing != null

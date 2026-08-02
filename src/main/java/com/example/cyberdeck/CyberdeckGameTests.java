@@ -21,6 +21,7 @@ import com.example.cyberdeck.effect.SandevistanMechanics;
 import com.example.cyberdeck.effect.SandevistanState;
 import com.example.cyberdeck.effect.CyberwareEffects;
 import com.example.cyberdeck.effect.DoubleJumpGuard;
+import com.example.cyberdeck.economy.Emmies;
 import com.example.cyberdeck.defense.DefenseContent;
 import com.example.cyberdeck.defense.KangTaoTurret;
 import com.example.cyberdeck.faction.FactionEnemy;
@@ -87,6 +88,7 @@ import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.pathfinder.PathType;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.Rotation;
@@ -145,6 +147,9 @@ public final class CyberdeckGameTests {
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             HEALING_CONSUMABLE_STATE = register(
                     "healing_consumable_state", CyberdeckGameTests::healingConsumableState);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            EMMIES_USE_EMERALDS = register(
+                    "emmies_use_emeralds", CyberdeckGameTests::emmiesUseEmeralds);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             DETECTION_LINE_OF_SIGHT = register(
                     "detection_line_of_sight", CyberdeckGameTests::detectionLineOfSightBuildup);
@@ -389,10 +394,20 @@ public final class CyberdeckGameTests {
         resident.snapTo(residentPos.getX() + 0.5, residentPos.getY(), residentPos.getZ() + 0.5,
                 0.0F, 0.0F);
         resident.setRole(NpcRole.RESIDENT);
+        helper.assertTrue(!NpcVoicelineService.acceptsTrigger(
+                                resident, false, NpcVoicelineService.DialogueTrigger.ATTACK)
+                        && NpcVoicelineService.acceptsTrigger(
+                                resident, false, NpcVoicelineService.DialogueTrigger.INTERACT),
+                "Residents must speak only when right-clicked, never when attacked");
+        helper.assertTrue(NpcVoicelineService.acceptsTrigger(
+                                resident, true, NpcVoicelineService.DialogueTrigger.ATTACK)
+                        && !NpcVoicelineService.acceptsTrigger(
+                                resident, true, NpcVoicelineService.DialogueTrigger.INTERACT),
+                "story status must preserve attack dialogue even on a Resident-role actor");
         helper.assertTrue(level.addFreshEntity(resident), "could not add Resident drop subject");
         resident.hurtServer(level, resident.damageSources().playerAttack(player), 1.0F);
         helper.assertTrue(resident.isFleeingGunfire(),
-                "Residents must flee immediately after a player attack");
+                "attacked Residents must only enter their flee behavior");
         resident.hurtServer(level, resident.damageSources().playerAttack(player), 100.0F);
         List<ItemEntity> shards = level.getEntitiesOfClass(
                 ItemEntity.class, new AABB(residentPos).inflate(3.0),
@@ -408,6 +423,11 @@ public final class CyberdeckGameTests {
         BlockPos execPos = helper.absolutePos(new BlockPos(6, 2, 2));
         exec.snapTo(execPos.getX() + 0.5, execPos.getY(), execPos.getZ() + 0.5, 0.0F, 0.0F);
         exec.setRole(NpcRole.EXEC);
+        helper.assertTrue(NpcVoicelineService.acceptsTrigger(
+                                exec, false, NpcVoicelineService.DialogueTrigger.ATTACK)
+                        && !NpcVoicelineService.acceptsTrigger(
+                                exec, false, NpcVoicelineService.DialogueTrigger.INTERACT),
+                "Exec dialogue must retain its existing attack trigger");
         helper.assertTrue(exec.getMaxHealth() == 100.0F,
                 "Execs must have substantially more health than Residents");
         helper.assertTrue(CityNpc.limitIncomingDamage(NpcRole.EXEC, exec.getMaxHealth(), 1_000.0F)
@@ -422,13 +442,24 @@ public final class CyberdeckGameTests {
     }
 
     private static void npcVoicelinePools(GameTestHelper helper) {
+        int authoredLineCount = 0;
         for (NpcVoicelineCatalog.LocationPool location
                 : NpcVoicelineCatalog.LocationPool.values()) {
             for (NpcVoicelineCatalog.RolePool role : NpcVoicelineCatalog.RolePool.values()) {
-                helper.assertFalse(NpcVoicelineCatalog.lines(location, role).isEmpty(),
+                List<String> lines = NpcVoicelineCatalog.lines(location, role);
+                helper.assertFalse(lines.isEmpty(),
                         "voiceline pool must not be empty: " + location.id() + "/" + role.id());
+                authoredLineCount += lines.size();
             }
         }
+        helper.assertTrue(authoredLineCount == 170,
+                "bundled voiceline catalog must contain all 170 authored lines");
+        assertVoicelinePoolCounts(helper,
+                NpcVoicelineCatalog.LocationPool.DISTRICT_A, 5, 5, 5);
+        assertVoicelinePoolCounts(helper,
+                NpcVoicelineCatalog.LocationPool.DISTRICT_E, 5, 5, 5);
+        assertVoicelinePoolCounts(helper,
+                NpcVoicelineCatalog.LocationPool.DISTRICT_N, 6, 5, 6);
 
         helper.assertTrue(NpcVoicelineService.classifyLocation(
                         District.O_CORP,
@@ -452,6 +483,24 @@ public final class CyberdeckGameTests {
                         District.A_CORP,
                         MegacityLayout.Zone.NEST,
                         NeonCityGenerator.RoadClass.LOCAL_STREET)
+                        == NpcVoicelineCatalog.LocationPool.DISTRICT_A,
+                "District A did not select its authored pool");
+        helper.assertTrue(NpcVoicelineService.classifyLocation(
+                        District.E_CORP,
+                        MegacityLayout.Zone.NEST,
+                        NeonCityGenerator.RoadClass.LOCAL_STREET)
+                        == NpcVoicelineCatalog.LocationPool.DISTRICT_E,
+                "District E did not select its authored pool");
+        helper.assertTrue(NpcVoicelineService.classifyLocation(
+                        District.N_CORP,
+                        MegacityLayout.Zone.NEST,
+                        NeonCityGenerator.RoadClass.LOCAL_STREET)
+                        == NpcVoicelineCatalog.LocationPool.DISTRICT_N,
+                "District N did not select its authored pool");
+        helper.assertTrue(NpcVoicelineService.classifyLocation(
+                        District.C_CORP,
+                        MegacityLayout.Zone.NEST,
+                        NeonCityGenerator.RoadClass.LOCAL_STREET)
                         == NpcVoicelineCatalog.LocationPool.GENERIC_UNSUPPORTED_DISTRICTS,
                 "unsupported districts must use the generic pool");
 
@@ -465,6 +514,23 @@ public final class CyberdeckGameTests {
             previous = selected;
         }
         helper.succeed();
+    }
+
+    private static void assertVoicelinePoolCounts(
+            GameTestHelper helper,
+            NpcVoicelineCatalog.LocationPool location,
+            int residents,
+            int corpos,
+            int execs) {
+        helper.assertValueEqual(NpcVoicelineCatalog.lines(
+                location, NpcVoicelineCatalog.RolePool.RESIDENTS).size(), residents,
+                location.id() + " Resident voiceline count");
+        helper.assertValueEqual(NpcVoicelineCatalog.lines(
+                location, NpcVoicelineCatalog.RolePool.CORPOS).size(), corpos,
+                location.id() + " Corpo voiceline count");
+        helper.assertValueEqual(NpcVoicelineCatalog.lines(
+                location, NpcVoicelineCatalog.RolePool.EXECS).size(), execs,
+                location.id() + " Exec voiceline count");
     }
 
     private static void traumaTeamLifecycle(GameTestHelper helper) {
@@ -2120,6 +2186,55 @@ public final class CyberdeckGameTests {
         helper.succeed();
     }
 
+    private static void emmiesUseEmeralds(GameTestHelper helper) {
+        ServerPlayer player = makeSurvivalServerPlayerInLevel(helper);
+        BlockPos playerPos = helper.absolutePos(new BlockPos(1, 2, 1));
+        player.snapTo(playerPos.getX() + 0.5, playerPos.getY(), playerPos.getZ() + 0.5,
+                0.0F, 0.0F);
+        player.getInventory().clearContent();
+
+        Emmies.give(player, 70);
+        helper.assertTrue(Emmies.item() == Items.EMERALD && Emmies.count(player) == 70,
+                "emmie rewards must be issued and counted as vanilla emeralds");
+
+        player.getInventory().clearContent();
+        player.getInventory().add(new ItemStack(CyberdeckItems.LEGACY_EMMIES.get(), 17));
+        ItemStack legacyStack = player.getInventory().getNonEquipmentItems().stream()
+                .filter(stack -> stack.is(CyberdeckItems.LEGACY_EMMIES.get()))
+                .findFirst()
+                .orElseThrow();
+        CyberdeckItems.LEGACY_EMMIES.get().inventoryTick(
+                legacyStack, helper.getLevel(), player, null);
+        int legacyCount = 0;
+        for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++) {
+            ItemStack stack = player.getInventory().getItem(slot);
+            if (stack.is(CyberdeckItems.LEGACY_EMMIES.get())) {
+                legacyCount += stack.getCount();
+            }
+        }
+        helper.assertTrue(legacyCount == 0 && Emmies.count(player) == 17,
+                "legacy emmies must convert one-for-one without leaving spendable duplicates");
+
+        player.getInventory().clearContent();
+        for (int slot = 0; slot < player.getInventory().getNonEquipmentItems().size(); slot++) {
+            player.getInventory().setItem(slot, new ItemStack(Items.STONE, 64));
+        }
+        Emmies.give(player, 1);
+        helper.runAfterDelay(1, () -> {
+            List<ItemEntity> overflow = helper.getLevel().getEntitiesOfClass(
+                    ItemEntity.class,
+                    player.getBoundingBox().inflate(2.0),
+                    entity -> entity.getItem().is(Items.EMERALD));
+            helper.assertTrue(overflow.size() == 1
+                            && player.getUUID().equals(overflow.getFirst().getTarget()),
+                    "overflow emmie rewards must be reserved for their receiving player"
+                            + " (drops=" + overflow.size() + ")");
+            overflow.forEach(Entity::discard);
+            disconnectTestPlayer(player);
+            helper.succeed();
+        });
+    }
+
     /** Reads a private static double constant from FactionEnemy so the tuned dash band stays locked. */
     private static double reflectDouble(GameTestHelper helper, String name) {
         try {
@@ -2174,6 +2289,7 @@ public final class CyberdeckGameTests {
         registerInstance(event, "tactical_movement_state", TACTICAL_MOVEMENT_STATE, data);
         registerInstance(event, "tactical_slide_activation", TACTICAL_SLIDE_ACTIVATION, data);
         registerInstance(event, "healing_consumable_state", HEALING_CONSUMABLE_STATE, data);
+        registerInstance(event, "emmies_use_emeralds", EMMIES_USE_EMERALDS, data);
 
         // Detection tests need a padded, flat, sky-lit arena so the soldier and player stand on
         // solid ground with an unobstructed line of sight rather than raycasting into the void.

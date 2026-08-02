@@ -1,6 +1,7 @@
 package dev.modernity.neoncity;
 
 import com.example.cyberdeck.CyberdeckItems;
+import com.example.cyberdeck.economy.Emmies;
 import com.example.cyberdeck.cyberware.Cyberware;
 import com.example.cyberdeck.cyberware.CyberwareItems;
 import com.example.cyberdeck.cyberware.CyberwareTier;
@@ -102,7 +103,7 @@ final class MerchantTradeCatalog {
 
     private static MerchantOffer offer(ItemLike result, int count, int price) {
         return new MerchantOffer(
-                new ItemCost(CyberdeckItems.EMMIES.get(), price),
+                new ItemCost(Emmies.item(), price),
                 new ItemStack(result, count),
                 MAX_USES,
                 1,

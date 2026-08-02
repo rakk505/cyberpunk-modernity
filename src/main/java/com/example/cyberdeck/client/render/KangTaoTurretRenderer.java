@@ -72,7 +72,7 @@ public final class KangTaoTurretRenderer
             int color = state.destroyed ? DESTROYED_TINT : 0xFFFFFFFF;
 
             poseStack.pushPose();
-            poseStack.mulPose(Axis.YP.rotationDegrees(180.0F - state.baseYaw));
+            poseStack.mulPose(Axis.YP.rotationDegrees(-state.baseYaw));
             poseStack.scale(-1.0F, -1.0F, 1.0F);
             poseStack.translate(0.0F, -1.501F, 0.0F);
             submitNodeCollector.submitCustomGeometry(

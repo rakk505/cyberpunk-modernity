@@ -11,7 +11,6 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
 
 /** Shared top-level navigation for the Journal, Cyberware, and city map screens. */
 public final class CyberpunkMenuTabs {
@@ -44,7 +43,7 @@ public final class CyberpunkMenuTabs {
         Player player = minecraft.player;
         int level = player == null ? 0 : player.experienceLevel;
         int streetCred = player == null ? 0 : StreetCredState.getStreetCred(player);
-        int emmies = player == null ? 0 : countEmmies(player);
+        int emmies = player == null ? 0 : Emmies.count(player);
 
         graphics.fill(0, 0, width, HEIGHT, BACKGROUND);
         graphics.horizontalLine(0, width - 1, HEIGHT - 1, RED);
@@ -151,15 +150,6 @@ public final class CyberpunkMenuTabs {
         int left = index * width / 6;
         int right = (index + 1) * width / 6;
         return new Rect(left, right - left);
-    }
-
-    private static int countEmmies(Player player) {
-        long total = 0L;
-        for (int index = 0; index < player.getInventory().getContainerSize(); index++) {
-            ItemStack stack = player.getInventory().getItem(index);
-            if (stack.getItem() == Emmies.item()) total += stack.getCount();
-        }
-        return (int) Math.min(Integer.MAX_VALUE, total);
     }
 
     private static String responsiveLabel(int width, String normal, String compact) {

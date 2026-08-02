@@ -33,8 +33,8 @@ public final class CyberdeckItems {
                     .alwaysEdible()
                     .build())));
 
-    /** Night City's physical currency; merchants and mission payouts use emmies. */
-    public static final DeferredItem<Item> EMMIES = ITEMS.registerItem("emmies",
+    /** Hidden compatibility item; player-held stacks migrate one-for-one into emeralds. */
+    public static final DeferredItem<Item> LEGACY_EMMIES = ITEMS.registerItem("emmies",
             com.example.cyberdeck.economy.EmmiesItem::new);
 
     /** Permanently raises the holder's maximum cyberware capacity on use. */
@@ -53,7 +53,6 @@ public final class CyberdeckItems {
                     .displayItems((parameters, output) -> {
                         output.accept(CYBERDECK.get());
                         output.accept(SLOP.get());
-                        output.accept(EMMIES.get());
                         output.accept(MONEY_SHARD.get());
                         output.accept(CYBERWARE_SHARD.get());
                         output.accept(QuicktimeBlocks.QUICKTIME_STATION_ITEM.get());
