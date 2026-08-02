@@ -6,15 +6,15 @@ Generated: 2026-08-01
 
 - Current working branch: `codex/district-patrol-enemies`
 - Remote tracking branch after publication: `origin/codex/district-patrol-enemies`
-- Current implementation HEAD: `d7010d0d0a8f83a57f6380cfcc18ad834a023af9`
+- Current implementation HEAD: `4afdef190093d5036f8a8adddf025141cbc4a183`
 - Parent feature branch: `codex/npc-voicelines-lifepaths` at
   `4b381ce0af55f6785910fafa7fab14d3815d0fd6`
 - Scanner/Trauma milestone branch: `codex/eye-implant-scanner-trauma` at `fb6633ba47fe5d893def098a690ecb2f91697435`
 - Current `origin/main`: `3ad54be5d795c2a5d9e2274f5b51c01f0faabdb4`
-- Relationship including this report update: 0 commits behind and 6 commits ahead of `origin/main`.
+- Relationship including this report update: 0 commits behind and 8 commits ahead of `origin/main`.
 - Latest installed test JAR: `cyberdeck-1.5.0.jar`
 - Installed JAR SHA-256 after the district-patrol overhaul:
-  `822f2e7463c59308dd6c975c48c009ad5e5baa4902de0dce2a4628b777a7a08d`
+  `ba3e692536cfae017e3accae8e7bd28df6b96484f9adee2651593fe190b998ab`
 
 The current branch descends from the scanner/Trauma branch, so it contains every scanner,
 Trauma Team, mission-integration, Excision, voiceline, lifepath, currency, shard-icon, dialogue,
@@ -47,6 +47,7 @@ feature, merge-resolution, and follow-up commits produced during this session.
 | `ba4bf14` | Direct feature | District patrol spawning, tactical skins, district identity, and Bulletproof Vest overhaul |
 | `4d762bf` | Direct follow-up | Exact 3/5 patrol squads, 30% reactive reinforcements, and groupwide skin diversity |
 | `d7010d0` | Direct integration | Current mainline quest stack, schema-2 mission compatibility, and patrol reconciliation |
+| `4afdef1` | Direct correction | Reliable original-style ambient patrol scheduling and placement |
 
 ## Integrated Feature Lineage
 
@@ -815,6 +816,48 @@ branch.
 - Corrected packaged artifact SHA-256:
   `822f2e7463c59308dd6c975c48c009ad5e5baa4902de0dce2a4628b777a7a08d`.
 
+### `4afdef1` - Reliable Ambient Patrol Restoration
+
+- Confirmed the zero-spawn report was reproducible in Creative because the sparse generator
+  excluded Creative players from population cells entirely.
+- Removed the one-in-four random gate and retained a 1,200-tick interval, producing one guaranteed
+  attempt per occupied cell per minute: half the original 600-tick rate instead of the replaced
+  system's four-minute average before placement failures.
+- Restored Creative players as valid drivers while continuing to ignore dead and spectator players.
+- Restored the original 26-46 block placement ring and 128-block multiplayer population cells.
+- Increased the local cap from five to 10 and loaded-world cap from 10 to 20, below the original
+  per-area cap of 12 while allowing two separated players to populate their areas.
+- Corrected the theoretical worst-case base-plus-reinforcement bound to 44 entities.
+- Retained exact three- or five-member squads, all-or-nothing insertion, unique squad skins,
+  district naming, Bulletproof Vests, lower ambient detection, and one 30% reinforcement roll.
+- Added 48 randomized street candidates plus a bounded 128-candidate deterministic perimeter
+  fallback, rather than abandoning the entire minute after one unusable anchor.
+- Tries all four formation rotations and falls from an unplaceable five-member formation to an
+  intact three-member formation at the same candidate.
+- Restored broad ground-level street placement for plazas, boulevards, local streets, service
+  alleys, parks, harbors, container ports, and validated Arnis pedestrian space.
+- Continues to reject interdistrict roads, bridges, elevated rail, highway buffers, canals, oceans,
+  border zones, farms, extraction sites, and wilderness.
+- Requires every formation member to share the anchor's sampled ground level and public-space
+  policy, preventing vertically split or rooftop squads.
+- Retained 24-block separation between patrol anchors.
+- Requires every formation member to remain at least 24 blocks from every active player.
+- Rejects unobstructed formations inside any player's forward view out to the full 160-block client
+  tracking distance, while allowing occluded or behind-camera placements so open streets can
+  populate reliably without visible pop-in.
+- Added regression coverage for the new interval, distance ring, cell size, local/global/reactive
+  bounds, Creative/dead/spectator eligibility, accepted public classes, and excluded infrastructure.
+- Final full Gradle build passed.
+- Final full NeoForge run passed all 74 required GameTests in 26.13 seconds.
+- Modernity megacity runtime verification spawned an intact five-member `A Corp. Soldier` patrol
+  from a Creative player through the normal level-tick event; all five were ambient entities.
+- Runtime sampling confirmed the patrol was on District A ground-level civilian space rather than
+  highway infrastructure, and no faction or server-tick exception occurred.
+- The managed client loaded and connected with the packaged build; capture SHA-256:
+  `2375a71bdfa92f281acbc8a84303592aaab580c39f07532ca7ed88d549afd472`.
+- Corrected packaged artifact SHA-256:
+  `ba3e692536cfae017e3accae8e7bd28df6b96484f9adee2651593fe190b998ab`.
+
 ## Multiplayer And Private Two-Player Review Summary
 
 - Scanner mode is per-player and synchronized from server-owned attachments.
@@ -832,16 +875,16 @@ branch.
 - Vendor anchors deduplicate and recreate one authoritative vendor entity.
 - Emerald and starter-item overflow drops reserve pickup for the intended recipient.
 - Trauma and Excision responders retain assigned target UUIDs and persistence metadata.
-- Ambient base population is deduplicated in 64-block player cells, capped at five locally and 10
+- Ambient base population is deduplicated in 128-block player cells, capped at 10 locally and 20
   globally, and kept separate from persistent mission populations.
 - Exact three/five deployment rules and all-or-nothing insertion prevent partial squads when two
   players consume population capacity concurrently.
 - Ambient patrols share alerts only inside their own three- or five-member patrol group.
 - Each group resolves at most one 30% reinforcement chance even when both players attack at once.
 - Mission reinforcement resolution survives unload/restart and remains isolated by contract
-  instance; ambient waves remain bounded by the 21-soldier worst-case reactive population.
-- Spawn concealment is checked against every non-spectator player, not just the player whose cell
-  initiated the attempt.
+  instance; ambient base-plus-wave population has a 44-entity theoretical global ceiling.
+- Placement distance is checked against every active player, and forward-view concealment is
+  checked through the 160-block client tracking range, not only against the cell representative.
 - No shared global lifepath, dialogue, scanner, or reward state can be overwritten by the second
   player.
 
@@ -868,6 +911,8 @@ branch.
   the replacement JAR was installed and hash-matched.
 - Mainline compatibility fix: merged current `origin/main`, passed all 74 required GameTests, and
   booted successfully with the exact persisted schema-2 story catalog that previously crashed.
+- Ambient restoration: final full build and all 74 GameTests passed; Creative-player runtime
+  verification produced intact three/five patrols on eligible District A ground-level space.
 - Each completed implementation commit was pushed to
   its named remote feature branch.
 - The final packaged JAR was installed in the local Minecraft `mods` directory and hash-matched to
@@ -923,6 +968,10 @@ branch.
 - Patrol destination validation constrains chosen endpoints; Minecraft pathfinding may still route
   across a narrow excluded road edge between two otherwise valid public endpoints.
 - Ambient patrols are deliberately unsaved and will be regenerated after chunk unload or restart.
+- Occluded and behind-camera patrols may enter the world 26-46 blocks away by design; unobstructed
+  patrols inside a player's forward view are rejected through the full tracking distance.
+- Each occupied population cell performs at most 176 anchor evaluations per minute, bounding the
+  deterministic street fallback's server-tick cost.
 - A squad gets one 30% reinforcement roll, not a fresh roll on every hit; this prevents automatic
   weapons and area damage from multiplying airborne drops.
 - The persistent non-ambient reinforcement ledger retains the newest 8,192 group UUIDs; extremely
