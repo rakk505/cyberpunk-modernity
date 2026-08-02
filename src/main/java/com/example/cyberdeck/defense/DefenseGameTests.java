@@ -148,6 +148,10 @@ final class DefenseGameTests {
     }
 
     static void turretPlacement(GameTestHelper helper) {
+        helper.runAtTickTime(1, () -> turretPlacementAfterStructureLoad(helper));
+    }
+
+    private static void turretPlacementAfterStructureLoad(GameTestHelper helper) {
         BlockPos floor = new BlockPos(1, 1, 1);
         BlockPos placement = floor.above();
         helper.setBlock(floor, Blocks.STONE);

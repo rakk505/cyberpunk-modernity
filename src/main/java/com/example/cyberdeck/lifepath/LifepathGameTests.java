@@ -142,12 +142,16 @@ public final class LifepathGameTests {
         helper.assertValueEqual(occupiedSlots(veteran), 0,
                 "rejected veteran inventory slots");
 
+        BlockPos overflowPosition = helper.absolutePos(new BlockPos(1, 2, 1));
+        overflow.snapTo(
+                overflowPosition.getX() + 0.5, overflowPosition.getY(),
+                overflowPosition.getZ() + 0.5, 0.0F, 0.0F);
         for (int slot = 0; slot < overflow.getInventory().getContainerSize(); slot++) {
             overflow.getInventory().setItem(slot, new ItemStack(Blocks.COBBLESTONE, 64));
         }
         helper.assertTrue(LifepathService.select(overflow, Lifepath.MERC.id()),
                 "full-inventory starter claim failed");
-        helper.succeedWhen(() -> {
+        helper.runAtTickTime(2, () -> {
             List<ItemEntity> overflowDrops = helper.getLevel().getEntitiesOfClass(
                     ItemEntity.class, overflow.getBoundingBox().inflate(2.0),
                     drop -> drop.getItem().is(WeaponItems.gun(GunType.ASSAULT_RIFLE).get())
@@ -166,6 +170,7 @@ public final class LifepathGameTests {
                     "Brawler state leaked into the Netrunner player");
             assertCount(helper, netrunner, WeaponItems.gun(GunType.TECH_SHOTGUN).get(), 0,
                     "cross-player Tech Shotgun count");
+            helper.succeed();
         });
     }
 

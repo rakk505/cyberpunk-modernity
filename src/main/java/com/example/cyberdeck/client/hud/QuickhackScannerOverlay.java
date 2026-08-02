@@ -3,6 +3,7 @@ package com.example.cyberdeck.client.hud;
 import com.example.cyberdeck.client.QuickhackScannerClient;
 import com.example.cyberdeck.client.QuickhackUploadClient;
 import com.example.cyberdeck.faction.FactionEnemy;
+import com.example.cyberdeck.faction.CyberpsychoEntity;
 import com.example.cyberdeck.npc.CityNpc;
 import com.example.cyberdeck.npc.NpcRole;
 import com.example.cyberdeck.ram.RamAttachments;
@@ -325,8 +326,16 @@ public final class QuickhackScannerOverlay implements GuiLayer {
 
         String name = trim(font, target.getName().getString().toUpperCase(Locale.ROOT), width - 14);
         graphics.text(font, name, x + 7, y + 18, CYAN_BRIGHT, false);
-        String affiliation = target instanceof FactionEnemy enemy
-                ? formatId(enemy.getFaction().id())
+        String affiliation = target instanceof CyberpsychoEntity
+                ? "CYBERPSYCHO"
+                : target instanceof FactionEnemy enemy && enemy.isTraumaTeam()
+                ? "TRAUMA TEAM"
+                : target instanceof FactionEnemy enemy && enemy.isExcision()
+                ? "EXCISION"
+                : target instanceof FactionEnemy enemy
+                ? enemy.getDistrict() == null
+                        ? "CORPORATE SECURITY"
+                        : enemy.getDistrict().label().toUpperCase(Locale.ROOT)
                 : target instanceof CityNpc ? "CITY DATABASE"
                 : target.getType().getDescription().getString().toUpperCase(Locale.ROOT);
         graphics.text(font, trim(font, affiliation, width - 14), x + 7, y + 29,
@@ -369,8 +378,17 @@ public final class QuickhackScannerOverlay implements GuiLayer {
         if (target instanceof CityNpc npc) {
             return formatId(npc.getRole().id());
         }
+        if (target instanceof CyberpsychoEntity) {
+            return "CYBERPSYCHO";
+        }
+        if (target instanceof FactionEnemy enemy && enemy.isTraumaTeam()) {
+            return "TRAUMA RESPONDER";
+        }
+        if (target instanceof FactionEnemy enemy && enemy.isExcision()) {
+            return "EXCISION AGENT";
+        }
         if (target instanceof FactionEnemy) {
-            return "FACTION SOLDIER";
+            return "CORPORATE SOLDIER";
         }
         return target.getType().getDescription().getString().toUpperCase(Locale.ROOT);
     }

@@ -4,19 +4,21 @@ Generated: 2026-08-01
 
 ## Branch And Repository State
 
-- Current working branch: `codex/npc-voicelines-lifepaths`
-- Remote tracking branch: `origin/codex/npc-voicelines-lifepaths`
-- Current implementation HEAD: `c68e7c7964c6af051d96e1a1d528a8d28d9a7e81`
+- Current working branch: `codex/district-patrol-enemies`
+- Remote tracking branch after publication: `origin/codex/district-patrol-enemies`
+- Current implementation HEAD: `4afdef190093d5036f8a8adddf025141cbc4a183`
+- Parent feature branch: `codex/npc-voicelines-lifepaths` at
+  `4b381ce0af55f6785910fafa7fab14d3815d0fd6`
 - Scanner/Trauma milestone branch: `codex/eye-implant-scanner-trauma` at `fb6633ba47fe5d893def098a690ecb2f91697435`
-- Current `origin/main` integrated by this branch: `e178028ca7191ae421b8083a4fdf51923a22f07e`
-- Relationship including this report update: 0 commits behind and 18 commits ahead of `origin/main`
+- Current `origin/main`: `3ad54be5d795c2a5d9e2274f5b51c01f0faabdb4`
+- Relationship including this report update: 0 commits behind and 8 commits ahead of `origin/main`.
 - Latest installed test JAR: `cyberdeck-1.5.0.jar`
-- Installed JAR SHA-256 after the district-dialogue expansion:
-  `edac02f2b7a40bd9e9a2e6bb5626daea12e493124a724ad7e0624f49bb760401`
+- Installed JAR SHA-256 after the district-patrol overhaul:
+  `ba3e692536cfae017e3accae8e7bd28df6b96484f9adee2651593fe190b998ab`
 
 The current branch descends from the scanner/Trauma branch, so it contains every scanner,
 Trauma Team, mission-integration, Excision, voiceline, lifepath, currency, shard-icon, dialogue,
-and turret-orientation change described below.
+turret-orientation, and district-patrol change described below.
 
 ## Commit Map
 
@@ -42,6 +44,10 @@ feature, merge-resolution, and follow-up commits produced during this session.
 | `925a1e2` | Direct correction | Resident dialogue moved from attack to right-click |
 | `782cc34` | Direct correction | Thin turret barrel aligned with the firing direction |
 | `c68e7c7` | Direct feature | District A, E, and N authored voiceline pools and routing |
+| `ba4bf14` | Direct feature | District patrol spawning, tactical skins, district identity, and Bulletproof Vest overhaul |
+| `4d762bf` | Direct follow-up | Exact 3/5 patrol squads, 30% reactive reinforcements, and groupwide skin diversity |
+| `d7010d0` | Direct integration | Current mainline quest stack, schema-2 mission compatibility, and patrol reconciliation |
+| `4afdef1` | Direct correction | Reliable original-style ambient patrol scheduling and placement |
 
 ## Integrated Feature Lineage
 
@@ -587,6 +593,271 @@ branch.
 - No rendering or subtitle-layout code changed, so no new visual capture was required.
 - Installed the verified `cyberdeck-1.5.0.jar` in the local Minecraft client.
 
+### `ba4bf14` + `4d762bf` - District Patrol Enemy Overhaul
+
+#### Sparse public-area patrol generation
+
+- Restricted ambient corporate patrol generation to the Neon Megacity overworld.
+- Excluded dead, creative, and spectator players from driving ambient patrol population.
+- Increased the spawn evaluation interval from 600 to 1,200 ticks.
+- Added a one-in-four probability gate to each population-cell evaluation.
+- This produces an average successful evaluation opportunity of roughly once every four minutes
+  per continuously occupied cell before location, concealment, and population checks.
+- Generates only intact three- or five-soldier squads; population limits never clip a deployment
+  into a one-, two-, or four-member partial group.
+- Selects between the authored three- and five-member formations after capacity checks; a remaining
+  capacity of four falls back to an intact three-member squad.
+- Set the local ambient base-population cap to five soldiers inside 96 blocks.
+- Set the loaded-world ambient base-population cap to 10 soldiers.
+- Added an explicit worst-case reactive ambient bound of 21 loaded soldiers: three base squads of
+  three plus one four-member reinforcement wave from each squad.
+- Added 24-block separation between ambient patrol anchors.
+- Changed player population cells from 128 to 64 blocks so two nearby players cannot starve one
+  another's local population budget while occupying the same oversized cell.
+- Retained deterministic world/epoch/cell seeding and stable UUID-based player representatives.
+- Moved candidate spawn distance from 26-46 blocks to 48-72 blocks from the driving player.
+- Increased anchor search attempts to handle the stricter public-area policy.
+- Required every candidate member to be at least 48 blocks from every non-spectator player.
+- Required every candidate member to be outside every non-spectator player's line of sight.
+- Kept collision, world-border, floor-support, headroom, and all-or-nothing formation validation.
+- Rollback still discards every member if any insertion fails, preventing partial pseudo-squads.
+- Allowed ambient patrol anchors only on central plazas, district boulevards, local streets, and
+  parks.
+- Explicitly excluded service alleys, interdistrict roads, bridges, elevated rail, and highway
+  buffers.
+- Explicitly excluded outskirts, walled borders, forest borders, cliff borders, and wilderness.
+- Validated every member position against the same public-area policy rather than checking only
+  the formation anchor.
+- Logged successful ambient deployments by district rather than by hidden weapon faction.
+
+#### Patrol behavior and lifecycle
+
+- Retained a compact 12-block home patrol radius instead of creating roaming enemy clusters.
+- Added patrol-destination validation for ambient enemies.
+- Ambient patrol destinations must remain in the soldier's original district.
+- Ambient patrol destinations must remain in an approved public road/park class.
+- Authored mission patrol routes retain their existing behavior and are not constrained by the
+  ambient destination predicate.
+- Ambient patrols are intentionally not serialized into the world save.
+- Ambient patrols retire after 600 ticks with no player inside 128 blocks.
+- Mission, Trauma Team, Excision, and cyberpsycho actors remain persistent under their existing
+  rules.
+- Added legacy deployment inference so old naturally generated, nonpersistent soldiers migrate to
+  ambient lifecycle behavior without misclassifying Trauma, Excision, or cyberpsycho actors.
+
+#### District identity and tactical appearance
+
+- Replaced the ordinary Steve fallback with eight original 64x64 wide-player tactical skins.
+- Added olive, charcoal, and black uniforms with restrained yellow identification accents.
+- Added distinct helmets, patrol caps, balaclavas, goggles, red optics, headsets, rolled sleeves,
+  load-bearing webbing, gloves, cargo trousers, knee pads, and boots across the variants.
+- Kept dedicated Cyberpsycho, Trauma Team, and Excision texture precedence intact.
+- Added synchronized and persisted skin-variant state.
+- Assigns tactical variants without replacement inside every generated three- or five-member
+  patrol, so no base-squad members share a skin.
+- Makes ordinary nearby soldiers prefer the least-used local variant instead of independent random
+  duplication.
+- Makes mission guards exhaust all eight variants before balanced reuse in larger deployments.
+- Gives every four-member reinforcement wave four distinct variants.
+- A three-member squad plus its wave uses seven unique skins; a five-member squad plus its wave
+  exhausts all eight variants before the one unavoidable repeat.
+- Added stable UUID-hash skin migration for old saved soldiers without a skin field.
+- Added synchronized and persisted district identity derived from the entity's world position.
+- Added district migration for old saves without a district field.
+- Replaced generic `Corpo Soldier` naming with district naming such as `O Corp. Soldier`.
+- Preserved custom mission names, named cyberpsychos, `Excision Agent`, and the dedicated
+  `Trauma Team Responder` name.
+- Updated scanner affiliation from hidden Arasaka/Militech/Kang Tao loadout data to the visible
+  district identity.
+- Added scanner-specific Cyberpsycho, Trauma Team, and Excision identity handling.
+- Added `EXCISION AGENT` to the scanner TYPE row instead of falling through to Corporate Soldier.
+- Added a deterministic standard-library generator for all tactical and vest textures.
+- Recorded the supplied tactical image as broad visual direction only; no source pixels, logos,
+  or character designs are redistributed.
+
+#### Bulletproof Vest and retained combat stats
+
+- Removed Arasaka, Militech, and Kang Tao helmet, leggings, boots, and full-body armor from every
+  newly generated faction loadout.
+- Kept all legacy branded armor items registered so old saves and inventories still deserialize.
+- Removed legacy branded armor from the mod's creative-tab equipment listing.
+- Added the player-facing `Bulletproof Vest` item.
+- Applied the requested black leather dye value `#1D1D21`.
+- Added a body-only worn equipment texture so the vest does not cover tactical sleeves or legs.
+- Added an inventory model using the dyed leather chestplate presentation.
+- Added carrier straps, MOLLE rows, pockets, utility belt, clasp, and back-panel detail.
+- Added no enchantment and no enchantment glint.
+- Added explicit 30% reduction for damage tagged as a projectile while the vest is worn.
+- Applied vest mitigation server-side to any living wearer, including players and NPCs.
+- Added a dedicated hitscan `cyberdeck:bullet` damage type.
+- Tagged hitscan bullets as Minecraft projectile damage so the vest protects against guns as well
+  as physical arrows and other tagged projectiles.
+- Preserved Mantis Blade attacks as melee damage instead of misclassifying them as bullets.
+- Added shooter-attributed bullet death messages, including the held-item variant.
+- Moved the old four-piece armor values to invisible entity attribute modifiers.
+- Preserved exact light totals: 15 armor, 8 armor toughness, and 0.20 knockback resistance.
+- Preserved exact heavy totals: 20 armor, 12 armor toughness, and 0.60 knockback resistance.
+- Made the hidden modifiers transient, ID-stable, and idempotent so reload/equip calls cannot stack
+  duplicate bonuses.
+- Persisted the selected light/heavy ballistic tier and reapplied it after entity load.
+- Preserved existing cyberpsycho base defenses while adding the selected ballistic profile.
+- Migrated complete legacy branded loadouts to the vest-only presentation on load.
+- Preserved a damaged current vest as-is on reload rather than repairing or recreating it.
+- A missing or broken vest is not silently recreated from a saved ballistic tier.
+- Set the vest drop chance to 28%, approximately preserving the former chance that at least one of
+  four independently droppable 8% armor pieces would drop.
+
+#### Ambient-versus-mission awareness and multiplayer isolation
+
+- Added explicit ambient-deployment state synchronized to clients and retained for server logic.
+- Reduced ambient detection range to 14 blocks.
+- Retained the stronger 24-block detection range for gigs, missions, and authored hostile actors.
+- Reduced ambient ally-alert radius to 10 blocks.
+- Retained the 20-block mission ally-alert radius.
+- Added a shared UUID alert group for each generated ambient patrol.
+- Restricted ally alerts to the same hidden loadout faction, deployment class, and alert-group UUID.
+- Assigned mission actors their contract instance UUID as the alert group.
+- Prevented nearby guards belonging to two players' separate contracts from cross-alerting.
+- Added load-time recovery from the pre-overhaul `cyberdeck_mission_instance` field so already
+  active two-player contracts also gain alert isolation after updating.
+- Replaced the old Kang Tao-only, detection-count trigger with one 30% airborne reinforcement roll
+  when a player first successfully attacks any ordinary equipped corporate squad.
+- Kept the drop at four soldiers and applies it to both ambient patrols and mission guards.
+- Consumes the roll for the entire alert group before random evaluation or entity insertion, so
+  simultaneous hits, area damage, and the newly spawned soldiers cannot create duplicate waves.
+- Persists resolved non-ambient alert-group UUIDs in overworld saved data, preventing a mission
+  squad from rerolling after members unload or the server restarts.
+- Stores the resolved state on loaded entities as a fast path and as the complete lifecycle state
+  for deliberately unsaved ambient patrols.
+- Excludes Cyberpsycho, Trauma Team, and Excision actors from ordinary corporate reinforcements.
+- Makes each wave inherit the source squad's faction, district, home, alert group, ambient profile,
+  and current player target.
+- Makes mission waves inherit actor owner, definition, instance, guard role, and persistence tags,
+  so contract success, failure, and abandonment remove them with the source guards.
+- Covers direct player melee, gun, and projectile damage plus damaging Overheat, Contagion,
+  Cyberpsychosis, Detonate, incendiary-grenade, and poison-grenade paths.
+- Ignores creative/spectator attackers and enemy-owned grenade effects.
+- Kept all mutable patrol, detection, target, and retirement state on the server.
+
+#### Regression and visual verification
+
+- Expanded the deterministic patrol-plan GameTest for the 1,200-tick interval, one-in-four gate,
+  exact three/five sizes, intact capacity fallback, local cap, loaded-world cap, worst-case reactive
+  bound, and unique formations.
+- Added public-road acceptance assertions.
+- Added service-alley, interdistrict-road, bridge, elevated-rail, and highway-buffer rejection
+  assertions.
+- Added exact light/heavy armor, toughness, and knockback assertions.
+- Added a modifier idempotency assertion.
+- Added vest-only equipment and empty head/legs/feet assertions.
+- Added exact black dye and no-foil assertions.
+- Added exact `O Corp. Soldier` name coverage.
+- Added ambient/mission detection-range and persistence assertions.
+- Added separate-contract alert-group isolation coverage.
+- Added exact 30% boundary assertions and unrelated-null-group isolation coverage.
+- Added deterministic four-member reinforcement deployment coverage.
+- Added faction, district, alert-group, persistence, and mission-cleanup inheritance assertions.
+- Added entity-state and saved-data rejection of a second group roll.
+- Added direct-player-damage and damaging-quickhack retaliation-path coverage.
+- Added deterministic skin uniqueness for three- and five-member base squads, reinforcement waves,
+  combined encounters, and two full mission-guard skin cycles.
+- Added a real registered bullet damage-type projectile-tag assertion.
+- Added a server damage comparison proving vest mitigation.
+- Converted the new entity fixtures to GameTest-relative absolute positions to avoid cross-test
+  contamination.
+- Increased the complete suite from 69 to 70 required tests.
+- Final full Gradle build passed.
+- Stabilized pre-existing Lifepath overflow-drop and turret-placement tests by waiting for the
+  GameTest structure/entity manager instead of asserting at tick zero; production behavior was not
+  changed by those test-only adjustments.
+- Final full NeoForge run passed all 70 required GameTests in 11.66 seconds.
+- Modernity client captures verified tactical variants 0-3, variants 4-7, headgear/optic UVs,
+  visible tactical sleeves, and body-only vest geometry.
+- Modernity RCON staging resolved generated names as `O Corp. Soldier` and `N Corp. Soldier`.
+- Capture 0-3 SHA-256:
+  `17af5671a1bab37de01bbde69e9e8a4c6de5191d4a31a4040ed6b96cc7dbfab6`.
+- Capture 4-7 SHA-256:
+  `9feef7d3949ad1125a58fc9e6d89a0694163b78fa2b203281033fdb6fe47aa05`.
+- Final five-member O Corp squad capture SHA-256:
+  `a07ebc764f99e7bc42f785ae056605f9398c947b92fdb4c6a4cc84ed99cbb0c6`.
+- Installed artifact and sandbox artifact both hash to
+  `368d5ec4d200ce2a6fc06511e82a06ab81f5cfebf59e203a21c062d190a756b6`.
+
+### `d7010d0` - Current Mainline Mission Integration And Crash Fix
+
+- Diagnosed the integrated-server crash as a code/config version mismatch rather than malformed
+  user data.
+- Confirmed the installed `story_missions.json` is schema 2 and byte-identical to the current
+  `origin/main` bundled story catalog, SHA-256
+  `a21dbe320d7119acad8be02e1f13e52e21515004ba4c72e1298bf852008c1c4c`.
+- Confirmed the prior branch JAR accepted only schema 1 and failed before parsing any mission or
+  character entry with `unsupported story mission schema`.
+- Merged all seven commits previously missing from `origin/main` instead of deleting or
+  downgrading the valid configuration.
+- Restored the schema-2 story catalog, mainline characters, node DAG, generated mainline sites,
+  mission-specific guard scaling, story acceptance packet, urban systems, and fixed-seed startup
+  stabilization.
+- Retained schema-1 migration: older files are backed up and replaced by the bundled schema-2
+  catalog on first load.
+- Reconciled mainline guards with district tactical skins, hidden ballistic stats, mission-instance
+  alert groups, the one-time reinforcement ledger, and contract cleanup inheritance.
+- Preserved Fog Mother rendering precedence ahead of ordinary tactical skin selection.
+- Preserved the Lifepath overflow timing stabilization while accepting mainline's current Merc ammo
+  definition.
+- Full Gradle build passed.
+- All 74 required NeoForge GameTests passed in 23.82 seconds.
+- A dedicated server booted to ready state in 9.13 seconds using the exact schema-2 configuration
+  that caused the client crash.
+- Startup logged five loaded story missions with no schema or configuration error.
+- The managed Minecraft client loaded the merged mod, connected to that server, and rendered the
+  existing five-member tactical patrol successfully.
+- Schema-2 client-load capture SHA-256:
+  `dbb9c45650ee77258678aa8e067213b7d92d31ed10457d188f5308946dd96ddf`.
+- Corrected packaged artifact SHA-256:
+  `822f2e7463c59308dd6c975c48c009ad5e5baa4902de0dce2a4628b777a7a08d`.
+
+### `4afdef1` - Reliable Ambient Patrol Restoration
+
+- Confirmed the zero-spawn report was reproducible in Creative because the sparse generator
+  excluded Creative players from population cells entirely.
+- Removed the one-in-four random gate and retained a 1,200-tick interval, producing one guaranteed
+  attempt per occupied cell per minute: half the original 600-tick rate instead of the replaced
+  system's four-minute average before placement failures.
+- Restored Creative players as valid drivers while continuing to ignore dead and spectator players.
+- Restored the original 26-46 block placement ring and 128-block multiplayer population cells.
+- Increased the local cap from five to 10 and loaded-world cap from 10 to 20, below the original
+  per-area cap of 12 while allowing two separated players to populate their areas.
+- Corrected the theoretical worst-case base-plus-reinforcement bound to 44 entities.
+- Retained exact three- or five-member squads, all-or-nothing insertion, unique squad skins,
+  district naming, Bulletproof Vests, lower ambient detection, and one 30% reinforcement roll.
+- Added 48 randomized street candidates plus a bounded 128-candidate deterministic perimeter
+  fallback, rather than abandoning the entire minute after one unusable anchor.
+- Tries all four formation rotations and falls from an unplaceable five-member formation to an
+  intact three-member formation at the same candidate.
+- Restored broad ground-level street placement for plazas, boulevards, local streets, service
+  alleys, parks, harbors, container ports, and validated Arnis pedestrian space.
+- Continues to reject interdistrict roads, bridges, elevated rail, highway buffers, canals, oceans,
+  border zones, farms, extraction sites, and wilderness.
+- Requires every formation member to share the anchor's sampled ground level and public-space
+  policy, preventing vertically split or rooftop squads.
+- Retained 24-block separation between patrol anchors.
+- Requires every formation member to remain at least 24 blocks from every active player.
+- Rejects unobstructed formations inside any player's forward view out to the full 160-block client
+  tracking distance, while allowing occluded or behind-camera placements so open streets can
+  populate reliably without visible pop-in.
+- Added regression coverage for the new interval, distance ring, cell size, local/global/reactive
+  bounds, Creative/dead/spectator eligibility, accepted public classes, and excluded infrastructure.
+- Final full Gradle build passed.
+- Final full NeoForge run passed all 74 required GameTests in 26.13 seconds.
+- Modernity megacity runtime verification spawned an intact five-member `A Corp. Soldier` patrol
+  from a Creative player through the normal level-tick event; all five were ambient entities.
+- Runtime sampling confirmed the patrol was on District A ground-level civilian space rather than
+  highway infrastructure, and no faction or server-tick exception occurred.
+- The managed client loaded and connected with the packaged build; capture SHA-256:
+  `2375a71bdfa92f281acbc8a84303592aaab580c39f07532ca7ed88d549afd472`.
+- Corrected packaged artifact SHA-256:
+  `ba3e692536cfae017e3accae8e7bd28df6b96484f9adee2651593fe190b998ab`.
+
 ## Multiplayer And Private Two-Player Review Summary
 
 - Scanner mode is per-player and synchronized from server-owned attachments.
@@ -599,9 +870,21 @@ branch.
 - Contract terminal state prevents duplicate settlement.
 - Tagged cargo prevents one player's ordinary matching items from satisfying contract cargo.
 - Mission actors/objectives use durable instance IDs and owner/party context.
+- Mission enemy alerts now use those instance IDs and recover them from older active-contract
+  saves, preventing nearby two-player contracts from sharing aggro.
 - Vendor anchors deduplicate and recreate one authoritative vendor entity.
 - Emerald and starter-item overflow drops reserve pickup for the intended recipient.
 - Trauma and Excision responders retain assigned target UUIDs and persistence metadata.
+- Ambient base population is deduplicated in 128-block player cells, capped at 10 locally and 20
+  globally, and kept separate from persistent mission populations.
+- Exact three/five deployment rules and all-or-nothing insertion prevent partial squads when two
+  players consume population capacity concurrently.
+- Ambient patrols share alerts only inside their own three- or five-member patrol group.
+- Each group resolves at most one 30% reinforcement chance even when both players attack at once.
+- Mission reinforcement resolution survives unload/restart and remains isolated by contract
+  instance; ambient base-plus-wave population has a 44-entity theoretical global ceiling.
+- Placement distance is checked against every active player, and forward-view concealment is
+  checked through the 160-block client tracking range, not only against the cell representative.
 - No shared global lifepath, dialogue, scanner, or reward state can be overwritten by the second
   player.
 
@@ -620,8 +903,18 @@ branch.
   documented above.
 - District-dialogue expansion: all 47 supplied lines matched the source text, full build passed,
   final full run passed 69/69 required GameTests, and the verified JAR was installed.
+- District patrol overhaul: final full build passed; all 70 required GameTests passed; two real
+  client-rendered capture groups verified all eight skins and vest geometry; the installed JAR
+  hash matched the validated sandbox artifact.
+- Reactive-squad follow-up: full build passed; all 70 required GameTests passed; a real
+  client-rendered five-member O Corp formation verified five distinct tactical skins and vests;
+  the replacement JAR was installed and hash-matched.
+- Mainline compatibility fix: merged current `origin/main`, passed all 74 required GameTests, and
+  booted successfully with the exact persisted schema-2 story catalog that previously crashed.
+- Ambient restoration: final full build and all 74 GameTests passed; Creative-player runtime
+  verification produced intact three/five patrols on eligible District A ground-level space.
 - Each completed implementation commit was pushed to
-  `origin/codex/npc-voicelines-lifepaths`.
+  its named remote feature branch.
 - The final packaged JAR was installed in the local Minecraft `mods` directory and hash-matched to
   the verified sandbox artifact.
 
@@ -660,6 +953,26 @@ branch.
 
 ### Test infrastructure
 
-- Several integration tests assert entity/drop availability on tick zero or tick one and are
-  intermittently sensitive to GameTest entity-manager scheduling.
-- Those unrelated tests were left unchanged during the client-only turret orientation correction.
+- The Lifepath overflow and turret-placement fixtures now defer their assertions until their test
+  structure and spawned entities are visible to the server entity manager.
+- One unrelated detection-decay fixture remained timing-sensitive during an intermediate aggregate
+  attempt; the subsequent complete 70-test run passed.
+
+### District patrol compatibility and runtime coverage
+
+- A legacy soldier with only part of an old branded armor set remaining is migrated using the
+  detected tier and may regain that tier's complete hidden defense profile; complete generated
+  sets migrate exactly.
+- Patrol spawn concealment, retirement, and the loaded-world cap are server-authoritative but do
+  not yet have a two-real-client automated integration test.
+- Patrol destination validation constrains chosen endpoints; Minecraft pathfinding may still route
+  across a narrow excluded road edge between two otherwise valid public endpoints.
+- Ambient patrols are deliberately unsaved and will be regenerated after chunk unload or restart.
+- Occluded and behind-camera patrols may enter the world 26-46 blocks away by design; unobstructed
+  patrols inside a player's forward view are rejected through the full tracking distance.
+- Each occupied population cell performs at most 176 anchor evaluations per minute, bounding the
+  deterministic street fallback's server-tick cost.
+- A squad gets one 30% reinforcement roll, not a fresh roll on every hit; this prevents automatic
+  weapons and area damage from multiplying airborne drops.
+- The persistent non-ambient reinforcement ledger retains the newest 8,192 group UUIDs; extremely
+  old completed group entries are evicted to keep world-save growth bounded.

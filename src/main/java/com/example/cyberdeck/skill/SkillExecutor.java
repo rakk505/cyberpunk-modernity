@@ -34,9 +34,9 @@ public final class SkillExecutor {
             case OVERHEAT -> overheat(caster, target, level);
             case CRIPPLE -> cripple(target);
             case SHORT_CIRCUIT -> shortCircuit(target);
-            case CONTAGION -> contagion(target, level, true);
+            case CONTAGION -> contagion(caster, target, level, true);
             case WEAPON_GLITCH -> weaponGlitch(target, level);
-            case CYBERPSYCHOSIS -> cyberpsychosis(target, level);
+            case CYBERPSYCHOSIS -> cyberpsychosis(caster, target, level);
             case DETONATE -> detonate(caster, target, level);
             case STANDBY -> {
                 // no-op
@@ -51,7 +51,10 @@ public final class SkillExecutor {
                         .quickhackDamageMultiplier(caster);
         target.igniteForSeconds(4.0f);
         DamageSource source = level.damageSources().onFire();
-        target.hurtServer(level, source, damage);
+        boolean hurt = target.hurtServer(level, source, damage);
+        if (hurt && target instanceof FactionEnemy enemy) {
+            enemy.onSuccessfulPlayerAttack(level, caster);
+        }
         level.sendParticles(ParticleTypes.FLAME,
                 target.getX(), target.getY() + target.getBbHeight() * 0.5, target.getZ(),
                 20, 0.3, 0.4, 0.3, 0.02);
@@ -73,8 +76,13 @@ public final class SkillExecutor {
 
     // green concrete (Contagion): poison 5s; nearby entities within 5 blocks have 50% chance to also
     // get Contagion (but those cannot spread it further).
-    private static void contagion(LivingEntity target, ServerLevel level, boolean canSpread) {
-        target.addEffect(new MobEffectInstance(MobEffects.POISON, 5 * 20, 0, false, true));
+    private static void contagion(
+            ServerPlayer caster, LivingEntity target, ServerLevel level, boolean canSpread) {
+        boolean applied = target.addEffect(
+                new MobEffectInstance(MobEffects.POISON, 5 * 20, 0, false, true));
+        if (applied && target instanceof FactionEnemy enemy) {
+            enemy.onSuccessfulPlayerAttack(level, caster);
+        }
         level.sendParticles(ParticleTypes.SNEEZE,
                 target.getX(), target.getY() + target.getBbHeight() * 0.5, target.getZ(),
                 12, 0.3, 0.4, 0.3, 0.02);
@@ -86,7 +94,7 @@ public final class SkillExecutor {
                 e -> e != target && e.isAlive());
         for (LivingEntity other : nearby) {
             if (level.getRandom().nextFloat() < 0.5f) {
-                contagion(other, level, false);
+                contagion(caster, other, level, false);
             }
         }
     }
@@ -109,12 +117,17 @@ public final class SkillExecutor {
     }
 
     // red concrete (Cyberpsychosis): mob becomes hostile to nearby mobs; if none within 5 blocks, it dies.
-    private static void cyberpsychosis(LivingEntity target, ServerLevel level) {
+    private static void cyberpsychosis(
+            ServerPlayer caster, LivingEntity target, ServerLevel level) {
         AABB area = target.getBoundingBox().inflate(5.0);
         List<Mob> nearby = level.getEntitiesOfClass(Mob.class, area,
                 e -> e != target && e.isAlive() && !(e instanceof CityNpc));
         if (nearby.isEmpty()) {
-            target.hurtServer(level, level.damageSources().magic(), Float.MAX_VALUE);
+            boolean hurt = target.hurtServer(
+                    level, level.damageSources().magic(), Float.MAX_VALUE);
+            if (hurt && target instanceof FactionEnemy enemy) {
+                enemy.onSuccessfulPlayerAttack(level, caster);
+            }
             level.sendParticles(ParticleTypes.LARGE_SMOKE,
                     target.getX(), target.getY() + target.getBbHeight() * 0.5, target.getZ(),
                     20, 0.3, 0.4, 0.3, 0.02);
@@ -143,6 +156,7 @@ public final class SkillExecutor {
 
     // yellow concrete (Detonate): explosion where the mob stands; creepers explode 2-3x larger.
     private static void detonate(ServerPlayer caster, LivingEntity target, ServerLevel level) {
+        float healthBefore = target.getHealth();
         float radius = 3.0f;
         if (target instanceof Creeper) {
             // Creeper base explosion power is ~3; make it 2-3x larger.
@@ -150,11 +164,15 @@ public final class SkillExecutor {
         }
         level.explode(null, target.getX(), target.getY(), target.getZ(),
                 radius, Level.ExplosionInteraction.MOB);
+        boolean hurt = !target.isAlive() || target.getHealth() < healthBefore;
         if (target.isAlive()) {
-            target.hurtServer(level,
+            hurt |= target.hurtServer(level,
                     level.damageSources().explosion((net.minecraft.world.entity.Entity) null, null),
                     radius * 2.0f * (float) com.example.cyberdeck.effect.CyberwareEffects
                             .quickhackDamageMultiplier(caster));
+        }
+        if (hurt && target instanceof FactionEnemy enemy) {
+            enemy.onSuccessfulPlayerAttack(level, caster);
         }
     }
 

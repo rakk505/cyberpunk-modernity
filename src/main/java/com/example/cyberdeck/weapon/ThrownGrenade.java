@@ -1,5 +1,6 @@
 package com.example.cyberdeck.weapon;
 
+import com.example.cyberdeck.faction.FactionEnemy;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
@@ -8,6 +9,7 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.throwableitemprojectile.ThrowableItemProjectile;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -62,6 +64,7 @@ public final class ThrownGrenade extends ThrowableItemProjectile {
 
     private void detonate(ServerLevel level, Vec3 center, GrenadeType type) {
         double r = type.radius();
+        Player playerOwner = getOwner() instanceof Player player ? player : null;
         AABB area = new AABB(center, center).inflate(r);
         List<LivingEntity> victims = level.getEntitiesOfClass(LivingEntity.class, area,
                 e -> e.isAlive() && e.distanceToSqr(center) <= r * r);
@@ -83,7 +86,11 @@ public final class ThrownGrenade extends ThrowableItemProjectile {
                     // igniteForSeconds already respects water/rain, so victims standing in water
                     // won't catch fire; ignited entities burn out on their own with no world fire.
                     victim.igniteForSeconds(type.effectDurationTicks() / 20);
-                    victim.hurtServer(level, this.damageSources().onFire(), 3.0f);
+                    boolean hurt = victim.hurtServer(
+                            level, this.damageSources().onFire(), 3.0f);
+                    if (hurt && playerOwner != null && victim instanceof FactionEnemy enemy) {
+                        enemy.onSuccessfulPlayerAttack(level, playerOwner);
+                    }
                 }
             }
             case POISON -> {
@@ -95,10 +102,13 @@ public final class ThrownGrenade extends ThrowableItemProjectile {
                 level.playSound(null, center.x, center.y, center.z,
                         SoundEvents.BREWING_STAND_BREW, SoundSource.NEUTRAL, 1.2f, 0.7f);
                 for (LivingEntity victim : victims) {
-                    victim.addEffect(new MobEffectInstance(
+                    boolean poisoned = victim.addEffect(new MobEffectInstance(
                             MobEffects.POISON, type.effectDurationTicks(), 1, false, true, true));
                     victim.addEffect(new MobEffectInstance(
                             MobEffects.SLOWNESS, type.effectDurationTicks() / 2, 0, false, true, true));
+                    if (poisoned && playerOwner != null && victim instanceof FactionEnemy enemy) {
+                        enemy.onSuccessfulPlayerAttack(level, playerOwner);
+                    }
                 }
             }
         }

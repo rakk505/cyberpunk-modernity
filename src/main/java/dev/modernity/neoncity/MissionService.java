@@ -2117,6 +2117,7 @@ public final class MissionService {
         guard.setHome(position);
         guard.setPatrolRoute(patrolRoute);
         guard.setPersistenceRequired();
+        tagActor(guard, player, definition, ROLE_GUARD);
         if (contractContext(player).map(context -> MainlineQuestService.isActiveMainline(
                         level, context, definition.id()))
                 .orElse(false)) {
@@ -2124,7 +2125,6 @@ public final class MissionService {
         } else {
             FactionSquads.equip(guard, Faction.ARASAKA, random);
         }
-        tagActor(guard, player, definition, ROLE_GUARD);
         if (level.noCollision(guard) && addMissionActor(level, guard)) return guard;
         guard.discard();
         return null;
@@ -2247,6 +2247,22 @@ public final class MissionService {
                 .stream().findFirst().orElse(null);
     }
 
+    /** Makes an airborne reinforcement part of the source guard's contract cleanup lifecycle. */
+    public static void inheritGuardActor(FactionEnemy source, FactionEnemy reinforcement) {
+        CompoundTag sourceData = source.getPersistentData();
+        if (!sourceData.getBoolean(ACTOR_TAG).orElse(false)) {
+            return;
+        }
+        CompoundTag targetData = reinforcement.getPersistentData();
+        targetData.putBoolean(ACTOR_TAG, true);
+        targetData.putString(ACTOR_OWNER, sourceData.getString(ACTOR_OWNER).orElse(""));
+        targetData.putString(
+                ACTOR_DEFINITION, sourceData.getString(ACTOR_DEFINITION).orElse(""));
+        targetData.putString(ACTOR_INSTANCE, sourceData.getString(ACTOR_INSTANCE).orElse(""));
+        targetData.putString(ACTOR_ROLE, ROLE_GUARD);
+        reinforcement.setPersistenceRequired();
+    }
+
     private static void tagActor(
             Entity entity,
             ServerPlayer player,
@@ -2271,6 +2287,9 @@ public final class MissionService {
         data.putString(ACTOR_DEFINITION, definition.id());
         data.putString(ACTOR_ROLE, role);
         data.putString(ACTOR_INSTANCE, context.instanceId().toString());
+        if (entity instanceof FactionEnemy enemy) {
+            enemy.setAlertGroupId(context.instanceId());
+        }
     }
 
     private static ActiveMission withActor(ActiveMission mission, UUID actor) {

@@ -1,0 +1,15 @@
+{
+  "layers": {
+    "humanoid": [
+      {
+        "dyeable": {
+          "color_when_undyed": -14869215
+        },
+        "texture": "cyberdeck:bulletproof_vest"
+      },
+      {
+        "texture": "cyberdeck:bulletproof_vest_overlay"
+      }
+    ]
+  }
+}

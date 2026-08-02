@@ -25,9 +25,11 @@ import com.example.cyberdeck.effect.SandevistanState;
 import com.example.cyberdeck.effect.CyberwareEffects;
 import com.example.cyberdeck.effect.DoubleJumpGuard;
 import com.example.cyberdeck.economy.Emmies;
+import com.example.cyberdeck.faction.Faction;
 import com.example.cyberdeck.faction.FactionEnemy;
 import com.example.cyberdeck.faction.FactionEntities;
 import com.example.cyberdeck.faction.FactionSpawns;
+import com.example.cyberdeck.faction.FactionSquads;
 import com.example.cyberdeck.faction.TacticalManeuver;
 import com.example.cyberdeck.healing.HealingConsumable;
 import com.example.cyberdeck.healing.HealingState;
@@ -44,6 +46,7 @@ import com.example.cyberdeck.trauma.TraumaTeamEvents;
 import com.example.cyberdeck.player.StreetCredState;
 import com.example.cyberdeck.skill.QuickhackUploads;
 import com.example.cyberdeck.skill.Skill;
+import com.example.cyberdeck.skill.SkillExecutor;
 import com.example.cyberdeck.ram.RamAttachments;
 import com.example.cyberdeck.movement.TacticalAction;
 import com.example.cyberdeck.movement.TacticalMovement;
@@ -53,6 +56,8 @@ import com.example.cyberdeck.weapon.GunItem;
 import com.example.cyberdeck.weapon.AmmoItem;
 import com.example.cyberdeck.weapon.AmmoItems;
 import com.example.cyberdeck.weapon.AmmoType;
+import com.example.cyberdeck.weapon.CyberdeckDamageTypes;
+import com.example.cyberdeck.weapon.WeaponItems;
 import dev.modernity.neoncity.MegacityLayout;
 import dev.modernity.neoncity.District;
 import dev.modernity.neoncity.NeonCityGenerator;
@@ -66,6 +71,7 @@ import net.minecraft.core.Holder;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.Connection;
 import net.minecraft.network.chat.Component;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.gametest.framework.FunctionGameTestInstance;
@@ -83,6 +89,8 @@ import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Input;
 import net.minecraft.world.level.GameType;
@@ -115,6 +123,9 @@ public final class CyberdeckGameTests {
                     "city_layer_classification", CyberdeckGameTests::cityLayerClassification);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             CLUSTER_PLAN = register("cluster_plan", CyberdeckGameTests::clusterPlan);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            DISTRICT_PATROL_LOADOUT = register(
+                    "district_patrol_loadout", CyberdeckGameTests::districtPatrolLoadout);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             GUNSHOT_RADIUS = register("gunshot_radius", CyberdeckGameTests::gunshotRadius);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
@@ -284,18 +295,317 @@ public final class CyberdeckGameTests {
         helper.assertTrue(seed != FactionSpawns.clusterSeed(8675309L, 42L, -6, 11),
                 "cluster seed must change between spatial cells");
 
-        for (int rotation = 0; rotation < 4; rotation++) {
-            List<BlockPos> first = FactionSpawns.formationOffsets(
-                    rotation, FactionSpawns.CLUSTER_SIZE);
-            List<BlockPos> second = FactionSpawns.formationOffsets(
-                    rotation, FactionSpawns.CLUSTER_SIZE);
-            helper.assertTrue(first.equals(second),
-                    "formation plan changed for rotation " + rotation);
-            helper.assertTrue(first.size() == FactionSpawns.CLUSTER_SIZE,
-                    "formation returned the wrong member count for rotation " + rotation);
-            helper.assertTrue(new HashSet<>(first).size() == first.size(),
-                    "formation contains duplicate member offsets for rotation " + rotation);
+        helper.assertTrue(FactionSpawns.SPAWN_INTERVAL == 1_200
+                        && FactionSpawns.MIN_SPAWN_DISTANCE == 26
+                        && FactionSpawns.MAX_SPAWN_DISTANCE == 46
+                        && FactionSpawns.POPULATION_CELL_SIZE == 128
+                        && FactionSpawns.NEARBY_RADIUS == 72.0,
+                "ambient patrol timing and range must be reliable but half the original rate");
+        helper.assertTrue(FactionSpawns.SMALL_PATROL_SIZE == 3
+                        && FactionSpawns.LARGE_PATROL_SIZE == 5
+                        && FactionSpawns.NEARBY_CAP == 10
+                        && FactionSpawns.LOADED_WORLD_CAP == 20
+                        && FactionSpawns.MAX_REACTIVE_AMBIENT_POPULATION == 44,
+                "ambient patrol population must remain bounded for small multiplayer servers");
+
+        FakePlayer spawnDriver = new FakePlayer(
+                helper.getLevel(), new GameProfile(UUID.randomUUID(), "patrol_driver"));
+        spawnDriver.setHealth(spawnDriver.getMaxHealth());
+        spawnDriver.setGameMode(GameType.CREATIVE);
+        helper.assertTrue(FactionSpawns.canDrivePatrolSpawns(spawnDriver),
+                "creative players must drive ambient patrol population");
+        spawnDriver.setGameMode(GameType.SPECTATOR);
+        helper.assertFalse(FactionSpawns.canDrivePatrolSpawns(spawnDriver),
+                "spectators must not drive ambient patrol population");
+        spawnDriver.setGameMode(GameType.SURVIVAL);
+        spawnDriver.setHealth(0.0F);
+        helper.assertFalse(FactionSpawns.canDrivePatrolSpawns(spawnDriver),
+                "dead players must not drive ambient patrol population");
+
+        helper.assertValueEqual(FactionSpawns.plannedPatrolSize(false, 2), 0,
+                "capacity below three must reject a partial patrol");
+        helper.assertValueEqual(FactionSpawns.plannedPatrolSize(true, 4), 3,
+                "capacity four must fall back to an intact three-soldier patrol");
+        helper.assertValueEqual(FactionSpawns.plannedPatrolSize(false, 5), 3,
+                "small patrol roll");
+        helper.assertValueEqual(FactionSpawns.plannedPatrolSize(true, 5), 5,
+                "large patrol roll");
+
+        for (int size : List.of(
+                FactionSpawns.SMALL_PATROL_SIZE, FactionSpawns.LARGE_PATROL_SIZE)) {
+            for (int rotation = 0; rotation < 4; rotation++) {
+                List<BlockPos> first = FactionSpawns.formationOffsets(rotation, size);
+                List<BlockPos> second = FactionSpawns.formationOffsets(rotation, size);
+                helper.assertTrue(first.equals(second),
+                        "formation plan changed for rotation " + rotation);
+                helper.assertTrue(first.size() == size,
+                        "formation returned the wrong patrol member count");
+                helper.assertTrue(new HashSet<>(first).size() == first.size(),
+                        "formation contains duplicate patrol offsets");
+            }
+            List<Integer> firstSkins = FactionSquads.uniqueSkinVariants(
+                    RandomSource.create(913_557L + size), size);
+            List<Integer> secondSkins = FactionSquads.uniqueSkinVariants(
+                    RandomSource.create(913_557L + size), size);
+            helper.assertTrue(firstSkins.equals(secondSkins),
+                    "equal seeds must produce the same tactical skin plan");
+            helper.assertTrue(firstSkins.size() == size
+                            && new HashSet<>(firstSkins).size() == size,
+                    "every generated squad member must receive a unique tactical skin");
+            helper.assertTrue(firstSkins.stream().allMatch(
+                            variant -> variant >= 0
+                                    && variant < FactionEnemy.TACTICAL_SKIN_COUNT),
+                    "tactical skin plan returned an out-of-range variant");
         }
+        List<Integer> smallSquad = FactionSquads.uniqueSkinVariants(
+                RandomSource.create(37L), FactionSpawns.SMALL_PATROL_SIZE);
+        List<Integer> smallWave = FactionSquads.uniqueSkinVariants(
+                RandomSource.create(38L), FactionSquads.REINFORCEMENT_COUNT, smallSquad);
+        HashSet<Integer> smallEncounter = new HashSet<>(smallSquad);
+        smallEncounter.addAll(smallWave);
+        helper.assertTrue(smallEncounter.size() == 7,
+                "a three-soldier squad and reinforcement wave should all look unique");
+
+        List<Integer> largeSquad = FactionSquads.uniqueSkinVariants(
+                RandomSource.create(39L), FactionSpawns.LARGE_PATROL_SIZE);
+        List<Integer> largeWave = FactionSquads.uniqueSkinVariants(
+                RandomSource.create(40L), FactionSquads.REINFORCEMENT_COUNT, largeSquad);
+        HashSet<Integer> largeEncounter = new HashSet<>(largeSquad);
+        largeEncounter.addAll(largeWave);
+        helper.assertTrue(new HashSet<>(largeWave).size() == FactionSquads.REINFORCEMENT_COUNT
+                        && largeEncounter.size() == FactionEnemy.TACTICAL_SKIN_COUNT,
+                "a five-soldier encounter must use all skins before one balanced repeat");
+
+        List<Integer> missionSequence = new java.util.ArrayList<>();
+        for (int index = 0; index < FactionEnemy.TACTICAL_SKIN_COUNT * 2; index++) {
+            missionSequence.add(FactionSquads.uniqueSkinVariants(
+                    RandomSource.create(8_000L + index), 1, missionSequence).getFirst());
+        }
+        helper.assertTrue(new HashSet<>(missionSequence.subList(
+                        0, FactionEnemy.TACTICAL_SKIN_COUNT)).size()
+                        == FactionEnemy.TACTICAL_SKIN_COUNT,
+                "mission guards must exhaust all tactical skins before repeating");
+        for (int variant = 0; variant < FactionEnemy.TACTICAL_SKIN_COUNT; variant++) {
+            helper.assertTrue(java.util.Collections.frequency(missionSequence, variant) == 2,
+                    "mission skin reuse must remain balanced after two complete cycles");
+        }
+        for (NeonCityGenerator.RoadClass publicRoad : List.of(
+                NeonCityGenerator.RoadClass.NONE,
+                NeonCityGenerator.RoadClass.CENTRAL_PLAZA,
+                NeonCityGenerator.RoadClass.DISTRICT_BOULEVARD,
+                NeonCityGenerator.RoadClass.LOCAL_STREET,
+                NeonCityGenerator.RoadClass.SERVICE_ALLEY,
+                NeonCityGenerator.RoadClass.PARK,
+                NeonCityGenerator.RoadClass.HARBOR,
+                NeonCityGenerator.RoadClass.CONTAINER_PORT)) {
+            helper.assertTrue(FactionSpawns.isPublicPatrolRoadClass(publicRoad),
+                    publicRoad + " should accept ambient patrols");
+        }
+        for (NeonCityGenerator.RoadClass excluded : List.of(
+                NeonCityGenerator.RoadClass.INTERDISTRICT_ROAD,
+                NeonCityGenerator.RoadClass.BRIDGE,
+                NeonCityGenerator.RoadClass.ELEVATED_RAIL,
+                NeonCityGenerator.RoadClass.HIGHWAY_BUFFER,
+                NeonCityGenerator.RoadClass.CANAL,
+                NeonCityGenerator.RoadClass.OCEAN,
+                NeonCityGenerator.RoadClass.PORTSHIP,
+                NeonCityGenerator.RoadClass.FARM,
+                NeonCityGenerator.RoadClass.EXTRACTION_SITE,
+                NeonCityGenerator.RoadClass.BORDER_WALLED,
+                NeonCityGenerator.RoadClass.BORDER_FOREST,
+                NeonCityGenerator.RoadClass.BORDER_CLIFF,
+                NeonCityGenerator.RoadClass.WILDERNESS)) {
+            helper.assertFalse(FactionSpawns.isPublicPatrolRoadClass(excluded),
+                    excluded + " must reject ambient patrols");
+        }
+        helper.succeed();
+    }
+
+    private static void districtPatrolLoadout(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        FactionEnemy light = FactionEntities.FACTION_ENEMY.get().create(
+                level, EntitySpawnReason.EVENT);
+        FactionEnemy heavy = FactionEntities.FACTION_ENEMY.get().create(
+                level, EntitySpawnReason.EVENT);
+        FactionEnemy control = FactionEntities.FACTION_ENEMY.get().create(
+                level, EntitySpawnReason.EVENT);
+        helper.assertTrue(light != null && heavy != null && control != null,
+                "could not create district patrol loadout fixtures");
+
+        FactionSquads.equipBallisticTier(light, "light");
+        helper.assertValueEqual(light.getAttributeValue(Attributes.ARMOR), 15.0,
+                "light patrol armor total");
+        helper.assertValueEqual(light.getAttributeValue(Attributes.ARMOR_TOUGHNESS), 8.0,
+                "light patrol toughness total");
+        helper.assertValueEqual(light.getAttributeValue(Attributes.KNOCKBACK_RESISTANCE), 0.20,
+                "light patrol knockback resistance");
+        FactionSquads.equipBallisticTier(light, "light");
+        helper.assertValueEqual(light.getAttributeValue(Attributes.ARMOR), 15.0,
+                "reapplying a patrol loadout must not stack armor modifiers");
+
+        FactionSquads.equipBallisticTier(heavy, "heavy");
+        helper.assertValueEqual(heavy.getAttributeValue(Attributes.ARMOR), 20.0,
+                "heavy patrol armor total");
+        helper.assertValueEqual(heavy.getAttributeValue(Attributes.ARMOR_TOUGHNESS), 12.0,
+                "heavy patrol toughness total");
+        helper.assertValueEqual(heavy.getAttributeValue(Attributes.KNOCKBACK_RESISTANCE), 0.60,
+                "heavy patrol knockback resistance");
+
+        for (FactionEnemy enemy : List.of(light, heavy)) {
+            helper.assertTrue(enemy.getItemBySlot(EquipmentSlot.CHEST)
+                            .is(WeaponItems.BULLETPROOF_VEST.get()),
+                    "new patrol loadout must wear only the Bulletproof Vest");
+            helper.assertTrue(enemy.getItemBySlot(EquipmentSlot.HEAD).isEmpty()
+                            && enemy.getItemBySlot(EquipmentSlot.LEGS).isEmpty()
+                            && enemy.getItemBySlot(EquipmentSlot.FEET).isEmpty(),
+                    "legacy branded armor pieces must not be visible on new patrols");
+        }
+        ItemStack vest = light.getItemBySlot(EquipmentSlot.CHEST);
+        helper.assertTrue(new net.minecraft.world.item.component.DyedItemColor(0x1D1D21)
+                        .equals(vest.get(DataComponents.DYED_COLOR)),
+                "Bulletproof Vest must use the authored black leather dye");
+        helper.assertFalse(vest.hasFoil(),
+                "Bulletproof Vest must provide projectile protection without enchantment glint");
+
+        light.setDistrict(District.O_CORP);
+        helper.assertValueEqual(light.getName().getString(), "O Corp. Soldier",
+                "district patrol display name");
+        helper.assertValueEqual(light.detectionRange(), FactionEnemy.MISSION_DETECTION_RANGE,
+                "mission guard detection range");
+        light.setPersistenceRequired();
+        helper.assertTrue(light.shouldBeSaved(), "mission guards must remain persistent");
+        light.setAmbientPatrol(true);
+        helper.assertValueEqual(light.detectionRange(), FactionEnemy.AMBIENT_DETECTION_RANGE,
+                "ambient patrol detection range");
+        helper.assertFalse(light.shouldBeSaved(),
+                "ambient patrols must not accumulate in world saves");
+        FactionEnemy unrelatedMission = FactionEntities.FACTION_ENEMY.get().create(
+                level, EntitySpawnReason.EVENT);
+        helper.assertTrue(unrelatedMission != null,
+                "could not create mission alert-isolation fixture");
+        helper.assertFalse(light.sharesAlertGroup(unrelatedMission),
+                "unassigned enemies must not collapse into one global alert group");
+        light.setAlertGroupId(UUID.randomUUID());
+        unrelatedMission.setAlertGroupId(UUID.randomUUID());
+        helper.assertFalse(light.sharesAlertGroup(unrelatedMission),
+                "separate multiplayer contracts must not share combat alerts");
+        helper.assertValueEqual(FactionSquads.REINFORCEMENT_CHANCE, 0.30F,
+                "corporate reinforcement chance");
+        helper.assertTrue(FactionSquads.reinforcementRollSucceeds(0.0F)
+                        && FactionSquads.reinforcementRollSucceeds(0.299_999F),
+                "the lower 30% of reinforcement rolls must succeed");
+        helper.assertFalse(FactionSquads.reinforcementRollSucceeds(0.30F)
+                        || FactionSquads.reinforcementRollSucceeds(0.999_999F),
+                "reinforcement rolls at or above 30% must fail");
+        helper.assertTrue(light.canRequestReinforcements(),
+                "an equipped ordinary corporate soldier must be reinforcement eligible");
+        light.setReinforcementRollResolved(true);
+        helper.assertTrue(light.hasResolvedReinforcementRoll(),
+                "the one-time reinforcement roll must retain its consumed state");
+
+        FactionEnemy reinforcementLeader = FactionEntities.FACTION_ENEMY.get().create(
+                level, EntitySpawnReason.EVENT);
+        helper.assertTrue(reinforcementLeader != null,
+                "could not create reinforcement inheritance fixture");
+        BlockPos reinforcementPos = helper.absolutePos(new BlockPos(5, 2, 5));
+        reinforcementLeader.snapTo(
+                reinforcementPos.getX() + 0.5, reinforcementPos.getY(),
+                reinforcementPos.getZ() + 0.5, 0.0F, 0.0F);
+        FactionSquads.equip(
+                reinforcementLeader, Faction.MILITECH, RandomSource.create(71L), 2);
+        reinforcementLeader.setDistrict(District.N_CORP);
+        UUID reinforcementGroup = UUID.randomUUID();
+        reinforcementLeader.setAlertGroupId(reinforcementGroup);
+        CompoundTag actorData = reinforcementLeader.getPersistentData();
+        actorData.putBoolean("cyberdeck_mission_actor", true);
+        actorData.putString("cyberdeck_mission_owner", UUID.randomUUID().toString());
+        actorData.putString("cyberdeck_mission_definition", "reinforcement_test");
+        actorData.putString("cyberdeck_mission_instance", reinforcementGroup.toString());
+        actorData.putString("cyberdeck_mission_role", "guard");
+        reinforcementLeader.setPersistenceRequired();
+        helper.assertTrue(level.addFreshEntity(reinforcementLeader),
+                "could not add reinforcement inheritance fixture");
+        helper.assertTrue(FactionSquads.tryReinforcementsOnAttack(
+                        level, reinforcementLeader, unrelatedMission, 0.0F),
+                "a successful 30% roll must deploy airborne reinforcements");
+        List<FactionEnemy> reinforcements = level.getEntitiesOfClass(
+                FactionEnemy.class,
+                new AABB(reinforcementPos).inflate(32.0),
+                enemy -> reinforcementGroup.equals(enemy.getAlertGroupId())
+                        && enemy.isReinforcementDeployment());
+        helper.assertValueEqual(
+                reinforcements.size(), FactionSquads.REINFORCEMENT_COUNT,
+                "airborne reinforcement count");
+        helper.assertTrue(reinforcements.stream().allMatch(enemy ->
+                        enemy.getFaction() == Faction.MILITECH
+                                && enemy.getDistrict() == District.N_CORP
+                                && enemy.hasResolvedReinforcementRoll()
+                                && enemy.shouldBeSaved()
+                                && reinforcementGroup.toString().equals(
+                                        enemy.getPersistentData().getString(
+                                                "cyberdeck_mission_instance").orElse(""))),
+                "reinforcements must inherit faction, district, consumed state, and mission cleanup");
+        helper.assertTrue(reinforcements.stream().map(FactionEnemy::getSkinVariant)
+                        .collect(java.util.stream.Collectors.toSet()).size()
+                        == FactionSquads.REINFORCEMENT_COUNT,
+                "one reinforcement wave must not repeat tactical skins");
+        reinforcementLeader.setReinforcementRollResolved(false);
+        reinforcements.forEach(enemy -> enemy.setReinforcementRollResolved(false));
+        helper.assertFalse(FactionSquads.tryReinforcementsOnAttack(
+                        level, reinforcementLeader, unrelatedMission, 0.0F),
+                "the persisted group ledger must reject a second reinforcement roll");
+        reinforcements.forEach(Entity::discard);
+        reinforcementLeader.discard();
+
+        FakePlayer combatPlayer = new FakePlayer(
+                level, new GameProfile(UUID.randomUUID(), "reinforcement_attack_test"));
+        combatPlayer.getAbilities().invulnerable = false;
+        combatPlayer.setInvulnerable(false);
+        FactionEnemy directAttackTarget = FactionEntities.FACTION_ENEMY.get().create(
+                level, EntitySpawnReason.EVENT);
+        FactionEnemy quickhackTarget = FactionEntities.FACTION_ENEMY.get().create(
+                level, EntitySpawnReason.EVENT);
+        helper.assertTrue(directAttackTarget != null && quickhackTarget != null,
+                "could not create reinforcement attack-hook fixtures");
+        for (FactionEnemy enemy : List.of(directAttackTarget, quickhackTarget)) {
+            FactionSquads.equipBallisticTier(enemy, "light");
+            enemy.setAlertGroupId(UUID.randomUUID());
+            enemy.setReinforcementRollResolved(true);
+        }
+        helper.assertTrue(directAttackTarget.hurtServer(
+                        level, level.damageSources().playerAttack(combatPlayer), 1.0F),
+                "direct player attack must damage a corporate soldier");
+        helper.assertTrue(directAttackTarget.isTriggered(),
+                "direct player attack must enter the reinforcement/retaliation path");
+        SkillExecutor.execute(Skill.OVERHEAT, combatPlayer, quickhackTarget, level);
+        helper.assertTrue(quickhackTarget.isTriggered(),
+                "damaging quickhacks must enter the reinforcement/retaliation path");
+        directAttackTarget.discard();
+        quickhackTarget.discard();
+
+        control.setBallisticTier("light");
+        control.setItemSlot(EquipmentSlot.CHEST, new ItemStack(Items.LEATHER_CHESTPLATE));
+        light.setHealth(light.getMaxHealth());
+        control.setHealth(control.getMaxHealth());
+        BlockPos lightPos = helper.absolutePos(new BlockPos(1, 2, 1));
+        BlockPos controlPos = helper.absolutePos(new BlockPos(3, 2, 1));
+        light.snapTo(lightPos.getX() + 0.5, lightPos.getY(), lightPos.getZ() + 0.5,
+                0.0F, 0.0F);
+        control.snapTo(controlPos.getX() + 0.5, controlPos.getY(), controlPos.getZ() + 0.5,
+                0.0F, 0.0F);
+        helper.assertTrue(level.addFreshEntity(light) && level.addFreshEntity(control),
+                "could not add projectile mitigation fixtures");
+        var bullet = level.damageSources().source(CyberdeckDamageTypes.BULLET);
+        helper.assertTrue(bullet.is(net.minecraft.tags.DamageTypeTags.IS_PROJECTILE),
+                "hitscan bullet damage must carry the projectile tag");
+        light.hurtServer(level, bullet, 10.0F);
+        control.hurtServer(level, bullet, 10.0F);
+        helper.assertTrue(light.getHealth() > control.getHealth(),
+                "Bulletproof Vest must reduce tagged projectile and hitscan bullet damage");
+        light.discard();
+        control.discard();
+        heavy.discard();
+        unrelatedMission.discard();
         helper.succeed();
     }
 
@@ -2390,6 +2700,7 @@ public final class CyberdeckGameTests {
                 0);
         registerInstance(event, "city_layer_classification", CITY_LAYER_CLASSIFICATION, data);
         registerInstance(event, "cluster_plan", CLUSTER_PLAN, data);
+        registerInstance(event, "district_patrol_loadout", DISTRICT_PATROL_LOADOUT, data);
         registerInstance(event, "gunshot_radius", GUNSHOT_RADIUS, data);
         registerInstance(event, "civilian_noncombat", CIVILIAN_NONCOMBAT, data);
         registerInstance(event, "civilian_population", CIVILIAN_POPULATION, data);

@@ -26,9 +26,14 @@ public final class FactionEnemyRenderer
         extends HumanoidMobRenderer<FactionEnemy, FactionEnemyRenderState,
                 TacticalFactionModel> {
 
-    /** Vanilla default (wide) Steve skin. */
-    private static final Identifier STEVE_SKIN =
-            Identifier.withDefaultNamespace("textures/entity/player/wide/steve.png");
+    private static final Identifier[] TACTICAL_SKINS =
+            new Identifier[FactionEnemy.TACTICAL_SKIN_COUNT];
+    static {
+        for (int index = 0; index < TACTICAL_SKINS.length; index++) {
+            TACTICAL_SKINS[index] = Identifier.fromNamespaceAndPath(
+                    "cyberdeck", "textures/entity/faction_enemy/tactical_" + index + ".png");
+        }
+    }
     private static final Identifier CYBERPSYCHO_SKIN = Identifier.fromNamespaceAndPath(
             "cyberdeck", "textures/entity/cyberpsycho.png");
     private static final Identifier FOG_MOTHER_SKIN = Identifier.fromNamespaceAndPath(
@@ -63,7 +68,7 @@ public final class FactionEnemyRenderer
         if (state.cyberpsycho) {
             return state.skinVariant == 1 ? FOG_MOTHER_SKIN : CYBERPSYCHO_SKIN;
         }
-        return STEVE_SKIN;
+        return TACTICAL_SKINS[Math.floorMod(state.skinVariant, TACTICAL_SKINS.length)];
     }
 
     @Override

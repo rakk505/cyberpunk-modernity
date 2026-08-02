@@ -15,6 +15,7 @@ import org.jspecify.annotations.Nullable;
 public final class PatrolAreaGoal extends RandomStrollGoal {
     private final java.util.function.Supplier<BlockPos> home;
     private final java.util.function.BooleanSupplier enabled;
+    private final java.util.function.Predicate<BlockPos> allowed;
     private final double radius;
 
     public PatrolAreaGoal(PathfinderMob mob, double speedModifier,
@@ -25,10 +26,18 @@ public final class PatrolAreaGoal extends RandomStrollGoal {
     public PatrolAreaGoal(PathfinderMob mob, double speedModifier,
                           java.util.function.Supplier<BlockPos> home, double radius,
                           java.util.function.BooleanSupplier enabled) {
+        this(mob, speedModifier, home, radius, enabled, ignored -> true);
+    }
+
+    public PatrolAreaGoal(PathfinderMob mob, double speedModifier,
+                          java.util.function.Supplier<BlockPos> home, double radius,
+                          java.util.function.BooleanSupplier enabled,
+                          java.util.function.Predicate<BlockPos> allowed) {
         super(mob, speedModifier);
         this.home = home;
         this.radius = radius;
         this.enabled = enabled;
+        this.allowed = allowed;
     }
 
     @Override
@@ -51,12 +60,15 @@ public final class PatrolAreaGoal extends RandomStrollGoal {
 
         // If we've drifted outside the patrol area, always head back toward home.
         if (this.mob.position().distanceToSqr(anchorVec) > radius * radius) {
-            return LandRandomPos.getPosTowards(this.mob, 10, 7, anchorVec);
+            Vec3 candidate = LandRandomPos.getPosTowards(this.mob, 10, 7, anchorVec);
+            return candidate != null && allowed.test(BlockPos.containing(candidate))
+                    ? candidate : allowed.test(anchor) ? anchorVec : null;
         }
 
         // Otherwise pick a wander target, but only accept it if it stays within the patrol radius.
         Vec3 candidate = LandRandomPos.getPosTowards(this.mob, 10, 7, anchorVec);
-        if (candidate != null && candidate.distanceToSqr(anchorVec) <= radius * radius) {
+        if (candidate != null && candidate.distanceToSqr(anchorVec) <= radius * radius
+                && allowed.test(BlockPos.containing(candidate))) {
             return candidate;
         }
         return null;

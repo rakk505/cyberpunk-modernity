@@ -1,10 +1,14 @@
 package com.example.cyberdeck.faction;
 
+import com.example.cyberdeck.Cyberdeck;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.item.equipment.ArmorMaterial;
 import net.minecraft.world.item.equipment.ArmorType;
 import net.minecraft.world.item.equipment.EquipmentAssets;
+import net.minecraft.world.item.equipment.EquipmentAsset;
 
 import java.util.EnumMap;
 import java.util.Map;
@@ -16,6 +20,9 @@ import java.util.Map;
  * tag so they can be mended with leather.
  */
 public final class BallisticArmor {
+    public static final ResourceKey<EquipmentAsset> VEST_ASSET = ResourceKey.create(
+            EquipmentAssets.ROOT_ID,
+            Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "bulletproof_vest"));
     private BallisticArmor() {
     }
 
@@ -40,6 +47,23 @@ public final class BallisticArmor {
             0.15f,
             ItemTags.REPAIRS_LEATHER_ARMOR,
             EquipmentAssets.LEATHER);
+
+    /**
+     * Visible black patrol vest. The remaining light/heavy protection is carried by entity
+     * attributes so tactical skins are not buried under a full four-piece armor model.
+     */
+    public static final ArmorMaterial VEST = new ArmorMaterial(
+            37,
+            defense(0, 0, 0, 0),
+            15,
+            SoundEvents.ARMOR_EQUIP_LEATHER,
+            0.0f,
+            0.0f,
+            ItemTags.REPAIRS_LEATHER_ARMOR,
+            VEST_ASSET);
+
+    /** Damage retained after a Bulletproof Vest intercepts a gunshot or projectile. */
+    public static final float PROJECTILE_DAMAGE_MULTIPLIER = 0.70F;
 
     private static Map<ArmorType, Integer> defense(int boots, int leggings, int chestplate, int helmet) {
         Map<ArmorType, Integer> map = new EnumMap<>(ArmorType.class);
