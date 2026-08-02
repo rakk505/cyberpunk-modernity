@@ -16,15 +16,17 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.LivingEntity;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.player.AttackEntityEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 
-/** Server authority for left-click NPC barks, line selection, and spam control. */
+/** Server authority for NPC dialogue triggers, line selection, and spam control. */
 @EventBusSubscriber(modid = Cyberdeck.MODID)
 public final class NpcVoicelineService {
     public static final int PLAYER_COOLDOWN_TICKS = 60;
@@ -44,11 +46,41 @@ public final class NpcVoicelineService {
             return;
         }
         boolean storyActor = MissionService.isStoryMissionActor(target);
-        if (!(target instanceof CityNpc) && !storyActor) {
+        if (!acceptsTrigger(target, storyActor, DialogueTrigger.ATTACK)) {
             return;
         }
 
         trySpeak(level, player, target, storyActor);
+    }
+
+    @SubscribeEvent
+    public static void onInteract(PlayerInteractEvent.EntityInteract event) {
+        if (event.getHand() != InteractionHand.MAIN_HAND
+                || !(event.getEntity() instanceof ServerPlayer player)
+                || !(player.level() instanceof ServerLevel level)
+                || !(event.getTarget() instanceof LivingEntity target)) {
+            return;
+        }
+        boolean storyActor = MissionService.isStoryMissionActor(target);
+        if (!acceptsTrigger(target, storyActor, DialogueTrigger.INTERACT)) {
+            return;
+        }
+
+        trySpeak(level, player, target, storyActor);
+    }
+
+    /** Ambient Residents speak on use; other city and story actors retain attack dialogue. */
+    public static boolean acceptsTrigger(
+            LivingEntity target, boolean storyActor, DialogueTrigger trigger) {
+        if (storyActor) {
+            return trigger == DialogueTrigger.ATTACK;
+        }
+        if (target instanceof CityNpc npc) {
+            DialogueTrigger expected = npc.getRole() == NpcRole.RESIDENT
+                    ? DialogueTrigger.INTERACT : DialogueTrigger.ATTACK;
+            return trigger == expected;
+        }
+        return false;
     }
 
     static boolean trySpeak(
@@ -161,5 +193,10 @@ public final class NpcVoicelineService {
     }
 
     private record PlayerVoiceState(long nextAllowedTick, String lastLine) {
+    }
+
+    public enum DialogueTrigger {
+        ATTACK,
+        INTERACT
     }
 }

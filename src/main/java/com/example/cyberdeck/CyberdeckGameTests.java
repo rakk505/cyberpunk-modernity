@@ -394,10 +394,20 @@ public final class CyberdeckGameTests {
         resident.snapTo(residentPos.getX() + 0.5, residentPos.getY(), residentPos.getZ() + 0.5,
                 0.0F, 0.0F);
         resident.setRole(NpcRole.RESIDENT);
+        helper.assertTrue(!NpcVoicelineService.acceptsTrigger(
+                                resident, false, NpcVoicelineService.DialogueTrigger.ATTACK)
+                        && NpcVoicelineService.acceptsTrigger(
+                                resident, false, NpcVoicelineService.DialogueTrigger.INTERACT),
+                "Residents must speak only when right-clicked, never when attacked");
+        helper.assertTrue(NpcVoicelineService.acceptsTrigger(
+                                resident, true, NpcVoicelineService.DialogueTrigger.ATTACK)
+                        && !NpcVoicelineService.acceptsTrigger(
+                                resident, true, NpcVoicelineService.DialogueTrigger.INTERACT),
+                "story status must preserve attack dialogue even on a Resident-role actor");
         helper.assertTrue(level.addFreshEntity(resident), "could not add Resident drop subject");
         resident.hurtServer(level, resident.damageSources().playerAttack(player), 1.0F);
         helper.assertTrue(resident.isFleeingGunfire(),
-                "Residents must flee immediately after a player attack");
+                "attacked Residents must only enter their flee behavior");
         resident.hurtServer(level, resident.damageSources().playerAttack(player), 100.0F);
         List<ItemEntity> shards = level.getEntitiesOfClass(
                 ItemEntity.class, new AABB(residentPos).inflate(3.0),
@@ -413,6 +423,11 @@ public final class CyberdeckGameTests {
         BlockPos execPos = helper.absolutePos(new BlockPos(6, 2, 2));
         exec.snapTo(execPos.getX() + 0.5, execPos.getY(), execPos.getZ() + 0.5, 0.0F, 0.0F);
         exec.setRole(NpcRole.EXEC);
+        helper.assertTrue(NpcVoicelineService.acceptsTrigger(
+                                exec, false, NpcVoicelineService.DialogueTrigger.ATTACK)
+                        && !NpcVoicelineService.acceptsTrigger(
+                                exec, false, NpcVoicelineService.DialogueTrigger.INTERACT),
+                "Exec dialogue must retain its existing attack trigger");
         helper.assertTrue(exec.getMaxHealth() == 100.0F,
                 "Execs must have substantially more health than Residents");
         helper.assertTrue(CityNpc.limitIncomingDamage(NpcRole.EXEC, exec.getMaxHealth(), 1_000.0F)
