@@ -32,6 +32,9 @@ public final class NpcVoicelineCatalog {
         DISTRICT_B("DISTRICT_B"),
         DISTRICT_M("DISTRICT_M"),
         BORDER_SLUMS("BORDER_SLUMS"),
+        DISTRICT_A("DISTRICT_A"),
+        DISTRICT_E("DISTRICT_E"),
+        DISTRICT_N("DISTRICT_N"),
         GENERIC_UNSUPPORTED_DISTRICTS("generic_unsupported_districts");
 
         private final String id;

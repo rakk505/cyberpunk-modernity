@@ -168,6 +168,77 @@
         "They beg for a migration permit. As if we would let poverty migrate into our profit margins."
       ]
     },
+    "DISTRICT_A": {
+      "residents": [
+        "I filed a noise complaint three years ago. District A just replied. They filed a complaint about my complaint. I have to respond in triplicate.",
+        "Half the City works, the other half works for A filing the paperwork to prove the first half worked.",
+        "My cousin had a patent stolen. Took it to A. By the time they ruled, someone patented his appeal and sued him for it.",
+        "You ever see District A at 2 AM? Lights still on. No one goes home. They just file reports about filing reports.",
+        "Migration permit? That's Form M-4. Lost permit? That's Form M-4-B. Wanting to leave A? That's Form M-4-B-Existential."
+      ],
+      "corpos": [
+        "We process 58.4 percent of the City's administrative load. The City doesn't run without us. Literally, the power grid needs a permit from us every hour.",
+        "Patent dispute between G and B? Both filings are identical. We ruled both valid and billed both parties. Administrative efficiency.",
+        "You want to dispute a ruling? File Form J-9, then K-9 to confirm J-9, then J-9 again to appeal the confirmation of K-9. We'll see you in 8 months.",
+        "If you can't prove you own it with stamped Form A-1, District A owns it. That's in the charter. Subsection 4, paragraph 9.",
+        "The Great Highway is co-managed with W, but let's be honest, we do the paperwork and they take the credit."
+      ],
+      "execs": [
+        "People think law is about justice. No. Law is about throughput. I decide what gets through.",
+        "I settled the O vs M AI patent war yesterday. Gave the patent to both, the liability to B, and the invoice to everyone.",
+        "The Highway existed before the City. The forms to use the Highway existed before the Highway. I wrote them.",
+        "You don't win a case in District A. You survive it long enough that the other party dies of old age and paperwork.",
+        "Every corporation thinks they own the City. I have the deeds. All of them. Filed alphabetically."
+      ]
+    },
+    "DISTRICT_E": {
+      "residents": [
+        "Everyone in E is on something. Stims to edit faster, downers to sleep for three hours, more stims to wake up.",
+        "My roommate does VFX for E. Hasn't slept in two days, says his coffee is 40 percent booster. He renders in his dreams now.",
+        "E makes all the shows, all the streams, all the music. No one here actually watches any of it. We're too busy making it.",
+        "You wanna make it in E? You gotta be fast. Faster than your heart, apparently. Mine's been skipping beats to the metronome.",
+        "Saw a billboard for a show I worked on. Didn't even remember working on it. Must have been the Blitz talking."
+      ],
+      "corpos": [
+        "Deadline was yesterday, release is tomorrow, crunch is forever. Pop a RedLine and keep cutting!",
+        "We don't have a drug problem, we have a productivity solution. It's called Blitz. Side effects include productivity and nosebleeds.",
+        "Entertainment is District E's export. Joy is not. We outsourced joy to District G and they put it on backorder.",
+        "My team takes enhancers in shifts. One crashes, the next spikes. The content never stops. The content must never stop.",
+        "HR says take a break. Production says take a booster. I took both and now I can see the edit timeline in real life."
+      ],
+      "execs": [
+        "Art requires suffering. We just optimized the suffering. One pill, 20 hours of award-winning content.",
+        "Our stars burn bright and fast. Literally. That's why we have replacements warming up in the green room.",
+        "You think the audience wants authentic? They want fast, loud, and now. Give them that, or take another dose and try again.",
+        "We don't push drugs. We push potential. The drugs just happen to push with us. Synergy.",
+        "If you're not shaking, you're not trying. If you are shaking, you're finally editing at the right frame rate."
+      ]
+    },
+    "DISTRICT_N": {
+      "residents": [
+        "N Corp Tech. 2 percent acceptance rate, 98 percent anxiety rate. I got in and now I'm scared I won't get out.",
+        "My thesis advisor said if I don't publish, I'll end up in the Slums. If I do publish, District O will steal it and hire me. So... win-win?",
+        "Everyone here wants B for the freedom, O for the money, G for the stability. I just want a placement that doesn't kill me before 30.",
+        "Lab partner sabotaged my experiment and then cited my failure as 'unexpected results' in his paper. That's just N hospitality.",
+        "We have a saying: A is for Admin, B is for Burnout, G is for Ghosted, O is for Oh God They Actually Accepted Me?",
+        "Placement fair next week. O's booth has a lie detector, G's has a stamina test, B's just asks if you have morals. Trick question, if you say yes you fail."
+      ],
+      "corpos": [
+        "I TA three classes, research for two labs, and sleep in the library. They say it builds character. I think it builds debt and eye bags.",
+        "Placement season? More like elimination season. O takes top 1 percent, G takes top 10 percent who can survive 70 hours, B takes whoever has no ethics left.",
+        "I got an interview with District G. They asked my GPA, my blood type, and how many hours I can go without crying. I said 72, they said not enough.",
+        "My professor sold my research to District O without telling me. Now O wants to hire me to continue my own stolen work. That's networking, I guess.",
+        "You think finals are hard? Try explaining to your parents why you turned down District B because you 'still have a soul'."
+      ],
+      "execs": [
+        "Welcome to N Corp Technical University. We will make you the best. The best is then sold to the highest bidder in O, G, or B.",
+        "Your research is excellent. It would be more excellent if it had a patent we could license to District O before you graduate.",
+        "Stress? This is not stress. This is pre-placement conditioning. The real stress begins when District G owns your contract.",
+        "We have a 99 percent placement rate. We do not disclose where the other 1 percent is placed. The Slums are technically a placement.",
+        "Remember students: Publish or perish. And if you publish something good, perish anyway because O's counter-intel will come to recruit you.",
+        "I see potential in you. Potential that District B would exploit, District G would overwork, and District O would dissect. Choose wisely."
+      ]
+    },
     "generic_unsupported_districts": {
       "residents": [
         "Another 12-hour shift. At least the vending machine didn't try to upsell me my own blood today.",

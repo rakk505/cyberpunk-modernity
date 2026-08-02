@@ -442,13 +442,24 @@ public final class CyberdeckGameTests {
     }
 
     private static void npcVoicelinePools(GameTestHelper helper) {
+        int authoredLineCount = 0;
         for (NpcVoicelineCatalog.LocationPool location
                 : NpcVoicelineCatalog.LocationPool.values()) {
             for (NpcVoicelineCatalog.RolePool role : NpcVoicelineCatalog.RolePool.values()) {
-                helper.assertFalse(NpcVoicelineCatalog.lines(location, role).isEmpty(),
+                List<String> lines = NpcVoicelineCatalog.lines(location, role);
+                helper.assertFalse(lines.isEmpty(),
                         "voiceline pool must not be empty: " + location.id() + "/" + role.id());
+                authoredLineCount += lines.size();
             }
         }
+        helper.assertTrue(authoredLineCount == 170,
+                "bundled voiceline catalog must contain all 170 authored lines");
+        assertVoicelinePoolCounts(helper,
+                NpcVoicelineCatalog.LocationPool.DISTRICT_A, 5, 5, 5);
+        assertVoicelinePoolCounts(helper,
+                NpcVoicelineCatalog.LocationPool.DISTRICT_E, 5, 5, 5);
+        assertVoicelinePoolCounts(helper,
+                NpcVoicelineCatalog.LocationPool.DISTRICT_N, 6, 5, 6);
 
         helper.assertTrue(NpcVoicelineService.classifyLocation(
                         District.O_CORP,
@@ -472,6 +483,24 @@ public final class CyberdeckGameTests {
                         District.A_CORP,
                         MegacityLayout.Zone.NEST,
                         NeonCityGenerator.RoadClass.LOCAL_STREET)
+                        == NpcVoicelineCatalog.LocationPool.DISTRICT_A,
+                "District A did not select its authored pool");
+        helper.assertTrue(NpcVoicelineService.classifyLocation(
+                        District.E_CORP,
+                        MegacityLayout.Zone.NEST,
+                        NeonCityGenerator.RoadClass.LOCAL_STREET)
+                        == NpcVoicelineCatalog.LocationPool.DISTRICT_E,
+                "District E did not select its authored pool");
+        helper.assertTrue(NpcVoicelineService.classifyLocation(
+                        District.N_CORP,
+                        MegacityLayout.Zone.NEST,
+                        NeonCityGenerator.RoadClass.LOCAL_STREET)
+                        == NpcVoicelineCatalog.LocationPool.DISTRICT_N,
+                "District N did not select its authored pool");
+        helper.assertTrue(NpcVoicelineService.classifyLocation(
+                        District.C_CORP,
+                        MegacityLayout.Zone.NEST,
+                        NeonCityGenerator.RoadClass.LOCAL_STREET)
                         == NpcVoicelineCatalog.LocationPool.GENERIC_UNSUPPORTED_DISTRICTS,
                 "unsupported districts must use the generic pool");
 
@@ -485,6 +514,23 @@ public final class CyberdeckGameTests {
             previous = selected;
         }
         helper.succeed();
+    }
+
+    private static void assertVoicelinePoolCounts(
+            GameTestHelper helper,
+            NpcVoicelineCatalog.LocationPool location,
+            int residents,
+            int corpos,
+            int execs) {
+        helper.assertValueEqual(NpcVoicelineCatalog.lines(
+                location, NpcVoicelineCatalog.RolePool.RESIDENTS).size(), residents,
+                location.id() + " Resident voiceline count");
+        helper.assertValueEqual(NpcVoicelineCatalog.lines(
+                location, NpcVoicelineCatalog.RolePool.CORPOS).size(), corpos,
+                location.id() + " Corpo voiceline count");
+        helper.assertValueEqual(NpcVoicelineCatalog.lines(
+                location, NpcVoicelineCatalog.RolePool.EXECS).size(), execs,
+                location.id() + " Exec voiceline count");
     }
 
     private static void traumaTeamLifecycle(GameTestHelper helper) {

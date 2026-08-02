@@ -139,13 +139,16 @@ public final class NpcVoicelineService {
             return LocationPool.GENERIC_UNSUPPORTED_DISTRICTS;
         }
         return switch (district) {
+            case A_CORP -> LocationPool.DISTRICT_A;
             case O_CORP -> LocationPool.DISTRICT_O;
             case P_CORP -> LocationPool.DISTRICT_P;
             case D_CORP -> LocationPool.DISTRICT_D;
+            case E_CORP -> LocationPool.DISTRICT_E;
             case G_CORP -> LocationPool.DISTRICT_G;
             case K_CORP -> LocationPool.DISTRICT_K;
             case B_CORP -> LocationPool.DISTRICT_B;
             case M_CORP -> LocationPool.DISTRICT_M;
+            case N_CORP -> LocationPool.DISTRICT_N;
             default -> LocationPool.GENERIC_UNSUPPORTED_DISTRICTS;
         };
     }
