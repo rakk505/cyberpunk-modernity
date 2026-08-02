@@ -21,6 +21,7 @@ import com.example.cyberdeck.effect.SandevistanMechanics;
 import com.example.cyberdeck.effect.SandevistanState;
 import com.example.cyberdeck.effect.CyberwareEffects;
 import com.example.cyberdeck.effect.DoubleJumpGuard;
+import com.example.cyberdeck.economy.Emmies;
 import com.example.cyberdeck.defense.DefenseContent;
 import com.example.cyberdeck.defense.KangTaoTurret;
 import com.example.cyberdeck.faction.FactionEnemy;
@@ -87,6 +88,7 @@ import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.pathfinder.PathType;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.Rotation;
@@ -145,6 +147,9 @@ public final class CyberdeckGameTests {
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             HEALING_CONSUMABLE_STATE = register(
                     "healing_consumable_state", CyberdeckGameTests::healingConsumableState);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            EMMIES_USE_EMERALDS = register(
+                    "emmies_use_emeralds", CyberdeckGameTests::emmiesUseEmeralds);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             DETECTION_LINE_OF_SIGHT = register(
                     "detection_line_of_sight", CyberdeckGameTests::detectionLineOfSightBuildup);
@@ -2120,6 +2125,55 @@ public final class CyberdeckGameTests {
         helper.succeed();
     }
 
+    private static void emmiesUseEmeralds(GameTestHelper helper) {
+        ServerPlayer player = makeSurvivalServerPlayerInLevel(helper);
+        BlockPos playerPos = helper.absolutePos(new BlockPos(1, 2, 1));
+        player.snapTo(playerPos.getX() + 0.5, playerPos.getY(), playerPos.getZ() + 0.5,
+                0.0F, 0.0F);
+        player.getInventory().clearContent();
+
+        Emmies.give(player, 70);
+        helper.assertTrue(Emmies.item() == Items.EMERALD && Emmies.count(player) == 70,
+                "emmie rewards must be issued and counted as vanilla emeralds");
+
+        player.getInventory().clearContent();
+        player.getInventory().add(new ItemStack(CyberdeckItems.LEGACY_EMMIES.get(), 17));
+        ItemStack legacyStack = player.getInventory().getNonEquipmentItems().stream()
+                .filter(stack -> stack.is(CyberdeckItems.LEGACY_EMMIES.get()))
+                .findFirst()
+                .orElseThrow();
+        CyberdeckItems.LEGACY_EMMIES.get().inventoryTick(
+                legacyStack, helper.getLevel(), player, null);
+        int legacyCount = 0;
+        for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++) {
+            ItemStack stack = player.getInventory().getItem(slot);
+            if (stack.is(CyberdeckItems.LEGACY_EMMIES.get())) {
+                legacyCount += stack.getCount();
+            }
+        }
+        helper.assertTrue(legacyCount == 0 && Emmies.count(player) == 17,
+                "legacy emmies must convert one-for-one without leaving spendable duplicates");
+
+        player.getInventory().clearContent();
+        for (int slot = 0; slot < player.getInventory().getNonEquipmentItems().size(); slot++) {
+            player.getInventory().setItem(slot, new ItemStack(Items.STONE, 64));
+        }
+        Emmies.give(player, 1);
+        helper.runAfterDelay(1, () -> {
+            List<ItemEntity> overflow = helper.getLevel().getEntitiesOfClass(
+                    ItemEntity.class,
+                    player.getBoundingBox().inflate(2.0),
+                    entity -> entity.getItem().is(Items.EMERALD));
+            helper.assertTrue(overflow.size() == 1
+                            && player.getUUID().equals(overflow.getFirst().getTarget()),
+                    "overflow emmie rewards must be reserved for their receiving player"
+                            + " (drops=" + overflow.size() + ")");
+            overflow.forEach(Entity::discard);
+            disconnectTestPlayer(player);
+            helper.succeed();
+        });
+    }
+
     /** Reads a private static double constant from FactionEnemy so the tuned dash band stays locked. */
     private static double reflectDouble(GameTestHelper helper, String name) {
         try {
@@ -2174,6 +2228,7 @@ public final class CyberdeckGameTests {
         registerInstance(event, "tactical_movement_state", TACTICAL_MOVEMENT_STATE, data);
         registerInstance(event, "tactical_slide_activation", TACTICAL_SLIDE_ACTIVATION, data);
         registerInstance(event, "healing_consumable_state", HEALING_CONSUMABLE_STATE, data);
+        registerInstance(event, "emmies_use_emeralds", EMMIES_USE_EMERALDS, data);
 
         // Detection tests need a padded, flat, sky-lit arena so the soldier and player stand on
         // solid ground with an unobstructed line of sight rather than raycasting into the void.

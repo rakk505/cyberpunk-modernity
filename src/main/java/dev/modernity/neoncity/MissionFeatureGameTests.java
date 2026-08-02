@@ -1,6 +1,6 @@
 package dev.modernity.neoncity;
 
-import com.example.cyberdeck.CyberdeckItems;
+import com.example.cyberdeck.economy.Emmies;
 import com.example.cyberdeck.player.StreetCredState;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -402,7 +402,7 @@ final class MissionFeatureGameTests {
         int count = 0;
         for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++) {
             var stack = player.getInventory().getItem(slot);
-            if (stack.is(CyberdeckItems.EMMIES.get())) count += stack.getCount();
+            if (stack.is(Emmies.item())) count += stack.getCount();
         }
         return count;
     }

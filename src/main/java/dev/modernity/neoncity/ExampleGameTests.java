@@ -997,6 +997,10 @@ public final class ExampleGameTests {
                         MerchantTruckLibrary.MerchantRole.CLOTHING,
                         MerchantTruckLibrary.MerchantRole.CONSUMABLE)),
                 "deterministic district emphasis does not cover all trading specialties");
+        helper.assertTrue(java.util.Arrays.stream(MerchantTruckLibrary.MerchantRole.values())
+                        .flatMap(role -> MerchantTradeCatalog.offers(role).stream())
+                        .allMatch(offer -> offer.getBaseCostA().is(Items.EMERALD)),
+                "merchant stalls must price every offer exclusively in emerald-backed emmies");
 
         List<net.minecraft.world.item.Item> gunResults = MerchantTradeCatalog.resultItems(
                 MerchantTruckLibrary.MerchantRole.GUN);
@@ -1119,6 +1123,25 @@ public final class ExampleGameTests {
                         && merchantEntity.getOffers().size()
                         == expectedCyberwareOffers,
                 "merchant anchor did not preserve the cyberware inventory or lock state");
+        merchantEntity.getPersistentData().putInt("cyberdeck_merchant_offers_version", 0);
+        merchantEntity.getOffers().clear();
+        merchantEntity.getOffers().add(new net.minecraft.world.item.trading.MerchantOffer(
+                new net.minecraft.world.item.trading.ItemCost(
+                        CyberdeckItems.LEGACY_EMMIES.get(), 1),
+                new net.minecraft.world.item.ItemStack(Items.BREAD),
+                1,
+                1,
+                0.0F));
+        helper.assertTrue(MerchantTruckLibrary.refreshOffersIfNeeded(
+                                merchantEntity,
+                                MerchantTruckLibrary.MerchantRole.CYBERWARE)
+                        && merchantEntity.getOffers().size() == expectedCyberwareOffers
+                        && merchantEntity.getOffers().stream().allMatch(
+                                offer -> offer.getBaseCostA().is(Items.EMERALD))
+                        && !MerchantTruckLibrary.refreshOffersIfNeeded(
+                                merchantEntity,
+                                MerchantTruckLibrary.MerchantRole.CYBERWARE),
+                "persisted pre-emerald merchant offers did not migrate exactly once");
 
         Villager fixer = fixerEntity;
         fixer.setPos(stallCenter.getX() + 7.5, stallCenter.getY(), stallCenter.getZ() + 0.5);
@@ -1346,11 +1369,11 @@ public final class ExampleGameTests {
                                 WeaponItems.gun(psychoDefinition.cyberpsychoGun()).get())
                         && MissionService.isMissionActor(psycho),
                 "cyberpsycho lost configured health, cyberware, firearm, grenades, or mission tag");
-        int emeralds = inventoryCount(player, CyberdeckItems.EMMIES.get());
+        int emeralds = inventoryCount(player, Items.EMERALD);
         MissionService.onEntityDeath(new LivingDeathEvent(
                 psycho, helper.getLevel().damageSources().playerAttack(player)));
         helper.assertTrue(MissionService.activeMission(player).isEmpty()
-                        && inventoryCount(player, CyberdeckItems.EMMIES.get())
+                        && inventoryCount(player, Items.EMERALD)
                                 == emeralds + psychoMission.reward(),
                 "neutralize mission did not complete from the owner's target kill");
 
@@ -1379,11 +1402,11 @@ public final class ExampleGameTests {
         helper.assertTrue(executive.getSkinVariant() == CityNpc.MISSION_TARGET_SKIN
                         && executive.isNoAi() && executive.isPersistenceRequired(),
                 "assassination target lost its gold mission skin or durable fixed-area state");
-        emeralds = inventoryCount(player, CyberdeckItems.EMMIES.get());
+        emeralds = inventoryCount(player, Items.EMERALD);
         MissionService.onEntityDeath(new LivingDeathEvent(
                 executive, helper.getLevel().damageSources().playerAttack(player)));
         helper.assertTrue(MissionService.activeMission(player).isEmpty()
-                        && inventoryCount(player, CyberdeckItems.EMMIES.get())
+                        && inventoryCount(player, Items.EMERALD)
                                 == emeralds + assassinMission.reward(),
                 "assassination mission did not complete from the owner's target kill");
 
@@ -1405,13 +1428,13 @@ public final class ExampleGameTests {
                         && helper.getLevel().getBlockState(terminalSupport)
                                 .is(Blocks.POLISHED_DEEPSLATE),
                 "steal-data mission did not install its terminal on a solid pedestal");
-        emeralds = inventoryCount(player, CyberdeckItems.EMMIES.get());
+        emeralds = inventoryCount(player, Items.EMERALD);
         helper.assertTrue(MissionService.activateDataTerminal(player, terminalPos)
                         && MissionService.activeMission(player).isEmpty()
                         && helper.getLevel().isEmptyBlock(terminalPos)
                         && helper.getLevel().getBlockState(terminalSupport)
                                 .is(Blocks.POLISHED_DEEPSLATE)
-                        && inventoryCount(player, CyberdeckItems.EMMIES.get())
+                        && inventoryCount(player, Items.EMERALD)
                                 == emeralds + dataMission.reward(),
                 "secured terminal interaction did not complete or preserve its pedestal");
 
@@ -1482,7 +1505,7 @@ public final class ExampleGameTests {
                         && missionMarker.x() == delivery.getX()
                         && missionMarker.z() == delivery.getZ(),
                 "active shipping mission is not represented by its real map objective");
-        emeralds = inventoryCount(player, CyberdeckItems.EMMIES.get());
+        emeralds = inventoryCount(player, Items.EMERALD);
         player.snapTo(delivery.getX() + 0.5, delivery.getY(), delivery.getZ() + 0.5,
                 0.0F, 0.0F);
         MissionService.tickPlayer(player, layout.locate(destination.x(), destination.z()));
@@ -1507,7 +1530,7 @@ public final class ExampleGameTests {
         boolean endpointCleared = helper.getLevel().isEmptyBlock(delivery);
         int ordinaryCargoAfter = inventoryCount(player, cargo);
         int contractCargoAfter = inventoryCount(player, contractCargo);
-        int emmiesAfter = inventoryCount(player, CyberdeckItems.EMMIES.get());
+        int emmiesAfter = inventoryCount(player, Items.EMERALD);
         helper.assertTrue(deliveryResult.consumesAction()
                         && missionCleared
                         && endpointCleared
@@ -1521,9 +1544,9 @@ public final class ExampleGameTests {
                         + ", contractCargo=" + contractCargoAfter
                         + ", emmies=" + emmiesAfter
                         + ", expectedEmmies=" + (emeralds + shippingMission.reward()));
-        int paid = inventoryCount(player, CyberdeckItems.EMMIES.get());
+        int paid = inventoryCount(player, Items.EMERALD);
         helper.assertTrue(!MissionService.activateDeliveryTerminal(player, delivery)
-                        && inventoryCount(player, CyberdeckItems.EMMIES.get()) == paid,
+                        && inventoryCount(player, Items.EMERALD) == paid,
                 "completed delivery endpoint paid the contract more than once");
 
         BlockPos abandonedDelivery = delivery.offset(4, 0, 0);
@@ -1576,7 +1599,7 @@ public final class ExampleGameTests {
                         && inventoryCount(player, cargo) == shipping.cargoCount()
                         && inventoryCount(player, contractCargo) == shipping.cargoCount(),
                 "abandon test could not stage tagged and ordinary cargo");
-        int beforeAbandon = inventoryCount(player, CyberdeckItems.EMMIES.get());
+        int beforeAbandon = inventoryCount(player, Items.EMERALD);
         helper.assertTrue(!MissionService.canAbandon(
                                 helper.getLevel(), player.getUUID(), abandonedContext)
                         && !MissionService.abandon(player)
@@ -1584,7 +1607,7 @@ public final class ExampleGameTests {
                         && helper.getLevel().getBlockState(abandonedDelivery)
                                 .is(MissionBlocks.DELIVERY_TERMINAL.get())
                         && inventoryCount(player, contractCargo) == shipping.cargoCount()
-                        && inventoryCount(player, CyberdeckItems.EMMIES.get()) == beforeAbandon,
+                        && inventoryCount(player, Items.EMERALD) == beforeAbandon,
                 "non-leader participant abandoned the shared delivery contract");
         partyData.removeMember(contractLeader).orElseThrow();
         helper.assertTrue(partyData.party(partyId).orElseThrow().leader()
@@ -1606,7 +1629,7 @@ public final class ExampleGameTests {
                                 MissionService::isMissionActor).isEmpty()
                         && inventoryCount(player, cargo) == shipping.cargoCount()
                         && inventoryCount(player, contractCargo) == 0
-                        && inventoryCount(player, CyberdeckItems.EMMIES.get()) == beforeAbandon
+                        && inventoryCount(player, Items.EMERALD) == beforeAbandon
                         && MissionService.journalEntries(player).stream().anyMatch(entry ->
                                 entry.instanceId().equals(abandonedInstance)
                                         && entry.status()

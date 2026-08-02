@@ -19,6 +19,8 @@ final class MerchantTruckLibrary {
     private static final String ROLE_TAG = "cyberdeck_merchant_role";
     private static final String DISTRICT_TAG = "cyberdeck_merchant_district";
     private static final String ANCHOR_TAG = "cyberdeck_merchant_anchor";
+    private static final String OFFERS_VERSION_TAG = "cyberdeck_merchant_offers_version";
+    private static final int CURRENT_OFFERS_VERSION = 2;
 
     private MerchantTruckLibrary() {
     }
@@ -86,7 +88,20 @@ final class MerchantTruckLibrary {
         merchant.setCustomNameVisible(true);
         merchant.getOffers().clear();
         merchant.getOffers().addAll(MerchantTradeCatalog.offers(role));
+        merchant.getPersistentData().putInt(OFFERS_VERSION_TAG, CURRENT_OFFERS_VERSION);
         return merchant;
+    }
+
+    /** Replaces serialized pre-emerald offers once when a merchant is loaded after the upgrade. */
+    static boolean refreshOffersIfNeeded(Villager merchant, MerchantRole role) {
+        int version = merchant.getPersistentData().getInt(OFFERS_VERSION_TAG).orElse(0);
+        if (version >= CURRENT_OFFERS_VERSION) {
+            return false;
+        }
+        merchant.getOffers().clear();
+        merchant.getOffers().addAll(MerchantTradeCatalog.offers(role));
+        merchant.getPersistentData().putInt(OFFERS_VERSION_TAG, CURRENT_OFFERS_VERSION);
+        return true;
     }
 
     static boolean isMerchant(Entity entity) {
