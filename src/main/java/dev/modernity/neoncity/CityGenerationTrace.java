@@ -56,7 +56,8 @@ final class CityGenerationTrace {
         ARNIS,
         WORLD_FEATURES,
         STATIONS,
-        LOGO_BANNERS,
+        BANNER_SCAN,
+        BANNER_QUEUE,
         CITY_LOOT,
         URBAN_CRATES,
         CLIENT_REFRESH
@@ -205,6 +206,19 @@ final class CityGenerationTrace {
     static void synchronousPlanFallback() {
         Session session = active;
         if (session != null) session.synchronousPlanFallbacks++;
+    }
+
+    static void deferredBannerPlacement(
+            long elapsedNanos, boolean success, int remainingBanners) {
+        Session session = active;
+        if (session == null) return;
+        session.deferredBannerAttempts++;
+        if (success) session.deferredBannerSuccesses++;
+        session.deferredBannerNanos += elapsedNanos;
+        session.maximumDeferredBannerNanos = Math.max(
+                session.maximumDeferredBannerNanos, elapsedNanos);
+        session.maximumPendingBanners = Math.max(
+                session.maximumPendingBanners, remainingBanners);
     }
 
     static ChunkSpan begin(ChunkPos chunk, Source source) {
@@ -416,6 +430,11 @@ final class CityGenerationTrace {
         private long asyncPlanHits;
         private long synchronousPlanFallbacks;
         private int maximumOutstandingPlans;
+        private long deferredBannerAttempts;
+        private long deferredBannerSuccesses;
+        private long deferredBannerNanos;
+        private long maximumDeferredBannerNanos;
+        private int maximumPendingBanners;
         private ChunkRecord slowest;
         private ChunkSpan currentSpan;
 
@@ -571,6 +590,19 @@ final class CityGenerationTrace {
                         unavailableCandidates.getOrDefault(source, 0L));
             }
             root.add("scheduling", scheduling);
+
+            JsonObject deferredBanners = new JsonObject();
+            deferredBanners.addProperty("attempts", deferredBannerAttempts);
+            deferredBanners.addProperty("successes", deferredBannerSuccesses);
+            deferredBanners.addProperty(
+                    "failures", deferredBannerAttempts - deferredBannerSuccesses);
+            deferredBanners.addProperty(
+                    "average_ms", millis(deferredBannerNanos, deferredBannerAttempts));
+            deferredBanners.addProperty(
+                    "maximum_ms", maximumDeferredBannerNanos / 1_000_000.0);
+            deferredBanners.addProperty("pending_at_export", DistrictLogoBanners.pendingCount());
+            deferredBanners.addProperty("maximum_pending_after_attempt", maximumPendingBanners);
+            root.add("deferred_banners", deferredBanners);
 
             JsonObject driving = new JsonObject();
             driving.addProperty("lookahead_samples", lookaheadSamples);
