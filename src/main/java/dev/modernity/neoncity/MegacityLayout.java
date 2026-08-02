@@ -27,9 +27,9 @@ public final class MegacityLayout {
     static final double CONNECTION_CLEARANCE_RADIUS = 23.0;
 
     private static final double GOLDEN_ANGLE = Math.PI * (3.0 - Math.sqrt(5.0));
-    private static final int PERIMETER_CENTER = 5_200;
-    private static final int PERIMETER_OFFSET = 2_200;
-    private static final int PERIMETER_RADIUS = 1_050;
+    private static final int OUTER_RING_SLOTS = 12;
+    private static final int OUTER_RING_CENTER_RADIUS = 5_000;
+    private static final int OUTER_DISTRICT_RADIUS = 1_450;
     public static final double BORDER_SECONDARY_LIMIT = 1.18;
     public static final double BORDER_GAP_LIMIT = 0.11;
     private static final int CONNECTION_PROJECTION_SEGMENTS = 12;
@@ -37,23 +37,21 @@ public final class MegacityLayout {
     private static final long NODE_SALT = 0x4E4F444553414C54L;
     private static final long EDGE_SALT = 0x4544474553414C54L;
 
-    private record FixedAnchor(District district, int x, int z) {}
+    private static final List<District> OUTER_RING = List.of(
+            District.Y_CORP,
+            District.YI_DISTRICT,
+            District.WANG_DISTRICT,
+            District.X_CORP,
+            District.XI_DISTRICT,
+            District.UI_DISTRICT,
+            District.U_CORP,
+            District.UANG_DISTRICT,
+            District.PAK_DISTRICT,
+            District.POK_DISTRICT,
+            District.PON_DISTRICT,
+            District.AE_DISTRICT);
 
-    private static final List<FixedAnchor> PERIMETER_ANCHORS = List.of(
-            new FixedAnchor(District.AE_DISTRICT, -PERIMETER_OFFSET, -PERIMETER_CENTER),
-            new FixedAnchor(District.Y_CORP, 0, -PERIMETER_CENTER),
-            new FixedAnchor(District.YI_DISTRICT, PERIMETER_OFFSET, -PERIMETER_CENTER),
-            new FixedAnchor(District.WANG_DISTRICT, PERIMETER_CENTER, -PERIMETER_OFFSET),
-            new FixedAnchor(District.X_CORP, PERIMETER_CENTER, 0),
-            new FixedAnchor(District.XI_DISTRICT, PERIMETER_CENTER, PERIMETER_OFFSET),
-            new FixedAnchor(District.UANG_DISTRICT, -PERIMETER_OFFSET, PERIMETER_CENTER),
-            new FixedAnchor(District.U_CORP, 0, PERIMETER_CENTER),
-            new FixedAnchor(District.UI_DISTRICT, PERIMETER_OFFSET, PERIMETER_CENTER),
-            new FixedAnchor(District.PON_DISTRICT, -PERIMETER_CENTER, -PERIMETER_OFFSET),
-            new FixedAnchor(District.POK_DISTRICT, -PERIMETER_CENTER, 0),
-            new FixedAnchor(District.PAK_DISTRICT, -PERIMETER_CENTER, PERIMETER_OFFSET));
-
-    private static final Set<District> PERIMETER_DISTRICTS = Set.of(
+    private static final Set<District> FIXED_OUTER_DISTRICTS = Set.of(
             District.AE_DISTRICT,
             District.Y_CORP,
             District.YI_DISTRICT,
@@ -66,21 +64,6 @@ public final class MegacityLayout {
             District.PON_DISTRICT,
             District.POK_DISTRICT,
             District.PAK_DISTRICT);
-
-    /** Clockwise ring, starting at the northwestern member of the northern edge. */
-    private static final List<District> PERIMETER_RING = List.of(
-            District.AE_DISTRICT,
-            District.Y_CORP,
-            District.YI_DISTRICT,
-            District.WANG_DISTRICT,
-            District.X_CORP,
-            District.XI_DISTRICT,
-            District.UI_DISTRICT,
-            District.U_CORP,
-            District.UANG_DISTRICT,
-            District.PAK_DISTRICT,
-            District.POK_DISTRICT,
-            District.PON_DISTRICT);
 
     public enum Zone {
         NEST,
@@ -199,31 +182,37 @@ public final class MegacityLayout {
         long originIdentity = mix(seed ^ NODE_SALT, 0, District.A_CORP.ordinal());
         nodes.add(new Node(District.A_CORP, 0, 0, 990, 900, phase, originIdentity));
 
-        // Perimeter centers, radii, and rotations are invariant across seeds. Equal radii make
-        // each three-district side share one true outer envelope rather than merely aligned centers.
-        for (int index = 0; index < PERIMETER_ANCHORS.size(); index++) {
-            FixedAnchor anchor = PERIMETER_ANCHORS.get(index);
-            long identity = mix(seed ^ NODE_SALT, 100 + index, anchor.district().ordinal());
-            nodes.add(new Node(
-                    anchor.district(),
-                    anchor.x(),
-                    anchor.z(),
-                    PERIMETER_RADIUS,
-                    PERIMETER_RADIUS,
-                    0.0,
-                    identity));
-        }
-
         ArrayList<District> assignment = new ArrayList<>(List.of(District.values()));
         assignment.remove(District.A_CORP);
-        assignment.removeAll(PERIMETER_DISTRICTS);
+        assignment.removeAll(FIXED_OUTER_DISTRICTS);
         for (int index = assignment.size() - 1; index > 0; index--) {
             int swap = floorMod((int) mix(seed ^ NODE_SALT, index, 17), index + 1);
             Collections.swap(assignment, index, swap);
         }
 
-        // The shuffled cultures occupy a balanced, seed-rotated low-discrepancy point set.
-        // Its maximum envelope remains well inside the fixed 6,250-block perimeter envelope.
+        // Twelve equal, overlapping blobs form the actual city edge. Their fixed clockwise order
+        // preserves the requested compass anchors without stacking any side into a straight wall.
+        ArrayList<Node> outerRing = new ArrayList<>(OUTER_RING_SLOTS);
+        for (int slot = 0; slot < OUTER_RING_SLOTS; slot++) {
+            District district = OUTER_RING.get(slot);
+            double angle = slot * Math.PI * 2.0 / OUTER_RING_SLOTS;
+            int x = (int) Math.round(Math.sin(angle) * OUTER_RING_CENTER_RADIUS);
+            int z = (int) Math.round(-Math.cos(angle) * OUTER_RING_CENTER_RADIUS);
+            long identity = mix(seed ^ NODE_SALT, 100 + slot, district.ordinal());
+            Node node = new Node(
+                    district,
+                    x,
+                    z,
+                    OUTER_DISTRICT_RADIUS,
+                    OUTER_DISTRICT_RADIUS,
+                    angle,
+                    identity);
+            outerRing.add(node);
+            nodes.add(node);
+        }
+
+        // Preserve the original seeded low-discrepancy interior exactly. Fixed worlds therefore
+        // keep their analyzed Arnis building coordinates while ordinary cultures still shuffle.
         for (int index = 0; index < assignment.size(); index++) {
             District district = assignment.get(index);
             long identity = mix(seed ^ NODE_SALT, index + 1, district.ordinal());
@@ -243,10 +232,10 @@ public final class MegacityLayout {
         if (nodes.size() != DISTRICT_COUNT) {
             throw new IllegalStateException("layout omitted a district: " + nodes.size());
         }
-        return new MegacityLayout(seed, nodes, buildEdges(seed, nodes));
+        return new MegacityLayout(seed, nodes, buildEdges(seed, nodes, outerRing));
     }
 
-    private static List<Edge> buildEdges(long seed, List<Node> nodes) {
+    private static List<Edge> buildEdges(long seed, List<Node> nodes, List<Node> outerRing) {
         ArrayList<Edge> edges = new ArrayList<>();
         Set<Long> pairs = new HashSet<>();
         boolean[] connected = new boolean[nodes.size()];
@@ -289,11 +278,11 @@ public final class MegacityLayout {
             }
         }
 
-        // The semantic perimeter is a hard topology contract. In particular, the north edge
-        // must turn through Yi into Wang at the northeastern corner for every world seed.
-        for (int index = 0; index < PERIMETER_RING.size(); index++) {
-            District first = PERIMETER_RING.get(index);
-            District second = PERIMETER_RING.get((index + 1) % PERIMETER_RING.size());
+        // The complete outer ring is also a hard road-topology contract, so every neighboring
+        // edge district remains directly connected in addition to the seeded city graph.
+        for (int index = 0; index < outerRing.size(); index++) {
+            District first = outerRing.get(index).district();
+            District second = outerRing.get((index + 1) % outerRing.size()).district();
             addEdge(
                     seed,
                     nodes,
@@ -301,6 +290,26 @@ public final class MegacityLayout {
                     pairs,
                     indexOfDistrict(nodes, first),
                     indexOfDistrict(nodes, second),
+                    false);
+        }
+
+        // Each perimeter district also owns a direct inward route. This prevents a border member
+        // from depending on its two ring neighbors to reach the randomized interior graph.
+        Set<District> outerDistricts = outerRing.stream()
+                .map(Node::district)
+                .collect(java.util.stream.Collectors.toSet());
+        for (Node outer : outerRing) {
+            Node nearestInterior = nodes.stream()
+                    .filter(candidate -> !outerDistricts.contains(candidate.district()))
+                    .min(Comparator.comparingLong(candidate -> distanceSquared(outer, candidate)))
+                    .orElseThrow();
+            addEdge(
+                    seed,
+                    nodes,
+                    edges,
+                    pairs,
+                    indexOfDistrict(nodes, outer.district()),
+                    indexOfDistrict(nodes, nearestInterior.district()),
                     false);
         }
         return edges;
@@ -342,8 +351,6 @@ public final class MegacityLayout {
     private Location locate(int worldX, int worldZ, boolean includeConnections) {
         Candidate primary = null;
         Candidate secondary = null;
-        Candidate perimeterPrimary = null;
-        Candidate perimeterSecondary = null;
         for (Node node : nodes) {
             double score = normalizedDistanceTo(node, worldX, worldZ);
             Candidate candidate = new Candidate(node, score);
@@ -353,22 +360,10 @@ public final class MegacityLayout {
             } else if (secondary == null || score < secondary.score()) {
                 secondary = candidate;
             }
-            if (PERIMETER_DISTRICTS.contains(node.district())) {
-                if (perimeterPrimary == null || score < perimeterPrimary.score()) {
-                    perimeterSecondary = perimeterPrimary;
-                    perimeterPrimary = candidate;
-                } else if (perimeterSecondary == null || score < perimeterSecondary.score()) {
-                    perimeterSecondary = candidate;
-                }
-            }
         }
         if (primary == null || secondary == null) throw new IllegalStateException("layout has no districts");
 
         boolean inUrbanHull = insideUrbanHull(worldX, worldZ);
-        if (insidePerimeterDistrictBand(worldX, worldZ)) {
-            primary = perimeterPrimary;
-            secondary = perimeterSecondary;
-        }
 
         Edge nearestEdge = null;
         double nearestEdgeDistance = Double.MAX_VALUE;
@@ -426,24 +421,10 @@ public final class MegacityLayout {
         return Math.hypot(u, v) / ripple;
     }
 
-    /** Filled octagon joining the fixed perimeter centers into one continuous urban landmass. */
+    /** Filled ring interior joining every overlapping district blob into one urban landmass. */
     public boolean insideUrbanHull(int worldX, int worldZ) {
-        long absoluteX = Math.abs((long) worldX);
-        long absoluteZ = Math.abs((long) worldZ);
-        return absoluteX <= PERIMETER_CENTER
-                && absoluteZ <= PERIMETER_CENTER
-                && absoluteX + absoluteZ <= (long) PERIMETER_CENTER + PERIMETER_OFFSET;
-    }
-
-    /** The outer hull band is always owned by a fixed edge district, never a shuffled interior. */
-    public boolean insidePerimeterDistrictBand(int worldX, int worldZ) {
-        if (!insideUrbanHull(worldX, worldZ)) return false;
-        long absoluteX = Math.abs((long) worldX);
-        long absoluteZ = Math.abs((long) worldZ);
-        double axisInset = Math.min(PERIMETER_CENTER - absoluteX, PERIMETER_CENTER - absoluteZ);
-        double cornerInset = ((long) PERIMETER_CENTER + PERIMETER_OFFSET
-                - absoluteX - absoluteZ) / Math.sqrt(2.0);
-        return Math.min(axisInset, cornerInset) <= PERIMETER_RADIUS;
+        return Math.hypot((double) worldX, (double) worldZ)
+                <= OUTER_RING_CENTER_RADIUS + 1.0;
     }
 
     /** Stable boundary terrain for an overlapping pair of district blobs. */

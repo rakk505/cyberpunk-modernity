@@ -22,6 +22,7 @@ public final class ArnisBuildingAtlas {
     private static final Map<CompilationKey, Compilation> COMPILATIONS =
             new LinkedHashMap<>();
     private static final Map<District, Compilation> LATEST = new java.util.EnumMap<>(District.class);
+    private static long compilationRequests;
 
     private ArnisBuildingAtlas() {
     }
@@ -74,11 +75,12 @@ public final class ArnisBuildingAtlas {
         if (level == null || district == null || origin == null) {
             throw new IllegalArgumentException("incomplete Arnis building compilation request");
         }
+        compilationRequests++;
         int radius = Math.max(1, Math.min(MAX_SEARCH_RADIUS_CHUNKS, searchRadiusChunks));
         int centerChunkX = Math.floorDiv(origin.getX(), 16);
         int centerChunkZ = Math.floorDiv(origin.getZ(), 16);
         CompilationKey compilationKey = new CompilationKey(
-                level.getSeed(), NeonCityGenerator.layout().seed(), district,
+                NeonCityGenerator.contentSeed(), NeonCityGenerator.layout().seed(), district,
                 centerChunkX, centerChunkZ, radius, minimumFloors, maximumFloors);
         Compilation existing = COMPILATIONS.get(compilationKey);
         if (existing != null) {
@@ -86,7 +88,8 @@ public final class ArnisBuildingAtlas {
             return existing;
         }
         long compilationSeed = MegacityLayout.mix(
-                level.getSeed() ^ NeonCityGenerator.layout().seed() ^ REGION_SALT,
+                NeonCityGenerator.contentSeed()
+                        ^ NeonCityGenerator.layout().seed() ^ REGION_SALT,
                 district.ordinal(), minimumFloors * 31 + maximumFloors);
         int desiredSites = Math.max(1, (int) StoryMissionCatalog.definitions().stream()
                 .filter(mission -> mission.primaryDistrict() == district)
@@ -148,7 +151,7 @@ public final class ArnisBuildingAtlas {
                         level, candidate.chunkX(), candidate.chunkZ(), REGION_RADIUS_CHUNKS);
             }
             CacheKey key = new CacheKey(
-                    level.getSeed(), NeonCityGenerator.layout().seed(), district,
+                    NeonCityGenerator.contentSeed(), NeonCityGenerator.layout().seed(), district,
                     candidate.chunkX(), candidate.chunkZ(), minimumFloors, maximumFloors);
             MissionBuildingPlanner.AtlasScan scan = CACHE.get(key);
             if (scan == null) {
@@ -215,6 +218,11 @@ public final class ArnisBuildingAtlas {
         CACHE.clear();
         COMPILATIONS.clear();
         LATEST.clear();
+        compilationRequests = 0L;
+    }
+
+    static long compilationRequests() {
+        return compilationRequests;
     }
 
     private static long regionDensity(District district, int centerChunkX, int centerChunkZ) {

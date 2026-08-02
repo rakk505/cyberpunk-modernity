@@ -8,6 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.entity.Entity;
@@ -33,12 +34,20 @@ final class MainlineBuildingGenerator {
             ServerLevel level,
             StoryMissionCatalog.StoryMission mission,
             MainlineQuestData reservations) {
+        return generate(level, mission, reservations, ignored -> true);
+    }
+
+    static MissionBuildingPlanner.Site generate(
+            ServerLevel level,
+            StoryMissionCatalog.StoryMission mission,
+            MainlineQuestData reservations,
+            Predicate<MissionBuildingPlanner.Site> filter) {
         MegacityLayout layout = NeonCityGenerator.layout();
         MegacityLayout.Node center = layout.node(mission.primaryDistrict());
         int centerChunkX = Math.floorDiv(center.x(), 16);
         int centerChunkZ = Math.floorDiv(center.z(), 16);
         long seed = MegacityLayout.mix(
-                level.getSeed() ^ layout.seed() ^ mission.id().hashCode(),
+                NeonCityGenerator.contentSeed() ^ layout.seed() ^ mission.id().hashCode(),
                 mission.primaryDistrict().ordinal(), mission.requestedFloors());
         List<ChunkCandidate> candidates = new ArrayList<>();
         for (int dz = -SEARCH_RADIUS_CHUNKS; dz <= SEARCH_RADIUS_CHUNKS; dz++) {
@@ -72,7 +81,8 @@ final class MainlineBuildingGenerator {
             MissionBuildingPlanner.Site site = createSite(
                     mission.primaryDistrict(), mission.id(), origin,
                     mission.requestedFloors(), candidate.score());
-            if (reservations.conflicts(site, mission.id())
+            if (!filter.test(site)
+                    || reservations.conflicts(site, mission.id())
                     || MissionSiteData.get(level).isReservedByOther(
                             site.id(), site, reservationOwner)) {
                 continue;

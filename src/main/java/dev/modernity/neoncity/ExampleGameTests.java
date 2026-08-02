@@ -210,9 +210,8 @@ public final class ExampleGameTests {
                 "public map seed did not reproduce the server layout");
         int extent = CityMapProjection.extent(layout);
         helper.assertTrue(extent > MegacityLayout.NOMINAL_CITY_RADIUS
-                        && extent > UCorpPortGeneration.plan(layout).maximumAbsoluteCoordinate()
-                        && extent > PerimeterOutskirts.plan(layout).maximumAbsoluteCoordinate(),
-                "city map extent clipped a district, coast, or managed outskirts band");
+                        && extent > UCorpPortGeneration.plan(layout).maximumAbsoluteCoordinate(),
+                "city map extent clipped a district or the localized U Corp coast");
         for (MegacityLayout.Node node : layout.nodes()) {
             helper.assertTrue(Math.abs(node.x()) + node.radiusX() < extent
                             && Math.abs(node.z()) + node.radiusZ() < extent,
@@ -383,7 +382,7 @@ public final class ExampleGameTests {
         helper.succeed();
     }
 
-    /** Retains the old registration name while checking the expanded fixed-edge graph contract. */
+    /** Retains the old registration name while checking the circular outer-ring graph contract. */
     public static void districtCoverage(GameTestHelper helper) {
         MegacityLayout layout = MegacityLayout.create(TEST_SEED);
         helper.assertTrue(District.values().length == 35, "city must define exactly 35 cultures");
@@ -417,7 +416,7 @@ public final class ExampleGameTests {
         helper.assertTrue(layout.locate(0, 0).district() == District.A_CORP,
                 "A Corp does not own the world origin");
 
-        Set<District> perimeter = Set.of(
+        Set<District> fixedOuter = Set.of(
                 District.AE_DISTRICT, District.Y_CORP, District.YI_DISTRICT,
                 District.WANG_DISTRICT, District.X_CORP, District.XI_DISTRICT,
                 District.UANG_DISTRICT, District.U_CORP, District.UI_DISTRICT,
@@ -425,17 +424,18 @@ public final class ExampleGameTests {
         for (long offset : new long[]{0L, 1L, 17L, 151L}) {
             MegacityLayout candidate = MegacityLayout.create(TEST_SEED + offset);
             assertPerimeterLayout(helper, candidate);
-            for (District district : perimeter) {
+            for (District district : fixedOuter) {
                 helper.assertTrue(sameNodeGeometry(layout.node(district), candidate.node(district)),
-                        district + " moved off its fixed perimeter anchor");
+                        district + " moved off its fixed outer-ring slot");
             }
         }
+        assertPerimeterLayout(helper, NeonCityGenerator.fixedLayout());
 
         MegacityLayout changed = MegacityLayout.create(TEST_SEED + 1);
         int movedInterior = 0;
         int interiorCount = 0;
         for (District district : District.values()) {
-            if (district == District.A_CORP || perimeter.contains(district)) continue;
+            if (district == District.A_CORP || fixedOuter.contains(district)) continue;
             interiorCount++;
             if (!sameNodeGeometry(layout.node(district), changed.node(district))) movedInterior++;
         }
@@ -448,49 +448,27 @@ public final class ExampleGameTests {
 
     /** District-only land must be contiguous without relying on narrow graph corridors. */
     public static void urbanFootprintContinuity(GameTestHelper helper) {
-        List<District> ring = List.of(
-                District.AE_DISTRICT, District.Y_CORP, District.YI_DISTRICT,
-                District.WANG_DISTRICT, District.X_CORP, District.XI_DISTRICT,
-                District.UI_DISTRICT, District.U_CORP, District.UANG_DISTRICT,
-                District.PAK_DISTRICT, District.POK_DISTRICT, District.PON_DISTRICT);
-        for (long seedOffset : new long[]{0L, 1L, 17L, 85L, 127L, 151L}) {
-            MegacityLayout layout = MegacityLayout.create(TEST_SEED + seedOffset);
+        for (long worldSeed : new long[]{
+                TEST_SEED, TEST_SEED + 1L, TEST_SEED + 17L, TEST_SEED + 85L,
+                TEST_SEED + 127L, TEST_SEED + 151L, NeonCityGenerator.FIXED_CITY_SEED}) {
+            MegacityLayout layout = MegacityLayout.create(worldSeed);
             for (MegacityLayout.Node node : layout.nodes()) {
                 helper.assertTrue(layout.insideUrbanHull(node.x(), node.z()),
                         node.district() + " center escaped the continuous urban hull");
             }
 
-            int filledCornerGaps = 0;
+            List<MegacityLayout.Node> ring = outerRing(layout);
             for (int index = 0; index < ring.size(); index++) {
-                MegacityLayout.Node first = layout.node(ring.get(index));
-                MegacityLayout.Node second = layout.node(ring.get((index + 1) % ring.size()));
+                MegacityLayout.Node first = ring.get(index);
+                MegacityLayout.Node second = ring.get((index + 1) % ring.size());
                 int midpointX = Math.floorDiv(first.x() + second.x(), 2);
                 int midpointZ = Math.floorDiv(first.z() + second.z(), 2);
-                int edgeCenter = Math.abs(layout.node(District.X_CORP).x());
-                for (int depth : new int[]{0, 256, 512}) {
-                    double factor = 1.0 - depth / (double) edgeCenter;
-                    int x = (int) Math.round(midpointX * factor);
-                    int z = (int) Math.round(midpointZ * factor);
-                    MegacityLayout.Location seam = layout.locateDistrict(x, z);
-                    helper.assertTrue(seam.insideCity(),
-                            "perimeter gap remained wilderness between "
-                                    + first.district() + " and " + second.district());
-                    helper.assertTrue(seam.district() == first.district()
-                                    || seam.district() == second.district(),
-                            "another district captured the perimeter between "
-                                    + first.district() + " and " + second.district()
-                                    + " at depth " + depth + ": " + seam.district());
-                    if (depth == 0
-                            && seam.normalizedDistance()
-                                    > MegacityLayout.DISTRICT_BLOB_LIMIT) {
-                        filledCornerGaps++;
-                        helper.assertTrue(seam.zone() == MegacityLayout.Zone.BACKSTREETS,
-                                "filled perimeter gap was not generated as Backstreets");
-                    }
-                }
+                MegacityLayout.Location midpoint = layout.locateDistrict(midpointX, midpointZ);
+                helper.assertTrue(midpoint.insideCity(),
+                        "outer ring opened into wilderness between "
+                                + first.district() + " and " + second.district());
+                assertDividerBetween(helper, layout, first, second);
             }
-            helper.assertTrue(filledCornerGaps >= 4,
-                    "continuity test did not exercise the four former corner gaps");
             assertSingleDistrictLandmass(helper, layout);
 
             int corner = Math.abs(layout.node(District.X_CORP).x());
@@ -506,9 +484,7 @@ public final class ExampleGameTests {
         int step = 64;
         int minimum = -MegacityLayout.NOMINAL_CITY_RADIUS;
         int width = Math.floorDiv(MegacityLayout.NOMINAL_CITY_RADIUS * 2, step) + 1;
-        int hullSide = Math.abs(layout.node(District.X_CORP).x());
-        int hullDiagonal = Math.abs(layout.node(District.YI_DISTRICT).x())
-                + Math.abs(layout.node(District.YI_DISTRICT).z());
+        int hullRadius = Math.abs(layout.node(District.X_CORP).x());
         boolean[] occupied = new boolean[width * width];
         int occupiedCount = 0;
         int start = -1;
@@ -518,11 +494,8 @@ public final class ExampleGameTests {
                 int x = minimum + xIndex * step;
                 int cell = zIndex * width + xIndex;
                 occupied[cell] = layout.locateDistrict(x, z).insideCity();
-                long absoluteX = Math.abs((long) x);
-                long absoluteZ = Math.abs((long) z);
-                boolean expectedHull = absoluteX <= hullSide
-                        && absoluteZ <= hullSide
-                        && absoluteX + absoluteZ <= hullDiagonal;
+                boolean expectedHull = Math.hypot((double) x, (double) z)
+                        <= hullRadius + 1.0;
                 helper.assertTrue(layout.insideUrbanHull(x, z) == expectedHull,
                         "urban hull predicate disagreed with the fixed perimeter at "
                                 + x + "," + z);
@@ -566,79 +539,118 @@ public final class ExampleGameTests {
     }
 
     private static void assertPerimeterLayout(GameTestHelper helper, MegacityLayout layout) {
-        List<District> north = List.of(
-                District.AE_DISTRICT, District.Y_CORP, District.YI_DISTRICT);
-        List<District> east = List.of(
-                District.WANG_DISTRICT, District.X_CORP, District.XI_DISTRICT);
-        List<District> south = List.of(
-                District.UANG_DISTRICT, District.U_CORP, District.UI_DISTRICT);
-        List<District> west = List.of(
-                District.PON_DISTRICT, District.POK_DISTRICT, District.PAK_DISTRICT);
+        List<MegacityLayout.Node> ring = outerRing(layout);
+        List<District> expectedRing = List.of(
+                District.Y_CORP, District.YI_DISTRICT, District.WANG_DISTRICT,
+                District.X_CORP, District.XI_DISTRICT, District.UI_DISTRICT,
+                District.U_CORP, District.UANG_DISTRICT, District.PAK_DISTRICT,
+                District.POK_DISTRICT, District.PON_DISTRICT, District.AE_DISTRICT);
 
-        int northEdge = north.stream().map(layout::node)
-                .mapToInt(node -> node.z() - node.radiusZ()).min().orElseThrow();
-        int eastEdge = east.stream().map(layout::node)
-                .mapToInt(node -> node.x() + node.radiusX()).max().orElseThrow();
-        int southEdge = south.stream().map(layout::node)
-                .mapToInt(node -> node.z() + node.radiusZ()).max().orElseThrow();
-        int westEdge = west.stream().map(layout::node)
-                .mapToInt(node -> node.x() - node.radiusX()).min().orElseThrow();
+        helper.assertTrue(ring.size() == 12, "outer ring must contain exactly twelve districts");
+        for (int slot = 0; slot < expectedRing.size(); slot++) {
+            helper.assertTrue(ring.get(slot).district() == expectedRing.get(slot),
+                    expectedRing.get(slot) + " left fixed outer slot " + slot);
+        }
 
+        Set<District> outerDistricts = EnumSet.noneOf(District.class);
+        for (MegacityLayout.Node node : ring) outerDistricts.add(node.district());
+        int interiorCount = 0;
+        for (MegacityLayout.Node node : layout.nodes()) {
+            if (node.district() == District.A_CORP || outerDistricts.contains(node.district())) {
+                continue;
+            }
+            double radius = Math.hypot((double) node.x(), (double) node.z());
+            helper.assertTrue(radius < Math.abs(layout.node(District.X_CORP).x()),
+                    node.district() + " escaped the seeded interior");
+            interiorCount++;
+        }
+        helper.assertTrue(interiorCount == 22,
+                "outer ring did not leave exactly twenty-two shuffled interior cultures");
+
+        int northEdge = layout.node(District.Y_CORP).z()
+                - layout.node(District.Y_CORP).radiusZ();
+        int eastEdge = layout.node(District.X_CORP).x()
+                + layout.node(District.X_CORP).radiusX();
+        int southEdge = layout.node(District.U_CORP).z()
+                + layout.node(District.U_CORP).radiusZ();
+        int westEdge = layout.node(District.POK_DISTRICT).x()
+                - layout.node(District.POK_DISTRICT).radiusX();
         for (MegacityLayout.Node node : layout.nodes()) {
             helper.assertTrue(node.z() - node.radiusZ() >= northEdge,
-                    node.district() + " escaped north of the fixed edge");
+                    node.district() + " escaped north of Y Corp");
             helper.assertTrue(node.x() + node.radiusX() <= eastEdge,
-                    node.district() + " escaped east of the fixed edge");
+                    node.district() + " escaped east of X Corp");
             helper.assertTrue(node.z() + node.radiusZ() <= southEdge,
-                    node.district() + " escaped south of the fixed edge");
+                    node.district() + " escaped south of U Corp");
             helper.assertTrue(node.x() - node.radiusX() >= westEdge,
-                    node.district() + " escaped west of the fixed edge");
-        }
-        for (District district : north) {
-            MegacityLayout.Node node = layout.node(district);
-            helper.assertTrue(node.z() - node.radiusZ() == northEdge,
-                    district + " does not share the northern envelope");
-        }
-        for (District district : east) {
-            MegacityLayout.Node node = layout.node(district);
-            helper.assertTrue(node.x() + node.radiusX() == eastEdge,
-                    district + " does not share the eastern envelope");
-        }
-        for (District district : south) {
-            MegacityLayout.Node node = layout.node(district);
-            helper.assertTrue(node.z() + node.radiusZ() == southEdge,
-                    district + " does not share the southern envelope");
-        }
-        for (District district : west) {
-            MegacityLayout.Node node = layout.node(district);
-            helper.assertTrue(node.x() - node.radiusX() == westEdge,
-                    district + " does not share the western envelope");
+                    node.district() + " escaped west of Pok");
         }
 
-        helper.assertTrue(layout.node(District.AE_DISTRICT).x() < layout.node(District.Y_CORP).x()
-                        && layout.node(District.Y_CORP).x() < layout.node(District.YI_DISTRICT).x(),
-                "northern districts are not ordered AE-Y-Yi");
-        helper.assertTrue(layout.node(District.WANG_DISTRICT).z() < layout.node(District.X_CORP).z()
-                        && layout.node(District.X_CORP).z() < layout.node(District.XI_DISTRICT).z(),
-                "eastern districts are not ordered Wang-X-Xi");
-        helper.assertTrue(layout.node(District.UANG_DISTRICT).x() < layout.node(District.U_CORP).x()
-                        && layout.node(District.U_CORP).x() < layout.node(District.UI_DISTRICT).x(),
-                "southern districts are not ordered Uang-U-Ui");
-        helper.assertTrue(layout.node(District.PON_DISTRICT).z() < layout.node(District.POK_DISTRICT).z()
-                        && layout.node(District.POK_DISTRICT).z() < layout.node(District.PAK_DISTRICT).z(),
-                "western districts are not ordered Pon-Pok-Pak");
-
-        List<District> ring = List.of(
-                District.AE_DISTRICT, District.Y_CORP, District.YI_DISTRICT,
-                District.WANG_DISTRICT, District.X_CORP, District.XI_DISTRICT,
-                District.UI_DISTRICT, District.U_CORP, District.UANG_DISTRICT,
-                District.PAK_DISTRICT, District.POK_DISTRICT, District.PON_DISTRICT);
         for (int index = 0; index < ring.size(); index++) {
-            District first = ring.get(index);
-            District second = ring.get((index + 1) % ring.size());
-            helper.assertTrue(layout.edges().stream().anyMatch(edge -> edge.connects(first, second)),
-                    "perimeter ring omitted " + first + "-" + second);
+            MegacityLayout.Node first = ring.get(index);
+            MegacityLayout.Node second = ring.get((index + 1) % ring.size());
+            int midpointX = Math.floorDiv(first.x() + second.x(), 2);
+            int midpointZ = Math.floorDiv(first.z() + second.z(), 2);
+            helper.assertTrue(layout.normalizedDistanceTo(first, midpointX, midpointZ)
+                            <= MegacityLayout.DISTRICT_BLOB_LIMIT
+                            && layout.normalizedDistanceTo(second, midpointX, midpointZ)
+                            <= MegacityLayout.DISTRICT_BLOB_LIMIT,
+                    "outer blobs do not overlap between " + first.district()
+                            + " and " + second.district());
+            helper.assertTrue(layout.edges().stream().anyMatch(edge ->
+                            edge.connects(first.district(), second.district())),
+                    "outer ring omitted " + first.district() + "-" + second.district());
+            helper.assertTrue(layout.edges().stream().anyMatch(edge ->
+                            (edge.first().district() == first.district()
+                                            && !outerDistricts.contains(edge.second().district()))
+                                    || (edge.second().district() == first.district()
+                                            && !outerDistricts.contains(edge.first().district()))),
+                    first.district() + " has no direct inward connection");
+            assertDividerBetween(helper, layout, first, second);
         }
+    }
+
+    private static List<MegacityLayout.Node> outerRing(MegacityLayout layout) {
+        int radius = Math.abs(layout.node(District.X_CORP).x());
+        ArrayList<MegacityLayout.Node> ring = new ArrayList<>(12);
+        for (int slot = 0; slot < 12; slot++) {
+            int expectedSlot = slot;
+            double angle = slot * Math.PI * 2.0 / 12.0;
+            int x = (int) Math.round(Math.sin(angle) * radius);
+            int z = (int) Math.round(-Math.cos(angle) * radius);
+            MegacityLayout.Node node = layout.nodes().stream()
+                    .filter(candidate -> candidate.x() == x && candidate.z() == z)
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError(
+                            "outer ring omitted slot " + expectedSlot + " at " + x + "," + z));
+            ring.add(node);
+        }
+        return List.copyOf(ring);
+    }
+
+    private static void assertDividerBetween(
+            GameTestHelper helper,
+            MegacityLayout layout,
+            MegacityLayout.Node first,
+            MegacityLayout.Node second) {
+        boolean foundDivider = false;
+        for (int step = 20; step <= 80 && !foundDivider; step++) {
+            double progress = step / 100.0;
+            int x = (int) Math.round(first.x() + (second.x() - first.x()) * progress);
+            int z = (int) Math.round(first.z() + (second.z() - first.z()) * progress);
+            MegacityLayout.Location sample = layout.locateDistrict(x, z);
+            boolean expectedPair = (sample.primary().district() == first.district()
+                            && sample.secondary().district() == second.district())
+                    || (sample.primary().district() == second.district()
+                            && sample.secondary().district() == first.district());
+            foundDivider = expectedPair && switch (sample.zone()) {
+                case BORDER_WALLED, BORDER_FOREST, BORDER_CLIFF -> true;
+                default -> false;
+            };
+        }
+        helper.assertTrue(foundDivider,
+                "normal district divider missing between " + first.district()
+                        + " and " + second.district());
     }
 
     private static boolean sameNodeGeometry(
@@ -3495,14 +3507,10 @@ public final class ExampleGameTests {
         for (long seedOffset : ZONE_SEED_OFFSETS) {
             MegacityLayout layout = MegacityLayout.create(TEST_SEED + seedOffset);
             MegacityLayout.Node uCorp = layout.node(District.U_CORP);
-            MegacityLayout.Node uang = layout.node(District.UANG_DISTRICT);
-            MegacityLayout.Node ui = layout.node(District.UI_DISTRICT);
             int southEdge = uCorp.z() + uCorp.radiusZ();
-            helper.assertTrue(uang.z() + uang.radiusZ() == southEdge
-                            && ui.z() + ui.radiusZ() == southEdge
-                            && layout.nodes().stream().allMatch(
+            helper.assertTrue(layout.nodes().stream().allMatch(
                                     node -> node.z() + node.radiusZ() <= southEdge),
-                    "Uang-U-Ui do not share the fixed southern city envelope");
+                    "U Corp is not on the southern city envelope");
 
             UCorpPortGeneration.Plan plan = UCorpPortGeneration.plan(layout);
             UCorpPortGeneration.clearCache();
@@ -3517,21 +3525,21 @@ public final class ExampleGameTests {
             helper.assertTrue(plan.forwardX() == 0 && plan.forwardZ() == 1
                             && plan.rightX() == -1 && plan.rightZ() == 0,
                     "U Corp coast is not fixed to the south");
-            helper.assertTrue(plan.oceanHalfWidth() > plan.portHalfWidth()
-                            && plan.oceanHalfWidth() >= Math.abs(uang.x() - uCorp.x())
-                                    + uang.radiusX()
-                            && plan.oceanHalfWidth() >= Math.abs(ui.x() - uCorp.x())
-                                    + ui.radiusX(),
-                    "south ocean does not span Uang, U, and Ui");
-            for (MegacityLayout.Node coastDistrict : List.of(uang, uCorp, ui)) {
-                int lateral = plan.lateralAt(coastDistrict.x(), coastDistrict.z());
-                int coastForward = plan.shorelineAt(lateral);
-                int coastX = plan.worldX(coastForward - 1, lateral);
-                int coastZ = plan.worldZ(coastForward - 1, lateral);
-                helper.assertTrue(layout.locate(coastX, coastZ).insideCity(),
-                        coastDistrict.district()
-                                + " leaves a wilderness seam before the southern ocean");
-            }
+            helper.assertTrue(plan.oceanHalfWidth()
+                            == plan.portHalfWidth() + UCorpPortGeneration.OCEAN_SIDE_MARGIN,
+                    "U Corp ocean is no longer localized to its own port");
+            int coastForward = plan.shorelineAt(0);
+            int coastX = plan.worldX(coastForward - 1, 0);
+            int coastZ = plan.worldZ(coastForward - 1, 0);
+            helper.assertTrue(layout.locate(coastX, coastZ).insideCity(),
+                    "U Corp leaves a wilderness seam before its southern ocean");
+            int beyondX = plan.worldX(uCorp.radiusZ() * 3 / 2, 0);
+            int beyondZ = plan.worldZ(uCorp.radiusZ() * 3 / 2, 0);
+            helper.assertTrue(plan.featureAt(beyondX, beyondZ)
+                                    == UCorpPortGeneration.Feature.NONE
+                            && layout.locateDistrict(beyondX, beyondZ).zone()
+                                    == MegacityLayout.Zone.WILDERNESS,
+                    "U Corp marine generation escaped into the vanilla southern wilderness");
 
             for (int index = 0; index < plan.portships().size(); index++) {
                 UCorpPortGeneration.Portship ship = plan.portships().get(index);
@@ -3542,7 +3550,9 @@ public final class ExampleGameTests {
                         "Portship " + index + " does not occupy a 75x75 bounding square");
                 helper.assertTrue(plan.featureAt(ship.centerX(), ship.centerZ())
                                         == UCorpPortGeneration.Feature.PORTSHIP
-                                && plan.isOceanBiomeAt(ship.centerX(), ship.centerZ()),
+                                && layout.locateDistrict(ship.centerX(), ship.centerZ()).insideCity()
+                                && layout.locateDistrict(ship.centerX(), ship.centerZ()).district()
+                                        == District.U_CORP,
                         "Portship " + index + " is not centered in U Corp ocean");
                 for (int otherIndex = index + 1;
                      otherIndex < plan.portships().size(); otherIndex++) {
@@ -3551,7 +3561,7 @@ public final class ExampleGameTests {
                             "U Corp Portships overlap at seed offset " + seedOffset);
                 }
             }
-            assertOceanContinuity(helper, plan, seedOffset);
+            assertOceanContinuity(helper, layout, plan, seedOffset);
             if (seedOffset == ZONE_SEED_OFFSETS[0]) {
                 detailedPlan = plan;
             }
@@ -3580,6 +3590,7 @@ public final class ExampleGameTests {
 
     private static void assertOceanContinuity(
             GameTestHelper helper,
+            MegacityLayout layout,
             UCorpPortGeneration.Plan plan,
             long seedOffset) {
         EnumSet<UCorpPortGeneration.Feature> features =
@@ -3615,10 +3626,16 @@ public final class ExampleGameTests {
             for (int forward = shoreline; forward <= plan.oceanEnd(); forward++) {
                 int worldX = plan.worldX(forward, lateral);
                 int worldZ = plan.worldZ(forward, lateral);
-                helper.assertTrue(plan.isOceanBiomeAt(worldX, worldZ),
+                UCorpPortGeneration.Feature feature = plan.featureAt(worldX, worldZ);
+                helper.assertTrue(feature == UCorpPortGeneration.Feature.OCEAN
+                                || feature == UCorpPortGeneration.Feature.PORTSHIP,
                         "U Corp ocean has a dry gap at " + worldX + "," + worldZ
                                 + " and seed offset " + seedOffset);
-                features.add(plan.featureAt(worldX, worldZ));
+                helper.assertTrue(layout.locateDistrict(worldX, worldZ).insideCity()
+                                && layout.locateDistrict(worldX, worldZ).district()
+                                        == District.U_CORP,
+                        "U Corp ocean escaped its district at " + worldX + "," + worldZ);
+                features.add(feature);
             }
         }
         for (int lateral = -plan.oceanHalfWidth();
@@ -3651,7 +3668,8 @@ public final class ExampleGameTests {
                             + localForward * plan.forwardZ()
                             + localLateral * plan.rightZ();
                     helper.assertTrue(plan.portshipAt(worldX, worldZ) == ship
-                                    && plan.isOceanBiomeAt(worldX, worldZ),
+                                    && plan.featureAt(worldX, worldZ)
+                                            == UCorpPortGeneration.Feature.PORTSHIP,
                             "Portship footprint escaped its deterministic ocean plan at "
                                     + worldX + "," + worldZ);
                 }
@@ -3903,76 +3921,51 @@ public final class ExampleGameTests {
                         > DistrictAtmosphere.WinterWeather.GENTLE.particleCount() * 3,
                 "Y Corp snowstorms are not visibly stronger than gentle snowfall");
 
-        PerimeterOutskirts.Plan outskirts = PerimeterOutskirts.plan(layout);
-        int tundraX = layout.node(District.Y_CORP).x();
-        int tundraZ = outskirts.northEdge() - 96;
-        NeonCityGenerator.UrbanSample tundra = NeonCityGenerator.sample(tundraX, tundraZ);
-        helper.assertTrue(outskirts.featureAt(tundraX, tundraZ)
-                                == PerimeterOutskirts.Feature.NORTH_TUNDRA
-                        && outskirts.isTundraBiomeAt(tundraX, tundraZ)
-                        && tundra.zone() == MegacityLayout.Zone.OUTSKIRTS
-                        && tundra.roadClass() == NeonCityGenerator.RoadClass.TUNDRA_OUTSKIRTS
-                        && NeonCityGenerator.isInsideCity(tundraX, tundraZ),
-                "north edge does not continue into generated tundra outskirts");
-        int westX = outskirts.westEdge() - 96;
-        NeonCityGenerator.UrbanSample westLand = NeonCityGenerator.sample(westX, 0);
-        helper.assertTrue(outskirts.featureAt(westX, 0)
-                        == PerimeterOutskirts.Feature.WEST_LAND
-                        && westLand.roadClass() == NeonCityGenerator.RoadClass.LAND_OUTSKIRTS
-                        && NeonCityGenerator.isInsideCity(westX, 0),
-                "western districts do not taper into land outskirts");
+        int wildernessEdge = MegacityLayout.NOMINAL_CITY_RADIUS + 512;
+        NeonCityGenerator.UrbanSample northWilderness = NeonCityGenerator.sample(
+                0, -wildernessEdge);
+        NeonCityGenerator.UrbanSample westWilderness = NeonCityGenerator.sample(
+                -wildernessEdge, 0);
+        NeonCityGenerator.UrbanSample eastWilderness = NeonCityGenerator.sample(
+                wildernessEdge, 0);
+        NeonCityGenerator.UrbanSample southWilderness = NeonCityGenerator.sample(
+                0, wildernessEdge);
+        helper.assertTrue(northWilderness.roadClass()
+                                == NeonCityGenerator.RoadClass.WILDERNESS
+                        && westWilderness.roadClass()
+                                == NeonCityGenerator.RoadClass.WILDERNESS
+                        && eastWilderness.roadClass()
+                                == NeonCityGenerator.RoadClass.WILDERNESS
+                        && southWilderness.roadClass()
+                                == NeonCityGenerator.RoadClass.WILDERNESS
+                        && !NeonCityGenerator.isInsideCity(0, -wildernessEdge)
+                        && !NeonCityGenerator.isInsideCity(-wildernessEdge, 0)
+                        && !NeonCityGenerator.isInsideCity(wildernessEdge, 0)
+                        && !NeonCityGenerator.isInsideCity(0, wildernessEdge),
+                "external edge terrain is still being claimed by the megacity generator");
 
         int eastExtraction = 0;
-        int eastLand = 0;
-        int innerExtraction = 0;
-        int outerExtraction = 0;
+        int misplacedExtraction = 0;
         MegacityLayout.Node extractionNode = layout.node(District.X_CORP);
-        for (int z = extractionNode.z() - extractionNode.radiusZ();
-             z <= extractionNode.z() + extractionNode.radiusZ(); z += 24) {
-            for (int x = outskirts.eastEdge();
-                 x <= outskirts.eastEdge() + PerimeterOutskirts.BAND_WIDTH; x += 24) {
-                PerimeterOutskirts.Feature feature = outskirts.featureAt(x, z);
-                if (feature == PerimeterOutskirts.Feature.EAST_EXTRACTION) {
-                    eastExtraction++;
-                    if (x < outskirts.eastEdge() + PerimeterOutskirts.BAND_WIDTH / 2) {
-                        innerExtraction++;
-                    } else {
-                        outerExtraction++;
-                    }
-                } else if (feature == PerimeterOutskirts.Feature.EAST_LAND) {
-                    eastLand++;
-                }
-            }
-        }
-        helper.assertTrue(eastExtraction > 0 && eastLand > 0
-                        && innerExtraction > outerExtraction
-                        && NeonCityGenerator.isInsideCity(outskirts.eastEdge() + 96, 0),
-                "X Corp extraction does not fade into eastern land outskirts");
-        int tundraTreeAnchors = 0;
-        for (int z = -512; z < 512; z++) {
-            for (int x = -512; x < 512; x++) {
-                if (!NeonCityGenerator.isTundraTreeAnchor(layout.seed(), x, z)) continue;
-                tundraTreeAnchors++;
-                int localX = Math.floorMod(x, 16);
-                int localZ = Math.floorMod(z, 16);
-                helper.assertTrue(localX >= 2 && localX <= 13
-                                && localZ >= 2 && localZ <= 13,
-                        "tundra tree canopy can cross a chunk generation boundary");
-            }
-        }
-        helper.assertTrue(tundraTreeAnchors > 0,
-                "tundra outskirts have no deterministic tree anchors");
-        for (double radius = 0.72; radius <= 1.05; radius += 0.04) {
-            for (int angle = 0; angle < 96; angle++) {
-                int[] point = ellipsePoint(extractionNode, radius, angle, 96);
+        for (double radius = 0.50; radius <= 1.05; radius += 0.025) {
+            for (int angle = 0; angle < 192; angle++) {
+                int[] point = ellipsePoint(extractionNode, radius, angle, 192);
                 NeonCityGenerator.UrbanSample sample = NeonCityGenerator.sample(point[0], point[1]);
-                if (point[0] < extractionNode.x()) {
-                    helper.assertTrue(sample.roadClass()
-                                    != NeonCityGenerator.RoadClass.EXTRACTION_SITE,
-                            "X Corp placed extraction equipment on its western edge");
+                if (sample.district() != District.X_CORP
+                        || sample.roadClass()
+                                != NeonCityGenerator.RoadClass.EXTRACTION_SITE) {
+                    continue;
+                }
+                if (point[0] > extractionNode.x()
+                        && sample.location().normalizedDistance() > 0.70) {
+                    eastExtraction++;
+                } else {
+                    misplacedExtraction++;
                 }
             }
         }
+        helper.assertTrue(eastExtraction > 0 && misplacedExtraction == 0,
+                "X Corp extraction must remain inside its outer eastern district edge");
 
         int minHill = Integer.MAX_VALUE;
         int maxHill = Integer.MIN_VALUE;

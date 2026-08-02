@@ -26,8 +26,13 @@ discussed and audited. Other co-shipped dirty-tree work is listed separately.
   structure tiles.
 - Nine new districts have fixed edge positions and their own Nest and
   Backstreets atlases.
-- The fixed edge districts are folded into one filled octagonal urban mass;
-  thin roads are no longer the only links between detached district islands.
+- The exact 12-district outer ring is Y, Yi, 王, X, Xi, Ui, U, Uang, Pak,
+  Pok, Pon, and Æ. Its circular blobs overlap through normal dividers and connect
+  inward into one continuous city footprint.
+- City systems use canonical seed `50520260801`; five pre-analyzed mainline Arnis
+  sites are bundled and persisted without a startup scan or remote chunk generation.
+- Artificial tundra, land, extraction, and ocean-biome bands outside the city were
+  removed. Vanilla generation owns terrain beyond the irregular perimeter.
 - J Corp uses only Las Vegas sources and Q Corp now uses Fukuoka.
 - D Corp has dense local fog. District Æ, Y Corp, and District Yi share winter
   weather.
@@ -122,42 +127,26 @@ All new and replacement sources have checked-in OSM inputs, Arnis generation
 settings, selection metadata, and SHA-256 provenance under
 `provenance/arnis_districts/`.
 
-## Fixed Perimeter And One-Piece City
+## Circular Perimeter And One-Piece City
 
-The following centers are invariant across seeds:
-
-| Edge | District centers |
-|---|---|
-| North | Æ `(-2200,-5200)`, Y `(0,-5200)`, Yi `(2200,-5200)` |
-| East | 王 `(5200,-2200)`, X `(5200,0)`, Xi `(5200,2200)` |
-| South | Uang `(-2200,5200)`, U `(0,5200)`, Ui `(2200,5200)` |
-| West | Pon `(-5200,-2200)`, Pok `(-5200,0)`, Pak `(-5200,2200)` |
-
-Only non-edge districts shuffle through the interior. A mandatory perimeter
-ring preserves edge adjacency, including Yi to 王 at the north-east corner.
-
-The original fixed anchors left large wilderness gaps. The runtime now unions
-the irregular district blobs with a filled octagonal urban hull:
+The outer ring contains exactly 12 districts in clockwise order:
 
 ```text
-abs(x) <= 5200
-abs(z) <= 5200
-abs(x) + abs(z) <= 7400
+Y -> Yi -> 王 -> X -> Xi -> Ui -> U -> Uang -> Pak -> Pok -> Pon -> Æ -> Y
 ```
 
-Behavior inside the hull:
+Their centers lie on a 5,000-block-radius circle. Each irregular blob has a
+1,450-block base radius, so every neighboring pair overlaps enough to expose the
+same `BORDER_WALLED`, `BORDER_FOREST`, or `BORDER_CLIFF` divider grammar used by
+interior districts. Y, X, U, and Pok are the exact north, east, south, and west
+cardinal anchors. The original low-discrepancy placement algorithm is preserved
+for all 22 shuffled non-A interior districts, with A Corp at the origin.
 
-- Existing authored blob interiors keep their Nest/Backstreets classification.
-- Former gaps become the nearest district's Backstreets.
-- The outer 1,050-block hull band is owned only by fixed perimeter districts,
-  preventing a shuffled interior district from capturing an edge seam.
-- Far diagonal corners remain wilderness.
-- S Corp's farm rule is limited to its authored blob, preventing hull infill
-  from becoming a giant farm.
-- Highway bridge classification no longer treats all hull infill as a bridge.
-
-The client city map performs the same exact hull and edge-owner lookup, so it
-does not show black voids where the world now generates Backstreets.
+A circular continuity hull joins the overlapping interior without forcing edge
+ownership or replacing the nearest-district calculation. The full district land
+flood-fills as one component, while locations outside the irregular outer blobs
+taper directly into vanilla wilderness. The full-screen map uses the same lookup
+and no longer renders detached edge islands or artificial terrain bands.
 
 Primary files:
 
@@ -174,20 +163,16 @@ Primary files:
 - D Corp uses dense client-local fog with a 42-block far plane and smooth
   entry/exit blending.
 - T Corp retains lighter smog with a 92-block far plane.
-- A 640-block tundra band remains north of the city and receives a
-  `SNOWY_PLAINS` biome override.
-- The west edge tapers into land.
-- The east edge tapers into land. X Corp extraction equipment is restricted to
-  the east-facing side and decreases in density away from the city.
-- The south edge opens into ocean across Uang, U, and Ui and receives a
-  `DEEP_OCEAN` biome override.
-- U Corp retains its container terminal, cranes, harbor, and Portships.
+- No custom biome or land band is generated outside the city. North, west, east,
+  and south all transition directly to the preset's vanilla world generation.
+- X Corp extraction equipment remains restricted to its in-district eastern edge.
+- U Corp retains a localized container terminal, cranes, harbor, ocean blocks,
+  and Portships entirely within the U Corp district blob; no biome is replaced.
 
 Primary files:
 
 - [DistrictAtmosphere.java](src/main/java/dev/modernity/neoncity/DistrictAtmosphere.java)
 - [ProjectMoonAtmosphereClient.java](src/main/java/dev/modernity/neoncity/client/ProjectMoonAtmosphereClient.java)
-- [PerimeterOutskirts.java](src/main/java/dev/modernity/neoncity/PerimeterOutskirts.java)
 - [UCorpPortGeneration.java](src/main/java/dev/modernity/neoncity/UCorpPortGeneration.java)
 
 ## Urban Supply Crates
@@ -226,6 +211,33 @@ Loot files:
 Crates are deliberately sparse and geometry-dependent. There is no guarantee of
 one crate per district or selected chunk when no valid wall-backed location
 exists. The current visual container is a Minecraft barrel.
+
+## Fixed Seed And Mainline Building Catalog
+
+All authored megacity systems use canonical content seed `50520260801`. The
+Minecraft seed can still control vanilla terrain outside the city; the demo
+server should also set `level-seed=50520260801` when identical wilderness is
+required.
+
+The recovered fixed-site catalog is packaged at
+`data/neoncity/missions/mainline_sites_50520260801.dat` with SHA-256
+`5f447bc0acc4e61c82b92557e99b2e51190cb1bd1be6008bc76c9586d5ab4fd5`.
+
+| Mission | District | Floors | Site ID | Bounds |
+|---|---:|---:|---|---|
+| `m01_deliver_datashards` | G | 3 | `g:71:12:e67adada6fea42bf` | `1133,72,215 .. 1150,92,230` |
+| `m02_assassinate_g_exec` | G | 4 | `g:72:11:e7227c874cf5a54e` | `1133,72,156 .. 1150,96,171` |
+| `m03_steal_weights` | O | 5 | `o:-76:192:9be67862fd808952` | `-1188,72,3103 .. -1170,100,3117` |
+| `m04_assassinate_fixer` | D | 3 | `d:-197:-59:1cb4b96cfc3905f0` | `-3169,72,-969 .. -3162,92,-951` |
+| `m05_kill_cyberpsycho` | D | 3 | `d:-196:-58:c8a7958c6b587fbf` | `-3149,72,-898 .. -3140,92,-888` |
+
+Each descriptor has complete floor masks, a ground-level generated entrance,
+an upper-floor target, stairs, patrol routes, furnishings, and one explosive
+canister. Startup copies these descriptors into save data without loading their
+chunks or invoking the live atlas scanner. Deployment near the active site
+installs the interior, canister, and validated turret plan. Repeated live
+deployment failure can replace a damaged descriptor with a persisted emergency
+atlas/tower plan instead of retrying forever.
 
 ## Mission And Gig Building Planning
 
@@ -421,15 +433,16 @@ The following checks ran against the final merged source:
 | Check | Result |
 |---|---|
 | Static registration audit | 72 explicit unique GameTests; 29 unique network payloads |
-| Standalone layout raster/continuity coverage | One component per seed; zero hull wilderness cells |
+| Standalone layout raster/continuity coverage | One blob; exact 12-member ring, 12 dividers, and 12 inward links |
 | Modernity quick compile | Passed |
 | Modernity full Gradle build | Passed |
-| NeoForge GameTests | **73/73 passed three consecutive times** after the overflow-race fix |
-| Normal dedicated server boot | Ready in 11.13 seconds |
-| Fresh `neoncity:megacity` boot | Ready; generator enabled with 35 districts and five reserved mainline sites |
-| `/neoncity status` | `enabled=true`, 35 districts, 143 generated chunks, v20 fingerprint |
+| NeoForge GameTests | **73/73 passed** on the final v22 source |
+| Fresh `neoncity:megacity` boot | Ready in 11.06s; five sites restored with no atlas scan |
+| Clean restart | Minecraft ready in 2.07s; five saved sites and nine generated chunks restored with no rescan |
+| `/neoncity status` | `enabled=true`, 35 districts, 64 edges, 9 generated chunks, v22 fingerprint |
 | Packaged edge atlases | Nine districts x 512 NBTs = 4,608 tiles |
-| Package inspection | 20,335 entries; voicelines, three loot tables, and key packets present |
+| Fixed-site catalog | Five exact G/G/O/D/D descriptors; restore left all five remote chunks unloaded |
+| Package inspection | 20,332 entries; fixed-site NBT and both compatible world-preset IDs present |
 | `git diff --check` | Passed |
 
 Important registered regression tests include:
@@ -455,23 +468,21 @@ mission buildings.
 
 ## Artifact Baseline And Install
 
-The verified build artifact is:
+The verified v22 build artifact is:
 
 ```text
 build/libs/cyberdeck-1.5.0.jar
-SHA-256: 5ea444ba6a176bc394456db496bbb5dcd7375a7cc143b233e172da6251080392
-Size: 64,437,149 bytes
-Entries: 20,335
+SHA-256: 636cc03c996e89efac8f839460873fb661c5024e51988569a0006c319e6860a9
+Size: 64,440,300 bytes
+Entries: 20,332
 ```
 
-The Minecraft-installed JAR matches the verified artifact. A second hash check
-after a ten-second delay confirmed it was not replaced by the earlier
-concurrent installer:
+The Minecraft-installed JAR is verified against this artifact after installation:
 
 ```text
 ~/Library/Application Support/minecraft/mods/cyberdeck-1.5.0.jar
-SHA-256: 5ea444ba6a176bc394456db496bbb5dcd7375a7cc143b233e172da6251080392
-Status: installed and verified
+SHA-256: 636cc03c996e89efac8f839460873fb661c5024e51988569a0006c319e6860a9
+Status: installed and hash-verified twice
 ```
 
 All multiplayer clients and the dedicated server must use this same
@@ -487,8 +498,8 @@ shasum -a 256 build/libs/cyberdeck-1.5.0.jar \
 ## Compatibility And Known Gaps
 
 1. **Fresh world requirement:** generator fingerprint
-   `project-moon-megacity-v20-fixed-perimeter-20260801` intentionally disables
-   generation in pre-v20 megacity saves. Already generated chunks are not
+   `project-moon-megacity-v22-district-ring-fixed-seed-20260801` intentionally
+   disables generation in older megacity saves. Already generated chunks are not
    rewritten. Use a fresh megacity world for the complete contiguous layout.
 2. **Sparse crates:** crates are not guaranteed per district or selected chunk;
    valid geometry is required.
@@ -511,9 +522,10 @@ shasum -a 256 build/libs/cyberdeck-1.5.0.jar \
 - [ ] All 35 district enum values load without ordinal changes to A-Z.
 - [ ] Each of the nine new atlas directories contains exactly 512 NBTs.
 - [ ] All 70 catalog atlases resolve to packaged structure templates.
-- [ ] North remains Æ-Y-Yi; east 王-X-Xi; south Uang-U-Ui; west Pon-Pok-Pak.
-- [ ] Yi and 王 directly own the north-east seam.
-- [ ] `locateDistrict` finds no wilderness inside the octagonal hull.
+- [ ] The exact clockwise ring is Y-Yi-王-X-Xi-Ui-U-Uang-Pak-Pok-Pon-Æ.
+- [ ] Y, X, U, and Pok remain the north/east/south/west cardinal anchors.
+- [ ] Every adjacent outer pair exposes a normal district divider.
+- [ ] No ordinary interior district captures an outer-ring slot.
 - [ ] A district-only flood fill produces one city landmass across multiple seeds.
 - [ ] The full-screen map shows the same filled footprint as world generation.
 - [ ] J uses Las Vegas Strip/Fremont and Q uses Fukuoka Tenjin/Daimyo.
@@ -522,8 +534,17 @@ shasum -a 256 build/libs/cyberdeck-1.5.0.jar \
 
 - [ ] Æ, Y, and Yi show the same gentle-snow/snowstorm cycle.
 - [ ] D Corp fog converges to a 42-block far plane and clears outside D.
-- [ ] Northern tundra and southern deep-ocean biome overrides apply.
-- [ ] X extraction equipment appears only on the east-facing edge and tapers out.
+- [ ] Exterior terrain is vanilla wilderness with no custom biome bands.
+- [ ] X extraction equipment appears only inside its east-facing district edge.
+- [ ] U's port and Portships remain inside the U Corp district blob.
+
+### Fixed Seed And Mainline Sites
+
+- [ ] City layout and content seed are always `50520260801`.
+- [ ] Startup restores exactly five G/G/O/D/D pre-analyzed site descriptors.
+- [ ] Descriptor restoration does not generate or load remote mission chunks.
+- [ ] Restart reuses persisted descriptors without an Arnis atlas scan.
+- [ ] Mission activation, not startup, installs interior decorations and actors.
 
 ### Crates
 

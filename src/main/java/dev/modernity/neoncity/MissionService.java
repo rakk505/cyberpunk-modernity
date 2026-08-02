@@ -110,6 +110,7 @@ public final class MissionService {
     private static final int MAX_SITE_SEARCH_RADIUS_CHUNKS = 16;
     private static final Map<UUID, Integer> LAST_SYNC = new HashMap<>();
     private static final Map<UUID, DeploymentRetry> DEPLOYMENT_RETRIES = new HashMap<>();
+    private static final Map<UUID, Set<String>> REJECTED_MAINLINE_SITES = new HashMap<>();
     private static final Map<UUID, Entity> NEW_MISSION_ACTORS = new HashMap<>();
 
     private MissionService() {
@@ -321,7 +322,7 @@ public final class MissionService {
         MegacityLayout.Node node = layout.node(targetDistrict);
         UUID playerId = player.getUUID();
         long hash = MegacityLayout.mix(
-                level.getSeed() ^ layout.seed() ^ definition.id().hashCode(),
+                NeonCityGenerator.contentSeed() ^ layout.seed() ^ definition.id().hashCode(),
                 (int) playerId.getMostSignificantBits(),
                 (int) playerId.getLeastSignificantBits());
         int targetX = node.x() - 96 + Math.floorMod((int) hash, 193);
@@ -391,10 +392,11 @@ public final class MissionService {
 
         MissionCatalog.MissionDefinition definition = story.encounter();
         MissionBuildingPlanner.Site reserved = MainlineQuestService.reservedSite(
-                level, definition.id()).orElse(null);
+                level, definition.id()).orElseGet(() -> MainlineQuestService.ensureWorldPlan(
+                        level, definition.id()).orElse(null));
         if (reserved == null) {
             player.sendSystemMessage(Component.literal(
-                            "Mainline site generation is still in progress. Try again shortly.")
+                            "No safe fixed-seed mainline building is available yet.")
                     .withStyle(ChatFormatting.YELLOW));
             return false;
         }
@@ -559,7 +561,8 @@ public final class MissionService {
     }
 
     static List<MissionOffer> offers(ServerLevel level, BlockPos anchor, District source) {
-        return offers(NeonCityGenerator.layout(), level.getSeed(), anchor, source);
+        return offers(
+                NeonCityGenerator.layout(), NeonCityGenerator.contentSeed(), anchor, source);
     }
 
     static List<MissionOffer> offers(
@@ -882,13 +885,26 @@ public final class MissionService {
         int searchRadius = Math.min(
                 MAX_SITE_SEARCH_RADIUS_CHUNKS, baseRadius + retryCycle * 2);
         Set<String> rejectedSites = new HashSet<>();
+        Set<String> rejectedMainlineSites = context.kind() == ContractKind.STORY_MISSION
+                ? REJECTED_MAINLINE_SITES.computeIfAbsent(
+                        context.instanceId(), ignored -> new HashSet<>())
+                : new HashSet<>();
         MissionBuildingPlanner.Site mainlineSite = context.kind() == ContractKind.STORY_MISSION
-                ? MainlineQuestService.reservedSite(level, definition.id()).orElse(null)
+                ? MainlineQuestService.ensureWorldPlan(level, definition.id()).orElse(null)
                 : null;
+        if (retryCycle >= 2 && mainlineSite != null) {
+            rejectedMainlineSites.add(mainlineSite.id());
+        }
         for (int attempt = 0; attempt < 8; attempt++) {
             MissionBuildingPlanner.Site candidate;
             if (context.kind() == ContractKind.STORY_MISSION) {
-                candidate = attempt == 0 ? mainlineSite : null;
+                candidate = attempt == 0
+                        ? mainlineSite
+                        : attempt == 1 && retryCycle >= 2 && mainlineSite != null
+                                ? MainlineQuestService.recoverWorldPlan(
+                                        level, definition.id(), Set.copyOf(rejectedMainlineSites))
+                                        .orElse(null)
+                                : null;
                 if (candidate != null) {
                     String key = siteReservationKey(candidate);
                     if (rejectedSites.contains(key)
@@ -919,6 +935,7 @@ public final class MissionService {
             }
             if (!objectiveUsesUpperFloor(candidate)) {
                 rejectedSites.add(siteReservationKey(candidate));
+                rejectedMainlineSites.add(candidate.id());
                 continue;
             }
             String reservationKey = siteReservationKey(candidate);
@@ -932,6 +949,7 @@ public final class MissionService {
                 restoration = MissionBuildingPlanner.captureOriginalStates(level, candidate);
             } catch (IllegalArgumentException unavailableSite) {
                 siteData.releaseIfOwned(reservationKey, context.instanceId());
+                rejectedMainlineSites.add(candidate.id());
                 continue;
             }
             siteData.storeRestoration(context.instanceId(), restoration.save(level));
@@ -939,6 +957,7 @@ public final class MissionService {
                     MissionBuildingPlanner.install(level, candidate);
             if (installation == MissionBuildingPlanner.InstallationResult.UNSAFE) {
                 siteData.releaseIfOwned(reservationKey, context.instanceId());
+                rejectedMainlineSites.add(candidate.id());
                 continue;
             }
             candidate = MissionBuildingPlanner.withMissionTurretPlan(level, candidate);
@@ -946,6 +965,7 @@ public final class MissionService {
                     || !MissionBuildingPlanner.missionTurretsPreserveAccess(level, candidate)) {
                 MissionBuildingPlanner.restoreOriginalStates(level, restoration);
                 siteData.releaseIfOwned(reservationKey, context.instanceId());
+                rejectedMainlineSites.add(candidate.id());
                 continue;
             }
             BlockPos target = mission.type() == MissionCatalog.MissionType.STEAL_DATA
@@ -971,6 +991,7 @@ public final class MissionService {
                 }
                 MissionBuildingPlanner.restoreOriginalStates(level, restoration);
                 siteData.releaseIfOwned(reservationKey, context.instanceId());
+                rejectedMainlineSites.add(candidate.id());
                 continue;
             }
             ActiveMission spawned = switch (prepared.type()) {
@@ -991,6 +1012,7 @@ public final class MissionService {
                 }
                 MissionBuildingPlanner.restoreOriginalStates(level, restoration);
                 siteData.releaseIfOwned(reservationKey, context.instanceId());
+                rejectedMainlineSites.add(candidate.id());
                 continue;
             }
             deployComputerDisplays(level, owner, definition, candidate);
@@ -1121,6 +1143,7 @@ public final class MissionService {
 
     private static void clearDeploymentRetry(UUID instanceId) {
         DEPLOYMENT_RETRIES.remove(instanceId);
+        REJECTED_MAINLINE_SITES.remove(instanceId);
     }
 
     public static boolean activateDataTerminal(ServerPlayer player, BlockPos position) {
@@ -1630,6 +1653,7 @@ public final class MissionService {
     public static void reset() {
         LAST_SYNC.clear();
         DEPLOYMENT_RETRIES.clear();
+        REJECTED_MAINLINE_SITES.clear();
         NEW_MISSION_ACTORS.clear();
         AmbientGigService.reset();
     }

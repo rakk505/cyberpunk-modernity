@@ -74,13 +74,16 @@ commands are:
 /missions abandon
 ```
 
-Before ambient gigs are enabled, the Arnis building atlas segments generated multi-chunk
-structures, labels connected floor plates, ranks large street-accessible towers, and reserves an
-exact three- to five-floor mission plan for every mainline definition. Reservations are permanent
-save data, compare full building footprints with normal mission-site clearance, and force
-same-district missions into different buildings. The purpose-built tower generator remains an
-emergency fallback only when a world seed has no safe imported candidate. Rejected candidates are
-never modified; accepted edits are snapshotted and restored transactionally.
+Mainline generation uses canonical city seed `50520260801`. The mod bundles five pre-analyzed Arnis
+building descriptors: two distinct G Corp buildings, one five-floor O Corp building, and two
+distinct D Corp buildings. New saves persist those exact descriptors at startup without loading,
+scanning, or rendering their chunks. Acceptance reuses the descriptor; deployment installs the
+selected interior only when the party approaches the active site, and restarts reuse the saved
+descriptor. The live atlas scanner and purpose-built tower generator remain emergency recovery
+paths if the bundled catalog or a modified story configuration is incompatible. Reservations
+compare complete building footprints with normal mission-site clearance and keep same-district
+missions in different buildings. Rejected candidates are never modified; accepted edits are
+snapshotted and restored transactionally.
 
 Game masters can inspect the compiler without changing the world:
 

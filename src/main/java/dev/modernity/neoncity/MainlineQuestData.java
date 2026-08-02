@@ -3,15 +3,21 @@ package dev.modernity.neoncity;
 import com.example.cyberdeck.Cyberdeck;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtAccounter;
+import net.minecraft.nbt.NbtIo;
+import net.minecraft.nbt.NbtOps;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
@@ -20,6 +26,8 @@ import net.minecraft.world.level.saveddata.SavedDataType;
 
 /** Permanent mainline site reservations and party-shared node progress. */
 final class MainlineQuestData extends SavedData {
+    private static final String FIXED_SITE_RESOURCE =
+            "/data/neoncity/missions/mainline_sites_50520260801.dat";
     private static final Codec<StoredPlan> PLAN_CODEC = RecordCodecBuilder.create(instance ->
             instance.group(
                     Codec.STRING.fieldOf("mission").forGetter(StoredPlan::missionId),
@@ -43,6 +51,7 @@ final class MainlineQuestData extends SavedData {
             Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "mainline_quests_v1"),
             MainlineQuestData::new,
             CODEC);
+    private static volatile Map<String, MissionBuildingPlanner.Site> fixedSites;
 
     private final Map<String, CompoundTag> plans = new HashMap<>();
     private final Map<UUID, Progress> progress = new HashMap<>();
@@ -84,6 +93,19 @@ final class MainlineQuestData extends SavedData {
 
     static MainlineQuestData get(ServerLevel level) {
         return level.getServer().overworld().getDataStorage().computeIfAbsent(TYPE);
+    }
+
+    static Optional<MissionBuildingPlanner.Site> fixedSite(String missionId) {
+        return Optional.ofNullable(fixedSites().get(missionId));
+    }
+
+    static Map<String, MissionBuildingPlanner.Site> fixedSites() {
+        Map<String, MissionBuildingPlanner.Site> loaded = fixedSites;
+        if (loaded != null) return loaded;
+        synchronized (MainlineQuestData.class) {
+            if (fixedSites == null) fixedSites = loadFixedSites();
+            return fixedSites;
+        }
     }
 
     Optional<MissionBuildingPlanner.Site> site(String missionId) {
@@ -150,6 +172,34 @@ final class MainlineQuestData extends SavedData {
         return progress.values().stream()
                 .sorted(java.util.Comparator.comparing(Progress::instanceId))
                 .toList();
+    }
+
+    private static Map<String, MissionBuildingPlanner.Site> loadFixedSites() {
+        try (InputStream stream = MainlineQuestData.class.getResourceAsStream(
+                FIXED_SITE_RESOURCE)) {
+            if (stream == null) {
+                throw new IOException("missing " + FIXED_SITE_RESOURCE);
+            }
+            CompoundTag root = NbtIo.readCompressed(stream, NbtAccounter.defaultQuota());
+            MainlineQuestData catalog = CODEC.parse(
+                            NbtOps.INSTANCE, root.getCompoundOrEmpty("data"))
+                    .getOrThrow(IllegalStateException::new);
+            Map<String, MissionBuildingPlanner.Site> sites = new LinkedHashMap<>();
+            catalog.plans.entrySet().stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .forEach(entry -> MissionBuildingPlanner.Site.load(entry.getValue())
+                            .ifPresent(site -> sites.put(entry.getKey(), site)));
+            Cyberdeck.LOGGER.info(
+                    "[Mainline] loaded {} pre-analyzed sites for fixed city seed {}",
+                    sites.size(), NeonCityGenerator.contentSeed());
+            return Map.copyOf(sites);
+        } catch (IOException | RuntimeException exception) {
+            Cyberdeck.LOGGER.error(
+                    "[Mainline] fixed site catalog {} could not be loaded; missions will use "
+                            + "on-demand recovery",
+                    FIXED_SITE_RESOURCE, exception);
+            return Map.of();
+        }
     }
 
     private static boolean overlaps(

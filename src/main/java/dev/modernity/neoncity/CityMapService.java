@@ -25,7 +25,7 @@ public final class CityMapService {
 
     static OpenCityMapPacket snapshot(
             ServerLevel level, ServerPlayer player, boolean forceOpen) {
-        MegacityLayout layout = MegacityLayout.create(level.getSeed());
+        MegacityLayout layout = NeonCityGenerator.fixedLayout();
         return new OpenCityMapPacket(
                 true,
                 forceOpen,

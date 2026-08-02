@@ -39,7 +39,7 @@ public final class QuicktimeStationData extends SavedData {
     private final Set<Long> initializedCanonicalStations;
     private transient ServerLevel level;
     private transient MegacityLayout layout;
-    private transient long layoutWorldSeed = Long.MIN_VALUE;
+    private transient long layoutSeed = Long.MIN_VALUE;
 
     private QuicktimeStationData() {
         this(FORMAT_VERSION, List.of(), List.of());
@@ -120,7 +120,8 @@ public final class QuicktimeStationData extends SavedData {
                 || !NeonCityGenerator.isMegacityWorld(level)) {
             return Optional.empty();
         }
-        return inhabitedDistrict(MegacityLayout.create(level.getSeed()).locate(position.getX(), position.getZ()));
+        return inhabitedDistrict(NeonCityGenerator.fixedLayout()
+                .locate(position.getX(), position.getZ()));
     }
 
     private static Optional<District> inhabitedDistrict(MegacityLayout.Location location) {
@@ -132,15 +133,15 @@ public final class QuicktimeStationData extends SavedData {
 
     private void bind(ServerLevel level) {
         this.level = level;
-        if (layoutWorldSeed != level.getSeed()) {
+        if (layoutSeed != NeonCityGenerator.contentSeed()) {
             layout = null;
-            layoutWorldSeed = level.getSeed();
+            layoutSeed = NeonCityGenerator.contentSeed();
         }
     }
 
     private MegacityLayout activeLayout() {
         if (layout == null) {
-            layout = MegacityLayout.create(layoutWorldSeed);
+            layout = NeonCityGenerator.fixedLayout();
         }
         return layout;
     }

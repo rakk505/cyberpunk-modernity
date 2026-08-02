@@ -7,6 +7,7 @@ import com.google.gson.JsonObject;
 import com.mojang.authlib.GameProfile;
 import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -24,6 +25,89 @@ final class MissionFeatureGameTests {
     }
 
     static void storyDag(GameTestHelper helper) {
+        MegacityLayout fixedLayout = NeonCityGenerator.fixedLayout();
+        MegacityLayout recreatedFixedLayout = MegacityLayout.create(50_520_260_801L);
+        helper.assertTrue(NeonCityGenerator.contentSeed() == 50_520_260_801L
+                        && fixedLayout.seed() == recreatedFixedLayout.seed()
+                        && fixedLayout.nodes().equals(recreatedFixedLayout.nodes())
+                        && fixedLayout.edges().equals(recreatedFixedLayout.edges()),
+                "city and mainline content no longer use canonical seed 50520260801");
+        Map<String, MissionBuildingPlanner.Site> fixedSites = MainlineQuestData.fixedSites();
+        Map<String, String> expectedSiteIds = Map.of(
+                "m01_deliver_datashards", "g:71:12:e67adada6fea42bf",
+                "m02_assassinate_g_exec", "g:72:11:e7227c874cf5a54e",
+                "m03_steal_weights", "o:-76:192:9be67862fd808952",
+                "m04_assassinate_fixer", "d:-197:-59:1cb4b96cfc3905f0",
+                "m05_kill_cyberpsycho", "d:-196:-58:c8a7958c6b587fbf");
+        Map<String, District> expectedSiteDistricts = Map.of(
+                "m01_deliver_datashards", District.G_CORP,
+                "m02_assassinate_g_exec", District.G_CORP,
+                "m03_steal_weights", District.O_CORP,
+                "m04_assassinate_fixer", District.D_CORP,
+                "m05_kill_cyberpsycho", District.D_CORP);
+        Map<String, Integer> expectedSiteFloors = Map.of(
+                "m01_deliver_datashards", 3,
+                "m02_assassinate_g_exec", 4,
+                "m03_steal_weights", 5,
+                "m04_assassinate_fixer", 3,
+                "m05_kill_cyberpsycho", 3);
+        helper.assertTrue(fixedSites.keySet().equals(expectedSiteIds.keySet())
+                        && fixedSites.entrySet().stream().allMatch(entry ->
+                                entry.getValue().id().equals(expectedSiteIds.get(entry.getKey()))
+                                        && entry.getValue().district()
+                                                == expectedSiteDistricts.get(entry.getKey())
+                                        && entry.getValue().floorYs().size()
+                                                == expectedSiteFloors.get(entry.getKey())
+                                        && fixedLayout.locateDistrict(
+                                                        entry.getValue().target().getX(),
+                                                        entry.getValue().target().getZ())
+                                                .district() == entry.getValue().district()
+                                        && fixedLayout.locateDistrict(
+                                                        entry.getValue().target().getX(),
+                                                        entry.getValue().target().getZ())
+                                                .insideCity()
+                                        && entry.getValue().floorMasks().size()
+                                                == entry.getValue().floorYs().size()
+                                        && entry.getValue().stairs().size()
+                                                == entry.getValue().floorYs().size() - 1
+                                        && entry.getValue().entrance().position().getY()
+                                                == entry.getValue().floorYs().getFirst()
+                                        && entry.getValue().target().getY()
+                                                == entry.getValue().floorYs().getLast()
+                                        && entry.getValue().decorations().stream().anyMatch(
+                                                decoration -> decoration.kind()
+                                                        == MissionBuildingPlanner.DecorKind
+                                                                .EXPLOSIVE_CANISTER)
+                                        && ArnisPatchLibrary.select(
+                                                        fixedLayout,
+                                                        Math.floorDiv(
+                                                                entry.getValue().target().getX(), 16),
+                                                        Math.floorDiv(
+                                                                entry.getValue().target().getZ(), 16))
+                                                .map(placement -> placement.patch().district()
+                                                        == entry.getValue().district())
+                                                .orElse(false)),
+                "bundled fixed-seed mainline atlas lost an exact G/G/O/D/D site descriptor");
+        int generatedBeforeRestore = NeonCityGenerator.generatedChunks();
+        long scansBeforeRestore = ArnisBuildingAtlas.compilationRequests();
+        helper.assertTrue(fixedSites.values().stream().allMatch(site ->
+                        helper.getLevel().getChunkSource().getChunkNow(
+                                Math.floorDiv(site.target().getX(), 16),
+                                Math.floorDiv(site.target().getZ(), 16)) == null),
+                "a fixed mainline site chunk was loaded before descriptor restore");
+        helper.assertTrue(MainlineQuestService.restoreFixedWorldPlans(helper.getLevel()) == 5
+                        && MainlineQuestService.restoreFixedWorldPlans(helper.getLevel()) == 5
+                        && NeonCityGenerator.generatedChunks() == generatedBeforeRestore
+                        && ArnisBuildingAtlas.compilationRequests() == scansBeforeRestore
+                        && fixedSites.entrySet().stream().allMatch(entry ->
+                                MainlineQuestService.reservedSite(
+                                                helper.getLevel(), entry.getKey())
+                                        .map(entry.getValue()::equals).orElse(false))
+                        && fixedSites.values().stream().allMatch(site ->
+                                helper.getLevel().getChunkSource().getChunkNow(
+                                        Math.floorDiv(site.target().getX(), 16),
+                                        Math.floorDiv(site.target().getZ(), 16)) == null),
+                "fixed-site restore loaded remote chunks, scanned the atlas, or was not idempotent");
         List<StoryMissionCatalog.StoryMission> definitions = StoryMissionCatalog.definitions();
         helper.assertTrue(definitions.size() == 5, "story catalog lost its five-mission mainline");
         List<StoryMissionCatalog.StoryMission> roots = StoryMissionCatalog.available(Set.of(), 0);
@@ -104,6 +188,21 @@ final class MissionFeatureGameTests {
                         && !progress.conflicts(overlapping, "__gametest_reservation")
                         && !progress.conflicts(separate, null),
                 "permanent mainline reservation did not exclude overlapping gig sites");
+        var ops = helper.getLevel().registryAccess().createSerializationContext(
+                com.mojang.serialization.JsonOps.INSTANCE);
+        com.google.gson.JsonElement encodedPlans = MainlineQuestData.TYPE.codec()
+                .encodeStart(ops, progress)
+                .getOrThrow(message -> helper.assertionException(Component.literal(
+                        "mainline plans must encode: " + message)));
+        MainlineQuestData decodedPlans = MainlineQuestData.TYPE.codec()
+                .parse(ops, encodedPlans)
+                .getOrThrow(message -> helper.assertionException(Component.literal(
+                        "mainline plans must decode: " + message)));
+        helper.assertTrue(decodedPlans.site("__gametest_reservation")
+                        .map(site -> site.id().equals(reserved.id())
+                                && site.planSeed() == reserved.planSeed())
+                        .orElse(false),
+                "fixed mainline selection was not retained by saved data");
 
         helper.assertTrue(rejected(storyRoot("a", List.of("missing"))),
                 "story parser accepted a dangling prerequisite");

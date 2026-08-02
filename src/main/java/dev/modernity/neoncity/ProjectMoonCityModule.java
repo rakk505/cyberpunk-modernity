@@ -139,7 +139,6 @@ public final class ProjectMoonCityModule {
                     "building_inspection", BuildingInspectionGameTests::commandAndOverlayPlan);
 
     private volatile boolean generationEnabled;
-    private volatile boolean mainlinePlanning;
     private int mainlineSites;
     private final DistrictEntryNotifier districtEntryNotifier = new DistrictEntryNotifier();
     private final Map<UUID, Integer> atmosphereDistricts = new HashMap<>();
@@ -162,7 +161,6 @@ public final class ProjectMoonCityModule {
     @SubscribeEvent
     public void onServerStarted(ServerStartedEvent event) {
         generationEnabled = false;
-        mainlinePlanning = false;
         mainlineSites = 0;
         ArnisBuildingAtlas.clear();
         districtEntryNotifier.clear();
@@ -183,9 +181,9 @@ public final class ProjectMoonCityModule {
                     "[ProjectMoonCity] overworld is not the dedicated megacity preset");
             return;
         }
-        mainlineSites = MainlineQuestService.ensureNextWorldPlan(overworld);
-        mainlinePlanning = mainlineSites < StoryMissionCatalog.definitions().size();
-        if (!mainlinePlanning) finishStartup(overworld);
+        // Descriptors are data-only; atlas chunks remain untouched until a mission is accepted.
+        mainlineSites = MainlineQuestService.restoreFixedWorldPlans(overworld);
+        finishStartup(overworld);
     }
 
     @SubscribeEvent
@@ -195,14 +193,6 @@ public final class ProjectMoonCityModule {
             return;
         }
         BuildingInspectionService.tick(overworld);
-        if (mainlinePlanning) {
-            mainlineSites = MainlineQuestService.ensureNextWorldPlan(overworld);
-            if (mainlineSites >= StoryMissionCatalog.definitions().size()) {
-                mainlinePlanning = false;
-                finishStartup(overworld);
-            }
-            return;
-        }
         if (!generationEnabled) {
             return;
         }
@@ -263,8 +253,8 @@ public final class ProjectMoonCityModule {
         int queued = NeonCityGenerator.enqueueAround(spawn.getX(), spawn.getZ());
         generationEnabled = true;
         Cyberdeck.LOGGER.info(
-                "[ProjectMoonCity] finite {}-district generator enabled; reserved {} mainline "
-                        + "sites, prewarmed {} and queued {} chunks at {}",
+                "[ProjectMoonCity] finite {}-district generator enabled immediately; restored {} "
+                        + "persisted mainline sites, prewarmed {} and queued {} chunks at {}",
                 District.values().length, mainlineSites, prewarmed, queued, spawn);
     }
 

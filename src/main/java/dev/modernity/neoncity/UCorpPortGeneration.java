@@ -9,7 +9,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.WeatheringCopper;
 import net.minecraft.world.level.block.state.BlockState;
 
-/** Seeded U Corp coastline, container terminal, deep ocean, and floating Portships. */
+/** Seeded U Corp coastline, container terminal, ocean blocks, and floating Portships. */
 public final class UCorpPortGeneration {
     public static final int PORTSHIP_SIZE = 75;
     public static final int PORTSHIP_HALF = PORTSHIP_SIZE / 2;
@@ -18,6 +18,7 @@ public final class UCorpPortGeneration {
     public static final int OCEAN_FLOOR_MIN_Y = 50;
     public static final int OVERLAY_MIN_Y = 63;
     public static final int OVERLAY_MAX_Y = 116;
+    static final int OCEAN_SIDE_MARGIN = 20;
 
     private static final long PLAN_SALT = 0x55434F52504F5254L;
     private static final long CONTAINER_SALT = 0x434F4E5441494E52L;
@@ -138,13 +139,6 @@ public final class UCorpPortGeneration {
             return featureAt(worldX, worldZ) != Feature.NONE;
         }
 
-        public boolean isOceanBiomeAt(int worldX, int worldZ) {
-            return switch (featureAt(worldX, worldZ)) {
-                case HARBOR_WATER, OCEAN, PORTSHIP -> true;
-                default -> false;
-            };
-        }
-
         public Portship portshipAt(int worldX, int worldZ) {
             for (Portship ship : portships) {
                 int localForward = (worldX - ship.centerX()) * forwardX
@@ -210,26 +204,21 @@ public final class UCorpPortGeneration {
         int rightZ = forwardX;
         int forwardRadius = (int) Math.round(directionalRadius(node, forwardX, forwardZ));
         int lateralRadius = (int) Math.round(directionalRadius(node, rightX, rightZ));
-        int portStart = (int) Math.round(forwardRadius * 0.54);
-        // Begin inside the minimum rippled ellipse envelope so Uang/U/Ui can never leave a
-        // wilderness seam between their authored street fabric and the southern waterline.
-        int shoreline = (int) Math.round(forwardRadius * 0.82);
-        int portHalfWidth = Math.min(520, Math.max(360,
-                (int) Math.round(lateralRadius * 0.42)));
-        MegacityLayout.Node westCoast = layout.node(District.UANG_DISTRICT);
-        MegacityLayout.Node eastCoast = layout.node(District.UI_DISTRICT);
-        int oceanHalfWidth = Math.max(
-                node.x() - westCoast.x() + westCoast.radiusX(),
-                eastCoast.x() - node.x() + eastCoast.radiusX())
-                + PerimeterOutskirts.BAND_WIDTH;
-        int shipBaseForward = (int) Math.round(forwardRadius * 1.12) + 120;
+        // Keep every marine feature inside U Corp's own blob. Beyond the district edge the
+        // underlying world generator remains untouched, just like every other perimeter district.
+        int portStart = (int) Math.round(forwardRadius * 0.42);
+        int shoreline = (int) Math.round(forwardRadius * 0.62);
+        int portHalfWidth = Math.min(420, Math.max(320,
+                (int) Math.round(lateralRadius * 0.30)));
+        int oceanHalfWidth = portHalfWidth + OCEAN_SIDE_MARGIN;
+        int shipBaseForward = (int) Math.round(forwardRadius * 0.72);
         ArrayList<Portship> ships = new ArrayList<>(shipCount);
         for (int index = 0; index < shipCount; index++) {
             long shipIdentity = MegacityLayout.mix(identity ^ PORTSHIP_SALT, index, shipCount);
             double lateralFactor = shipCount == 2
                     ? (index == 0 ? -0.28 : 0.28)
                     : (index - 1) * 0.31;
-            int shipForward = shipBaseForward + (index % 2) * 135
+            int shipForward = shipBaseForward + (index % 2) * 80
                     + signedRange(shipIdentity, 17);
             int shipLateral = (int) Math.round(portHalfWidth * lateralFactor)
                     + signedRange(Long.rotateLeft(shipIdentity, 23), 16);
@@ -242,7 +231,7 @@ public final class UCorpPortGeneration {
         int oceanEnd = ships.stream()
                 .mapToInt(ship -> (ship.centerX() - node.x()) * forwardX
                         + (ship.centerZ() - node.z()) * forwardZ)
-                .max().orElse(shipBaseForward) + PORTSHIP_HALF + 90;
+                .max().orElse(shipBaseForward) + PORTSHIP_HALF + 48;
         return new Plan(
                 layout.seed(), node.x(), node.z(),
                 forwardX, forwardZ, rightX, rightZ,
