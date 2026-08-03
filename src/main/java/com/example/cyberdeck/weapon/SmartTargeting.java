@@ -40,7 +40,7 @@ public final class SmartTargeting {
 
         // A hard lock persists while the target stays alive, visible, in range, and reasonably
         // near the player's aim. This keeps small hand movements and crossing mobs from stealing it.
-        if (current.locked(now) && isValidTarget(player, stored, LOCK_RETAIN_DOT)) {
+        if (current.locked(now) && isValidTarget(player, stored, retentionAimDot(player))) {
             if (now == current.endTick()) {
                 level.playSound(null, player.getX(), player.getY(), player.getZ(),
                         SoundEvents.EXPERIENCE_ORB_PICKUP, SoundSource.PLAYERS, 0.55F, 1.8F);
@@ -72,7 +72,7 @@ public final class SmartTargeting {
             return null;
         }
         Mob target = storedTarget(level, state);
-        return isValidTarget(player, target, LOCK_RETAIN_DOT) ? target : null;
+        return isValidTarget(player, target, retentionAimDot(player)) ? target : null;
     }
 
     private static boolean canAcquire(ServerPlayer player) {
@@ -86,6 +86,13 @@ public final class SmartTargeting {
         Cyberware smart = CyberwareAttachments.get(player).findFlag("smart_targeting");
         double speed = smart == null ? 0.0 : smart.value("smart_lock_speed_percent") / 100.0;
         return Math.max(4, (int) Math.round(LOCK_TICKS / (1.0 + speed)));
+    }
+
+    private static double retentionAimDot(ServerPlayer player) {
+        Cyberware smart = CyberwareAttachments.get(player).findFlag("smart_targeting");
+        double duration = smart == null
+                ? 0.0 : smart.value("smart_lock_duration_percent") / 100.0;
+        return Math.max(0.75, LOCK_RETAIN_DOT - duration * 0.25);
     }
 
     private static @Nullable Mob findTarget(ServerPlayer player, ServerLevel level) {

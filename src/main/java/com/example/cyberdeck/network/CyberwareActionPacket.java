@@ -25,7 +25,10 @@ public record CyberwareActionPacket(int action) implements CustomPacketPayload {
         ARM_CANNON,
         THRETEVAC,
         OPTICAL_CAMO,
-        DOUBLE_JUMP;
+        DOUBLE_JUMP,
+        CHARGED_JUMP_START,
+        CHARGED_JUMP_RELEASE,
+        CHARGED_JUMP_CANCEL;
 
         public static final Action[] VALUES = values();
     }
@@ -61,6 +64,9 @@ public record CyberwareActionPacket(int action) implements CustomPacketPayload {
                 case THRETEVAC -> CyberwareActions.thretevac(player);
                 case OPTICAL_CAMO -> CyberwareActions.opticalCamo(player);
                 case DOUBLE_JUMP -> CyberwareActions.doubleJump(player);
+                case CHARGED_JUMP_START -> CyberwareActions.startChargedJump(player);
+                case CHARGED_JUMP_RELEASE -> CyberwareActions.releaseChargedJump(player);
+                case CHARGED_JUMP_CANCEL -> CyberwareActions.cancelChargedJump(player);
             }
         });
     }

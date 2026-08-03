@@ -77,7 +77,12 @@ public record HealingState(
     }
 
     public HealingState afterUse(HealingConsumable consumable, long gameTick) {
-        long readyTick = gameTick + consumable.cooldownTicks();
+        return afterUse(consumable, gameTick, consumable.cooldownTicks());
+    }
+
+    public HealingState afterUse(
+            HealingConsumable consumable, long gameTick, int effectiveCooldownTicks) {
+        long readyTick = gameTick + Math.max(1, effectiveCooldownTicks);
         if (consumable == HealingConsumable.BOUNCE_BACK) {
             return new HealingState(
                     readyTick,

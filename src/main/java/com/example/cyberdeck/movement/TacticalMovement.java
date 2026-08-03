@@ -83,6 +83,9 @@ public final class TacticalMovement {
         TacticalMovementState started = TacticalMovementState.begin(
                 current, action, gameTick, direction.x, direction.z);
         player.setData(STATE.get(), started);
+        if (action == TacticalAction.DASH) {
+            com.example.cyberdeck.effect.ReactiveCyberware.onDodge(player);
+        }
         if (action == TacticalAction.SLIDE) {
             applySlidePose(player);
             player.setSprinting(false);

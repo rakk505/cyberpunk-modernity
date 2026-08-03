@@ -16,6 +16,8 @@ import com.example.cyberdeck.cyberware.CyberwareAttachments;
 import com.example.cyberdeck.cyberware.CyberwareData;
 import com.example.cyberdeck.cyberware.CyberwareItems;
 import com.example.cyberdeck.cyberware.CyberwareItem;
+import com.example.cyberdeck.cyberware.CyberwareMechanics;
+import com.example.cyberdeck.cyberware.CyberwareStats;
 import com.example.cyberdeck.cyberware.SandevistanProfile;
 import com.example.cyberdeck.cyberware.SlotUnlock;
 import com.example.cyberdeck.defense.DefenseContent;
@@ -23,6 +25,7 @@ import com.example.cyberdeck.defense.KangTaoTurret;
 import com.example.cyberdeck.effect.SandevistanMechanics;
 import com.example.cyberdeck.effect.SandevistanState;
 import com.example.cyberdeck.effect.CyberwareEffects;
+import com.example.cyberdeck.effect.ChargedJump;
 import com.example.cyberdeck.effect.DoubleJumpGuard;
 import com.example.cyberdeck.economy.Emmies;
 import com.example.cyberdeck.faction.Faction;
@@ -151,6 +154,15 @@ public final class CyberdeckGameTests {
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             CYBERWARE_VARIANT_MAPPINGS = register(
                     "cyberware_variant_mappings", CyberdeckGameTests::variantMappings);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            CYBERWARE_MECHANICS_COVERAGE = register(
+                    "cyberware_mechanics_coverage", CyberdeckGameTests::cyberwareMechanicsCoverage);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            CYBERWARE_STATS = register(
+                    "cyberware_stats", CyberdeckGameTests::cyberwareStats);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            FORTIFIED_ANKLES_CHARGE = register(
+                    "fortified_ankles_charge", CyberdeckGameTests::fortifiedAnklesCharge);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             TACTICAL_MOVEMENT_MATH = register(
                     "tactical_movement_math", CyberdeckGameTests::tacticalMovementMath);
@@ -1481,6 +1493,75 @@ public final class CyberdeckGameTests {
                 "85% player slow should map to Slowness VI");
         helper.assertTrue(SandevistanMechanics.slownessAmplifier(0.20) == 0,
                 "20% player slow should map to Slowness I");
+        helper.succeed();
+    }
+
+    private static void cyberwareMechanicsCoverage(GameTestHelper helper) {
+        HashSet<String> coveredFamilies = new HashSet<>();
+        for (Cyberware cyberware : Cyberware.VALUES) {
+            for (String flag : cyberware.flags()) {
+                helper.assertTrue(CyberwareMechanics.implementsFlag(flag),
+                        cyberware.id() + " has an unimplemented mechanics flag: " + flag);
+            }
+            for (String value : cyberware.values().keySet()) {
+                helper.assertTrue(CyberwareMechanics.implementsValue(value),
+                        cyberware.id() + " has an unimplemented mechanics value: " + value);
+            }
+            if (CyberwareMechanics.hasRuntimeEffect(cyberware)) {
+                coveredFamilies.add(cyberware.familyId());
+            }
+        }
+        helper.assertValueEqual(coveredFamilies.size(), 121,
+                "cyberware families with at least one runtime effect");
+        helper.assertTrue(Cyberware.highest("biotech_sigma_mk_1_4")
+                        .value("quickhack_duration_percent") > 0.0,
+                "Biotech Sigma's combat-quickhack duration bonus must remain positive");
+        helper.assertTrue(Cyberware.highest("raven_microcyber_mk_1_3")
+                        .value("quickhack_spread_distance_percent") > 0.0,
+                "Raven Microcyber's quickhack spread bonus must remain positive");
+        helper.succeed();
+    }
+
+    private static void cyberwareStats(GameTestHelper helper) {
+        CyberwareData data = new CyberwareData();
+        Cyberware denseMarrow = Cyberware.highest("dense_marrow");
+        Cyberware titaniumBones = Cyberware.highest("titanium_bones");
+        Cyberware microrotors = Cyberware.highest("microrotors");
+        Cyberware immovableForce = Cyberware.highest("immovable_force");
+        data.install(denseMarrow, 0);
+        data.install(titaniumBones, 1);
+        data.install(microrotors, 0);
+        data.install(immovableForce, 0);
+
+        CyberwareStats stats = CyberwareStats.from(data);
+        helper.assertTrue(stats.meleeDamageBonus() > 0.0,
+                "Dense Marrow must contribute aggregated melee damage");
+        helper.assertTrue(stats.meleeAttackSpeedBonus() > 0.0,
+                "Microrotors must contribute aggregated melee attack speed");
+        helper.assertTrue(stats.carryingCapacityMultiplier() > 1.0,
+                "Titanium Bones must expose increased carrying capacity");
+        helper.assertTrue(stats.recoilReduction() > 0.0 && stats.spreadReduction() > 0.0,
+                "Immovable Force must reduce both recoil and spread");
+        helper.succeed();
+    }
+
+    private static void fortifiedAnklesCharge(GameTestHelper helper) {
+        Cyberware ankles = Cyberware.highest("fortified_ankles");
+        helper.assertTrue(ankles != null && ankles.hasFlag("charged_jump"),
+                "Fortified Ankles must carry the charged-jump mechanic");
+        double tapVelocity = ChargedJump.verticalVelocity(0.0);
+        double fullVelocity = ChargedJump.verticalVelocity(1.0);
+        helper.assertTrue(tapVelocity > 0.42,
+                "even an uncharged Fortified Ankles release must exceed a vanilla jump");
+        helper.assertTrue(fullVelocity > tapVelocity * 1.8,
+                "holding jump must build a materially higher vertical impulse");
+        helper.assertTrue(ChargedJump.forwardVelocity(1.0)
+                        > ChargedJump.forwardVelocity(0.0),
+                "charging must also increase jump distance");
+        helper.assertTrue(ChargedJump.chargeProgress(ChargedJump.MAX_CHARGE_TICKS) == 1.0,
+                "the Fortified Ankles charge curve must cap exactly at full charge");
+        helper.assertTrue(ChargedJump.chargeProgress(ChargedJump.MAX_CHARGE_TICKS * 10) == 1.0,
+                "holding a full Fortified Ankles charge must not invalidate it");
         helper.succeed();
     }
 

@@ -30,14 +30,16 @@ public final class SkillExecutor {
     }
 
     public static void execute(Skill skill, ServerPlayer caster, LivingEntity target, ServerLevel level) {
+        double damageMultiplier = com.example.cyberdeck.effect.CyberwareEffects
+                .quickhackDamageMultiplier(caster, skill);
         switch (skill) {
-            case OVERHEAT -> overheat(caster, target, level);
+            case OVERHEAT -> overheat(caster, target, level, damageMultiplier);
             case CRIPPLE -> cripple(target);
             case SHORT_CIRCUIT -> shortCircuit(target);
-            case CONTAGION -> contagion(caster, target, level, true);
+            case CONTAGION -> contagion(caster, target, level, true, damageMultiplier);
             case WEAPON_GLITCH -> weaponGlitch(target, level);
             case CYBERPSYCHOSIS -> cyberpsychosis(caster, target, level);
-            case DETONATE -> detonate(caster, target, level);
+            case DETONATE -> detonate(caster, target, level, damageMultiplier);
             case STANDBY -> {
                 // no-op
             }
@@ -45,11 +47,12 @@ public final class SkillExecutor {
     }
 
     // orange concrete (Overheat): small burn particles + fire damage of 35% of current health.
-    private static void overheat(ServerPlayer caster, LivingEntity target, ServerLevel level) {
-        float damage = target.getHealth() * 0.35f
-                * (float) com.example.cyberdeck.effect.CyberwareEffects
-                        .quickhackDamageMultiplier(caster);
-        target.igniteForSeconds(4.0f);
+    private static void overheat(ServerPlayer caster, LivingEntity target, ServerLevel level,
+                                 double damageMultiplier) {
+        float damage = target.getHealth() * 0.35f * (float) damageMultiplier;
+        target.igniteForSeconds((float) (4.0
+                * com.example.cyberdeck.effect.CyberwareEffects
+                        .quickhackDurationMultiplier(caster)));
         DamageSource source = level.damageSources().onFire();
         boolean hurt = target.hurtServer(level, source, damage);
         if (hurt && target instanceof FactionEnemy enemy) {
@@ -77,9 +80,17 @@ public final class SkillExecutor {
     // green concrete (Contagion): poison 5s; nearby entities within 5 blocks have 50% chance to also
     // get Contagion (but those cannot spread it further).
     private static void contagion(
-            ServerPlayer caster, LivingEntity target, ServerLevel level, boolean canSpread) {
+            ServerPlayer caster,
+            LivingEntity target,
+            ServerLevel level,
+            boolean canSpread,
+            double damageMultiplier) {
+        int duration = (int) Math.round(5 * 20
+                * com.example.cyberdeck.effect.CyberwareEffects
+                        .quickhackDurationMultiplier(caster)
+                * damageMultiplier);
         boolean applied = target.addEffect(
-                new MobEffectInstance(MobEffects.POISON, 5 * 20, 0, false, true));
+                new MobEffectInstance(MobEffects.POISON, duration, 0, false, true));
         if (applied && target instanceof FactionEnemy enemy) {
             enemy.onSuccessfulPlayerAttack(level, caster);
         }
@@ -89,12 +100,16 @@ public final class SkillExecutor {
         if (!canSpread) {
             return;
         }
-        AABB area = target.getBoundingBox().inflate(5.0);
+        double radius = com.example.cyberdeck.effect.CyberwareEffects
+                .quickhackSpreadRadius(caster, 5.0);
+        AABB area = target.getBoundingBox().inflate(radius);
         List<LivingEntity> nearby = level.getEntitiesOfClass(LivingEntity.class, area,
                 e -> e != target && e.isAlive());
         for (LivingEntity other : nearby) {
-            if (level.getRandom().nextFloat() < 0.5f) {
-                contagion(caster, other, level, false);
+            if (level.getRandom().nextDouble()
+                    < com.example.cyberdeck.effect.CyberwareEffects
+                            .quickhackSpreadChance(caster)) {
+                contagion(caster, other, level, false, damageMultiplier);
             }
         }
     }
@@ -155,7 +170,8 @@ public final class SkillExecutor {
     }
 
     // yellow concrete (Detonate): explosion where the mob stands; creepers explode 2-3x larger.
-    private static void detonate(ServerPlayer caster, LivingEntity target, ServerLevel level) {
+    private static void detonate(ServerPlayer caster, LivingEntity target, ServerLevel level,
+                                 double damageMultiplier) {
         float healthBefore = target.getHealth();
         float radius = 3.0f;
         if (target instanceof Creeper) {
@@ -168,8 +184,7 @@ public final class SkillExecutor {
         if (target.isAlive()) {
             hurt |= target.hurtServer(level,
                     level.damageSources().explosion((net.minecraft.world.entity.Entity) null, null),
-                    radius * 2.0f * (float) com.example.cyberdeck.effect.CyberwareEffects
-                            .quickhackDamageMultiplier(caster));
+                    radius * 2.0f * (float) damageMultiplier);
         }
         if (hurt && target instanceof FactionEnemy enemy) {
             enemy.onSuccessfulPlayerAttack(level, caster);

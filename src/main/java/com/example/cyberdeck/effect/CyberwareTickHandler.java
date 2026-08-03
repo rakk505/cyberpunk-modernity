@@ -35,6 +35,7 @@ public final class CyberwareTickHandler {
         }
 
         CyberwareEffects.tickPlayer(player);
+        ChargedJump.tick(player);
         DoubleJumpGuard.tick(player);
         SandevistanMechanics.tick(player);
         tickSandevistanPlayerSlow(player);
@@ -48,7 +49,9 @@ public final class CyberwareTickHandler {
         if (entity.level().isClientSide() || entity instanceof net.minecraft.world.entity.player.Player) {
             return;
         }
-        double slowFraction = SandevistanMechanics.slowFractionAffecting(entity);
+        double slowFraction = Math.max(
+                SandevistanMechanics.slowFractionAffecting(entity),
+                ReactiveCyberware.slowFractionAffecting(entity));
         if (slowFraction <= 0.0) {
             return;
         }
@@ -85,6 +88,9 @@ public final class CyberwareTickHandler {
             com.example.cyberdeck.CyberdeckState.recover(player);
             com.example.cyberdeck.skill.QuickhackUploads.cancel(player);
             DoubleJumpGuard.forget(player.getUUID());
+            ChargedJump.forget(player.getUUID());
+            ReactiveCyberware.forget(player.getUUID());
+            CyberwareWeaponEffects.forget(player.getUUID());
         }
     }
 
@@ -97,8 +103,11 @@ public final class CyberwareTickHandler {
             SandevistanMechanics.deactivateForSessionBoundary(player);
             ActiveAbilities.forget(player.getUUID());
             DoubleJumpGuard.forget(player.getUUID());
+            ChargedJump.forget(player.getUUID());
             LegSpeed.forget(player.getUUID());
             CyberwareEffects.forget(player.getUUID());
+            ReactiveCyberware.forget(player.getUUID());
+            CyberwareWeaponEffects.forget(player.getUUID());
         }
     }
 
@@ -108,6 +117,9 @@ public final class CyberwareTickHandler {
             com.example.cyberdeck.skill.QuickhackUploads.cancel(player);
             com.example.cyberdeck.CyberdeckState.recover(player);
             DoubleJumpGuard.forget(player.getUUID());
+            ChargedJump.forget(player.getUUID());
+            ReactiveCyberware.forget(player.getUUID());
+            CyberwareWeaponEffects.forget(player.getUUID());
             // copyOnDeath keeps the data; make sure passives are re-applied to the new entity.
             SandevistanMechanics.deactivateForSessionBoundary(player);
             CyberwarePassives.reapply(player);
@@ -118,10 +130,15 @@ public final class CyberwareTickHandler {
     public void onServerStopping(net.neoforged.neoforge.event.server.ServerStoppingEvent event) {
         com.example.cyberdeck.skill.QuickhackUploads.clearAll();
         DoubleJumpGuard.clearAll();
+        ChargedJump.clearAll();
+        ReactiveCyberware.clearAll();
+        CyberwareWeaponEffects.clearAll();
     }
 
     private void tickSandevistanPlayerSlow(ServerPlayer player) {
-        double slowFraction = SandevistanMechanics.slowFractionAffecting(player);
+        double slowFraction = Math.max(
+                SandevistanMechanics.slowFractionAffecting(player),
+                ReactiveCyberware.slowFractionAffecting(player));
         int amplifier = SandevistanMechanics.slownessAmplifier(slowFraction);
         if (amplifier >= 0) {
             // Player ticks cannot be canceled on the logical server, so use the nearest vanilla
