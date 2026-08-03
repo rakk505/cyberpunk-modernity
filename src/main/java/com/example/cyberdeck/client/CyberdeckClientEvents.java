@@ -20,12 +20,14 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.player.Input;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.InputEvent;
+import net.neoforged.neoforge.client.event.MovementInputUpdateEvent;
 import net.neoforged.neoforge.client.event.RenderGuiLayerEvent;
 import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
 import net.neoforged.neoforge.client.network.ClientPacketDistributor;
@@ -37,6 +39,7 @@ import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 @EventBusSubscriber(modid = Cyberdeck.MODID, value = Dist.CLIENT)
 public final class CyberdeckClientEvents {
     private static boolean quickhackUseLatched;
+    private static boolean chargedJumpHeld;
 
     private CyberdeckClientEvents() {
     }
@@ -104,6 +107,7 @@ public final class CyberdeckClientEvents {
 
         // The remaining inputs are only meaningful when a screen is not open.
         if (mc.gui.screen() != null) {
+            cancelChargedJump();
             resetJumpTracking();
             return;
         }
@@ -233,6 +237,69 @@ public final class CyberdeckClientEvents {
         jumpKeyWasDown = false;
     }
 
+    /**
+     * Fortified Ankles replaces the ordinary ground jump with a press/hold/release charge. This
+     * event runs after keyboard state is sampled but before the local player consumes it, allowing
+     * the client to suppress only the vanilla jump bit while the server owns charge duration and
+     * final velocity.
+     */
+    @SubscribeEvent
+    public static void onMovementInput(MovementInputUpdateEvent event) {
+        if (!(event.getEntity() instanceof Player player)) {
+            return;
+        }
+        var input = event.getInput();
+        Input presses = input.keyPresses;
+        boolean installed = CyberwareAttachments.get(player).findFlag("charged_jump") != null;
+        boolean validContext = installed
+                && player.isAlive()
+                && !player.isPassenger()
+                && !player.isInWater()
+                && !player.isInLava()
+                && !player.isFallFlying()
+                && !player.getAbilities().flying
+                && TacticalMovement.get(player).action() == TacticalAction.NONE;
+        if (!validContext) {
+            cancelChargedJump();
+            return;
+        }
+
+        if (!presses.jump()) {
+            if (chargedJumpHeld) {
+                chargedJumpHeld = false;
+                ClientPacketDistributor.sendToServer(new CyberwareActionPacket(
+                        CyberwareActionPacket.Action.CHARGED_JUMP_RELEASE));
+            }
+            return;
+        }
+        if (!player.onGround() && !chargedJumpHeld) {
+            return;
+        }
+        if (!chargedJumpHeld) {
+            chargedJumpHeld = true;
+            ClientPacketDistributor.sendToServer(new CyberwareActionPacket(
+                    CyberwareActionPacket.Action.CHARGED_JUMP_START));
+        }
+
+        input.keyPresses = new Input(
+                presses.forward(),
+                presses.backward(),
+                presses.left(),
+                presses.right(),
+                false,
+                presses.shift(),
+                presses.sprint());
+    }
+
+    private static void cancelChargedJump() {
+        if (!chargedJumpHeld) {
+            return;
+        }
+        chargedJumpHeld = false;
+        ClientPacketDistributor.sendToServer(new CyberwareActionPacket(
+                CyberwareActionPacket.Action.CHARGED_JUMP_CANCEL));
+    }
+
     // RMB is a second queue control and can be cancelled cleanly by NeoForge.
     @SubscribeEvent
     public static void onUseInput(InputEvent.InteractionKeyMappingTriggered event) {
@@ -291,6 +358,7 @@ public final class CyberdeckClientEvents {
     @SubscribeEvent
     public static void onLogout(ClientPlayerNetworkEvent.LoggingOut event) {
         quickhackUseLatched = false;
+        chargedJumpHeld = false;
         QuickhackScannerClient.reset();
         QuickhackUploadClient.set(com.example.cyberdeck.network.QuickhackUploadPacket.NONE);
         HealingConsumableClient.reset();

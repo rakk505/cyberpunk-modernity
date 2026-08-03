@@ -3,6 +3,7 @@ package com.example.cyberdeck.weapon;
 import com.example.cyberdeck.faction.FactionEnemy;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.effect.MobEffectInstance;
@@ -65,6 +66,7 @@ public final class ThrownGrenade extends ThrowableItemProjectile {
     private void detonate(ServerLevel level, Vec3 center, GrenadeType type) {
         double r = type.radius();
         Player playerOwner = getOwner() instanceof Player player ? player : null;
+        double criticalMultiplier = throwableCriticalMultiplier(playerOwner);
         AABB area = new AABB(center, center).inflate(r);
         List<LivingEntity> victims = level.getEntitiesOfClass(LivingEntity.class, area,
                 e -> e.isAlive() && e.distanceToSqr(center) <= r * r);
@@ -87,7 +89,8 @@ public final class ThrownGrenade extends ThrowableItemProjectile {
                     // won't catch fire; ignited entities burn out on their own with no world fire.
                     victim.igniteForSeconds(type.effectDurationTicks() / 20);
                     boolean hurt = victim.hurtServer(
-                            level, this.damageSources().onFire(), 3.0f);
+                            level, this.damageSources().onFire(),
+                            (float) (3.0 * criticalMultiplier));
                     if (hurt && playerOwner != null && victim instanceof FactionEnemy enemy) {
                         enemy.onSuccessfulPlayerAttack(level, playerOwner);
                     }
@@ -103,7 +106,9 @@ public final class ThrownGrenade extends ThrowableItemProjectile {
                         SoundEvents.BREWING_STAND_BREW, SoundSource.NEUTRAL, 1.2f, 0.7f);
                 for (LivingEntity victim : victims) {
                     boolean poisoned = victim.addEffect(new MobEffectInstance(
-                            MobEffects.POISON, type.effectDurationTicks(), 1, false, true, true));
+                            MobEffects.POISON,
+                            (int) Math.round(type.effectDurationTicks() * criticalMultiplier),
+                            criticalMultiplier > 1.0 ? 2 : 1, false, true, true));
                     victim.addEffect(new MobEffectInstance(
                             MobEffects.SLOWNESS, type.effectDurationTicks() / 2, 0, false, true, true));
                     if (poisoned && playerOwner != null && victim instanceof FactionEnemy enemy) {
@@ -112,5 +117,16 @@ public final class ThrownGrenade extends ThrowableItemProjectile {
                 }
             }
         }
+    }
+
+    private static double throwableCriticalMultiplier(Player owner) {
+        if (!(owner instanceof ServerPlayer player)) {
+            return 1.0;
+        }
+        double chance = com.example.cyberdeck.effect.CyberwareEffects
+                .sumValue(player, "throwable_crit_chance_percent") / 100.0;
+        return chance > 0.0 && player.getRandom().nextDouble() < Math.min(1.0, chance)
+                ? 1.5
+                : 1.0;
     }
 }

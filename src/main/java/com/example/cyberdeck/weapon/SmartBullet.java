@@ -151,7 +151,7 @@ public final class SmartBullet extends Projectile {
             var source = this.damageSources().source(DamageTypes.ARROW, this, this.getOwner());
             if (this.getOwner() instanceof ServerPlayer player) {
                 SandevistanMechanics.hurtWithGunModifiers(
-                        level, player, target, source, damage, impact);
+                        level, player, target, source, damage, impact, GunType.YUKIMURA);
             } else {
                 target.hurtServer(level, source, damage);
             }

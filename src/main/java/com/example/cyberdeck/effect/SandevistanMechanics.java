@@ -4,6 +4,7 @@ import com.example.cyberdeck.cyberware.BodySlot;
 import com.example.cyberdeck.cyberware.Cyberware;
 import com.example.cyberdeck.cyberware.CyberwareAttachments;
 import com.example.cyberdeck.cyberware.SandevistanProfile;
+import com.example.cyberdeck.weapon.GunType;
 
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -149,13 +150,16 @@ public final class SandevistanMechanics {
      */
     public static boolean hurtWithGunModifiers(ServerLevel level, ServerPlayer shooter,
                                                LivingEntity target, DamageSource source,
-                                               float baseDamage, Vec3 impact) {
-        float damage = baseDamage;
+                                               float baseDamage, Vec3 impact, GunType gun) {
+        boolean headshot = isHeadshot(target, impact);
+        boolean smartShot = gun == GunType.YUKIMURA;
+        float damage = CyberwareWeaponEffects.modifyGunDamage(
+                shooter, target, gun, baseDamage, headshot, smartShot);
         SandevistanProfile profile = activeProfile(shooter);
         if (profile != null) {
             boolean airborne = isAirborne(shooter);
             damage *= (float) (1.0 + profile.damageBonus(airborne));
-            if (isHeadshot(target, impact)) {
+            if (headshot) {
                 damage *= (float) (1.0 + profile.headshotBonus(airborne));
             }
             if (profile.critChance() > 0.0
@@ -166,7 +170,12 @@ public final class SandevistanMechanics {
 
         PREMODIFIED_GUN_DAMAGE.set(true);
         try {
-            return target.hurtServer(level, source, damage);
+            boolean hurt = target.hurtServer(level, source, damage);
+            if (hurt) {
+                CyberwareWeaponEffects.onGunHit(
+                        level, shooter, target, gun, damage, impact);
+            }
+            return hurt;
         } finally {
             PREMODIFIED_GUN_DAMAGE.remove();
         }

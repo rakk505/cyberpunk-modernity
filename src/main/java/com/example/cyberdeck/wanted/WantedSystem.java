@@ -553,6 +553,13 @@ public final class WantedSystem {
         }
     }
 
+    /** Clears an active pursuit after the identity faceplate remains out of combat long enough. */
+    public static void clearWithIdentityMask(ServerPlayer player) {
+        if (player.level() instanceof ServerLevel level) {
+            clearPursuit(level, player, true);
+        }
+    }
+
     private static void clearPursuit(ServerLevel level, ServerPlayer player, boolean announce) {
         WantedState previous = WantedState.get(player);
         WantedState.set(player, WantedState.NONE);

@@ -1,5 +1,10 @@
 package com.example.cyberdeck.faction;
 
+import com.example.cyberdeck.cyberware.Cyberware;
+import com.example.cyberdeck.cyberware.CyberwareAttachments;
+import com.example.cyberdeck.cyberware.CyberwareStats;
+import com.example.cyberdeck.effect.ActiveAbilities;
+
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.player.Player;
@@ -106,22 +111,35 @@ public final class CrouchCombat {
 
     /** Multiplier applied to both detection range and detection buildup. */
     public static float visibility(Player player) {
+        float base;
         if (!isCrouched(player)) {
-            return 1.0F;
+            base = 1.0F;
+        } else {
+            base = player.getDeltaMovement().horizontalDistanceSqr() > MOVING_SPEED_SQR
+                    ? CROUCHED_MOVING_VISIBILITY
+                    : CROUCHED_STILL_VISIBILITY;
         }
-        return player.getDeltaMovement().horizontalDistanceSqr() > MOVING_SPEED_SQR
-                ? CROUCHED_MOVING_VISIBILITY
-                : CROUCHED_STILL_VISIBILITY;
+        CyberwareStats stats = CyberwareStats.from(CyberwareAttachments.get(player));
+        double reduction = stats.quietMovement();
+        if (player instanceof net.minecraft.server.level.ServerPlayer serverPlayer
+                && ActiveAbilities.isOpticalCamoActive(serverPlayer)) {
+            reduction = 1.0 - (1.0 - reduction) * (1.0 - stats.visibilityReduction());
+        }
+        return (float) Math.max(0.05, base * (1.0 - Math.min(0.95, reduction)));
     }
 
     /** Crouching also shortens the distance at which an unaware soldier can acquire the player. */
     public static float detectionRangeMultiplier(Player player) {
-        if (!isCrouched(player)) {
-            return 1.0F;
+        float base = 1.0F;
+        if (isCrouched(player)) {
+            base = player.getDeltaMovement().horizontalDistanceSqr() > MOVING_SPEED_SQR
+                    ? 0.75F
+                    : 0.60F;
         }
-        return player.getDeltaMovement().horizontalDistanceSqr() > MOVING_SPEED_SQR
-                ? 0.75F
-                : 0.60F;
+        Cyberware optics = CyberwareAttachments.get(player).findFlag("kiroshi_optics");
+        double reduction = optics == null ? 0.0
+                : optics.value("detection_reduction_percent") / 100.0;
+        return (float) Math.max(0.1, base * (1.0 - Math.min(0.9, reduction)));
     }
 
     /**

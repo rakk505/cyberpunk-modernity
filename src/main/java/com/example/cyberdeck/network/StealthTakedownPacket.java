@@ -54,6 +54,7 @@ public record StealthTakedownPacket(int targetId) implements CustomPacketPayload
             }
             level.playSound(null, target.getX(), target.getY(), target.getZ(),
                     SoundEvents.PLAYER_ATTACK_CRIT, SoundSource.PLAYERS, 0.7f, 1.2f);
+            com.example.cyberdeck.effect.ReactiveCyberware.onTakedown(player);
             target.hurtServer(level, level.damageSources().playerAttack(player), Float.MAX_VALUE);
         });
     }

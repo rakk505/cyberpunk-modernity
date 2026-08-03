@@ -496,6 +496,7 @@ def build_mechanics(
     os_type: str,
     effect: str,
     armor: float,
+    tier_rank: int,
 ) -> dict[str, Any]:
     """Create normalized values consumed by the server-side effect engine.
 
@@ -537,6 +538,8 @@ def build_mechanics(
         found = percentage(effect, phrase)
         if found is not None:
             values[key] = abs(found) if "reduction" in key else found
+    if family_id == "cockatrice":
+        values["crit_chance_percent"] = number_after(effect, r"Crit Chance by") or 0
     if family_id == "immovable_force":
         values["spread_reduction_percent"] = abs(percentage(effect, "bullet spread") or 0)
 
@@ -576,10 +579,17 @@ def build_mechanics(
     if family_id == "quantum_tuner":
         values["cooldown_reduction_percent"] = abs(percentage(effect, "Cooldown Time") or 0)
         values["trigger_cooldown_seconds"] = number_after(effect, r"Cooldown:") or 0
+        values["cooldown_restore_max_seconds"] = number_after(effect, r"up to a max of") or 0
         flags.append("quantum_tuner")
     if family_id == "self_ice":
         values["trigger_cooldown_seconds"] = number_after(effect, r"Cooldown:") or 0
         flags.append("self_ice")
+    if family_id == "kerenzikov_boost_system":
+        flags.append("kerenzikov_boost")
+        values["ranged_stamina_reduction_percent"] = abs(
+            percentage(effect, "Stamina cost from shooting") or 0
+        )
+        values["time_slow_bonus_percent"] = number_after(effect, r"Slows time by") or 0
 
     if family_id in {"adrenaline_converter", "adreno_trigger"}:
         flags.append("combat_entry_speed")
@@ -690,6 +700,43 @@ def build_mechanics(
         flags.append("chrome_compressor")
         values["capacity_bonus"] = number_before(effect, r"Cyberware Capacity") or 0
 
+    if family_id == "arasaka_mk_1_5":
+        flags.append("takedown_ram")
+        values["takedown_ram"] = number_before(effect, r"RAM after performing a Takedown") or 0
+    if family_id == "biotech_sigma_mk_1_4":
+        flags.append("quickhack_dot")
+        values["quickhack_duration_percent"] = abs(percentage(
+            effect, "duration for Combat quickhacks"
+        ) or 0)
+        values["quickhack_dot_damage_percent"] = percentage(
+            effect, "damage-over-time with quickhacks"
+        ) or 0
+        values["monowire_dot_damage_percent"] = percentage(effect, "Monowire damage") or 0
+    if family_id == "canto_mk_6":
+        flags.append("blackwall_gateway")
+    if family_id == "paraline_mk_1_5":
+        flags.append("paraline")
+        values["quickhack_damage_percent"] = percentage(effect, "quickhack damage") or 0
+        values["monowire_ram_damage_percent"] = percentage(
+            effect, "Monowire damage per used RAM unit"
+        ) or 0
+        values["monowire_ram_damage_cap_percent"] = number_after(effect, r"max\.") or 0
+    if family_id == "netdriver_mk_1":
+        flags.append("device_specialist")
+        values["quickhack_ram_cost_reduction_percent"] = abs(
+            percentage(effect, "RAM cost for Device") or 0
+        )
+    if family_id == "raven_microcyber_mk_1_3":
+        flags.append("quickhack_spread")
+        values["quickhack_spread_distance_percent"] = abs(percentage(
+            effect, "spread distance with quickhacks"
+        ) or 0)
+    if family_id == "rippler_mk_1_5":
+        flags.append("quickhack_combo")
+        values["quickhack_combo_damage_percent"] = percentage(
+            effect, "damage with Combat quickhacks"
+        ) or 0
+
     if slot == "ARMS":
         if "gorilla_arms" in family_id:
             flags.append("gorilla_arms")
@@ -700,7 +747,12 @@ def build_mechanics(
         elif "projectile_launch_system" in family_id:
             flags.append("projectile_launcher")
         for element in ("electrical", "thermal", "chemical", "physical"):
-            if f"deal {element} damage" in lower or element in family_id:
+            if (
+                f"deal {element} damage" in lower
+                or f"deals massive {element} damage" in lower
+                or element in family_id
+                or (element == "electrical" and "electrifying" in family_id)
+            ):
                 flags.append("damage_" + element)
                 break
         for status in ("shock", "burn", "poison", "bleeding"):
@@ -723,6 +775,21 @@ def build_mechanics(
         values["smart_crit_damage_percent"] = percentage(effect, "Crit Damage with Smart weapons") or 0
     if family_id == "tattoo_tyger_claws_dermal_imprint":
         values["smart_lock_speed_percent"] = percentage(effect, "lock-on speed") or 0
+    if family_id == "ballistic_coprocessor":
+        flags.append("ricochet")
+        values["ricochet_chance_percent"] = 20
+        values["ricochet_damage_percent"] = percentage(effect, "ricochet damage") or 0
+    if family_id == "handle_wrap":
+        flags.append("throwable_crit")
+        values["throwable_crit_chance_percent"] = percentage(
+            effect, "Crit Chance with throwable weapons"
+        ) or 0
+        values["duration_seconds"] = number_before(
+            effect, r"sec\."
+        ) or 6
+    if family_id == "microgenerator":
+        flags.append("reload_shock")
+        values["reload_shock_damage"] = number_after(effect, r"deals up to") or 0
     if family_id == "reinforced_tendons":
         flags.append("double_jump")
     if family_id == "fortified_ankles":
@@ -740,6 +807,9 @@ def build_mechanics(
         values["cooldown_seconds"] = number_after(effect, r"Cooldown:") or 0
     if family_id == "biomonitor":
         flags.append("biomonitor")
+        values["health_item_effectiveness_percent"] = percentage(
+            effect, "Health item effectiveness"
+        ) or 0
     if family_id == "blood_pump":
         flags.append("blood_pump")
         values["blood_pump_instant_health"] = number_after(effect, r"restores") or 0
@@ -755,10 +825,37 @@ def build_mechanics(
         values["critical_health_speed_percent"] = all_speed[-1] if all_speed else 0
     if family_id == "subdermal_armor":
         flags.append("subdermal_armor")
+    if family_id == "behavioral_imprint_synced_faceplate":
+        flags.append("behavioral_identity")
     if family_id in {"clairvoyant", "doomsayer", "sentry", "the_oracle"}:
         flags.append("scanner_highlight")
     if family_id in {"basic_kiroshi_optics", "doomsayer", "sentry", "stalker"}:
         flags.append("kiroshi_optics")
+    if family_id == "basic_kiroshi_optics":
+        values["detection_reduction_percent"] = abs(
+            percentage(effect, "camera detection speed") or 0
+        )
+        values["scanner_enemy_range"] = 48
+    scanner_ranges = [
+        float(value)
+        for value in re.findall(r"within\s+(\d+(?:\.\d+)?)\s*m", effect, re.IGNORECASE)
+    ]
+    if family_id == "clairvoyant" and scanner_ranges:
+        values["scanner_enemy_range"] = scanner_ranges[0]
+    if family_id == "doomsayer" and scanner_ranges:
+        values["scanner_explosive_range"] = scanner_ranges[0]
+    if family_id == "sentry" and scanner_ranges:
+        values["scanner_device_range"] = scanner_ranges[0]
+    if family_id == "the_oracle":
+        if scanner_ranges:
+            values["scanner_enemy_range"] = scanner_ranges[0]
+        if len(scanner_ranges) > 1:
+            values["scanner_device_range"] = scanner_ranges[1]
+        if len(scanner_ranges) > 2:
+            values["scanner_explosive_range"] = scanner_ranges[2]
+    if family_id == "stalker":
+        flags.append("tech_targeting")
+        values["scanner_wall_range"] = number_after(effect, r"up to") or 0
 
     if family_id == "heal_on_kill":
         flags.append("health_on_kill")
@@ -803,6 +900,13 @@ def build_mechanics(
         values["low_ram_armor_percent"] = percentage(effect, "Armor from this cyberware") or 0
     if family_id == "chitin":
         flags.append("health_regen")
+    if family_id == "cellular_adapter":
+        flags.append("technical_adaptation")
+        effective_technical_ability = tier_rank + 1
+        values["explosion_resistance_percent"] = effective_technical_ability
+        values["tech_weapon_damage_percent"] = effective_technical_ability * 0.5
+        values["health_item_cooldown_reduction_percent"] = effective_technical_ability * 0.5
+        values["grenade_cooldown_reduction_percent"] = effective_technical_ability * 0.5
     if family_id == "defenzikov":
         flags.append("post_kerenzikov_mitigation")
         values["mitigation_chance_percent"] = percentage(effect, "Mitigation Chance") or 0
@@ -814,6 +918,12 @@ def build_mechanics(
         flags.append("quiet_steps")
         values["crouch_speed_percent"] = percentage(effect, "crouched movement speed") or 0
         values["fall_damage_reduction_percent"] = abs(percentage(effect, "fall damage") or 0)
+    if family_id == "universal_booster":
+        values["health_item_armor_percent"] = percentage(effect, "Armor") or 0
+        values["health_item_stamina_reduction_percent"] = abs(
+            percentage(effect, "all Stamina cost") or 0
+        )
+        values["duration_seconds"] = 5
 
     return {"flags": sorted(set(flags)), "values": {key: round(val, 4) for key, val in values.items()}}
 
@@ -890,6 +1000,7 @@ def main() -> None:
                 row.os_type,
                 effect,
                 armor,
+                rank,
             )
             variant = {
                 "id": variant_id,

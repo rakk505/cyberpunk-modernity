@@ -77,6 +77,7 @@ public final class GunFiring {
         GunshotAlerts.emit(level, shooter, gun);
         if (shooter instanceof ServerPlayer player) {
             TacticalMovement.markShot(player);
+            com.example.cyberdeck.effect.CyberwareWeaponEffects.onShotFired(player, gun);
         }
 
         // Yukimura remains a conventional hitscan pistol until a player with Smart Link finishes
@@ -96,8 +97,8 @@ public final class GunFiring {
         for (int i = 0; i < gun.pellets(); i++) {
             float spread = gun.spreadDegrees();
             if (shooter instanceof ServerPlayer player) {
-                double reduction = com.example.cyberdeck.effect.CyberwareEffects
-                        .sumValue(player, "spread_reduction_percent") / 100.0;
+                double reduction = com.example.cyberdeck.effect.CyberwareWeaponEffects
+                        .effectiveSpreadReduction(player);
                 spread *= (float) (1.0 - Math.min(0.9, reduction));
             }
             Vec3 dir = applySpread(baseDir, spread, rng);
@@ -128,7 +129,7 @@ public final class GunFiring {
                 DamageSource source = damageSource(shooter, gun);
                 if (shooter instanceof ServerPlayer player) {
                     SandevistanMechanics.hurtWithGunModifiers(
-                            level, player, target, source, dmg, impact);
+                            level, player, target, source, dmg, impact, gun);
                 } else {
                     target.hurtServer(level, source, dmg);
                 }

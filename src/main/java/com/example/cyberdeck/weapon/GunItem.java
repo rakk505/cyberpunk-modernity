@@ -61,6 +61,12 @@ public final class GunItem extends Item {
     public InteractionResult use(Level level, Player player, InteractionHand hand) {
         ItemStack held = player.getItemInHand(hand);
 
+        if (player instanceof ServerPlayer serverPlayer
+                && com.example.cyberdeck.effect.CyberwareWeaponEffects
+                        .rangedWeaponsBlocked(serverPlayer)) {
+            return InteractionResult.FAIL;
+        }
+
         // A reload in progress blocks all firing.
         if (ReloadState.get(player).active()) {
             return InteractionResult.FAIL;
@@ -97,7 +103,9 @@ public final class GunItem extends Item {
         if (gun.reloadTicks() > 0 && entity instanceof Player player
                 && level instanceof ServerLevel serverLevel && player instanceof ServerPlayer serverPlayer
                 && !ReloadState.get(player).active() && magazine(stack) > 0
-                && !player.getCooldowns().isOnCooldown(stack)) {
+                && !player.getCooldowns().isOnCooldown(stack)
+                && !com.example.cyberdeck.effect.CyberwareWeaponEffects
+                        .rangedWeaponsBlocked(serverPlayer)) {
             fireOnce(serverLevel, serverPlayer, stack);
         }
         return stack;
@@ -132,12 +140,14 @@ public final class GunItem extends Item {
     /** Called by the server tick handler when the reload timer completes: tops up the magazine. */
     public void completeReload(ServerPlayer player, ItemStack stack) {
         int needed = gun.magazineSize() - magazine(stack);
+        int loaded = 0;
         if (needed > 0) {
-            int loaded = player.getAbilities().instabuild
+            loaded = player.getAbilities().instabuild
                     ? needed
                     : AmmoItems.consume(player, gun.ammo(), needed);
             setMagazine(stack, magazine(stack) + loaded);
         }
+        com.example.cyberdeck.effect.CyberwareWeaponEffects.armMicrogenerator(player, loaded);
         player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
                 SoundEvents.PISTON_EXTEND, SoundSource.PLAYERS, 0.7f, 1.4f);
     }
