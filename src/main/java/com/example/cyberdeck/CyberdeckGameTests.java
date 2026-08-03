@@ -53,6 +53,7 @@ import com.example.cyberdeck.movement.TacticalMovement;
 import com.example.cyberdeck.movement.TacticalMovementState;
 import com.example.cyberdeck.weapon.GunType;
 import com.example.cyberdeck.weapon.GunItem;
+import com.example.cyberdeck.weapon.GunFiring;
 import com.example.cyberdeck.weapon.AmmoItem;
 import com.example.cyberdeck.weapon.AmmoItems;
 import com.example.cyberdeck.weapon.AmmoType;
@@ -128,6 +129,9 @@ public final class CyberdeckGameTests {
                     "district_patrol_loadout", CyberdeckGameTests::districtPatrolLoadout);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             GUNSHOT_RADIUS = register("gunshot_radius", CyberdeckGameTests::gunshotRadius);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            MOUNTED_GUN_TARGETING = register(
+                    "mounted_gun_targeting", CyberdeckGameTests::mountedGunTargeting);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             CIVILIAN_NONCOMBAT = register(
                     "civilian_noncombat", CyberdeckGameTests::civilianNoncombat);
@@ -283,6 +287,24 @@ public final class CyberdeckGameTests {
                         Identifier.fromNamespaceAndPath("minecraft", "overworld")))
                         == CityWorlds.Kind.NONE,
                 "ordinary noise overworlds must not gain city pedestrians");
+        helper.succeed();
+    }
+
+    private static void mountedGunTargeting(GameTestHelper helper) {
+        var mount = helper.spawn(EntityTypes.CAMEL, new BlockPos(2, 2, 2));
+        var shooter = helper.spawn(EntityTypes.ZOMBIE, new BlockPos(2, 2, 3));
+        var coRider = helper.spawn(EntityTypes.ZOMBIE, new BlockPos(2, 2, 4));
+        var externalTarget = helper.spawn(EntityTypes.ZOMBIE, new BlockPos(5, 2, 2));
+        helper.assertTrue(
+                shooter.startRiding(mount) && coRider.startRiding(mount),
+                "mounted targeting test could not seat both riders");
+        helper.assertTrue(
+                !GunFiring.canHitTarget(shooter, mount)
+                        && !GunFiring.canHitTarget(shooter, coRider),
+                "mounted shooter could still hit its current mount or a co-rider");
+        helper.assertTrue(
+                GunFiring.canHitTarget(shooter, externalTarget),
+                "mounted shooter could not hit an unrelated external target");
         helper.succeed();
     }
 
@@ -2702,6 +2724,7 @@ public final class CyberdeckGameTests {
         registerInstance(event, "cluster_plan", CLUSTER_PLAN, data);
         registerInstance(event, "district_patrol_loadout", DISTRICT_PATROL_LOADOUT, data);
         registerInstance(event, "gunshot_radius", GUNSHOT_RADIUS, data);
+        registerInstance(event, "mounted_gun_targeting", MOUNTED_GUN_TARGETING, data);
         registerInstance(event, "civilian_noncombat", CIVILIAN_NONCOMBAT, data);
         registerInstance(event, "civilian_population", CIVILIAN_POPULATION, data);
         registerInstance(event, "city_actor_join_compatibility",

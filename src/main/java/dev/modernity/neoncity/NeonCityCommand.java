@@ -5,6 +5,8 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -35,6 +37,8 @@ public final class NeonCityCommand {
                         .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                         .then(Commands.literal("status")
                                 .executes(context -> status(context.getSource())))
+                        .then(traceCommands())
+                        .then(pregenCommands())
                         .then(Commands.literal("locate")
                                 .then(Commands.argument("x", IntegerArgumentType.integer())
                                         .then(Commands.argument("z", IntegerArgumentType.integer())
@@ -136,17 +140,150 @@ public final class NeonCityCommand {
                                         IntegerArgumentType.getInteger(context, "radius")))));
     }
 
+    private static LiteralArgumentBuilder<CommandSourceStack> pregenCommands() {
+        return Commands.literal("pregen")
+                .then(Commands.literal("status")
+                        .executes(context -> pregenStatus(context.getSource())))
+                .then(Commands.literal("pause")
+                        .executes(context -> pausePregen(context.getSource())))
+                .then(Commands.literal("resume")
+                        .executes(context -> resumePregen(context.getSource())));
+    }
+
+    private static LiteralArgumentBuilder<CommandSourceStack> traceCommands() {
+        return Commands.literal("trace")
+                .then(Commands.literal("status")
+                        .executes(context -> traceStatus(context.getSource())))
+                .then(Commands.literal("start")
+                        .executes(context -> startTrace(context.getSource(), 60))
+                        .then(Commands.argument(
+                                        "seconds", IntegerArgumentType.integer(1, 3_600))
+                                .executes(context -> startTrace(
+                                        context.getSource(),
+                                        IntegerArgumentType.getInteger(context, "seconds")))))
+                .then(Commands.literal("stop")
+                        .executes(context -> stopTrace(context.getSource())))
+                .then(Commands.literal("export")
+                        .executes(context -> exportTrace(context.getSource())));
+    }
+
     private static int status(CommandSourceStack source) {
+        CityPriorityPreGenerator.Status pregen = CityPriorityPreGenerator.status();
         source.sendSuccess(() -> Component.literal(String.format(
-                "Megacity: enabled=%s, districts=%d, edges=%d, generated=%d, queued=%d, seed=%d, fingerprint=%s",
+                "Megacity: enabled=%s, districts=%d, edges=%d, generated=%d, queued=%d, "
+                        + "urgent=%d, near=%d, pregen=%d/%d, seed=%d, fingerprint=%s",
                 NeonCityGenerator.isEnabled(),
                 NeonCityGenerator.layout().nodes().size(),
                 NeonCityGenerator.layout().edges().size(),
                 NeonCityGenerator.generatedChunks(),
                 NeonCityGenerator.pendingChunks(),
+                NeonCityGenerator.urgentPendingChunks(),
+                NeonCityGenerator.nearPendingChunks(),
+                pregen.complete(),
+                pregen.total(),
                 NeonCityGenerator.layout().seed(),
                 NeonCityGenerator.GENERATOR_FINGERPRINT)), false);
         return NeonCityGenerator.generatedChunks();
+    }
+
+    private static int pregenStatus(CommandSourceStack source) {
+        CityPriorityPreGenerator.Status status = CityPriorityPreGenerator.status();
+        source.sendSuccess(() -> Component.literal(String.format(
+                "Priority pre-generation: complete=%d/%d, remaining=%d, paused=%s, loading=%s",
+                status.complete(), status.total(), status.remaining(), status.paused(),
+                status.loading())), false);
+        return status.complete();
+    }
+
+    private static int pausePregen(CommandSourceStack source) {
+        CityPriorityPreGenerator.pause();
+        source.sendSuccess(() -> Component.literal("Priority pre-generation paused."), true);
+        return 1;
+    }
+
+    private static int resumePregen(CommandSourceStack source) {
+        CityPriorityPreGenerator.resume();
+        source.sendSuccess(() -> Component.literal("Priority pre-generation resumed."), true);
+        return 1;
+    }
+
+    private static int startTrace(CommandSourceStack source, int seconds) {
+        if (!NeonCityGenerator.isMegacityWorld(source.getLevel())) {
+            source.sendFailure(Component.literal(
+                    "Generation tracing is only available in a Project Moon Megacity world."));
+            return 0;
+        }
+        if (!CityGenerationTrace.start(source.getLevel(), seconds)) {
+            source.sendFailure(Component.literal(
+                    "A generation trace is already active; stop it before starting another."));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal(String.format(
+                "Generation trace started for %d seconds.", seconds)), true);
+        return 1;
+    }
+
+    private static int stopTrace(CommandSourceStack source) {
+        if (!CityGenerationTrace.stop()) {
+            source.sendFailure(Component.literal("No generation trace is active."));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal("Generation trace stopped."), true);
+        traceStatus(source);
+        return 1;
+    }
+
+    private static int traceStatus(CommandSourceStack source) {
+        CityGenerationTrace.Status status = CityGenerationTrace.status();
+        if (!status.available()) {
+            source.sendFailure(Component.literal(
+                    "No generation trace is active and no completed trace is available."));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal(String.format(
+                "Generation trace: active=%s, elapsed=%.1f/%ds, chunks=%d, failures=%d, "
+                        + "rate=%.2f chunks/s, stamp avg/p50/p95/p99="
+                        + "%.2f/%.2f/%.2f/%.2f ms",
+                status.active(), status.elapsedSeconds(), status.targetSeconds(),
+                status.chunks(), status.failures(), status.chunksPerSecond(),
+                status.averageStampMillis(), status.p50StampMillis(),
+                status.p95StampMillis(), status.p99StampMillis())), false);
+        source.sendSuccess(() -> Component.literal(String.format(
+                "Queue avg=%.2f ms, load avg=%.2f ms, direct changes=%d, "
+                        + "pregen skips foreground/tick-budget=%d/%d, samples=%d, reason=%s",
+                status.averageQueueMillis(), status.averageLoadMillis(),
+                status.directBlockChanges(), status.foregroundSkips(),
+                status.tickBudgetSkips(), status.sampledRecords(), status.stopReason())), false);
+        source.sendSuccess(() -> Component.literal(String.format(
+                "Foreground batching: batches=%d, extra chunks=%d, budget stops=%d",
+                status.foregroundBatches(), status.foregroundExtraChunks(),
+                status.foregroundBudgetStops())), false);
+        if (status.lookaheadSamples() > 0L) {
+            source.sendSuccess(() -> Component.literal(String.format(
+                    "Driving headroom: ready=%.1f blocks, latest/min=%.2f/%.2f seconds, "
+                            + "samples=%d, position-fallback=%d",
+                    status.latestReadyAheadBlocks(), status.latestHeadroomSeconds(),
+                    status.minimumHeadroomSeconds(), status.lookaheadSamples(),
+                    status.positionFallbackSamples())), false);
+        }
+        return (int) Math.min(Integer.MAX_VALUE, status.chunks());
+    }
+
+    private static int exportTrace(CommandSourceStack source) {
+        try {
+            Path exported = CityGenerationTrace.export(source.getLevel());
+            if (exported == null) {
+                source.sendFailure(Component.literal("There is no generation trace to export."));
+                return 0;
+            }
+            source.sendSuccess(() -> Component.literal(
+                    "Generation trace exported to " + exported.toAbsolutePath()), true);
+            return 1;
+        } catch (IOException exception) {
+            source.sendFailure(Component.literal(
+                    "Could not export generation trace: " + exception.getMessage()));
+            return 0;
+        }
     }
 
     private static int buildingSummary(CommandSourceStack source, int radius)

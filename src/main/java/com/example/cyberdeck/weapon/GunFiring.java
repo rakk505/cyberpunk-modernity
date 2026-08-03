@@ -270,6 +270,7 @@ public final class GunFiring {
     public static boolean canHitTarget(LivingEntity shooter, Entity entity) {
         if (!(entity instanceof LivingEntity living)
                 || entity == shooter
+                || sharesMountedVehicle(shooter, entity)
                 || !entity.isAlive()
                 || entity.isSpectator()) {
             return false;
@@ -292,6 +293,20 @@ public final class GunFiring {
         }
         return (!(shooter instanceof FactionEnemy || shooter instanceof CityNpc)
                 || !(living instanceof CityNpc));
+    }
+
+    /** Prevents a shot fired from a mount from immediately striking that mount or its riders. */
+    static boolean sharesMountedVehicle(Entity shooter, Entity candidate) {
+        Entity shooterRoot = rootVehicle(shooter);
+        return shooterRoot != shooter && rootVehicle(candidate) == shooterRoot;
+    }
+
+    private static Entity rootVehicle(Entity entity) {
+        Entity root = entity;
+        while (root.getVehicle() != null) {
+            root = root.getVehicle();
+        }
+        return root;
     }
 
     private static void spawnPenetrationEffect(ServerLevel level, Vec3 point) {

@@ -134,6 +134,8 @@ public final class SmartBullet extends Projectile {
     @Override
     protected boolean canHitEntity(Entity entity) {
         return entity != this.getOwner()
+                && (this.getOwner() == null
+                        || !GunFiring.sharesMountedVehicle(this.getOwner(), entity))
                 && entity instanceof LivingEntity living
                 && living.isAlive()
                 && super.canHitEntity(entity);

@@ -53,6 +53,7 @@ import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.entity.npc.villager.VillagerProfession;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 /** Pure regression tests for finite megacity topology, culture, and massing. */
 public final class ExampleGameTests {
@@ -716,6 +717,114 @@ public final class ExampleGameTests {
     }
 
     public static void finiteCityWilderness(GameTestHelper helper) {
+        EnumSet<EntitySpawnReason> blockedSpawnReasons = EnumSet.of(
+                EntitySpawnReason.NATURAL,
+                EntitySpawnReason.CHUNK_GENERATION,
+                EntitySpawnReason.SPAWNER,
+                EntitySpawnReason.JOCKEY,
+                EntitySpawnReason.REINFORCEMENT,
+                EntitySpawnReason.PATROL,
+                EntitySpawnReason.TRIAL_SPAWNER);
+        for (EntitySpawnReason reason : EntitySpawnReason.values()) {
+            helper.assertTrue(ProjectMoonCityModule.blocksAmbientSpawnReason(reason)
+                            == blockedSpawnReasons.contains(reason),
+                    "incorrect city spawn policy for " + reason);
+        }
+        helper.assertTrue(!ProjectMoonCityModule.blocksAmbientSpawnReason(
+                        EntitySpawnReason.SPAWN_ITEM_USE),
+                "item-placed vehicles must be allowed inside the city");
+
+        MegacityLayout fixedLayout = NeonCityGenerator.fixedLayout();
+        List<ChunkPos> priorityChunks = CityPriorityPreGenerator.buildPlan(
+                fixedLayout, MainlineQuestData.fixedSites().values());
+        Set<Long> priorityKeys = priorityChunks.stream()
+                .map(ChunkPos::pack)
+                .collect(java.util.stream.Collectors.toSet());
+        helper.assertTrue(priorityChunks.size() == priorityKeys.size()
+                        && priorityChunks.size() >= 25_000
+                        && priorityChunks.size() <= 27_000,
+                "priority pre-generation plan is duplicated or outside its storage budget: "
+                        + priorityChunks.size());
+        helper.assertTrue(priorityChunks.stream().skip(9).limit(512).allMatch(chunk -> {
+            MegacityLayout.Location location = fixedLayout.locate(
+                    chunk.getMiddleBlockX(), chunk.getMiddleBlockZ());
+            return location.nearestConnection() != null
+                    && location.connectionDistance() <= 48.0;
+        }), "priority pre-generation does not process spawn-connected highways first");
+        for (MegacityLayout.Node node : fixedLayout.nodes()) {
+            helper.assertTrue(priorityKeys.contains(ChunkPos.pack(
+                            Math.floorDiv(node.x(), 16), Math.floorDiv(node.z(), 16))),
+                    "priority pre-generation omitted station district " + node.district());
+        }
+        for (MissionBuildingPlanner.Site site : MainlineQuestData.fixedSites().values()) {
+            helper.assertTrue(priorityKeys.contains(ChunkPos.pack(
+                            Math.floorDiv(site.target().getX(), 16),
+                            Math.floorDiv(site.target().getZ(), 16))),
+                    "priority pre-generation omitted mission site " + site.id());
+        }
+
+        List<ChunkPos> travelCorridor = NeonCityGenerator.travelCorridorChunks(
+                0, 0, 2.0, 0.0);
+        Set<Long> travelKeys = travelCorridor.stream()
+                .map(ChunkPos::pack)
+                .collect(java.util.stream.Collectors.toSet());
+        helper.assertTrue(travelCorridor.size() == travelKeys.size()
+                        && travelKeys.contains(ChunkPos.pack(0, 0))
+                        && travelKeys.contains(ChunkPos.pack(12, 0))
+                        && travelCorridor.stream().allMatch(chunk ->
+                                chunk.x() >= -1 && chunk.x() <= 13
+                                        && chunk.z() >= -1 && chunk.z() <= 1)
+                        && NeonCityGenerator.travelCorridorChunks(
+                                0, 0, 0.0, 0.0).isEmpty(),
+                "vehicle lookahead corridor lost its projection, margin, or zero-speed guard");
+
+        long[] traceDurations = {40L, 10L, 30L, 20L};
+        helper.assertTrue(
+                CityGenerationTrace.percentileNanos(traceDurations, 0.50) == 20L
+                        && CityGenerationTrace.percentileNanos(traceDurations, 0.95) == 40L
+                        && CityGenerationTrace.percentileNanos(new long[0], 0.99) == 0L
+                        && CityGenerationTrace.MAX_RECORDS == 4_096,
+                "generation trace percentile or bounded-retention policy changed");
+
+        NeonCityGenerator.TravelVelocity customVehicleVelocity =
+                NeonCityGenerator.selectTravelVelocity(Vec3.ZERO, 10.0, 0.0, 5L);
+        NeonCityGenerator.TravelVelocity nativeVehicleVelocity =
+                NeonCityGenerator.selectTravelVelocity(new Vec3(1.0, 0.0, 0.0), 2.0, 0.0, 5L);
+        NeonCityGenerator.TravelVelocity teleportVelocity =
+                NeonCityGenerator.selectTravelVelocity(Vec3.ZERO, 100.0, 0.0, 5L);
+        helper.assertTrue(customVehicleVelocity.positionFallback()
+                        && Math.abs(customVehicleVelocity.movement().x - 2.0) < 1.0E-9
+                        && !nativeVehicleVelocity.positionFallback()
+                        && Math.abs(nativeVehicleVelocity.movement().x - 1.0) < 1.0E-9
+                        && !teleportVelocity.positionFallback()
+                        && NeonCityGenerator.MAX_FOREGROUND_CHUNKS_PER_TICK == 3
+                        && NeonCityGenerator.FOREGROUND_GENERATION_BUDGET_NANOS
+                                == 25_000_000L,
+                "custom-vehicle velocity fallback or foreground generation budget changed");
+        List<ChunkPos> activePlayerChunks = List.of(
+                new ChunkPos(0, 0), new ChunkPos(100, 0));
+        helper.assertTrue(
+                NeonCityGenerator.nearestChunkDistanceSquared(
+                        new ChunkPos(2, 0), activePlayerChunks) == 4L
+                        && NeonCityGenerator.nearestChunkDistanceSquared(
+                                new ChunkPos(98, 1), activePlayerChunks) == 5L
+                        && NeonCityGenerator.nearestChunkDistanceSquared(
+                                new ChunkPos(50, 0), List.of()) == 0L
+                        && java.util.Arrays.asList(CityGenerationTrace.Source.values())
+                                .contains(CityGenerationTrace.Source.NEAR),
+                "normal generation no longer ranks chunks by the nearest active player");
+        NeonCityGenerator.ChunkBuildPlan preparedChunk = NeonCityGenerator.planChunk(
+                ChunkPos.ZERO);
+        helper.assertTrue(preparedChunk.chunk().equals(ChunkPos.ZERO)
+                        && preparedChunk.samples().length == 18
+                        && preparedChunk.samples()[0].length == 18
+                        && preparedChunk.sampleNanos() > 0L
+                        && preparedChunk.planningNanos() >= 0L
+                        && CityChunkPlanner.WORKER_COUNT >= 2
+                        && CityChunkPlanner.WORKER_COUNT <= 4
+                        && CityChunkPlanner.MAX_OUTSTANDING_PLANS == 48,
+                "asynchronous city planning lost its bounded worker or immutable plan contract");
+
         MegacityLayout layout = MegacityLayout.create(TEST_SEED);
         for (MegacityLayout.Node node : layout.nodes()) {
             helper.assertTrue(layout.locate(node.x(), node.z()).insideCity(),
@@ -4343,8 +4452,10 @@ public final class ExampleGameTests {
                 BoundingBox placementBounds = new BoundingBox(
                         0, 0, 0, 15, found.patch().sizeY() - 1, 15);
                 helper.assertTrue(NeonCityGenerator.arnisPlaceSettings(found, placementBounds)
-                                .getProcessors().isEmpty(),
-                        "Arnis placement must preserve source materials for " + district + " " + zone);
+                                .getProcessors().equals(List.of(
+                                        net.minecraft.world.level.levelgen.structure.templatesystem
+                                                .BlockIgnoreProcessor.AIR)),
+                        "Arnis placement must skip only template air for " + district + " " + zone);
                 var optionalTemplate = helper.getLevel().getStructureManager()
                         .get(found.patch().templateId());
                 helper.assertTrue(optionalTemplate.isPresent(),
@@ -4564,6 +4675,42 @@ public final class ExampleGameTests {
             helper.assertTrue(!block,
                     "a non-building cross-section requested facade blocks");
         }
+
+        DistrictLogoBanners.SearchResult boundedBannerSearch =
+                DistrictLogoBanners.findArnisBannerSite(
+                        helper.getLevel(), chunk, 0x42414E4E45524C31L);
+        helper.assertTrue(
+                boundedBannerSearch.facadeProbes()
+                                <= DistrictLogoBanners.MAX_FACADE_PROBES
+                        && boundedBannerSearch.heightQueries()
+                                == DistrictLogoBanners.HEIGHT_QUERIES_PER_CHUNK
+                        && DistrictLogoBanners.hasContainedExterior(
+                                chunk,
+                                chunk.getMinBlockX() + 3,
+                                chunk.getMinBlockZ() + 8,
+                                Direction.WEST)
+                        && !DistrictLogoBanners.hasContainedExterior(
+                                chunk,
+                                chunk.getMinBlockX() + 2,
+                                chunk.getMinBlockZ() + 8,
+                                Direction.WEST),
+                "district banner search escaped its chunk or probe budget");
+        boundedBannerSearch.site().ifPresent(site -> helper.assertTrue(
+                DistrictLogoBanners.hasContainedExterior(
+                        chunk, site.support().getX(), site.support().getZ(), site.outward()),
+                "district banner selected a cross-chunk exterior ray"));
+
+        NeonCitySavedData deferredBannerLedger = new NeonCitySavedData();
+        NeonCitySavedData.DeferredBanner deferredBanner =
+                new NeonCitySavedData.DeferredBanner(12, 90, -34, 2, 5);
+        helper.assertTrue(
+                deferredBannerLedger.addPendingBanner(deferredBanner)
+                        && !deferredBannerLedger.addPendingBanner(deferredBanner)
+                        && deferredBannerLedger.pendingBanners().equals(List.of(deferredBanner))
+                        && deferredBannerLedger.removePendingBanner(deferredBanner.key())
+                                .equals(deferredBanner)
+                        && deferredBannerLedger.pendingBanners().isEmpty(),
+                "deferred banner ledger did not preserve bounded queue identity");
 
         BlockPos bannerSupport = new BlockPos(
                 chunk.getMinBlockX() + 8, minY + 20, chunk.getMinBlockZ() + 8);

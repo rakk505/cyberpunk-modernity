@@ -4,12 +4,16 @@ import com.example.cyberdeck.city.CityLootGeneration;
 import com.mojang.logging.LogUtils;
 import com.mojang.serialization.MapCodec;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
@@ -17,8 +21,11 @@ import net.minecraft.core.Vec3i;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.LevelReader;
@@ -32,11 +39,13 @@ import net.minecraft.world.level.block.state.properties.RailShape;
 import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
+import net.minecraft.world.level.levelgen.structure.templatesystem.BlockIgnoreProcessor;
 import net.minecraft.world.level.levelgen.structure.templatesystem.LiquidSettings;
 import net.minecraft.world.level.storage.LevelData;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureProcessor;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
+import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
@@ -59,11 +68,19 @@ public final class NeonCityGenerator {
             "project-moon-megacity-v22-district-ring-fixed-seed-20260801";
     public static final int CITY_GROUND_Y = 72;
     public static final int WATER_Y = 67;
-    public static final int ENQUEUE_RADIUS_CHUNKS = 7;
+    public static final int ENQUEUE_RADIUS_CHUNKS = 10;
     public static final int SPAWN_PREWARM_RADIUS_CHUNKS = 1;
     public static final int MAX_PENDING_CHUNKS = 768;
+    public static final int TRAVEL_LOOKAHEAD_TICKS = 100;
+    public static final int TRAVEL_CORRIDOR_MARGIN_CHUNKS = 1;
+    public static final int TRAVEL_CORRIDOR_SAMPLE_BLOCKS = 8;
+    public static final int MIN_TRAVEL_LOOKAHEAD_BLOCKS = 96;
+    public static final int MAX_TRAVEL_LOOKAHEAD_BLOCKS = 512;
+    public static final int MAX_FOREGROUND_CHUNKS_PER_TICK = 3;
+    public static final long FOREGROUND_GENERATION_BUDGET_NANOS = 25_000_000L;
+    static final double MAX_POSITION_FALLBACK_SPEED = 8.0;
 
-    private static final int PLACE_FLAGS = Block.UPDATE_SKIP_ALL_SIDEEFFECTS | Block.UPDATE_CLIENTS;
+    private static final int PLACE_FLAGS = Block.UPDATE_SKIP_ALL_SIDEEFFECTS;
     private static final int MAX_ARNIS_PLAN_CACHE = 32_768;
     private static final int MAX_PARK_SITE_CACHE = 32_768;
     private static final int MIN_ARNIS_COLUMNS = 32;
@@ -89,14 +106,18 @@ public final class NeonCityGenerator {
             Identifier.fromNamespaceAndPath(NAMESPACE, "megacity_overworld"));
 
     private static final ArrayDeque<ChunkPos> PENDING = new ArrayDeque<>();
+    private static final ArrayDeque<ChunkPos> NEAR_PENDING = new ArrayDeque<>();
+    private static final ArrayDeque<ChunkPos> URGENT_PENDING = new ArrayDeque<>();
     private static final Set<Long> QUEUED = new HashSet<>();
     private static final Set<Long> GENERATED = new HashSet<>();
     private static final Map<Long, AlleyMaze.Plan> DIAGNOSTIC_ALLEY_PLANS = new HashMap<>();
     private static final Map<Long, Optional<ArnisPatchLibrary.Placement>>
-            USABLE_ARNIS_PLACEMENTS = new HashMap<>();
+            USABLE_ARNIS_PLACEMENTS = new ConcurrentHashMap<>();
     private static final Map<Long, BridgeProfile> BRIDGE_PROFILES = new ConcurrentHashMap<>();
     private static final Map<ParkSiteKey, ParkSitePlan> PARK_SITE_PLANS =
             new ConcurrentHashMap<>();
+    private static final Map<UUID, TravelMotion> TRAVEL_MOTIONS = new HashMap<>();
+    private static long lastActiveTravelGameTime = Long.MIN_VALUE;
     private static MegacityLayout layout = MegacityLayout.create(FIXED_CITY_SEED);
     private static boolean layoutInitialized;
     private static NeonCitySavedData savedData;
@@ -168,6 +189,18 @@ public final class NeonCityGenerator {
 
     private record ParkSiteKey(long seed, int chunkX, int chunkZ) {}
 
+    private record TravelMotion(UUID sourceId, double x, double z, long gameTime) {}
+
+    record TravelVelocity(Vec3 movement, boolean positionFallback) {}
+
+    record ChunkBuildPlan(
+            ChunkPos chunk,
+            UrbanSample[][] samples,
+            Optional<ArnisPatchLibrary.Placement> patchPlacement,
+            EnumSet<ArnisPatchLibrary.Connector.Edge> interruptedEdges,
+            long sampleNanos,
+            long planningNanos) {}
+
     private record ParkSitePlan(
             ArnisPatchLibrary.Placement placement,
             boolean[] parkColumns,
@@ -221,12 +254,17 @@ public final class NeonCityGenerator {
 
     private static void clearTransientState() {
         PENDING.clear();
+        NEAR_PENDING.clear();
+        URGENT_PENDING.clear();
         QUEUED.clear();
         GENERATED.clear();
         DIAGNOSTIC_ALLEY_PLANS.clear();
         USABLE_ARNIS_PLACEMENTS.clear();
         BRIDGE_PROFILES.clear();
         PARK_SITE_PLANS.clear();
+        TRAVEL_MOTIONS.clear();
+        lastActiveTravelGameTime = Long.MIN_VALUE;
+        CityChunkPlanner.reset();
         ArnisPatchLibrary.clearSelectionCache();
         MerchantTruckLibrary.clearCaches();
         UCorpPortGeneration.clearCache();
@@ -246,6 +284,18 @@ public final class NeonCityGenerator {
                 ENQUEUE_RADIUS_CHUNKS);
     }
 
+    public static int enqueueAroundPlayer(ServerPlayer player) {
+        int added = enqueueAround(player.getBlockX(), player.getBlockZ());
+        int centerChunkX = SectionPos.blockToSectionCoord(player.getBlockX());
+        int centerChunkZ = SectionPos.blockToSectionCoord(player.getBlockZ());
+        for (int deltaZ = -1; deltaZ <= 1; deltaZ++) {
+            for (int deltaX = -1; deltaX <= 1; deltaX++) {
+                promoteNear(new ChunkPos(centerChunkX + deltaX, centerChunkZ + deltaZ));
+            }
+        }
+        return added;
+    }
+
     public static int enqueueAroundChunk(int centerChunkX, int centerChunkZ, int radius) {
         if (!enabled || radius < 0) return 0;
         int added = 0;
@@ -258,16 +308,219 @@ public final class NeonCityGenerator {
                     if (!chunkTouchesCity(chunkX, chunkZ)) continue;
                     long key = ChunkPos.pack(chunkX, chunkZ);
                     if (GENERATED.contains(key) || !QUEUED.add(key)) continue;
-                    if (PENDING.size() >= MAX_PENDING_CHUNKS) {
-                        ChunkPos evicted = PENDING.removeFirst();
+                    if (pendingQueueSize() >= MAX_PENDING_CHUNKS) {
+                        if (PENDING.isEmpty()) {
+                            QUEUED.remove(key);
+                            continue;
+                        }
+                        ChunkPos evicted = PENDING.removeLast();
                         QUEUED.remove(evicted.pack());
+                        CityGenerationTrace.dequeued(evicted.pack());
+                        CityChunkPlanner.cancel(evicted.pack());
                     }
-                    PENDING.addLast(new ChunkPos(chunkX, chunkZ));
+                    ChunkPos queued = new ChunkPos(chunkX, chunkZ);
+                    PENDING.addLast(queued);
+                    CityGenerationTrace.queued(queued, CityGenerationTrace.Source.NORMAL);
                     added++;
                 }
             }
         }
         return added;
+    }
+
+    /** Promotes a velocity-projected highway corridor ahead of a mounted player. */
+    public static int enqueueTravelCorridor(ServerLevel level, ServerPlayer player) {
+        Entity movementSource = player.getVehicle() != null ? player.getVehicle() : player;
+        TravelMotion current = new TravelMotion(
+                movementSource.getUUID(), movementSource.getX(), movementSource.getZ(),
+                level.getGameTime());
+        TravelMotion previous = TRAVEL_MOTIONS.put(player.getUUID(), current);
+        long elapsedTicks = previous == null || !previous.sourceId().equals(current.sourceId())
+                ? 0L : current.gameTime() - previous.gameTime();
+        TravelVelocity velocity = selectTravelVelocity(
+                movementSource.getDeltaMovement(),
+                previous == null ? 0.0 : current.x() - previous.x(),
+                previous == null ? 0.0 : current.z() - previous.z(),
+                elapsedTicks);
+        Vec3 movement = velocity.movement();
+        double horizontalSpeed = Math.hypot(movement.x, movement.z);
+        if (horizontalSpeed < 0.15
+                || !isInsideCity(level, player.getBlockX(), player.getBlockZ())
+                || !(isHighwayAt(level, player.getBlockX(), player.getBlockZ())
+                        || isHighwayRoadClass(sample(
+                                player.getBlockX(), player.getBlockZ()).roadClass()))) {
+            return 0;
+        }
+        lastActiveTravelGameTime = level.getGameTime();
+
+        List<ChunkPos> corridor = travelCorridorChunks(
+                player.getBlockX(), player.getBlockZ(), movement.x, movement.z);
+        int promoted = 0;
+        for (int index = corridor.size() - 1; index >= 0; index--) {
+            ChunkPos chunk = corridor.get(index);
+            if (!chunkTouchesCity(chunk.x(), chunk.z()) || GENERATED.contains(chunk.pack())) {
+                continue;
+            }
+            if (promoteUrgent(chunk)) promoted++;
+        }
+        double lookaheadDistance = travelLookaheadDistance(horizontalSpeed);
+        CityGenerationTrace.travelLookahead(
+                horizontalSpeed * 20.0,
+                generatedTravelHeadroom(
+                        player.getBlockX(), player.getBlockZ(),
+                        movement.x / horizontalSpeed, movement.z / horizontalSpeed,
+                        lookaheadDistance),
+                lookaheadDistance,
+                promoted,
+                velocity.positionFallback());
+        return promoted;
+    }
+
+    static boolean hasActiveTravel(ServerLevel level) {
+        return lastActiveTravelGameTime != Long.MIN_VALUE
+                && level.getGameTime() - lastActiveTravelGameTime <= 20L;
+    }
+
+    static TravelVelocity selectTravelVelocity(
+            Vec3 nativeMovement,
+            double displacementX,
+            double displacementZ,
+            long elapsedTicks) {
+        double nativeSpeed = Math.hypot(nativeMovement.x, nativeMovement.z);
+        if (elapsedTicks <= 0L) return new TravelVelocity(nativeMovement, false);
+        Vec3 positionVelocity = new Vec3(
+                displacementX / elapsedTicks, 0.0, displacementZ / elapsedTicks);
+        double positionSpeed = Math.hypot(positionVelocity.x, positionVelocity.z);
+        if (positionSpeed > nativeSpeed
+                && positionSpeed <= MAX_POSITION_FALLBACK_SPEED) {
+            return new TravelVelocity(positionVelocity, true);
+        }
+        return new TravelVelocity(nativeMovement, false);
+    }
+
+    static void forgetTravelMotion(UUID playerId) {
+        TRAVEL_MOTIONS.remove(playerId);
+    }
+
+    static List<ChunkPos> travelCorridorChunks(
+            int worldX, int worldZ, double velocityX, double velocityZ) {
+        double speed = Math.hypot(velocityX, velocityZ);
+        if (speed < 1.0E-6) return List.of();
+        double distance = travelLookaheadDistance(speed);
+        double directionX = velocityX / speed;
+        double directionZ = velocityZ / speed;
+        int steps = Math.max(1, (int) Math.ceil(distance / TRAVEL_CORRIDOR_SAMPLE_BLOCKS));
+        LinkedHashSet<Long> chunks = new LinkedHashSet<>();
+        for (int step = 0; step <= steps; step++) {
+            double progress = step / (double) steps;
+            int sampleX = (int) Math.round(worldX + directionX * distance * progress);
+            int sampleZ = (int) Math.round(worldZ + directionZ * distance * progress);
+            int chunkX = Math.floorDiv(sampleX, 16);
+            int chunkZ = Math.floorDiv(sampleZ, 16);
+            for (int deltaZ = -TRAVEL_CORRIDOR_MARGIN_CHUNKS;
+                 deltaZ <= TRAVEL_CORRIDOR_MARGIN_CHUNKS;
+                 deltaZ++) {
+                for (int deltaX = -TRAVEL_CORRIDOR_MARGIN_CHUNKS;
+                     deltaX <= TRAVEL_CORRIDOR_MARGIN_CHUNKS;
+                     deltaX++) {
+                    chunks.add(ChunkPos.pack(chunkX + deltaX, chunkZ + deltaZ));
+                }
+            }
+        }
+        ArrayList<ChunkPos> result = new ArrayList<>(chunks.size());
+        chunks.forEach(key -> result.add(ChunkPos.unpack(key)));
+        return List.copyOf(result);
+    }
+
+    private static double travelLookaheadDistance(double speed) {
+        return Math.max(
+                MIN_TRAVEL_LOOKAHEAD_BLOCKS,
+                Math.min(MAX_TRAVEL_LOOKAHEAD_BLOCKS, speed * TRAVEL_LOOKAHEAD_TICKS));
+    }
+
+    private static double generatedTravelHeadroom(
+            int worldX,
+            int worldZ,
+            double directionX,
+            double directionZ,
+            double distance) {
+        int steps = Math.max(1, (int) Math.ceil(distance / TRAVEL_CORRIDOR_SAMPLE_BLOCKS));
+        double readyDistance = 0.0;
+        for (int step = 0; step <= steps; step++) {
+            double sampleDistance = distance * step / steps;
+            int sampleX = (int) Math.round(worldX + directionX * sampleDistance);
+            int sampleZ = (int) Math.round(worldZ + directionZ * sampleDistance);
+            long key = ChunkPos.pack(
+                    Math.floorDiv(sampleX, 16), Math.floorDiv(sampleZ, 16));
+            if (!GENERATED.contains(key)) break;
+            readyDistance = sampleDistance;
+        }
+        return readyDistance;
+    }
+
+    private static boolean promoteUrgent(ChunkPos chunk) {
+        long key = chunk.pack();
+        if (URGENT_PENDING.remove(chunk)) {
+            URGENT_PENDING.addFirst(chunk);
+            return false;
+        }
+        if (NEAR_PENDING.remove(chunk)) {
+            URGENT_PENDING.addFirst(chunk);
+            CityGenerationTrace.promoted(chunk, CityGenerationTrace.Source.URGENT);
+            CityChunkPlanner.request(chunk, CityChunkPlanner.Priority.URGENT);
+            return true;
+        }
+        if (PENDING.remove(chunk)) {
+            URGENT_PENDING.addFirst(chunk);
+            CityGenerationTrace.promoted(chunk, CityGenerationTrace.Source.URGENT);
+            CityChunkPlanner.request(chunk, CityChunkPlanner.Priority.URGENT);
+            return true;
+        }
+        if (!QUEUED.add(key)) return false;
+        if (pendingQueueSize() >= MAX_PENDING_CHUNKS) {
+            if (PENDING.isEmpty()) {
+                QUEUED.remove(key);
+                return false;
+            }
+            ChunkPos evicted = PENDING.removeLast();
+            QUEUED.remove(evicted.pack());
+            CityGenerationTrace.dequeued(evicted.pack());
+            CityChunkPlanner.cancel(evicted.pack());
+        }
+        URGENT_PENDING.addFirst(chunk);
+        CityGenerationTrace.queued(chunk, CityGenerationTrace.Source.URGENT);
+        CityChunkPlanner.request(chunk, CityChunkPlanner.Priority.URGENT);
+        return true;
+    }
+
+    private static void promoteNear(ChunkPos chunk) {
+        long key = chunk.pack();
+        if (GENERATED.contains(key) || URGENT_PENDING.contains(chunk)) return;
+        if (NEAR_PENDING.contains(chunk)) return;
+        if (PENDING.remove(chunk)) {
+            NEAR_PENDING.addLast(chunk);
+            CityGenerationTrace.promoted(chunk, CityGenerationTrace.Source.NEAR);
+            CityChunkPlanner.request(chunk, CityChunkPlanner.Priority.NEAR);
+            return;
+        }
+        if (!QUEUED.add(key)) return;
+        if (pendingQueueSize() >= MAX_PENDING_CHUNKS) {
+            if (PENDING.isEmpty()) {
+                QUEUED.remove(key);
+                return;
+            }
+            ChunkPos evicted = PENDING.removeLast();
+            QUEUED.remove(evicted.pack());
+            CityGenerationTrace.dequeued(evicted.pack());
+            CityChunkPlanner.cancel(evicted.pack());
+        }
+        NEAR_PENDING.addLast(chunk);
+        CityGenerationTrace.queued(chunk, CityGenerationTrace.Source.NEAR);
+        CityChunkPlanner.request(chunk, CityChunkPlanner.Priority.NEAR);
+    }
+
+    private static int pendingQueueSize() {
+        return PENDING.size() + NEAR_PENDING.size() + URGENT_PENDING.size();
     }
 
     public static boolean chunkTouchesCity(int chunkX, int chunkZ) {
@@ -285,26 +538,161 @@ public final class NeonCityGenerator {
         return false;
     }
 
-    /** Generate at most one already-loaded city chunk per tick. */
-    public static void tick(ServerLevel level) {
-        if (!enabled || savedData == null || PENDING.isEmpty()) return;
-        int candidates = PENDING.size();
+    /** Generate a bounded batch of already-loaded chunks while the current tick has headroom. */
+    public static boolean tick(ServerLevel level) {
+        if (!enabled || savedData == null) return false;
+        scheduleChunkPlanning(level);
+        long startedNanos = System.nanoTime();
+        int processed = 0;
+        boolean stoppedByBudget = false;
+        while (processed < MAX_FOREGROUND_CHUNKS_PER_TICK) {
+            boolean generated = generateFirstLoaded(
+                    level, URGENT_PENDING, CityGenerationTrace.Source.URGENT)
+                    || generateNearestLoaded(
+                            level, NEAR_PENDING, CityGenerationTrace.Source.NEAR)
+                    || generateNearestLoaded(
+                            level, PENDING, CityGenerationTrace.Source.NORMAL);
+            if (!generated) break;
+            processed++;
+            if (processed >= MAX_FOREGROUND_CHUNKS_PER_TICK) break;
+            if (System.nanoTime() - startedNanos >= FOREGROUND_GENERATION_BUDGET_NANOS
+                    || level.getServer().getAverageTickTimeNanos()
+                            >= CityPriorityPreGenerator.MAX_AVERAGE_TICK_NANOS) {
+                stoppedByBudget = true;
+                break;
+            }
+        }
+        if (processed > 0) {
+            CityGenerationTrace.foregroundBatch(
+                    processed, System.nanoTime() - startedNanos, stoppedByBudget);
+        }
+        return processed > 0;
+    }
+
+    private static boolean generateFirstLoaded(
+            ServerLevel level,
+            ArrayDeque<ChunkPos> queue,
+            CityGenerationTrace.Source source) {
+        int candidates = queue.size();
         while (candidates-- > 0) {
-            ChunkPos chunk = PENDING.removeFirst();
+            ChunkPos chunk = queue.removeFirst();
             long key = chunk.pack();
             if (GENERATED.contains(key)) {
                 QUEUED.remove(key);
+                CityChunkPlanner.cancel(key);
                 continue;
             }
             if (level.getChunkSource().getChunkNow(chunk.x(), chunk.z()) == null) {
-                PENDING.addLast(chunk);
+                CityGenerationTrace.queueCandidateUnavailable(source);
+                queue.addLast(chunk);
                 continue;
             }
-            boolean placed = generateChunk(level, chunk);
+            CityChunkPlanner.Priority priority = planningPriority(source);
+            if (!CityChunkPlanner.isReady(chunk)) {
+                boolean accepted = CityChunkPlanner.request(chunk, priority);
+                if (!accepted || CityChunkPlanner.isPending(chunk)) {
+                    queue.addLast(chunk);
+                    continue;
+                }
+            }
+            boolean placed = generateChunk(level, chunk, source);
             QUEUED.remove(key);
             if (placed) recordGenerated(key);
-            return;
+            return true;
         }
+        return false;
+    }
+
+    private static boolean generateNearestLoaded(
+            ServerLevel level,
+            ArrayDeque<ChunkPos> queue,
+            CityGenerationTrace.Source source) {
+        ChunkPos selected = null;
+        long nearestDistance = Long.MAX_VALUE;
+        List<ChunkPos> playerChunks = level.players().stream()
+                .map(player -> new ChunkPos(
+                        SectionPos.blockToSectionCoord(player.getBlockX()),
+                        SectionPos.blockToSectionCoord(player.getBlockZ())))
+                .toList();
+        java.util.Iterator<ChunkPos> iterator = queue.iterator();
+        while (iterator.hasNext()) {
+            ChunkPos chunk = iterator.next();
+            long key = chunk.pack();
+            if (GENERATED.contains(key)) {
+                iterator.remove();
+                QUEUED.remove(key);
+                CityGenerationTrace.dequeued(key);
+                CityChunkPlanner.cancel(key);
+                continue;
+            }
+            if (level.getChunkSource().getChunkNow(chunk.x(), chunk.z()) == null) {
+                CityGenerationTrace.queueCandidateUnavailable(source);
+                continue;
+            }
+            CityChunkPlanner.Priority priority = planningPriority(source);
+            if (!CityChunkPlanner.isReady(chunk)) {
+                boolean accepted = CityChunkPlanner.request(chunk, priority);
+                if (!accepted || CityChunkPlanner.isPending(chunk)) continue;
+            }
+            long distance = nearestChunkDistanceSquared(chunk, playerChunks);
+            if (selected == null || distance < nearestDistance) {
+                selected = chunk;
+                nearestDistance = distance;
+            }
+        }
+        if (selected == null) return false;
+        queue.remove(selected);
+        long key = selected.pack();
+        boolean placed = generateChunk(level, selected, source);
+        QUEUED.remove(key);
+        if (placed) recordGenerated(key);
+        return true;
+    }
+
+    private static void scheduleChunkPlanning(ServerLevel level) {
+        for (ChunkPos chunk : URGENT_PENDING) {
+            CityChunkPlanner.request(chunk, CityChunkPlanner.Priority.URGENT);
+        }
+        List<ChunkPos> playerChunks = level.players().stream()
+                .map(player -> new ChunkPos(
+                        SectionPos.blockToSectionCoord(player.getBlockX()),
+                        SectionPos.blockToSectionCoord(player.getBlockZ())))
+                .toList();
+        if (playerChunks.isEmpty()) return;
+        java.util.Comparator<ChunkPos> byPlayerDistance = java.util.Comparator.comparingLong(
+                chunk -> nearestChunkDistanceSquared(chunk, playerChunks));
+        ArrayList<ChunkPos> near = new ArrayList<>(NEAR_PENDING);
+        near.sort(byPlayerDistance);
+        for (ChunkPos chunk : near) {
+            if (!CityChunkPlanner.request(chunk, CityChunkPlanner.Priority.NEAR)) break;
+        }
+        ArrayList<ChunkPos> normal = new ArrayList<>(PENDING);
+        normal.sort(byPlayerDistance);
+        for (ChunkPos chunk : normal) {
+            if (!CityChunkPlanner.request(chunk, CityChunkPlanner.Priority.NORMAL)) break;
+        }
+    }
+
+    private static CityChunkPlanner.Priority planningPriority(
+            CityGenerationTrace.Source source) {
+        return switch (source) {
+            case URGENT -> CityChunkPlanner.Priority.URGENT;
+            case NEAR -> CityChunkPlanner.Priority.NEAR;
+            case NORMAL -> CityChunkPlanner.Priority.NORMAL;
+            case PREGEN, MANUAL, PREWARM -> CityChunkPlanner.Priority.PREGEN;
+        };
+    }
+
+    static long nearestChunkDistanceSquared(
+            ChunkPos chunk, List<ChunkPos> playerChunks) {
+        if (playerChunks.isEmpty()) return 0L;
+        long nearest = Long.MAX_VALUE;
+        for (ChunkPos playerChunk : playerChunks) {
+            long deltaX = (long) chunk.x() - playerChunk.x();
+            long deltaZ = (long) chunk.z() - playerChunk.z();
+            nearest = Math.min(nearest, deltaX * deltaX + deltaZ * deltaZ);
+        }
+        return nearest;
     }
 
     public static int prewarmSpawn(ServerLevel level) {
@@ -323,7 +711,7 @@ public final class NeonCityGenerator {
                     continue;
                 }
                 if (!chunkTouchesCity(chunkX, chunkZ)) continue;
-                if (generateChunk(level, chunk)) {
+                if (generateChunk(level, chunk, CityGenerationTrace.Source.PREWARM)) {
                     recordGenerated(key);
                     placed++;
                 }
@@ -342,6 +730,16 @@ public final class NeonCityGenerator {
             int centerChunkX,
             int centerChunkZ,
             int radius) {
+        return generateNow(
+                level, centerChunkX, centerChunkZ, radius, CityGenerationTrace.Source.MANUAL);
+    }
+
+    static int generateNow(
+            ServerLevel level,
+            int centerChunkX,
+            int centerChunkZ,
+            int radius,
+            CityGenerationTrace.Source source) {
         if (!enabled || savedData == null || !isMegacityWorld(level)) {
             return 0;
         }
@@ -353,9 +751,10 @@ public final class NeonCityGenerator {
                 level.getChunk(chunkX, chunkZ);
                 removePending(key);
                 if (GENERATED.contains(key) || !chunkTouchesCity(chunkX, chunkZ)) {
+                    CityChunkPlanner.cancel(key);
                     continue;
                 }
-                if (generateChunk(level, chunk)) {
+                if (generateChunk(level, chunk, source)) {
                     recordGenerated(key);
                     placed++;
                 }
@@ -366,7 +765,10 @@ public final class NeonCityGenerator {
 
     private static void removePending(long key) {
         QUEUED.remove(key);
+        CityGenerationTrace.dequeued(key);
         PENDING.removeIf(chunk -> chunk.pack() == key);
+        NEAR_PENDING.removeIf(chunk -> chunk.pack() == key);
+        URGENT_PENDING.removeIf(chunk -> chunk.pack() == key);
     }
 
     private static void recordGenerated(long key) {
@@ -376,17 +778,57 @@ public final class NeonCityGenerator {
             return;
         }
         GENERATED.add(key);
+        CityChunkPlanner.cancel(key);
         savedData.markGenerated(key, GENERATOR_FINGERPRINT);
     }
 
-    private static boolean generateChunk(ServerLevel level, ChunkPos chunk) {
+    static ChunkBuildPlan planChunk(ChunkPos chunk) {
+        long sampleStarted = System.nanoTime();
+        UrbanSample[][] samples = sampleChunk(chunk.getMinBlockX(), chunk.getMinBlockZ());
+        long sampleNanos = System.nanoTime() - sampleStarted;
+        long planningStarted = System.nanoTime();
+        Optional<ArnisPatchLibrary.Placement> placement = usableArnisPlacement(
+                chunk.x(), chunk.z(), samples);
+        EnumSet<ArnisPatchLibrary.Connector.Edge> interruptedEdges = placement
+                .map(value -> interruptedArnisEdges(chunk, value))
+                .orElseGet(() -> EnumSet.noneOf(ArnisPatchLibrary.Connector.Edge.class));
+        return new ChunkBuildPlan(
+                chunk, samples, placement, interruptedEdges,
+                sampleNanos, System.nanoTime() - planningStarted);
+    }
+
+    private static boolean generateChunk(
+            ServerLevel level, ChunkPos chunk, CityGenerationTrace.Source source) {
+        CityGenerationTrace.ChunkSpan trace = CityGenerationTrace.begin(chunk, source);
+        boolean succeeded = false;
         try {
             BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+            ChunkBuildPlan prepared = CityChunkPlanner.takeReady(chunk);
+            UrbanSample[][] samples;
+            Optional<ArnisPatchLibrary.Placement> patchPlacement;
+            EnumSet<ArnisPatchLibrary.Connector.Edge> plannedInterruptedEdges;
+            if (prepared != null) {
+                samples = prepared.samples();
+                patchPlacement = prepared.patchPlacement();
+                plannedInterruptedEdges = prepared.interruptedEdges();
+                if (trace != null) {
+                    trace.completedPhase(
+                            CityGenerationTrace.Phase.ASYNC_SAMPLE, prepared.sampleNanos());
+                    trace.completedPhase(
+                            CityGenerationTrace.Phase.ASYNC_PLANNING, prepared.planningNanos());
+                }
+                CityGenerationTrace.asyncPlanUsed();
+            } else {
+                CityGenerationTrace.synchronousPlanFallback();
+                if (trace != null) trace.phase(CityGenerationTrace.Phase.SAMPLE);
+                samples = sampleChunk(chunk.getMinBlockX(), chunk.getMinBlockZ());
+                if (trace != null) trace.phase(CityGenerationTrace.Phase.PLANNING);
+                patchPlacement = usableArnisPlacement(chunk.x(), chunk.z(), samples);
+                plannedInterruptedEdges = null;
+            }
             int minX = chunk.getMinBlockX();
             int minZ = chunk.getMinBlockZ();
-            UrbanSample[][] samples = sampleChunk(minX, minZ);
-            Optional<ArnisPatchLibrary.Placement> patchPlacement =
-                    usableArnisPlacement(chunk.x(), chunk.z(), samples);
+            if (trace != null) trace.phase(CityGenerationTrace.Phase.PLANNING);
             District patchDistrict = patchPlacement
                     .map(placement -> placement.patch().district())
                     .orElse(null);
@@ -410,6 +852,7 @@ public final class NeonCityGenerator {
                         patchPlacement.get().patch().sizeZ(), chunk);
                 return false;
             }
+            if (trace != null) trace.phase(CityGenerationTrace.Phase.COLUMNS);
             for (int localZ = 0; localZ < 16; localZ++) {
                 for (int localX = 0; localX < 16; localX++) {
                     int x = minX + localX;
@@ -423,14 +866,18 @@ public final class NeonCityGenerator {
                     buildColumn(level, pos, x, z, sample);
                 }
             }
+            if (trace != null) trace.phase(CityGenerationTrace.Phase.INFRASTRUCTURE);
             decorateDistrictEdgeInfrastructure(level, chunk, samples);
             if (patchTemplate != null && patchPlacement.isPresent()) {
+                if (trace != null) trace.phase(CityGenerationTrace.Phase.ARNIS);
                 if (!placeArnisPatch(
                         level, chunk, patchPlacement.get(), patchTemplate, samples)) {
                     return false;
                 }
                 EnumSet<ArnisPatchLibrary.Connector.Edge> interruptedEdges =
-                        interruptedArnisEdges(chunk, patchPlacement.get());
+                        plannedInterruptedEdges != null
+                                ? plannedInterruptedEdges
+                                : interruptedArnisEdges(chunk, patchPlacement.get());
                 int completedBlocks = ArnisFacadeRepair.sealInterruptedEdges(
                         level,
                         chunk,
@@ -445,23 +892,38 @@ public final class NeonCityGenerator {
                 ArnisFacadeRepair.sealInfrastructureCuts(
                         level, chunk, samples, patchPlacement.get().patch().district());
             }
+            if (trace != null) trace.phase(CityGenerationTrace.Phase.WORLD_FEATURES);
             DistrictWorldFeatures.decorateChunk(level, chunk, samples);
+            if (trace != null) trace.phase(CityGenerationTrace.Phase.STATIONS);
             QuicktimeTravelService.installCanonicalStations(level, chunk);
+            if (trace != null) trace.phase(CityGenerationTrace.Phase.BANNER_SCAN);
             if (patchPlacement.isPresent()) {
                 ArnisPatchLibrary.Placement placement = patchPlacement.get();
-                DistrictLogoBanners.decorateArnisChunk(
-                        level,
-                        chunk,
-                        placement.patch().district(),
-                        placement.selectionHash());
+                DistrictLogoBanners.SearchResult bannerSearch =
+                        DistrictLogoBanners.findArnisBannerSite(
+                                level, chunk, placement.selectionHash());
+                if (trace != null) trace.phase(CityGenerationTrace.Phase.BANNER_QUEUE);
+                bannerSearch.site().ifPresent(site -> DistrictLogoBanners.enqueue(
+                        level, site, placement.patch().district()));
+            } else if (trace != null) {
+                trace.phase(CityGenerationTrace.Phase.BANNER_QUEUE);
             }
-            if (!CityLootGeneration.decorateMegacityChunk(level, chunk, samples)) {
+            if (trace != null) trace.phase(CityGenerationTrace.Phase.CITY_LOOT);
+            boolean placedLoot = CityLootGeneration.decorateMegacityChunk(
+                    level, chunk, samples);
+            if (!placedLoot) {
+                if (trace != null) trace.phase(CityGenerationTrace.Phase.URBAN_CRATES);
                 UrbanCrateGeneration.decorateChunk(level, chunk, samples);
             }
+            if (trace != null) trace.phase(CityGenerationTrace.Phase.CLIENT_REFRESH);
+            refreshTrackingClients(level, chunk);
+            succeeded = true;
             return true;
         } catch (RuntimeException exception) {
             LOGGER.error("[NeonCity] failed generating chunk {}", chunk, exception);
             return false;
+        } finally {
+            if (trace != null) trace.finish(succeeded);
         }
     }
 
@@ -484,15 +946,14 @@ public final class NeonCityGenerator {
         if (cached != null) {
             return cached;
         }
-        Optional<ArnisPatchLibrary.Placement> placement =
-                ArnisPatchLibrary.select(layout, chunkX, chunkZ)
-                        .filter(value -> isArnisCompatibleChunk(
-                                samples, value.patch().district()));
         if (USABLE_ARNIS_PLACEMENTS.size() >= MAX_ARNIS_PLAN_CACHE) {
             USABLE_ARNIS_PLACEMENTS.clear();
         }
-        USABLE_ARNIS_PLACEMENTS.put(key, placement);
-        return placement;
+        return USABLE_ARNIS_PLACEMENTS.computeIfAbsent(
+                key,
+                ignored -> ArnisPatchLibrary.select(layout, chunkX, chunkZ)
+                        .filter(value -> isArnisCompatibleChunk(
+                                samples, value.patch().district())));
     }
 
     private static Optional<ArnisPatchLibrary.Placement> usableArnisPlacement(
@@ -636,7 +1097,8 @@ public final class NeonCityGenerator {
                 .setMirror(placement.mirror())
                 .setRotation(placement.rotation())
                 .setLiquidSettings(LiquidSettings.IGNORE_WATERLOGGING)
-                .setBoundingBox(destinationBounds);
+                .setBoundingBox(destinationBounds)
+                .addProcessor(BlockIgnoreProcessor.AIR);
     }
 
     private static final class ArnisColumnMaskProcessor implements StructureProcessor {
@@ -1069,7 +1531,11 @@ public final class NeonCityGenerator {
             case B_CORP -> p(Blocks.SMOOTH_STONE, Blocks.QUARTZ_BLOCK, stainedGlass(DyeColor.LIGHT_BLUE),
                     Blocks.SEA_LANTERN, concrete(DyeColor.LIME), Blocks.MOSS_BLOCK);
             case C_CORP -> p(Blocks.BRICKS, Blocks.DARK_OAK_PLANKS, stainedGlass(DyeColor.BROWN),
-                    Blocks.OCHRE_FROGLIGHT, Blocks.COPPER_BLOCK, Blocks.DEEPSLATE_TILES);
+                    Blocks.OCHRE_FROGLIGHT,
+                    Blocks.COPPER_BLOCK.waxed()
+                            .pick(WeatheringCopper.WeatherState.UNAFFECTED)
+                            .defaultBlockState(),
+                    Blocks.DEEPSLATE_TILES);
             case D_CORP -> p(concrete(DyeColor.LIGHT_GRAY), Blocks.SMOOTH_QUARTZ, stainedGlass(DyeColor.LIGHT_BLUE),
                     Blocks.SEA_LANTERN, Blocks.SPRUCE_LOG, concrete(DyeColor.GRAY));
             case E_CORP -> p(dyedTerracotta(DyeColor.ORANGE), Blocks.SANDSTONE, stainedGlass(DyeColor.CYAN),
@@ -1190,7 +1656,27 @@ public final class NeonCityGenerator {
 
     private static void set(ServerLevel level, BlockPos.MutableBlockPos pos,
                             int x, int y, int z, BlockState state) {
-        level.setBlock(pos.set(x, y, z), state, PLACE_FLAGS);
+        BlockPos.MutableBlockPos target = pos.set(x, y, z);
+        if (!level.getBlockState(target).equals(state)) {
+            if (level.setBlock(target, state, PLACE_FLAGS)) {
+                CityGenerationTrace.blockChanged();
+            }
+        }
+    }
+
+    private static void refreshTrackingClients(ServerLevel level, ChunkPos chunk) {
+        net.minecraft.world.level.chunk.LevelChunk loaded = level.getChunkSource().getChunkNow(
+                chunk.x(), chunk.z());
+        if (loaded == null) return;
+        ClientboundLevelChunkWithLightPacket packet = null;
+        for (net.minecraft.server.level.ServerPlayer player : level.players()) {
+            if (!player.getChunkTrackingView().contains(chunk.x(), chunk.z(), false)) continue;
+            if (packet == null) {
+                packet = new ClientboundLevelChunkWithLightPacket(
+                        loaded, level.getChunkSource().getLightEngine(), null, null);
+            }
+            player.connection.send(packet);
+        }
     }
 
     public static UrbanSample sample(int worldX, int worldZ) {
@@ -1872,6 +2358,8 @@ public final class NeonCityGenerator {
     }
     public static boolean isEnabled() { return enabled; }
     static boolean isGenerated(ChunkPos chunk) { return GENERATED.contains(chunk.pack()); }
-    public static int pendingChunks() { return PENDING.size(); }
+    public static int pendingChunks() { return pendingQueueSize(); }
+    public static int urgentPendingChunks() { return URGENT_PENDING.size(); }
+    public static int nearPendingChunks() { return NEAR_PENDING.size(); }
     public static int generatedChunks() { return GENERATED.size(); }
 }
