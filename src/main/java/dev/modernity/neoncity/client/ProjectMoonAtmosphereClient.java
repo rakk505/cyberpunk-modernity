@@ -3,7 +3,12 @@ package dev.modernity.neoncity.client;
 import com.example.cyberdeck.Cyberdeck;
 import dev.modernity.neoncity.District;
 import dev.modernity.neoncity.DistrictAtmosphere;
+import net.minecraft.client.Camera;
+import net.minecraft.client.renderer.fog.environment.AtmosphericFogEnvironment;
 import net.minecraft.util.Mth;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.material.FogType;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -44,7 +49,8 @@ public final class ProjectMoonAtmosphereClient {
 
     @SubscribeEvent
     public static void onFogColor(ViewportEvent.ComputeFogColor event) {
-        if (smogStrength <= 0.0F && denseFogStrength <= 0.0F) {
+        if (!supportsDistrictAtmosphere(event.getCamera())
+                || smogStrength <= 0.0F && denseFogStrength <= 0.0F) {
             return;
         }
         event.setRed(blendColor(
@@ -63,11 +69,15 @@ public final class ProjectMoonAtmosphereClient {
 
     @SubscribeEvent
     public static void onRenderFog(ViewportEvent.RenderFog event) {
-        if (smogStrength <= 0.0F && denseFogStrength <= 0.0F) {
+        if (!(event.getEnvironment() instanceof AtmosphericFogEnvironment)
+                || smogStrength <= 0.0F && denseFogStrength <= 0.0F) {
             return;
         }
-        float farPlane = blendFarPlane(
+        float baseFarPlane = Math.min(
                 event.getFarPlaneDistance(),
+                event.getFogData().renderDistanceEnd);
+        float farPlane = blendFarPlane(
+                baseFarPlane,
                 DistrictAtmosphere.FogProfile.SMOG,
                 smogStrength);
         farPlane = blendFarPlane(
@@ -75,6 +85,17 @@ public final class ProjectMoonAtmosphereClient {
                 DistrictAtmosphere.FogProfile.DENSE,
                 denseFogStrength);
         event.setFarPlaneDistance(farPlane);
+        event.getFogData().skyEnd = blendFogDistance(event.getFogData().skyEnd);
+        event.getFogData().cloudEnd = blendFogDistance(event.getFogData().cloudEnd);
+    }
+
+    private static boolean supportsDistrictAtmosphere(Camera camera) {
+        if (camera.getFluidInCamera() != FogType.NONE) {
+            return false;
+        }
+        return !(camera.entity() instanceof LivingEntity living
+                && (living.hasEffect(MobEffects.BLINDNESS)
+                        || living.hasEffect(MobEffects.DARKNESS)));
     }
 
     @SubscribeEvent
@@ -104,6 +125,17 @@ public final class ProjectMoonAtmosphereClient {
             DistrictAtmosphere.FogProfile profile,
             float strength) {
         return Mth.lerp(strength, current, Math.min(current, profile.farPlane()));
+    }
+
+    private static float blendFogDistance(float current) {
+        float distance = blendFarPlane(
+                current,
+                DistrictAtmosphere.FogProfile.SMOG,
+                smogStrength);
+        return blendFarPlane(
+                distance,
+                DistrictAtmosphere.FogProfile.DENSE,
+                denseFogStrength);
     }
 
     static float smogStrength() {
