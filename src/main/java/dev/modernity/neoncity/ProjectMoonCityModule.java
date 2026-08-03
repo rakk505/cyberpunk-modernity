@@ -209,6 +209,10 @@ public final class ProjectMoonCityModule {
             for (net.minecraft.server.level.ServerPlayer player
                     : event.getServer().getPlayerList().getPlayers()) {
                 AmbientGigService.recordPresence(player);
+                if (player.level() != overworld
+                        && atmosphereDistricts.remove(player.getUUID()) != null) {
+                    PacketDistributor.sendToPlayer(player, new DistrictAtmospherePacket(-1));
+                }
             }
             Set<UUID> activePlayers = new HashSet<>();
             for (net.minecraft.server.level.ServerPlayer player : overworld.players()) {
@@ -366,6 +370,7 @@ public final class ProjectMoonCityModule {
     @SubscribeEvent
     public void onPlayerLogin(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
+            atmosphereDistricts.remove(player.getUUID());
             MissionService.onPlayerLogin(player);
         }
     }
@@ -379,6 +384,7 @@ public final class ProjectMoonCityModule {
     public void onPlayerLogout(PlayerEvent.PlayerLoggedOutEvent event) {
         if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
             BuildingInspectionService.forget(player.getUUID());
+            atmosphereDistricts.remove(player.getUUID());
             NeonCityGenerator.forgetTravelMotion(player.getUUID());
             MissionService.forgetPlayer(player);
         }
