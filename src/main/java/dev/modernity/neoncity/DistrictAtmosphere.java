@@ -12,8 +12,8 @@ public final class DistrictAtmosphere {
     /** Data-only fog settings shared with the client renderer and server-side GameTests. */
     public enum FogProfile {
         NONE(0.0F, 0.0F, 0.0F, Float.POSITIVE_INFINITY, 0.0F, 0.08F),
-        DENSE(0.58F, 0.64F, 0.66F, 42.0F, 0.05F, 0.07F),
-        SMOG(0.31F, 0.32F, 0.32F, 92.0F, 0.035F, 0.05F);
+        DENSE(0.58F, 0.64F, 0.66F, 26.0F, 0.05F, 0.07F),
+        SMOG(0.30F, 0.30F, 0.24F, 60.0F, 0.035F, 0.05F);
 
         private final float red;
         private final float green;
@@ -44,6 +44,18 @@ public final class DistrictAtmosphere {
         public float fadeIn() { return fadeIn; }
         public float fadeOut() { return fadeOut; }
     }
+
+    /** Particle field layered into T Corp's smog so pollution remains visible nearby. */
+    record PollutionProfile(
+            int particleCount,
+            double height,
+            double horizontalSpread,
+            double verticalSpread,
+            double speed) {
+    }
+
+    private static final PollutionProfile T_CORP_POLLUTION = new PollutionProfile(
+            32, 7.0, 9.0, 5.0, 0.004);
 
     enum WinterWeather {
         GENTLE(14, 8.0, 5.0, 0.008),
@@ -90,6 +102,10 @@ public final class DistrictAtmosphere {
                 : WinterWeather.SNOWSTORM;
     }
 
+    static PollutionProfile pollutionProfile(District district) {
+        return district == District.T_CORP ? T_CORP_POLLUTION : null;
+    }
+
     static void tickPlayer(ServerLevel level, ServerPlayer player, District district) {
         if (district.isSharedWinter()) {
             sendSnow(level, player, winterWeather(level.getGameTime()));
@@ -118,18 +134,19 @@ public final class DistrictAtmosphere {
     }
 
     private static void sendPollution(ServerLevel level, ServerPlayer player) {
+        PollutionProfile pollution = T_CORP_POLLUTION;
         level.sendParticles(
                 player,
                 ParticleTypes.ASH,
                 false,
                 false,
                 player.getX(),
-                player.getY() + 9.0,
+                player.getY() + pollution.height,
                 player.getZ(),
-                22,
-                11.0,
-                7.0,
-                11.0,
-                0.004);
+                pollution.particleCount,
+                pollution.horizontalSpread,
+                pollution.verticalSpread,
+                pollution.horizontalSpread,
+                pollution.speed);
     }
 }

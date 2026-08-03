@@ -1,20 +1,20 @@
 # Cyberdeck Session Commit Report
 
-Generated: 2026-08-01
+Generated: 2026-08-03
 
 ## Branch And Repository State
 
 - Current working branch: `codex/district-patrol-enemies`
 - Remote tracking branch after publication: `origin/codex/district-patrol-enemies`
-- Current implementation HEAD: `4afdef190093d5036f8a8adddf025141cbc4a183`
+- Current implementation HEAD: `d857d2e69bdda11dd8a89d0a7758defc99efbfe0`
 - Parent feature branch: `codex/npc-voicelines-lifepaths` at
   `4b381ce0af55f6785910fafa7fab14d3815d0fd6`
 - Scanner/Trauma milestone branch: `codex/eye-implant-scanner-trauma` at `fb6633ba47fe5d893def098a690ecb2f91697435`
-- Current `origin/main`: `3ad54be5d795c2a5d9e2274f5b51c01f0faabdb4`
-- Relationship including this report update: 0 commits behind and 8 commits ahead of `origin/main`.
+- Current `origin/main`: `432fc7167cd510ab429b6b4405dac181e9fd3299`
+- Relationship before this report commit: 0 commits behind and 2 commits ahead of `origin/main`.
 - Latest installed test JAR: `cyberdeck-1.5.0.jar`
-- Installed JAR SHA-256 after the district-patrol overhaul:
-  `ba3e692536cfae017e3accae8e7bd28df6b96484f9adee2651593fe190b998ab`
+- Installed JAR SHA-256 after the district-atmosphere update and current-main integration:
+  `06374c92c37753406a43f1ad994feb2dd05565d4e19d07c1e57e75f98896ae5e`
 
 The current branch descends from the scanner/Trauma branch, so it contains every scanner,
 Trauma Team, mission-integration, Excision, voiceline, lifepath, currency, shard-icon, dialogue,
@@ -48,6 +48,8 @@ feature, merge-resolution, and follow-up commits produced during this session.
 | `4d762bf` | Direct follow-up | Exact 3/5 patrol squads, 30% reactive reinforcements, and groupwide skin diversity |
 | `d7010d0` | Direct integration | Current mainline quest stack, schema-2 mission compatibility, and patrol reconciliation |
 | `4afdef1` | Direct correction | Reliable original-style ambient patrol scheduling and placement |
+| `d8f03dc` | Direct feature | Denser D fog, heavier T pollution, and atmosphere lifecycle hardening |
+| `d857d2e` | Direct integration | Current main vehicle/generation work with both logout cleanup paths preserved |
 
 ## Integrated Feature Lineage
 
@@ -858,6 +860,57 @@ branch.
 - Corrected packaged artifact SHA-256:
   `ba3e692536cfae017e3accae8e7bd28df6b96484f9adee2651593fe190b998ab`.
 
+### `d8f03dc` / `d857d2e` - Denser District D Fog And District T Pollution
+
+- Reduced District D's atmospheric far plane from 42 to 26 blocks so its permanent fog now
+  obscures streets, buildings, and the skyline at genuinely short range.
+- Reduced District T's smog far plane from 92 to 60 blocks, keeping it more navigable than D while
+  making the previous haze materially denser.
+- Changed T's neutral gray smog color from `(0.31, 0.32, 0.32)` to a dirty yellow-gray
+  `(0.30, 0.30, 0.24)` so its industrial pollution is visually distinct from D's cold fog.
+- Applied each district's distance cap to environmental, sky, and cloud fog instead of leaving the
+  sky and cloud horizon clearer than nearby geometry.
+- Based the entry transition on the effective render-distance plane, avoiding a delayed visibility
+  collapse when vanilla's environmental fog end is far beyond the configured render distance.
+- Preserved the existing independent fade timings: D reaches full strength in 20 client ticks and
+  T in approximately 29 client ticks, with both fading out smoothly.
+- Increased T's targeted ash field from 22 to 32 particles every 10 server ticks, or approximately
+  64 particles per second per player.
+- Lowered the ash field center from nine to seven blocks above the player and tightened its spread
+  from `11 x 7 x 11` to `9 x 5 x 9`, keeping more pollution visible around street level.
+- Retained the low `0.004` particle speed and targeted, non-forced delivery so two-player servers do
+  not broadcast duplicate particle fields or bypass either client's particle settings.
+- Added a data-only `PollutionProfile` so T's particle count, height, spread, and speed are explicit
+  and directly covered by the atmosphere GameTest.
+- Restricted distance overrides to the actual vanilla `AtmosphericFogEnvironment`; blindness and
+  darkness can no longer produce an inverted near/far range.
+- Excluded water, lava, powder snow, blindness, and darkness from district color overrides so
+  native hazard and status-effect fog remains authoritative.
+- Added a targeted `-1` atmosphere packet when a player leaves the overworld, preventing D/T fog
+  from following that player into another dimension after the next 10-tick atmosphere update.
+- Cleared the server's per-player atmosphere cache on both login and logout, eliminating a rapid
+  reconnect race where a reset client could otherwise miss its unchanged district packet.
+- Merged current `origin/main` after implementation. The one conflict retained both independent
+  logout requirements: atmosphere-cache removal and main's travel-motion cleanup.
+- Post-merge review confirmed all four atmosphere feature files remain intact alongside main's
+  city pre-generation, banner optimization, vehicle, and drive-by shooting work.
+- The full post-merge Gradle build passed with only the repository's three existing deprecation
+  warnings.
+- All 75 required NeoForge GameTests passed in 24.83 seconds, including exact D/T profile,
+  pollution-particle, district-isolation, and winter-weather assertions.
+- A real 1280 x 720 managed client rendered District D at street level with the 26-block cold fog;
+  capture SHA-256: `88f4ff53d0e0592ad505647e7020c0a71c0b9ac1caf93fb70cccb16d9b9e0155`.
+- The same client rendered District T with the longer olive-yellow smog and visible suspended ash;
+  capture SHA-256: `91360158892661b158cc6180446619ada7b6ff56a63335a28acbaf443126c62d`.
+- A neutral District A control returned to its ordinary clear profile after the T fade-out; capture
+  SHA-256: `7e3c950295b69bedf97a66d6a2fe82da587cdb07a9657331e40a3fb8f743de26`.
+- Those atmosphere captures used the `d8f03dc` artifact. Main did not modify the profile, particle,
+  test, or client-renderer files; their post-merge blobs are unchanged, and the merged artifact was
+  independently rebuilt and exercised by the complete GameTest suite.
+- The final merged `cyberdeck-1.5.0.jar` was installed locally, passed ZIP integrity validation,
+  and hash-matched the sandbox artifact at
+  `06374c92c37753406a43f1ad994feb2dd05565d4e19d07c1e57e75f98896ae5e`.
+
 ## Multiplayer And Private Two-Player Review Summary
 
 - Scanner mode is per-player and synchronized from server-owned attachments.
@@ -885,6 +938,8 @@ branch.
   instance; ambient base-plus-wave population has a 44-entity theoretical global ceiling.
 - Placement distance is checked against every active player, and forward-view concealment is
   checked through the 160-block client tracking range, not only against the cell representative.
+- District fog state is synchronized and cached per player, reset across dimensions and reconnects,
+  and T pollution particles are targeted per recipient rather than broadcast to both players.
 - No shared global lifepath, dialogue, scanner, or reward state can be overwritten by the second
   player.
 
@@ -913,6 +968,9 @@ branch.
   booted successfully with the exact persisted schema-2 story catalog that previously crashed.
 - Ambient restoration: final full build and all 74 GameTests passed; Creative-player runtime
   verification produced intact three/five patrols on eligible District A ground-level space.
+- District atmosphere density: merged-current-main build passed; all 75 GameTests passed; D, T,
+  and neutral control captures verified the intended visual separation; the merged JAR was
+  installed and hash-matched.
 - Each completed implementation commit was pushed to
   its named remote feature branch.
 - The final packaged JAR was installed in the local Minecraft `mods` directory and hash-matched to

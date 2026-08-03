@@ -36,11 +36,23 @@ final class UrbanSystemsGameTests {
                         && DistrictAtmosphere.fogProfile(District.A_CORP)
                                 == DistrictAtmosphere.FogProfile.NONE,
                 "district fog profiles are not isolated to D and T Corp");
-        helper.assertTrue(dense.farPlane() < smog.farPlane()
-                        && smog.farPlane() == 92.0F
+        helper.assertTrue(dense.farPlane() == 26.0F
+                        && smog.farPlane() == 60.0F
+                        && smog.red() > smog.blue()
+                        && smog.green() > smog.blue()
                         && dense.fadeIn() > 0.0F
                         && dense.fadeOut() > dense.fadeIn(),
                 "D Corp fog is not denser and independently faded from T Corp smog");
+        DistrictAtmosphere.PollutionProfile pollution =
+                DistrictAtmosphere.pollutionProfile(District.T_CORP);
+        helper.assertTrue(pollution != null
+                        && pollution.particleCount() == 32
+                        && pollution.height() == 7.0
+                        && pollution.horizontalSpread() == 9.0
+                        && pollution.verticalSpread() == 5.0
+                        && pollution.speed() == 0.004
+                        && DistrictAtmosphere.pollutionProfile(District.D_CORP) == null,
+                "T Corp pollution particles are not dense, local, and district-specific");
         helper.assertTrue(DistrictAtmosphere.winterWeather(0)
                                 == DistrictAtmosphere.WinterWeather.GENTLE
                         && DistrictAtmosphere.winterWeather(
