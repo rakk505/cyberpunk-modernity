@@ -990,11 +990,15 @@ branch.
   generated or previously ungenerated chunks are updated; existing generated chunks retain their
   glowstone unless changed separately with a world-edit or admin process.
 - The complete focused implementation report is in `IMMERSIVE_SEA_LANTERN_REPORT.md`.
-- `27e34942` added the focused report, and merge commit `6b9ae44b` integrated current main while
-  retaining both hostile-quickhack and remote-control cleanup/weapon behavior.
-- The merged full build and all 81 required GameTests passed.
+- `27e34942` added the focused report. Merge commits `6b9ae44b` and `6fed34f6` integrated the two
+  current-main updates while retaining hostile-quickhack, remote-control, traffic, and Arnis
+  lighting behavior.
+- Turret and canister explosion tests now allow one server tick for stationary victims to enter the
+  level entity index before synchronous explosion assertions, removing a latent suite flake.
+- The merged full build and all 82 required GameTests passed.
 - The merged dedicated server and managed client both loaded with current main's required
-  `vehicle_mod` runtime. A final night capture verified all ten camouflaged floor-light surfaces.
+  updated `vehicle_mod` runtime. A final night capture verified all ten camouflaged floor-light
+  surfaces.
 
 ## Multiplayer And Private Two-Player Review Summary
 

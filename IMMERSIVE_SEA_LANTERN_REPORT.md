@@ -8,7 +8,7 @@ Implementation commit: `4482e8dd` (`feat: add immersive Arnis floor lighting`)
 
 Focused report commit: `27e34942` (`docs: report immersive Arnis lighting`)
 
-Current-main integration merge: `6b9ae44b`
+Current-main integration merges: `6b9ae44b`, `6fed34f6`
 
 ## Requested Behavior
 
@@ -186,7 +186,7 @@ generation; it does not edit an existing save.
 
 - Full Gradle build: passed.
 - Pre-integration NeoForge GameTests: all 76 required tests passed.
-- Post-current-main NeoForge GameTests: all 81 required tests passed.
+- Post-current-main NeoForge GameTests: all 82 required tests passed.
 - Covered, exposed, unsupported, light-level, material-majority, masked-column ownership, and
   tile-edge isolation cases are covered.
 - Full 17,920-template read-only migration audit: passed.
@@ -197,12 +197,12 @@ generation; it does not edit an existing save.
   mandatory local `vehicle_mod` runtime in the isolated verification client.
 - Post-integration night capture verified all ten camouflaged surfaces render and retain light
   emission. Capture SHA-256:
-  `b429d3c8211976faa2f3abd1b6827d80e1ef4360e0a674be2a6b943013159d2c`.
+  `2640394c71ea429b36683d28225072f5323b2fa3f51c9ed12a634a07522c2ba5`.
 - The integrated dedicated server booted successfully with both Cyberdeck and `vehicle_mod` loaded.
 - Final integrated JAR SHA-256:
-  `126a6350aad026bad0c749ac1969e4071a7cea90c822733a914b549740099f8d`.
+  `77d0606fcc797940a0d7b98310b257926693b10320a00d4bdf74face0490d5c6`.
 - Required `vehicle_mod` JAR SHA-256:
-  `289e9469cc5e2111d671e37a9ba224d31d1dcdab6fc02ec607faa5d4ffe33b58`.
+  `d2f94af30268d045631c1daa67ad0538cc44886401d9d7f332e3e290af109700`.
 
 ## Current-Main Merge Resolution
 
@@ -217,8 +217,13 @@ combat files required additive resolution:
   arming behavior.
 - Hitscan filtering retains R Corp/faction ally protection and current main's remotely controlled
   Kang Tao turret override.
+- The subsequent current-main traffic update retained the Arnis lighting transformation before
+  the generator's light-engine completion and client-refresh phase.
+- Turret, single-canister, and chained-canister explosion tests now wait one server tick after
+  inserting their stationary damage target, eliminating intermittent same-tick entity-index misses
+  without changing production explosion behavior.
 
-The complete 81-test suite passed after these resolutions.
+The complete 82-test suite passed after these resolutions.
 
 ## Files Added
 
