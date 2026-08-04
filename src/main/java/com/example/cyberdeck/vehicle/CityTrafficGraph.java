@@ -44,6 +44,11 @@ final class CityTrafficGraph {
     private CityTrafficGraph() {
     }
 
+    static void clearCaches() {
+        NODES.clear();
+        ARCS.clear();
+    }
+
     record NodeKey(int x, int z, int headingBin) {
     }
 
@@ -290,7 +295,7 @@ final class CityTrafficGraph {
     }
 
     static boolean isNavigableRoad(NeonCityGenerator.RoadClass roadClass) {
-        return RoadsideVehicleSpawns.isMovingTrafficRoad(roadClass);
+        return RoadsideVehicleSpawns.isLocalTrafficRoad(roadClass);
     }
 
     private static NeonCityGenerator.UrbanSample sample(double x, double z) {

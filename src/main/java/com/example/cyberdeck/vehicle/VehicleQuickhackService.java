@@ -2,6 +2,7 @@ package com.example.cyberdeck.vehicle;
 
 import com.example.cyberdeck.Cyberdeck;
 import com.example.cyberdeck.defense.ExplosiveCanisterBlock;
+import com.example.cyberdeck.mixin.NativeVehicleDrivetrainMixin;
 import com.modernity.vehicle_mod.api.RemoteControllableVehicle;
 import com.modernity.vehicle_mod.api.RemoteVehicleInput;
 import com.modernity.vehicle_mod.api.VehicleApi;
@@ -30,6 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @EventBusSubscriber(modid = Cyberdeck.MODID)
 public final class VehicleQuickhackService {
     public static final int SPEED_DURATION_TICKS = 6 * 20;
+    public static final int BRAKE_DURATION_TICKS = 2 * 20;
     public static final double FORCED_SPEED_BLOCKS_PER_TICK = 1.15;
     public static final double REMOTE_DRIVE_SPEED_BLOCKS_PER_TICK = 0.65;
     public static final float REMOTE_TURN_DEGREES_PER_TICK = 4.5F;
@@ -45,6 +47,8 @@ public final class VehicleQuickhackService {
     private static final String PREFIX = Cyberdeck.MODID + ":vehicle_quickhack_";
     private static final String SPEED_UNTIL = PREFIX + "speed_until";
     private static final Set<UUID> SPEEDING_CARS = ConcurrentHashMap.newKeySet();
+    private static final java.util.Map<UUID, Long> BRAKING_CARS =
+            new ConcurrentHashMap<>();
     private static final java.util.Map<UUID, RemoteInput> REMOTE_INPUTS =
             new ConcurrentHashMap<>();
 
@@ -66,6 +70,12 @@ public final class VehicleQuickhackService {
         RemoteInput remoteInput = REMOTE_INPUTS.get(entity.getUUID());
         if (remoteInput != null && !applyRemoteState(level, entity, remoteInput)) {
             REMOTE_INPUTS.remove(entity.getUUID());
+        }
+        Long brakeUntil = BRAKING_CARS.get(entity.getUUID());
+        if (brakeUntil != null) {
+            if (level.getGameTime() >= brakeUntil || !applyNativeBrake(entity)) {
+                BRAKING_CARS.remove(entity.getUUID());
+            }
         }
     }
 
@@ -89,6 +99,7 @@ public final class VehicleQuickhackService {
             return;
         }
         SPEEDING_CARS.remove(event.getEntity().getUUID());
+        BRAKING_CARS.remove(event.getEntity().getUUID());
         REMOTE_INPUTS.remove(event.getEntity().getUUID());
         VehicleApi.find(event.getEntity()).ifPresent(RemoteControllableVehicle::clearRemoteInput);
     }
@@ -96,6 +107,7 @@ public final class VehicleQuickhackService {
     @SubscribeEvent
     public static void onServerStopping(ServerStoppingEvent event) {
         SPEEDING_CARS.clear();
+        BRAKING_CARS.clear();
         REMOTE_INPUTS.clear();
     }
 
@@ -123,6 +135,7 @@ public final class VehicleQuickhackService {
         car.getPersistentData().putLong(SPEED_UNTIL,
                 level.getGameTime() + SPEED_DURATION_TICKS);
         SPEEDING_CARS.add(car.getUUID());
+        BRAKING_CARS.remove(car.getUUID());
         applyForwardSpeed(level, car, FORCED_SPEED_BLOCKS_PER_TICK);
         return true;
     }
@@ -133,10 +146,19 @@ public final class VehicleQuickhackService {
             return false;
         }
         clearForcedSpeed(car);
-        if (!(car instanceof QuickhackCar adapter && adapter.applyQuickhackBrake(level))) {
-            car.setDeltaMovement(Vec3.ZERO);
-            car.hurtMarked = true;
+        boolean nativeBrake = applyNativeBrake(car);
+        boolean adapterBrake = car instanceof QuickhackCar adapter
+                && adapter.applyQuickhackBrake(level);
+        if (nativeBrake) {
+            BRAKING_CARS.put(car.getUUID(),
+                    level.getGameTime() + BRAKE_DURATION_TICKS);
+        } else if (!adapterBrake) {
+            BRAKING_CARS.remove(car.getUUID());
         }
+        // Native vehicles keep their own drivetrain speed; zero generic velocity as the
+        // immediate stop while the native brake input drains that drivetrain over subsequent ticks.
+        car.setDeltaMovement(Vec3.ZERO);
+        car.hurtMarked = true;
         return true;
     }
 
@@ -151,14 +173,18 @@ public final class VehicleQuickhackService {
         }
         float safeThrottle = Mth.clamp(throttle, -1.0F, 1.0F);
         float safeTurn = Mth.clamp(turn, -1.0F, 1.0F);
+        RoadsideVehicleSpawns.releaseManagedOwnership(car);
+        CityTrafficService.releaseForControl(level, car);
+        boolean forcedBrake = BRAKING_CARS.containsKey(car.getUUID());
+        if (forcedBrake) safeThrottle = 0.0F;
         RemoteControllableVehicle controller = VehicleApi.find(car).orElse(null);
         if (controller != null) {
-            CityTrafficService.releaseForControl(level, car);
             REMOTE_INPUTS.remove(car.getUUID());
             return controller.applyRemoteInput(
-                    new RemoteVehicleInput(safeThrottle, safeTurn, braking));
+                    new RemoteVehicleInput(safeThrottle, safeTurn, braking || forcedBrake));
         }
-        REMOTE_INPUTS.put(car.getUUID(), new RemoteInput(safeThrottle, safeTurn, braking));
+        REMOTE_INPUTS.put(car.getUUID(), new RemoteInput(
+                safeThrottle, safeTurn, braking || forcedBrake));
         return true;
     }
 
@@ -242,6 +268,31 @@ public final class VehicleQuickhackService {
     private static void clearForcedSpeed(Entity car) {
         car.getPersistentData().remove(SPEED_UNTIL);
         SPEEDING_CARS.remove(car.getUUID());
+    }
+
+    private static boolean applyNativeBrake(Entity car) {
+        RemoteControllableVehicle controller = VehicleApi.find(car).orElse(null);
+        if (controller == null) return false;
+        boolean applied = controller.applyRemoteInput(
+                new RemoteVehicleInput(0.0F, 0.0F, true));
+        if (!applied && car instanceof NativeVehicleDrivetrainMixin drivetrain) {
+            // The companion API intentionally rejects remote input while a real player is in
+            // control. Apply the emergency brake deeply enough that held throttle cannot settle
+            // at a nonzero drivetrain speed between post-tick brake samples.
+            for (int step = 0; step < 8; step++) {
+                drivetrain.cyberdeck$applyDrivetrainInput(0.0F, 0.0F, true);
+            }
+            applied = true;
+        }
+        if (applied) {
+            car.setDeltaMovement(Vec3.ZERO);
+            car.hurtMarked = true;
+        }
+        return applied;
+    }
+
+    public static boolean isBrakeActive(Entity car) {
+        return car != null && BRAKING_CARS.containsKey(car.getUUID());
     }
 
     private static void applyForwardSpeed(ServerLevel level, Entity car, double speed) {

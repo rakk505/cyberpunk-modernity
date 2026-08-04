@@ -3,17 +3,44 @@
     {
       "id": "neon_skyline",
       "file": "neon_skyline.mp4",
-      "duration_seconds": 30
+      "duration_seconds": 30,
+      "audio": true
     },
     {
       "id": "chrome_cola",
       "file": "chrome_cola.mp4",
-      "duration_seconds": 36
+      "duration_seconds": 36,
+      "audio": true
     },
     {
       "id": "orbital_air",
       "file": "orbital_air.mp4",
-      "duration_seconds": 42
+      "duration_seconds": 42,
+      "audio": true
+    },
+    {
+      "id": "meta_logo",
+      "generator": "meta_ads_v1",
+      "duration_seconds": 30,
+      "audio": false
+    },
+    {
+      "id": "meta_glasses",
+      "generator": "meta_ads_v1",
+      "duration_seconds": 30,
+      "audio": false
+    },
+    {
+      "id": "meta_ai",
+      "generator": "meta_ads_v1",
+      "duration_seconds": 45,
+      "audio": false
+    },
+    {
+      "id": "meta_future",
+      "generator": "meta_ads_v1",
+      "duration_seconds": 45,
+      "audio": false
     }
   ]
 }
