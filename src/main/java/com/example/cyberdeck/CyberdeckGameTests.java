@@ -55,6 +55,7 @@ import com.example.cyberdeck.movement.TacticalAction;
 import com.example.cyberdeck.movement.TacticalMovement;
 import com.example.cyberdeck.movement.TacticalMovementState;
 import com.example.cyberdeck.weapon.GunType;
+import com.example.cyberdeck.weapon.WeaponSounds;
 import com.example.cyberdeck.weapon.GunItem;
 import com.example.cyberdeck.weapon.GunFiring;
 import com.example.cyberdeck.weapon.AmmoItem;
@@ -132,6 +133,9 @@ public final class CyberdeckGameTests {
                     "district_patrol_loadout", CyberdeckGameTests::districtPatrolLoadout);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             GUNSHOT_RADIUS = register("gunshot_radius", CyberdeckGameTests::gunshotRadius);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            WEAPON_SOUND_PROFILES = register(
+                    "weapon_sound_profiles", CyberdeckGameTests::weaponSoundProfiles);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             MOUNTED_GUN_TARGETING = register(
                     "mounted_gun_targeting", CyberdeckGameTests::mountedGunTargeting);
@@ -655,6 +659,25 @@ public final class CyberdeckGameTests {
         helper.assertTrue(GunshotAlerts.hearingRadius(GunType.SNIPER)
                         > GunshotAlerts.hearingRadius(GunType.PISTOL),
                 "heavy sniper fire should carry farther than a pistol shot");
+        helper.succeed();
+    }
+
+    private static void weaponSoundProfiles(GameTestHelper helper) {
+        helper.assertTrue(WeaponSounds.fireSound(GunType.PISTOL)
+                        == WeaponSounds.PISTOL_FIRE.get(),
+                "standard sidearms must use the light-pistol recording pool");
+        helper.assertTrue(WeaponSounds.fireSound(GunType.OVERTURE)
+                        == WeaponSounds.HEAVY_PISTOL_FIRE.get(),
+                "Overture must use the heavy-pistol recording pool");
+        helper.assertTrue(WeaponSounds.fireSound(GunType.TECH_AJAX)
+                        == WeaponSounds.RIFLE_FIRE.get(),
+                "Tech variants must retain their base firearm report");
+        helper.assertTrue(WeaponSounds.fireSound(GunType.SHOTGUN)
+                        != WeaponSounds.fireSound(GunType.SNIPER),
+                "shotguns and sniper rifles must remain acoustically distinct");
+        helper.assertTrue(WeaponSounds.volume(GunType.SNIPER)
+                        > WeaponSounds.volume(GunType.SMG),
+                "sniper reports must carry farther than automatic SMG shots");
         helper.succeed();
     }
 

@@ -305,6 +305,12 @@
   "tooltip.cyberdeck.gun.tech": "Tech weapon: slower firing; cyan rounds penetrate one block.",
   "tooltip.cyberdeck.grenade.incendiary_grenade": "Detonates in a burst of fire.",
   "tooltip.cyberdeck.grenade.poison_grenade": "Bursts into a lingering toxic cloud.",
+  "subtitles.cyberdeck.weapon.pistol": "Pistol fires",
+  "subtitles.cyberdeck.weapon.heavy_pistol": "Heavy pistol fires",
+  "subtitles.cyberdeck.weapon.smg": "Submachine gun fires",
+  "subtitles.cyberdeck.weapon.rifle": "Rifle fires",
+  "subtitles.cyberdeck.weapon.shotgun": "Shotgun fires",
+  "subtitles.cyberdeck.weapon.sniper": "Sniper rifle fires",
   "message.cyberdeck.wanted.started": "EXCISION ALERT // WANTED LEVEL 1",
   "message.cyberdeck.wanted.escalated": "EXCISION ESCALATION // WANTED LEVEL 3",
   "message.cyberdeck.wanted.cleared": "EXCISION PURSUIT CLEARED"
