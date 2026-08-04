@@ -5,7 +5,10 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "ContainerMixin",
-    "ItemStackCodecMixin"
+    "ItemStackCodecMixin",
+    "MotorbikeTrafficDriverMixin",
+    "NativeVehicleBrakeOverrideMixin",
+    "NativeVehicleDrivetrainMixin"
   ],
   "client": [
     "client.HumanoidModelMixin"

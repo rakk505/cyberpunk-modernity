@@ -26,6 +26,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.event.tick.LevelTickEvent;
 
 /** Supplies bounded city traffic with drivers and road-following input. */
@@ -49,7 +50,18 @@ public final class CityTrafficService {
     private static final double RETIRE_PROTECTED_RADIUS_SQR = 64.0 * 64.0;
     private static final Map<UUID, RouteState> ROUTES = new HashMap<>();
 
+    private enum RouteMode {
+        LOCAL,
+        HIGHWAY
+    }
+
     private CityTrafficService() {
+    }
+
+    @SubscribeEvent
+    public static void onServerStopping(ServerStoppingEvent event) {
+        ROUTES.clear();
+        CityTrafficGraph.clearCaches();
     }
 
     private static final class RouteState {
@@ -62,7 +74,7 @@ public final class CityTrafficService {
         private final RandomSource random;
         private CityTrafficGraph.NodeKey previous;
         private Vec3 destination;
-        private boolean highwayTrip;
+        private RouteMode mode;
         private MegacityLayout.Edge highwayEdge;
         private MegacityLayout.Edge previousHighwayEdge;
         private double highwayProgress;
@@ -88,7 +100,7 @@ public final class CityTrafficService {
         TrafficVehicle traffic = VehicleApi.findTraffic(vehicle).orElse(null);
         if (traffic == null || !vehicle.getPassengers().isEmpty()
                 || traffic.controllingDriver() != null
-                || !RoadsideVehicleSpawns.isMovingTrafficRoad(NeonCityGenerator.roadAt(
+                || !RoadsideVehicleSpawns.supportsMovingTraffic(NeonCityGenerator.roadAt(
                         vehicle.getBlockX(), vehicle.getBlockZ()))) return false;
 
         CityNpc driver = CityNpcEntities.CITY_NPC.get().create(
@@ -147,9 +159,16 @@ public final class CityTrafficService {
 
     public static boolean plannedRouteStaysOnHighway(Entity vehicle) {
         RouteState route = vehicle == null ? null : ROUTES.get(vehicle.getUUID());
-        return route != null && route.highwayTrip && !route.route.isEmpty()
+        return route != null && route.mode == RouteMode.HIGHWAY && !route.route.isEmpty()
                 && route.route.stream().allMatch(node ->
                         NeonCityGenerator.isHighwayRoadClass(node.roadClass()));
+    }
+
+    public static boolean plannedRouteStaysOnLocalRoad(Entity vehicle) {
+        RouteState route = vehicle == null ? null : ROUTES.get(vehicle.getUUID());
+        return route != null && route.mode == RouteMode.LOCAL && !route.route.isEmpty()
+                && route.route.stream().allMatch(node ->
+                        RoadsideVehicleSpawns.isLocalTrafficRoad(node.roadClass()));
     }
 
     public static boolean plannedRouteIncludesHighwayJunction(Entity vehicle) {
@@ -168,6 +187,36 @@ public final class CityTrafficService {
                 .map(CityTrafficGraph.LaneNode::key)
                 .distinct()
                 .count();
+    }
+
+    static void forgetInMemoryRoute(Entity vehicle) {
+        if (vehicle != null) ROUTES.remove(vehicle.getUUID());
+    }
+
+    static boolean restorePersistedRoute(ServerLevel level, Entity vehicle) {
+        if (vehicle == null || !vehicle.isAlive()
+                || !vehicle.getPersistentData().getBooleanOr(TRAFFIC_VEHICLE_KEY, false)
+                || !isManagedPair(vehicle, trafficDriver(vehicle))) {
+            return false;
+        }
+        RouteState route = ROUTES.computeIfAbsent(
+                vehicle.getUUID(), ignored -> new RouteState(
+                        vehicle.getUUID(), vehicle.position()));
+        if (route.mode == null && route.route.isEmpty()) {
+            route.retirementPending = !initializeRoute(level, vehicle, route);
+        }
+        return route.mode != null && !route.route.isEmpty() && !route.retirementPending;
+    }
+
+    /** Test seam for exercising the real route and TrafficVehicle input path outside megacity. */
+    static boolean tickManagedVehicleForTest(ServerLevel level, Entity vehicle) {
+        RouteState route = vehicle == null ? null : ROUTES.get(vehicle.getUUID());
+        TrafficVehicle traffic = vehicle == null
+                ? null : VehicleApi.findTraffic(vehicle).orElse(null);
+        return route != null
+                && traffic != null
+                && isManagedPair(vehicle, trafficDriver(vehicle))
+                && drive(level, vehicle, traffic, route);
     }
 
     public static boolean isManagedPair(Entity vehicle, Entity rider) {
@@ -209,15 +258,6 @@ public final class CityTrafficService {
         ROUTES.remove(vehicle.getUUID());
     }
 
-    /** Converts legacy local-road traffic into an unoccupied parked vehicle. */
-    private static void convertToParked(Entity vehicle, TrafficVehicle traffic) {
-        traffic.setTrafficInput(0.0F, 0.0F, true);
-        for (Entity passenger : java.util.List.copyOf(vehicle.getPassengers())) {
-            if (isTrafficDriver(passenger)) passenger.discard();
-        }
-        vehicle.getPersistentData().remove(TRAFFIC_VEHICLE_KEY);
-    }
-
     @SubscribeEvent
     public static void onLevelTick(LevelTickEvent.Post event) {
         if (!(event.getLevel() instanceof ServerLevel level)
@@ -253,13 +293,14 @@ public final class CityTrafficService {
                 continue;
             }
             RouteState route = entry.getValue();
-            if (!route.highwayTrip) {
+            if (route.mode == null) {
                 if (route.route.isEmpty() && initializeRoute(level, vehicle, route)) {
                     route.retirementPending = false;
                 } else {
-                    convertToParked(vehicle, traffic);
-                    routes.remove();
-                    continue;
+                    traffic.setTrafficInput(0.0F, 0.0F, true);
+                    route.retirementPending = true;
+                    route.nextRecoveryTick = level.getGameTime()
+                            + RETIRE_RECOVERY_INTERVAL_TICKS;
                 }
             }
             if (route.retirementPending) {
@@ -298,6 +339,7 @@ public final class CityTrafficService {
         route.recentOrder.clear();
         route.previous = null;
         route.destination = null;
+        route.mode = null;
         route.highwayEdge = null;
         route.previousHighwayEdge = null;
         route.recentHighwayEdgeOrder.clear();
@@ -338,6 +380,12 @@ public final class CityTrafficService {
                 && fuelVehicle.getFuel() < Math.max(1, fuelVehicle.getFuelCapacity() / 4)) {
             fuelVehicle.setFuel(Math.max(1, fuelVehicle.getFuelCapacity() / 2));
         }
+        if (VehicleQuickhackService.isBrakeActive(vehicle)) {
+            traffic.setTrafficInput(0.0F, 0.0F, true);
+            route.stuckTicks = 0;
+            route.lastPosition = vehicle.position();
+            return true;
+        }
 
         double movedSqr = vehicle.position().distanceToSqr(route.lastPosition);
         route.lastPosition = vehicle.position();
@@ -360,7 +408,11 @@ public final class CityTrafficService {
         if (route.destination == null
                 || horizontalDistanceSqr(vehicle.position(), route.destination)
                         <= DESTINATION_REACHED_DISTANCE_SQR) {
-            chooseDestination(vehicle, route);
+            if (route.mode == RouteMode.HIGHWAY) {
+                chooseHighwayDestination(vehicle, route);
+            } else {
+                chooseLocalDestination(vehicle, route);
+            }
             route.route.clear();
             if (!initializeRoute(level, vehicle, route)) {
                 route.invalidRouteTicks += INPUT_INTERVAL_TICKS;
@@ -381,7 +433,7 @@ public final class CityTrafficService {
         double dz = target.position().z - vehicle.getZ();
         float targetYaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
         boolean wallBlocked = traffic.blocked();
-        boolean envelopeSafe = roadEnvelopeSafe(level, vehicle, target, route.highwayTrip);
+        boolean envelopeSafe = roadEnvelopeSafe(level, vehicle, target, route.mode);
         boolean physicalClearance = hasPhysicalClearance(level, vehicle, dx, dz);
         boolean unsafeRoute = !envelopeSafe;
         route.unsafeRouteTicks = wallBlocked || unsafeRoute
@@ -398,7 +450,7 @@ public final class CityTrafficService {
                     target.roadClass());
             return false;
         }
-        boolean gradeClearance = route.highwayTrip && envelopeSafe;
+        boolean gradeClearance = route.mode == RouteMode.HIGHWAY && envelopeSafe;
         boolean blocked = wallBlocked || unsafeRoute
                 || (!physicalClearance && !gradeClearance)
                 || hasObstacle(level, vehicle, targetYaw);
@@ -426,18 +478,56 @@ public final class CityTrafficService {
 
     private static boolean initializeRoute(
             ServerLevel level, Entity vehicle, RouteState route) {
-        if (!RoadsideVehicleSpawns.isMovingTrafficRoad(NeonCityGenerator.roadAt(
-                vehicle.getBlockX(), vehicle.getBlockZ()))) return false;
-        route.highwayTrip = true;
-        if (route.destination == null) chooseDestination(vehicle, route);
+        NeonCityGenerator.RoadClass roadClass = NeonCityGenerator.roadAt(
+                vehicle.getBlockX(), vehicle.getBlockZ());
         route.route.clear();
-        if (!initializeHighwayRoute(level, vehicle, route)) return false;
-        fillHighwayRoute(level, route);
+        if (RoadsideVehicleSpawns.isMovingTrafficRoad(roadClass)) {
+            route.mode = RouteMode.HIGHWAY;
+            if (route.destination == null) chooseHighwayDestination(vehicle, route);
+            if (!initializeHighwayRoute(level, vehicle, route)) return false;
+            fillHighwayRoute(level, route);
+        } else if (RoadsideVehicleSpawns.isLocalTrafficRoad(roadClass)) {
+            route.mode = RouteMode.LOCAL;
+            if (route.destination == null) chooseLocalDestination(vehicle, route);
+            if (!initializeLocalRoute(level, vehicle, route)) return false;
+            fillLocalRoute(level, route);
+            if (route.route.size() < 2) return false;
+        } else {
+            route.mode = null;
+            return false;
+        }
         return !route.route.isEmpty();
     }
 
     private static void fillRoute(ServerLevel level, RouteState route) {
-        fillHighwayRoute(level, route);
+        if (route.mode == RouteMode.HIGHWAY) {
+            fillHighwayRoute(level, route);
+        } else if (route.mode == RouteMode.LOCAL) {
+            fillLocalRoute(level, route);
+        }
+    }
+
+    private static boolean initializeLocalRoute(
+            ServerLevel level, Entity vehicle, RouteState route) {
+        CityTrafficGraph.LaneNode entry = CityTrafficGraph.enter(
+                level, vehicle.position(), vehicle.getYRot());
+        if (entry == null) return false;
+        route.route.addLast(entry);
+        return true;
+    }
+
+    private static void fillLocalRoute(ServerLevel level, RouteState route) {
+        while (route.route.size() < ROUTE_LOOKAHEAD_NODES && !route.route.isEmpty()) {
+            CityTrafficGraph.LaneNode tail = route.route.getLast();
+            CityTrafficGraph.NodeKey previous = route.route.size() > 1
+                    ? secondLast(route.route).key() : route.previous;
+            Set<CityTrafficGraph.NodeKey> avoid = new HashSet<>(route.recent);
+            for (CityTrafficGraph.LaneNode node : route.route) avoid.add(node.key());
+            CityTrafficGraph.LaneNode next = CityTrafficGraph.chooseSuccessor(
+                    level, tail, previous, avoid, route.destination, false, route.random);
+            if (next == null || avoid.contains(next.key())) return;
+            route.route.addLast(next);
+        }
     }
 
     private static boolean initializeHighwayRoute(
@@ -537,7 +627,7 @@ public final class CityTrafficService {
         }
     }
 
-    private static void chooseDestination(Entity vehicle, RouteState route) {
+    private static void chooseHighwayDestination(Entity vehicle, RouteState route) {
         var nodes = NeonCityGenerator.layout().nodes();
         var candidates = nodes.stream()
                 .filter(node -> {
@@ -552,6 +642,16 @@ public final class CityTrafficService {
                 ? nodes.get(route.random.nextInt(nodes.size()))
                 : candidates.get(route.random.nextInt(candidates.size()));
         route.destination = new Vec3(target.x(), vehicle.getY(), target.z());
+        route.recent.clear();
+        route.recentOrder.clear();
+    }
+
+    private static void chooseLocalDestination(Entity vehicle, RouteState route) {
+        double distance = 240.0 + route.random.nextDouble() * 180.0;
+        double yaw = Math.toRadians(vehicle.getYRot()
+                + (route.random.nextFloat() - 0.5F) * 80.0F);
+        route.destination = vehicle.position().add(
+                -Math.sin(yaw) * distance, 0.0, Math.cos(yaw) * distance);
         route.recent.clear();
         route.recentOrder.clear();
     }
@@ -589,14 +689,14 @@ public final class CityTrafficService {
             ServerLevel level,
             Entity vehicle,
             CityTrafficGraph.LaneNode target,
-            boolean highwayTrip) {
+            RouteMode mode) {
         for (int step = 0; step <= 5; step++) {
             double progress = step / 5.0;
             int x = Mth.floor(Mth.lerp(progress, vehicle.getX(), target.position().x));
             int z = Mth.floor(Mth.lerp(progress, vehicle.getZ(), target.position().z));
             NeonCityGenerator.RoadClass roadClass =
                     NeonCityGenerator.sample(x, z).roadClass();
-            if (highwayTrip
+            if (mode == RouteMode.HIGHWAY
                     ? !NeonCityGenerator.isHighwayRoadClass(roadClass)
                     : !nearNavigableRoad(x, z, roadClass)) {
                 return false;

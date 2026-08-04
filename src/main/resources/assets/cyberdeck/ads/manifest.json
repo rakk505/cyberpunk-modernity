@@ -4,8 +4,8 @@
     "width": 8,
     "height": 4
   },
-  "total_frames": 864,
-  "total_sheets": 54,
+  "total_frames": 2064,
+  "total_sheets": 130,
   "clips": [
     {
       "id": "neon_skyline",
@@ -20,7 +20,8 @@
       "frame_size": [
         160,
         90
-      ]
+      ],
+      "audio": true
     },
     {
       "id": "chrome_cola",
@@ -35,7 +36,8 @@
       "frame_size": [
         160,
         90
-      ]
+      ],
+      "audio": true
     },
     {
       "id": "orbital_air",
@@ -50,7 +52,76 @@
       "frame_size": [
         160,
         90
-      ]
+      ],
+      "audio": true
+    },
+    {
+      "id": "meta_logo",
+      "duration_ticks": 600,
+      "fps": 8,
+      "frame_count": 240,
+      "sheet_count": 15,
+      "sheet_grid": [
+        4,
+        4
+      ],
+      "frame_size": [
+        160,
+        90
+      ],
+      "audio": false,
+      "generator": "meta_ads_v1"
+    },
+    {
+      "id": "meta_glasses",
+      "duration_ticks": 600,
+      "fps": 8,
+      "frame_count": 240,
+      "sheet_count": 15,
+      "sheet_grid": [
+        4,
+        4
+      ],
+      "frame_size": [
+        160,
+        90
+      ],
+      "audio": false,
+      "generator": "meta_ads_v1"
+    },
+    {
+      "id": "meta_ai",
+      "duration_ticks": 900,
+      "fps": 8,
+      "frame_count": 360,
+      "sheet_count": 23,
+      "sheet_grid": [
+        4,
+        4
+      ],
+      "frame_size": [
+        160,
+        90
+      ],
+      "audio": false,
+      "generator": "meta_ads_v1"
+    },
+    {
+      "id": "meta_future",
+      "duration_ticks": 900,
+      "fps": 8,
+      "frame_count": 360,
+      "sheet_count": 23,
+      "sheet_grid": [
+        4,
+        4
+      ],
+      "frame_size": [
+        160,
+        90
+      ],
+      "audio": false,
+      "generator": "meta_ads_v1"
     }
   ]
 }

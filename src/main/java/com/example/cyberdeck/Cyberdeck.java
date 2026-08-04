@@ -31,6 +31,7 @@ import com.example.cyberdeck.weapon.WeaponComponents;
 import com.example.cyberdeck.weapon.WeaponEntities;
 import com.example.cyberdeck.weapon.WeaponItems;
 import com.example.cyberdeck.vehicle.VehicleQuickhackAttachments;
+import com.example.cyberdeck.vehicle.VehicleGameTests;
 import com.example.cyberdeck.weapon.WeaponSounds;
 import com.example.cyberdeck.wanted.WantedState;
 import com.example.cyberdeck.wanted.WantedGameTests;
@@ -83,6 +84,7 @@ public class Cyberdeck {
         CyberdeckGameTests.bootstrap(modEventBus);
         WantedGameTests.bootstrap(modEventBus);
         LifepathGameTests.bootstrap(modEventBus);
+        VehicleGameTests.bootstrap(modEventBus);
         QuicktimeBlocks.register(modEventBus);
         MissionBlocks.register(modEventBus);
         ArnisLightingBlocks.register(modEventBus);

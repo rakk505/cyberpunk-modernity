@@ -33,6 +33,7 @@ import net.neoforged.neoforge.event.tick.LevelTickEvent;
 public final class RoadsideVehicleSpawns {
     static final int SPAWN_INTERVAL_TICKS = 30;
     static final int TARGET_HIGHWAY_TRAFFIC_NEARBY = 12;
+    static final int TARGET_LOCAL_TRAFFIC_NEARBY = 4;
     static final int TARGET_TOTAL_NEARBY = 16;
     static final int SPAWN_BATCH = 6;
     static final int MAX_LOADED_VEHICLES = 56;
@@ -74,7 +75,7 @@ public final class RoadsideVehicleSpawns {
             if (vehicle.level() instanceof ServerLevel level) {
                 CityTrafficService.releaseForControl(level, vehicle);
             }
-            vehicle.getPersistentData().putBoolean(MANAGED_KEY, false);
+            releaseManagedOwnership(vehicle);
         }
     }
 
@@ -112,6 +113,7 @@ public final class RoadsideVehicleSpawns {
                 .inflate(HIGHWAY_NEARBY_RADIUS);
         int nearby = 0;
         int nearbyHighwayTraffic = 0;
+        int nearbyLocalTraffic = 0;
         for (FuelPoweredVehicleEntity vehicle : vehicles) {
             if (!vehicle.isAlive()) continue;
             if (nearbyArea.intersects(vehicle.getBoundingBox())) {
@@ -126,6 +128,12 @@ public final class RoadsideVehicleSpawns {
                             vehicle.getBlockX(), vehicle.getBlockZ()).roadClass())) {
                 nearbyHighwayTraffic++;
             }
+            if (nearbyArea.intersects(vehicle.getBoundingBox())
+                    && CityTrafficService.isActiveTraffic(vehicle)
+                    && isLocalTrafficRoad(NeonCityGenerator.sample(
+                            vehicle.getBlockX(), vehicle.getBlockZ()).roadClass())) {
+                nearbyLocalTraffic++;
+            }
         }
 
         MegacityLayout.ConnectionProjection playerHighway = NeonCityGenerator.layout()
@@ -137,7 +145,7 @@ public final class RoadsideVehicleSpawns {
                         focus.position().x, focus.position().z).orElse(playerHighway)
                 : playerHighway;
 
-        // Only highway vehicles may enter traffic control. Local spawns stay parked.
+        // Preserve the current highway population while independently restoring district traffic.
         if (highwayActive && nearbyHighwayTraffic < TARGET_HIGHWAY_TRAFFIC_NEARBY) {
             for (FuelPoweredVehicleEntity vehicle : vehicles) {
                 if (nearbyHighwayTraffic >= TARGET_HIGHWAY_TRAFFIC_NEARBY) break;
@@ -156,11 +164,30 @@ public final class RoadsideVehicleSpawns {
             }
         }
 
+        if (nearbyLocalTraffic < TARGET_LOCAL_TRAFFIC_NEARBY) {
+            for (FuelPoweredVehicleEntity vehicle : vehicles) {
+                if (nearbyLocalTraffic >= TARGET_LOCAL_TRAFFIC_NEARBY) break;
+                if (!vehicle.isAlive()
+                        || !nearbyArea.intersects(vehicle.getBoundingBox())
+                        || !isManagedVehicle(vehicle)
+                        || !vehicle.getPassengers().isEmpty()
+                        || !isLocalTrafficRoad(NeonCityGenerator.sample(
+                                vehicle.getBlockX(), vehicle.getBlockZ()).roadClass())) {
+                    continue;
+                }
+                if (CityTrafficService.assignDriver(level, vehicle, level.getRandom())) {
+                    nearbyLocalTraffic++;
+                }
+            }
+        }
+
         int highwayWanted = highwayActive
                 ? Math.max(0, TARGET_HIGHWAY_TRAFFIC_NEARBY - nearbyHighwayTraffic) : 0;
+        int localTrafficWanted = Math.max(
+                0, TARGET_LOCAL_TRAFFIC_NEARBY - nearbyLocalTraffic);
         int wanted = Math.min(
                 SPAWN_BATCH,
-                Math.min(Math.max(highwayWanted,
+                Math.min(Math.max(highwayWanted + localTrafficWanted,
                                 TARGET_TOTAL_NEARBY - nearby),
                         MAX_LOADED_VEHICLES - vehicles.size()));
         if (wanted <= 0) return;
@@ -168,13 +195,22 @@ public final class RoadsideVehicleSpawns {
         RandomSource random = level.getRandom();
         int spawned = 0;
         int spawnedHighway = 0;
+        int spawnedLocalTraffic = 0;
         int attempts = 0;
         while (spawned < wanted && attempts++ < MAX_PLACEMENT_ATTEMPTS) {
-            boolean highway = spawnedHighway < highwayWanted;
-            boolean motorbike = !highway && random.nextInt(100) < MOTORBIKE_PERCENT;
+            boolean highwayRemaining = spawnedHighway < highwayWanted;
+            boolean localTrafficRemaining = spawnedLocalTraffic < localTrafficWanted;
+            // Alternate while both quotas are short so an unavailable highway segment cannot
+            // consume the entire placement budget and starve valid district traffic.
+            boolean highway = highwayRemaining
+                    && (!localTrafficRemaining || (attempts & 1) == 1);
+            boolean localTraffic = localTrafficRemaining && !highway;
+            boolean motorbike = selectsMotorbike(random, highway);
             ParkingSite site = highway
                     ? findHighwayTrafficSite(level, player, focus, nearestHighway, random)
-                    : findParkingSite(level, player, focus, random, motorbike);
+                    : localTraffic
+                            ? findLocalTrafficSite(level, focus, random)
+                            : findParkingSite(level, player, focus, random, motorbike);
             if (site == null || !hasVehicleSeparation(vehicles, site.position())) continue;
 
             EntityType<? extends FuelPoweredVehicleEntity> type = randomType(random, motorbike);
@@ -194,11 +230,11 @@ public final class RoadsideVehicleSpawns {
 
             vehicle.setFuel(randomizedFuelLevel(vehicle.getFuelCapacity(), random));
             vehicle.setPersistenceRequired();
-            vehicle.getPersistentData().putBoolean(MANAGED_KEY, true);
+            markManagedVehicle(vehicle);
             VehicleQuickhackService.markCompatibleCar(vehicle);
             if (level.addFreshEntity(vehicle)) {
                 vehicles.add(vehicle);
-                if (highway) {
+                if (highway || localTraffic) {
                     if (!CityTrafficService.assignDriver(level, vehicle, random)) {
                         vehicle.discard();
                         vehicles.remove(vehicle);
@@ -207,6 +243,7 @@ public final class RoadsideVehicleSpawns {
                 }
                 spawned++;
                 if (highway) spawnedHighway++;
+                if (localTraffic) spawnedLocalTraffic++;
             } else {
                 vehicle.discard();
             }
@@ -286,6 +323,42 @@ public final class RoadsideVehicleSpawns {
         return vehicle instanceof com.modernity.vehicle_mod.entity.MotorbikeEntity;
     }
 
+    private static ParkingSite findLocalTrafficSite(
+            ServerLevel level, TrafficFocus focus, RandomSource random) {
+        double angle = random.nextDouble() * Math.PI * 2.0;
+        int radius = MIN_SPAWN_RADIUS
+                + random.nextInt(MAX_SPAWN_RADIUS - MIN_SPAWN_RADIUS + 1);
+        int x = (int) Math.floor(focus.position().x + Math.cos(angle) * radius);
+        int z = (int) Math.floor(focus.position().z + Math.sin(angle) * radius);
+        NeonCityGenerator.UrbanSample sample = NeonCityGenerator.sample(x, z);
+        if (!isLocalTrafficRoad(sample.roadClass())) return null;
+
+        int alongXScore = localTrafficRoadScore(x, z, true);
+        int alongZScore = localTrafficRoadScore(x, z, false);
+        if (Math.max(alongXScore, alongZScore) < 3) return null;
+        boolean alongX = alongXScore > alongZScore;
+        Direction heading = alongX
+                ? (random.nextBoolean() ? Direction.EAST : Direction.WEST)
+                : (random.nextBoolean() ? Direction.SOUTH : Direction.NORTH);
+        BlockPos probe = new BlockPos(x, sample.groundY() + 1, z);
+        if (!level.hasChunkAt(probe)) return null;
+        int surfaceY = level.getHeight(
+                Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+        if (Math.abs(surfaceY - (sample.groundY() + 1)) > 2) return null;
+        BlockPos position = new BlockPos(x, surfaceY, z);
+        if (!isVehicleSurface(level, position)) return null;
+        float yaw = switch (heading) {
+            case WEST -> 90.0F;
+            case NORTH -> 180.0F;
+            case EAST -> 270.0F;
+            default -> 0.0F;
+        };
+        CityTrafficGraph.LaneNode entry = CityTrafficGraph.enter(
+                level, Vec3.atBottomCenterOf(position), yaw);
+        if (entry == null || CityTrafficGraph.successors(level, entry).isEmpty()) return null;
+        return new ParkingSite(position, entry.yaw());
+    }
+
     private static ParkingSite findParkingSite(
             ServerLevel level,
             ServerPlayer player,
@@ -353,6 +426,19 @@ public final class RoadsideVehicleSpawns {
         return score;
     }
 
+    private static int localTrafficRoadScore(int x, int z, boolean alongX) {
+        int score = 0;
+        for (int offset : new int[] {-8, -4, 4, 8}) {
+            int sampleX = alongX ? x + offset : x;
+            int sampleZ = alongX ? z : z + offset;
+            if (isLocalTrafficRoad(
+                    NeonCityGenerator.sample(sampleX, sampleZ).roadClass())) {
+                score++;
+            }
+        }
+        return score;
+    }
+
     private static boolean isVehicleSurface(ServerLevel level, BlockPos position) {
         var at = level.getBlockState(position);
         var below = level.getBlockState(position.below());
@@ -405,11 +491,37 @@ public final class RoadsideVehicleSpawns {
         return NeonCityGenerator.isHighwayRoadClass(roadClass);
     }
 
+    public static boolean isLocalTrafficRoad(NeonCityGenerator.RoadClass roadClass) {
+        return roadClass == NeonCityGenerator.RoadClass.LOCAL_STREET
+                || roadClass == NeonCityGenerator.RoadClass.DISTRICT_BOULEVARD;
+    }
+
+    static boolean supportsMovingTraffic(NeonCityGenerator.RoadClass roadClass) {
+        return isMovingTrafficRoad(roadClass) || isLocalTrafficRoad(roadClass);
+    }
+
+    static boolean isManagedVehicle(Entity vehicle) {
+        return vehicle != null
+                && vehicle.getPersistentData().getBooleanOr(MANAGED_KEY, false);
+    }
+
+    static void markManagedVehicle(Entity vehicle) {
+        if (vehicle != null) vehicle.getPersistentData().putBoolean(MANAGED_KEY, true);
+    }
+
+    static void releaseManagedOwnership(Entity vehicle) {
+        if (vehicle != null) vehicle.getPersistentData().remove(MANAGED_KEY);
+    }
+
     public static int randomizedFuelLevel(int capacity, RandomSource random) {
         if (capacity <= 0) return 0;
         int percent = MIN_FUEL_PERCENT
                 + random.nextInt(MAX_FUEL_PERCENT - MIN_FUEL_PERCENT + 1);
         return Math.max(1, Math.min(capacity, Math.round(capacity * percent / 100.0F)));
+    }
+
+    static boolean selectsMotorbike(RandomSource random, boolean highway) {
+        return !highway && random.nextInt(100) < MOTORBIKE_PERCENT;
     }
 
     private static EntityType<? extends FuelPoweredVehicleEntity> randomType(
@@ -447,7 +559,7 @@ public final class RoadsideVehicleSpawns {
             if (!vehicle.getPersistentData().getBooleanOr(MANAGED_KEY, false)) continue;
             if (!vehicle.getPassengers().isEmpty()
                     && !CityTrafficService.hasTrafficDriver(vehicle)) {
-                vehicle.getPersistentData().putBoolean(MANAGED_KEY, false);
+                releaseManagedOwnership(vehicle);
                 continue;
             }
             boolean traffic = CityTrafficService.hasTrafficDriver(vehicle);

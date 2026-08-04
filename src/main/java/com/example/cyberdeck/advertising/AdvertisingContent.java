@@ -2,6 +2,7 @@ package com.example.cyberdeck.advertising;
 
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.Optional;
 
 import com.example.cyberdeck.Cyberdeck;
 import com.example.cyberdeck.CyberdeckItems;
@@ -89,6 +90,9 @@ public final class AdvertisingContent {
         Map<AdClip, DeferredHolder<SoundEvent, SoundEvent>> sounds =
                 new EnumMap<>(AdClip.class);
         for (AdClip clip : AdClip.values()) {
+            if (!clip.audioEnabled()) {
+                continue;
+            }
             String name = "ad." + clip.id();
             Identifier id = Identifier.fromNamespaceAndPath(Cyberdeck.MODID, name);
             sounds.put(clip, SOUND_EVENTS.register(name,
@@ -97,8 +101,9 @@ public final class AdvertisingContent {
         return Map.copyOf(sounds);
     }
 
-    public static SoundEvent sound(AdClip clip) {
-        return CLIP_SOUNDS.get(clip).get();
+    public static Optional<SoundEvent> sound(AdClip clip) {
+        DeferredHolder<SoundEvent, SoundEvent> sound = CLIP_SOUNDS.get(clip);
+        return sound == null ? Optional.empty() : Optional.of(sound.get());
     }
 
     public static void register(IEventBus eventBus) {

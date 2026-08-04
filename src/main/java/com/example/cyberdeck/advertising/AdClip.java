@@ -6,11 +6,15 @@ import com.example.cyberdeck.Cyberdeck;
 
 import net.minecraft.resources.Identifier;
 
-/** Preprocessed MP4 clips available to large advertising displays. */
+/** Preprocessed animated clips available to large advertising displays. */
 public enum AdClip {
-    NEON_SKYLINE("neon_skyline", 30, 8),
-    CHROME_COLA("chrome_cola", 36, 8),
-    ORBITAL_AIR("orbital_air", 42, 8);
+    NEON_SKYLINE("neon_skyline", 30, 8, true),
+    CHROME_COLA("chrome_cola", 36, 8, true),
+    ORBITAL_AIR("orbital_air", 42, 8, true),
+    META_LOGO("meta_logo", 30, 8, false),
+    META_GLASSES("meta_glasses", 30, 8, false),
+    META_AI("meta_ai", 45, 8, false),
+    META_FUTURE("meta_future", 45, 8, false);
 
     public static final int SHEET_COLUMNS = 4;
     public static final int SHEET_ROWS = 4;
@@ -20,12 +24,14 @@ public enum AdClip {
     private final int durationTicks;
     private final int framesPerSecond;
     private final int frameCount;
+    private final boolean audioEnabled;
 
-    AdClip(String id, int durationSeconds, int framesPerSecond) {
+    AdClip(String id, int durationSeconds, int framesPerSecond, boolean audioEnabled) {
         this.id = id;
         this.durationTicks = durationSeconds * 20;
         this.framesPerSecond = framesPerSecond;
         this.frameCount = durationSeconds * framesPerSecond;
+        this.audioEnabled = audioEnabled;
     }
 
     public String id() {
@@ -38,6 +44,14 @@ public enum AdClip {
 
     public int frameCount() {
         return frameCount;
+    }
+
+    public int framesPerSecond() {
+        return framesPerSecond;
+    }
+
+    public boolean audioEnabled() {
+        return audioEnabled;
     }
 
     public int frameAt(float playbackTicks) {

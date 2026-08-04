@@ -52,8 +52,7 @@ public final class AdDisplayBlockEntity extends BlockEntity {
         boolean audible = display.isAudible(level, position, state);
         if (audible && !display.soundStartedForClip) {
             display.playbackTicks = 0;
-            display.playCurrentAudio(level, position, state);
-            display.soundStartedForClip = true;
+            display.soundStartedForClip = display.playCurrentAudio(level, position, state);
             return;
         }
 
@@ -62,9 +61,8 @@ public final class AdDisplayBlockEntity extends BlockEntity {
             display.playbackTicks = 0;
             display.clipIndex = (display.clipIndex + 1) % CLIPS.length;
             display.soundStartedForClip = false;
-            if (audible) {
-                display.playCurrentAudio(level, position, state);
-                display.soundStartedForClip = true;
+            if (display.isAudible(level, position, state)) {
+                display.soundStartedForClip = display.playCurrentAudio(level, position, state);
             }
         }
     }
@@ -181,17 +179,22 @@ public final class AdDisplayBlockEntity extends BlockEntity {
         return saveCustomOnly(registries);
     }
 
-    private void playCurrentAudio(Level level, BlockPos position, BlockState state) {
-        if (freestandingType != null && !freestandingType.audioEnabled()) {
-            return;
+    private boolean playCurrentAudio(Level level, BlockPos position, BlockState state) {
+        if (!currentClip().audioEnabled()
+                || (freestandingType != null && !freestandingType.audioEnabled())) {
+            return false;
         }
-        level.playLocalSound(centerX(position, state), centerY(position), centerZ(position, state),
-                AdvertisingContent.sound(currentClip()), SoundSource.BLOCKS,
-                1.0F, 1.0F, false);
+        return AdvertisingContent.sound(currentClip()).map(sound -> {
+            level.playLocalSound(
+                    centerX(position, state), centerY(position), centerZ(position, state),
+                    sound, SoundSource.BLOCKS, 1.0F, 1.0F, false);
+            return true;
+        }).orElse(false);
     }
 
     private boolean isAudible(Level level, BlockPos position, BlockState state) {
-        if (freestandingType != null && !freestandingType.audioEnabled()) {
+        if (!currentClip().audioEnabled()
+                || (freestandingType != null && !freestandingType.audioEnabled())) {
             return false;
         }
         double x = centerX(position, state);
