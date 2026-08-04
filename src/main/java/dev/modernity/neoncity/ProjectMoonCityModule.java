@@ -73,6 +73,9 @@ public final class ProjectMoonCityModule {
             GIG_BOARD_LIFECYCLE = register(
                     "gig_board_lifecycle", MissionFeatureGameTests::gigBoardLifecycle);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            FIXED_GIG_CATALOG_READS = register(
+                    "fixed_gig_catalog_reads", MissionFeatureGameTests::fixedGigCatalogReads);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             MISSION_BUILDING_PLANNER = register(
                     "mission_building_planner", ExampleGameTests::missionBuildingPlanner);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
@@ -142,6 +145,7 @@ public final class ProjectMoonCityModule {
 
     private volatile boolean generationEnabled;
     private int mainlineSites;
+    private int gigSites;
     private final DistrictEntryNotifier districtEntryNotifier = new DistrictEntryNotifier();
     private final Map<UUID, Integer> atmosphereDistricts = new HashMap<>();
     private long vendorRevision = -1L;
@@ -164,6 +168,7 @@ public final class ProjectMoonCityModule {
     public void onServerStarted(ServerStartedEvent event) {
         generationEnabled = false;
         mainlineSites = 0;
+        gigSites = 0;
         ArnisBuildingAtlas.clear();
         districtEntryNotifier.clear();
         atmosphereDistricts.clear();
@@ -186,6 +191,7 @@ public final class ProjectMoonCityModule {
         }
         // Descriptors are data-only; atlas chunks remain untouched until a mission is accepted.
         mainlineSites = MainlineQuestService.restoreFixedWorldPlans(overworld);
+        gigSites = GigSiteData.restoreFixedCatalog(overworld);
         finishStartup(overworld);
     }
 
@@ -215,6 +221,7 @@ public final class ProjectMoonCityModule {
                 }
             }
             Set<UUID> activePlayers = new HashSet<>();
+            Set<District> maintainedQuestDistricts = new HashSet<>();
             for (net.minecraft.server.level.ServerPlayer player : overworld.players()) {
                 activePlayers.add(player.getUUID());
                 NeonCityGenerator.enqueueAroundPlayer(player);
@@ -229,7 +236,9 @@ public final class ProjectMoonCityModule {
                 if (location.insideCity()
                         && sample.zone() != MegacityLayout.Zone.WILDERNESS) {
                     VendorService.ensureDistrictVendors(overworld, location.district());
-                    MainlineQuestService.maintainQuestNpcs(overworld, location.district());
+                    if (maintainedQuestDistricts.add(location.district())) {
+                        MainlineQuestService.maintainQuestNpcs(overworld, location.district());
+                    }
                 }
                 MissionService.tickPlayer(player, location);
                 AmbientGigService.tick(player);
@@ -275,8 +284,9 @@ public final class ProjectMoonCityModule {
         generationEnabled = true;
         Cyberdeck.LOGGER.info(
                 "[ProjectMoonCity] finite {}-district generator enabled immediately; restored {} "
-                        + "persisted mainline sites, prewarmed {} and queued {} chunks at {}",
-                District.values().length, mainlineSites, prewarmed, queued, spawn);
+                        + "mainline sites and {} pre-analyzed gig markers, prewarmed {} and "
+                        + "queued {} chunks at {}",
+                District.values().length, mainlineSites, gigSites, prewarmed, queued, spawn);
     }
 
     /** Reject ambient spawn placement inside the generated city. */
@@ -340,25 +350,33 @@ public final class ProjectMoonCityModule {
     }
 
     @SubscribeEvent
-    public void onMerchantInteract(PlayerInteractEvent.EntityInteract event) {
-        if (event.getHand() != InteractionHand.MAIN_HAND
-                || MerchantTruckLibrary.merchantRole(event.getTarget()).orElse(null)
-                != MerchantTruckLibrary.MerchantRole.QUEST) {
-            return;
-        }
-        event.setCanceled(true);
-        event.setCancellationResult(InteractionResult.SUCCESS);
-        if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
-            MissionService.open(player, event.getTarget());
-        }
-    }
-
-    @SubscribeEvent
     public void onQuestNpcAttack(AttackEntityEvent event) {
         if (!MainlineQuestService.isQuestNpc(event.getTarget())) return;
         event.setCanceled(true);
         if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
             MissionService.interactStoryNpc(player, event.getTarget());
+        }
+    }
+
+    @SubscribeEvent
+    public void onMerchantInteract(PlayerInteractEvent.EntityInteract event) {
+        if (event.getHand() != InteractionHand.MAIN_HAND) {
+            return;
+        }
+        if (MainlineQuestService.isQuestNpc(event.getTarget())) {
+            event.setCanceled(true);
+            event.setCancellationResult(InteractionResult.SUCCESS);
+            if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
+                MissionService.interactStoryNpc(player, event.getTarget());
+            }
+            return;
+        }
+        if (MerchantTruckLibrary.merchantRole(event.getTarget()).orElse(null)
+                != MerchantTruckLibrary.MerchantRole.QUEST) return;
+        event.setCanceled(true);
+        event.setCancellationResult(InteractionResult.SUCCESS);
+        if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
+            MissionService.open(player, event.getTarget());
         }
     }
 

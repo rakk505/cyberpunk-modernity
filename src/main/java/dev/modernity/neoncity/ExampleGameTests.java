@@ -1485,7 +1485,8 @@ public final class ExampleGameTests {
                 "cyberware merchant refused a second verified building bay");
 
         long expectedCyberwareOffers = expectedCyberware;
-        helper.runAfterDelay(1, () -> {
+        // Entity insertion is committed on the server tick after anchor maintenance.
+        helper.runAfterDelay(3, () -> {
             VendorService.maintainAnchors(helper.getLevel());
         VendorAnchorData anchors = VendorAnchorData.get(helper.getLevel());
         VendorAnchorData.Anchor fixerAnchor = anchors.anchor(
@@ -2128,6 +2129,142 @@ public final class ExampleGameTests {
         prepareMissionSite(helper, site);
         helper.assertTrue(MissionBuildingPlanner.preflight(helper.getLevel(), site),
                 "prepared mission site did not expose a usable exterior approach");
+        MissionBuildingPlanner.Site themed = MissionBuildingPlanner.withMissionInteriorPlan(
+                helper.getLevel(), MissionBuildingPlanner.withoutMissionInteriorPlan(site),
+                0x5448454D45445445L, MissionCatalog.MissionType.ASSASSINATE_TARGET,
+                "m02_assassinate_g_exec");
+        MissionBuildingPlanner.Site repeatedTheme = MissionBuildingPlanner.withMissionInteriorPlan(
+                helper.getLevel(), MissionBuildingPlanner.withoutMissionInteriorPlan(site),
+                0x5448454D45445445L, MissionCatalog.MissionType.ASSASSINATE_TARGET,
+                "m02_assassinate_g_exec");
+        helper.assertTrue(!MainlineQuestData.fixedSites().isEmpty()
+                        && MainlineQuestData.fixedSites().values().stream().allMatch(
+                                fixed -> fixed.decorations().isEmpty()),
+                "fixed mainline building descriptors retained runtime interior blocks");
+        long distinctFloorTreatments = distinctFloorTreatments(themed);
+        assertGeneratedInteriorBudgets(
+                helper, themed, MissionCatalog.MissionType.ASSASSINATE_TARGET,
+                "m02_assassinate_g_exec");
+        helper.assertTrue(!themed.decorations().isEmpty()
+                        && themed.decorations().equals(repeatedTheme.decorations())
+                        && MissionBuildingPlanner.preflight(helper.getLevel(), themed)
+                        && themed.decorations().stream().anyMatch(decoration ->
+                                decoration.kind()
+                                        == MissionBuildingPlanner.DecorKind.EXPLOSIVE_CANISTER)
+                        && distinctFloorTreatments
+                                >= Math.min(3, themed.floorYs().size()),
+                "dynamic mission interior was repetitive, unsafe, or nondeterministic");
+
+        MissionBuildingPlanner.Decoration occupiedDecoration = themed.decorations().stream()
+                .filter(decoration -> decoration.kind()
+                        != MissionBuildingPlanner.DecorKind.FULL_HEIGHT_PARTITION)
+                .findFirst().orElseThrow();
+        Villager blocker = net.minecraft.world.entity.EntityTypes.VILLAGER.create(
+                helper.getLevel(), EntitySpawnReason.EVENT);
+        helper.assertTrue(blocker != null, "could not create interior occupancy fixture");
+        blocker.setNoAi(true);
+        blocker.snapTo(
+                occupiedDecoration.position().getX() + 0.5,
+                occupiedDecoration.position().getY(),
+                occupiedDecoration.position().getZ() + 0.5,
+                0.0F,
+                0.0F);
+        helper.assertTrue(helper.getLevel().addFreshEntity(blocker),
+                "could not place interior occupancy fixture");
+        MissionBuildingPlanner.Site occupiedRepeat =
+                MissionBuildingPlanner.withMissionInteriorPlan(
+                        helper.getLevel(), MissionBuildingPlanner.withoutMissionInteriorPlan(site),
+                        0x5448454D45445445L,
+                        MissionCatalog.MissionType.ASSASSINATE_TARGET,
+                        "m02_assassinate_g_exec");
+        helper.assertTrue(!MissionBuildingPlanner.preflight(helper.getLevel(), themed)
+                        && occupiedRepeat.decorations().equals(themed.decorations()),
+                "live entity occupancy changed deterministic interior variant selection");
+        blocker.discard();
+
+        MissionBuildingPlanner.RestorationSnapshot themedOriginal =
+                MissionBuildingPlanner.captureOriginalStates(helper.getLevel(), themed);
+        helper.assertTrue(MissionBuildingPlanner.preflight(helper.getLevel(), themed)
+                        && MissionBuildingPlanner.install(helper.getLevel(), themed)
+                                == MissionBuildingPlanner.InstallationResult.INSTALLED
+                        && MissionBuildingPlanner.auditDepthFirstTraversal(
+                                helper.getLevel(), themed).accessible()
+                        && MissionBuildingPlanner.hasAccessibleObjectivePath(
+                                helper.getLevel(), themed),
+                "generated mission interior did not install with an accessible objective route");
+        assertInstalledMissionDecor(helper, themed);
+        assertFullHeightPartitionPlan(helper, themed);
+        helper.assertTrue(MissionBuildingPlanner.restoreOriginalStates(
+                                helper.getLevel(), themedOriginal)
+                        && MissionBuildingPlanner.preflightSiteGeometry(
+                                helper.getLevel(), themed),
+                "generated mission interior did not restore to structural geometry");
+
+        BlockPos irregularOrigin = origin.offset(24, 0, 24);
+        MissionBuildingPlanner.Site irregularStructure =
+                syntheticFiveFloorMissionSite(irregularOrigin);
+        prepareMissionSite(helper, irregularStructure);
+        helper.assertTrue(MissionBuildingPlanner.preflightSiteGeometry(
+                        helper.getLevel(), irregularStructure),
+                "five-floor irregular structural fixture is invalid: "
+                        + MissionBuildingPlanner.preflightFailure(
+                                helper.getLevel(), irregularStructure));
+        MissionBuildingPlanner.Site irregular = MissionBuildingPlanner.withMissionInteriorPlan(
+                helper.getLevel(), irregularStructure, 0x4952524547554C41L,
+                MissionCatalog.MissionType.STEAL_DATA, "m03_steal_weights");
+        assertGeneratedInteriorBudgets(
+                helper, irregular, MissionCatalog.MissionType.STEAL_DATA,
+                "m03_steal_weights");
+        long irregularTreatments = distinctFloorTreatments(irregular);
+        String irregularProfile = irregular.floorYs().stream()
+                .map(floorY -> floorY + "=" + furnishingsOnFloor(irregular, floorY)
+                        + "/" + furnishingFootprintOnFloor(irregular, floorY))
+                .collect(java.util.stream.Collectors.joining(","));
+        helper.assertTrue(irregular.floorYs().size() == 5
+                        && irregular.floorMasks().stream().allMatch(mask ->
+                                mask.cells().size() >= 80 && mask.cells().size() < 120)
+                        && irregularTreatments >= 3
+                        && irregular.decorations().stream().anyMatch(decoration ->
+                                decoration.kind()
+                                        == MissionBuildingPlanner.DecorKind.EXPLOSIVE_CANISTER),
+                "irregular medium-sized floors did not receive diverse bounded themes: floors="
+                        + irregularProfile + ", treatments=" + irregularTreatments
+                        + ", partitions=" + irregular.decorations().stream().filter(decoration ->
+                                decoration.kind() == MissionBuildingPlanner.DecorKind.ROOM_PARTITION
+                                        || decoration.kind()
+                                                == MissionBuildingPlanner.DecorKind
+                                                        .FULL_HEIGHT_PARTITION).count()
+                        + ", decorations=" + irregular.decorations().size());
+        MissionBuildingPlanner.RestorationSnapshot irregularOriginal =
+                MissionBuildingPlanner.captureOriginalStates(helper.getLevel(), irregular);
+        helper.assertTrue(MissionBuildingPlanner.install(helper.getLevel(), irregular)
+                                == MissionBuildingPlanner.InstallationResult.INSTALLED
+                        && MissionBuildingPlanner.auditDepthFirstTraversal(
+                                helper.getLevel(), irregular).accessible()
+                        && MissionBuildingPlanner.hasAccessibleObjectivePath(
+                                helper.getLevel(), irregular),
+                "five-floor irregular interior failed installed DFS verification");
+        assertInstalledMissionDecor(helper, irregular);
+        assertFullHeightPartitionPlan(helper, irregular);
+        helper.assertTrue(MissionBuildingPlanner.restoreOriginalStates(
+                                helper.getLevel(), irregularOriginal)
+                        && MissionBuildingPlanner.preflightSiteGeometry(
+                                helper.getLevel(), irregular),
+                "five-floor irregular interior did not restore cleanly");
+
+        ArrayList<MissionBuildingPlanner.Decoration> unsafeDecorations =
+                new ArrayList<>(site.decorations());
+        unsafeDecorations.add(new MissionBuildingPlanner.Decoration(
+                site.target(), MissionBuildingPlanner.DecorKind.FILING_CABINET,
+                Direction.NORTH));
+        MissionBuildingPlanner.Site unsafeFurnishing = new MissionBuildingPlanner.Site(
+                "test:unsafe-optional-furnishing", site.district(), site.bounds(),
+                site.floorYs(), site.target(), site.entrance(), site.stairs(),
+                site.patrolRoutes(), unsafeDecorations, site.floorMasks(), site.planSeed());
+        helper.assertTrue(!MissionBuildingPlanner.preflight(helper.getLevel(), unsafeFurnishing)
+                        && MissionBuildingPlanner.preflightSiteGeometry(
+                                helper.getLevel(), unsafeFurnishing),
+                "optional furnishing still determined whether structural geometry was usable");
         BlockPos exteriorApproach = MissionBuildingPlanner.navigationTarget(site);
         BlockState originalExteriorApproach = helper.getLevel().getBlockState(exteriorApproach);
         helper.getLevel().setBlock(
@@ -2292,7 +2429,13 @@ public final class ExampleGameTests {
         helper.getLevel().setBlock(blockedHeadroom, originalHeadroom, Block.UPDATE_ALL);
 
         assertMissionTurretLifecycle(helper, defended, turretPlacements.size());
-        assertMultiFloorMissionPopulation(helper, defended);
+        MissionBuildingPlanner.Site fourFloorPopulation =
+                syntheticIrregularMissionSite(irregularOrigin, 4);
+        prepareMissionSite(helper, fourFloorPopulation);
+        assertMultiFloorMissionPopulation(
+                helper,
+                MissionBuildingPlanner.withMissionTurretPlan(
+                        helper.getLevel(), fourFloorPopulation));
 
         helper.getLevel().setBlock(restored.target(),
                 MissionBlocks.DELIVERY_TERMINAL.get().defaultBlockState(), Block.UPDATE_ALL);
@@ -2976,17 +3119,29 @@ public final class ExampleGameTests {
                 instanceId,
                 new PartyService.ParticipantSnapshot(
                         Optional.empty(), List.of(player.getUUID())),
-                true,
+                false,
                 false);
         MissionService.save(player, mission);
         MissionService.saveContext(player, context);
         MissionPlayerData.persisted(player).put("cyberdeck_mission_site", site.save());
         PartyService.registerContract(helper.getLevel(), instanceId, context.participants());
+        MainlineQuestService.begin(helper.getLevel(), context, definition.id());
+        MissionJournalData.get(helper.getLevel()).accept(
+                context.participants(), context, mission,
+                MissionBuildingPlanner.navigationTarget(site), helper.getLevel().getGameTime());
 
-        MissionService.ActiveMission spawned = MissionService.spawnAssassination(
-                helper.getLevel(), player, definition, mission);
-        helper.assertTrue(spawned != null, "multi-floor assassination actors did not deploy");
+        MissionService.ActiveMission spawned = MissionService.duringDeployment(
+                instanceId,
+                () -> MissionService.spawnAssassination(
+                        helper.getLevel(), player, definition, mission));
+        helper.assertTrue(spawned != null,
+                "staged multi-floor assassination actors did not deploy transactionally");
         MissionService.save(player, spawned);
+        MissionService.ContractContext deployed = context.withDeployed(true);
+        MissionService.saveContext(player, deployed);
+        MissionJournalData.get(helper.getLevel()).accept(
+                deployed.participants(), deployed, spawned,
+                MissionBuildingPlanner.navigationTarget(site), helper.getLevel().getGameTime());
         int deployedTurrets = MissionService.deployMissionTurrets(
                 helper.getLevel(), player, definition, site);
         AABB siteArea = new AABB(
@@ -2995,19 +3150,46 @@ public final class ExampleGameTests {
                 site.bounds().maxZ() + 1.0).inflate(2.0);
         List<FactionEnemy> guards = MissionService.missionActors(
                 helper.getLevel(), FactionEnemy.class, siteArea,
-                MissionService::isMissionActor);
-        helper.assertTrue(site.floorYs().size() >= 2
-                        && guards.size() == definition.guards()
+                actor -> MissionService.isMissionActor(actor, instanceId));
+        List<Integer> expectedFloorQuotas = List.of(3, 4, 3, 1);
+        helper.assertTrue(site.floorYs().size() == 4
+                        && definition.guards() == 11
+                        && MainlineQuestService.floorEnemyQuotas(
+                                definition.id(), site.floorYs().size())
+                                .equals(expectedFloorQuotas)
+                        && guards.size() == 11
+                        && guards.stream().map(FactionEnemy::blockPosition).distinct().count()
+                                == guards.size()
                         && deployedTurrets
                                 == MissionBuildingPlanner.missionTurretPlacements(site).size()
                         && spawned.target().getY() >= site.floorYs().get(1)
-                        && site.floorYs().stream().allMatch(floorY -> guards.stream()
-                                .filter(guard -> guard.blockPosition().getY() == floorY)
-                                .count() >= 2),
-                "multi-floor mission did not put its objective upstairs and guards on every floor");
+                        && java.util.stream.IntStream.range(0, site.floorYs().size())
+                                .allMatch(floorIndex -> {
+                                    List<BlockPos> positions = guards.stream()
+                                            .map(FactionEnemy::blockPosition)
+                                            .filter(position -> position.getY()
+                                                    == site.floorYs().get(floorIndex))
+                                            .toList();
+                                    return positions.size() == expectedFloorQuotas.get(floorIndex)
+                                            && minimumHorizontalSpacing(positions) >= 4;
+                                }),
+                "mainline guards lost their authored floor quotas or preferred spacing");
         helper.assertTrue(MissionService.abandon(player),
                 "multi-floor population test contract could not be cleaned up");
         MissionFeatureGameTests.disconnect(player);
+    }
+
+    private static int minimumHorizontalSpacing(List<BlockPos> positions) {
+        int minimum = Integer.MAX_VALUE;
+        for (int first = 0; first < positions.size(); first++) {
+            for (int second = first + 1; second < positions.size(); second++) {
+                BlockPos a = positions.get(first);
+                BlockPos b = positions.get(second);
+                minimum = Math.min(minimum,
+                        Math.abs(a.getX() - b.getX()) + Math.abs(a.getZ() - b.getZ()));
+            }
+        }
+        return minimum;
     }
 
     private static void assertDistrictRefreshLifecycle(
@@ -3067,8 +3249,8 @@ public final class ExampleGameTests {
         helper.assertTrue(MissionService.activeMission(player).isPresent()
                         && MissionService.contractContext(player)
                                 .map(contract -> !contract.deployed()).orElse(false)
-                        && MissionService.site(player).isEmpty()
-                        && !sites.hasReservation(instanceId)
+                        && MissionService.site(player).map(site::equals).orElse(false)
+                        && sites.hasReservation(instanceId)
                         && MissionJournalData.get(helper.getLevel()).entries(player.getUUID())
                                 .stream().anyMatch(entry -> entry.instanceId().equals(instanceId)
                                         && !entry.deployed()
@@ -3076,7 +3258,7 @@ public final class ExampleGameTests {
                                                 == MissionService.JournalStatus.ACTIVE)
                         && helper.getLevel().getBlockState(site.entrance().position())
                                 .is(Blocks.STONE),
-                "leaving the district did not suspend, restore, and release the mission site");
+                "leaving the district did not suspend, restore, and retain the planned site");
 
         player.snapTo(
                 site.target().getX() + 0.5,
@@ -3088,11 +3270,12 @@ public final class ExampleGameTests {
                 player, layout.locate(player.getBlockX(), player.getBlockZ()));
         helper.assertTrue(MissionService.contractContext(player)
                         .map(contract -> !contract.deployed()).orElse(false)
-                        && !sites.hasReservation(instanceId),
+                        && sites.hasReservation(instanceId)
+                        && MissionService.site(player).map(site::equals).orElse(false),
                 "suspended mission redeployed while its party remained outside the district");
 
         helper.assertTrue(sites.reserve(reservationKey, site, instanceId),
-                "interrupted deployment fixture could not reserve its mission building");
+                "suspended deployment lost its exact mission-building reservation");
         sites.storeRestoration(instanceId, restoration.save(helper.getLevel()));
         MissionPlayerData.persisted(player).put("cyberdeck_mission_site", site.save());
         MissionPlayerData.persisted(player).put(
@@ -3100,18 +3283,19 @@ public final class ExampleGameTests {
         MissionService.onPlayerLogin(player);
         helper.assertTrue(MissionService.contractContext(player)
                         .map(contract -> !contract.deployed()).orElse(false)
-                        && !sites.hasReservation(instanceId)
-                        && MissionService.site(player).isEmpty()
+                        && sites.hasReservation(instanceId)
+                        && MissionService.site(player).map(site::equals).orElse(false)
                         && helper.getLevel().getBlockState(site.entrance().position())
                                 .is(Blocks.STONE),
-                "login promoted an interrupted reservation without an objective actor");
+                "login discarded or promoted an intentionally suspended exact-site reservation");
 
         MissionService.saveContext(player, context);
         MissionPlayerData.persisted(player).put("cyberdeck_mission_site", site.save());
         MissionService.onPlayerLogin(player);
         helper.assertTrue(MissionService.contractContext(player)
                         .map(contract -> !contract.deployed()).orElse(false)
-                        && MissionService.site(player).isEmpty(),
+                        && sites.hasReservation(instanceId)
+                        && MissionService.site(player).map(site::equals).orElse(false),
                 "offline reconciliation ignored the canonical suspended mission state");
 
         net.minecraft.world.entity.Entity staleActor =
@@ -3158,6 +3342,11 @@ public final class ExampleGameTests {
         helper.assertTrue(installedKinds.containsAll(expectedKinds),
                 "synthetic corporate office did not exercise every structured decor type");
 
+        assertInstalledMissionDecor(helper, site);
+    }
+
+    private static void assertInstalledMissionDecor(
+            GameTestHelper helper, MissionBuildingPlanner.Site site) {
         for (MissionBuildingPlanner.Decoration decoration : site.decorations()) {
             if (decoration.kind() == MissionBuildingPlanner.DecorKind.MISSION_TURRET) continue;
             BlockPos position = decoration.position();
@@ -3250,6 +3439,144 @@ public final class ExampleGameTests {
                         "mission ceiling-height partition has a missing segment");
                 default -> {
                 }
+            }
+        }
+    }
+
+    private static long furnishingsOnFloor(
+            MissionBuildingPlanner.Site site, int floorY) {
+        return site.decorations().stream()
+                .filter(decoration -> decoration.position().getY() == floorY)
+                .filter(decoration -> decoration.kind()
+                                != MissionBuildingPlanner.DecorKind.ROOM_PARTITION
+                        && decoration.kind()
+                                != MissionBuildingPlanner.DecorKind.FULL_HEIGHT_PARTITION
+                        && decoration.kind()
+                                != MissionBuildingPlanner.DecorKind.MISSION_TURRET)
+                .count();
+    }
+
+    private static void assertGeneratedInteriorBudgets(
+            GameTestHelper helper,
+            MissionBuildingPlanner.Site site,
+            MissionCatalog.MissionType missionType,
+            String missionId) {
+        helper.assertTrue(MissionBuildingPlanner.realizesFloorProgram(
+                        site, missionType, missionId),
+                "mission interior does not realize its authored floor program");
+        for (int floorY : site.floorYs()) {
+            int cells = site.missionCells(floorY).size();
+            long furnishings = furnishingsOnFloor(site, floorY);
+            int furnishingLimit = cells >= 120 ? 5 : 4;
+            int footprint = furnishingFootprintOnFloor(site, floorY);
+            int footprintLimit = Math.min(18, Math.max(8, cells / 7));
+            long partitionBases = partitionBasesOnFloor(site, floorY);
+            int partitionLimit = MissionBuildingPlanner.maximumPartitionBases(cells);
+            helper.assertTrue(furnishings >= 2
+                            && furnishings <= furnishingLimit
+                            && footprint <= footprintLimit
+                            && partitionBases <= partitionLimit,
+                    "mission floor exceeded its sparse interior budget or lost its role: floor="
+                            + floorY + ", cells=" + cells + ", furnishings=" + furnishings
+                            + "/" + furnishingLimit + ", footprint=" + footprint
+                            + "/" + footprintLimit + ", partitions=" + partitionBases + "/"
+                            + partitionLimit);
+        }
+    }
+
+    private static int furnishingFootprintOnFloor(
+            MissionBuildingPlanner.Site site, int floorY) {
+        Set<BlockPos> footprint = new HashSet<>();
+        site.decorations().stream()
+                .filter(decoration -> decoration.position().getY() == floorY)
+                .filter(decoration -> isMissionFurnishing(decoration.kind()))
+                .forEach(decoration -> footprint.addAll(decorationGroundFootprint(decoration)));
+        return footprint.size();
+    }
+
+    private static List<BlockPos> decorationGroundFootprint(
+            MissionBuildingPlanner.Decoration decoration) {
+        BlockPos position = decoration.position();
+        Direction across = decoration.facing().getClockWise();
+        return switch (decoration.kind()) {
+            case PLANTER, ROOM_PARTITION, SERVER_RACK, FILING_CABINET,
+                    WATER_COOLER, EXPLOSIVE_CANISTER, MISSION_TURRET,
+                    VENDING_MACHINE, FULL_HEIGHT_PARTITION -> List.of(position);
+            case CUBICLE_POD, CONFERENCE_TABLE -> {
+                Direction forward = across.getClockWise();
+                yield List.of(
+                        position,
+                        position.relative(across),
+                        position.relative(forward),
+                        position.relative(forward).relative(across));
+            }
+            default -> List.of(position, position.relative(across));
+        };
+    }
+
+    private static boolean isMissionFurnishing(MissionBuildingPlanner.DecorKind kind) {
+        return kind != MissionBuildingPlanner.DecorKind.ROOM_PARTITION
+                && kind != MissionBuildingPlanner.DecorKind.FULL_HEIGHT_PARTITION
+                && kind != MissionBuildingPlanner.DecorKind.MISSION_TURRET;
+    }
+
+    private static long partitionBasesOnFloor(
+            MissionBuildingPlanner.Site site, int floorY) {
+        return site.decorations().stream()
+                .filter(decoration -> decoration.position().getY() == floorY)
+                .filter(decoration -> decoration.kind()
+                                == MissionBuildingPlanner.DecorKind.ROOM_PARTITION
+                        || decoration.kind()
+                                == MissionBuildingPlanner.DecorKind.FULL_HEIGHT_PARTITION)
+                .count();
+    }
+
+    private static long distinctFloorTreatments(MissionBuildingPlanner.Site site) {
+        return site.floorYs().stream()
+                .map(floorY -> site.decorations().stream()
+                        .filter(decoration -> decoration.position().getY() == floorY)
+                        .filter(decoration -> decoration.kind()
+                                        != MissionBuildingPlanner.DecorKind.ROOM_PARTITION
+                                && decoration.kind()
+                                        != MissionBuildingPlanner.DecorKind.FULL_HEIGHT_PARTITION
+                                && decoration.kind()
+                                        != MissionBuildingPlanner.DecorKind.MISSION_TURRET
+                                && decoration.kind()
+                                        != MissionBuildingPlanner.DecorKind.EXPLOSIVE_CANISTER)
+                        .map(MissionBuildingPlanner.Decoration::kind)
+                        .collect(java.util.stream.Collectors.toSet()))
+                .distinct()
+                .count();
+    }
+
+    private static void assertFullHeightPartitionPlan(
+            GameTestHelper helper, MissionBuildingPlanner.Site site) {
+        Set<BlockPos> segments = site.decorations().stream()
+                .filter(decoration -> decoration.kind()
+                        == MissionBuildingPlanner.DecorKind.FULL_HEIGHT_PARTITION)
+                .map(MissionBuildingPlanner.Decoration::position)
+                .collect(java.util.stream.Collectors.toSet());
+        for (int floorIndex = 0; floorIndex < site.floorYs().size(); floorIndex++) {
+            int floorY = site.floorYs().get(floorIndex);
+            long partitionBases = partitionBasesOnFloor(site, floorY);
+            List<BlockPos> bases = segments.stream()
+                    .filter(position -> position.getY() == floorY)
+                    .toList();
+            helper.assertTrue(partitionBases <= 12,
+                    "mission floor exceeded its 12-column partition budget");
+            int ceilingY = floorIndex + 1 < site.floorYs().size()
+                    ? site.floorYs().get(floorIndex + 1) - 1
+                    : site.bounds().maxY();
+            for (BlockPos base : bases) {
+                for (int y = floorY; y < ceilingY; y++) {
+                    BlockPos segment = base.atY(y);
+                    helper.assertTrue(segments.contains(segment)
+                                    && helper.getLevel().getBlockState(segment)
+                                            .is(Blocks.CONCRETE.pick(DyeColor.LIGHT_GRAY)),
+                            "mission full-height partition stopped below its ceiling");
+                }
+                helper.assertTrue(helper.getLevel().getBlockState(base.atY(ceilingY)).blocksMotion(),
+                        "mission partition column has no structural ceiling");
             }
         }
     }
@@ -3420,6 +3747,67 @@ public final class ExampleGameTests {
                 TEST_SEED);
     }
 
+    private static MissionBuildingPlanner.Site syntheticFiveFloorMissionSite(BlockPos origin) {
+        return syntheticIrregularMissionSite(origin, 5);
+    }
+
+    private static MissionBuildingPlanner.Site syntheticIrregularMissionSite(
+            BlockPos origin, int floorCount) {
+        List<Integer> floorYs = java.util.stream.IntStream.range(0, floorCount)
+                .map(index -> origin.getY() + index * 5)
+                .boxed()
+                .toList();
+        BoundingBox bounds = new BoundingBox(
+                origin.getX(), floorYs.getFirst() - 1, origin.getZ() - 1,
+                origin.getX() + 11, floorYs.getLast() + 4, origin.getZ() + 9);
+        MissionBuildingPlanner.Entrance entrance = new MissionBuildingPlanner.Entrance(
+                origin.offset(5, 0, 0), Direction.NORTH, 1, false);
+        List<MissionBuildingPlanner.StairRun> stairs = new ArrayList<>();
+        List<MissionBuildingPlanner.PatrolRoute> routes = new ArrayList<>();
+        List<MissionBuildingPlanner.FloorMask> masks = new ArrayList<>();
+        for (int floorIndex = 0; floorIndex < floorYs.size(); floorIndex++) {
+            int floorY = floorYs.get(floorIndex);
+            int offsetY = floorY - origin.getY();
+            routes.add(new MissionBuildingPlanner.PatrolRoute(
+                    floorY,
+                    List.of(
+                            origin.offset(4, offsetY, 3),
+                            origin.offset(4, offsetY, 8),
+                            origin.offset(7, offsetY, 8),
+                            origin.offset(7, offsetY, 3))));
+            masks.add(syntheticIrregularFloorMask(origin, floorY));
+            if (floorIndex < floorYs.size() - 1) {
+                int stairX = floorIndex % 2 == 0 ? 1 : 8;
+                stairs.add(new MissionBuildingPlanner.StairRun(
+                        origin.offset(stairX, offsetY, 7), Direction.NORTH, 5));
+            }
+        }
+        return new MissionBuildingPlanner.Site(
+                "test:" + floorCount + "-floor-irregular-office",
+                District.A_CORP,
+                bounds,
+                floorYs,
+                origin.offset(5, floorYs.getLast() - origin.getY(), 9),
+                entrance,
+                stairs,
+                routes,
+                List.of(),
+                masks,
+                TEST_SEED ^ 0x35464C4F4F52534CL ^ floorCount);
+    }
+
+    private static MissionBuildingPlanner.FloorMask syntheticIrregularFloorMask(
+            BlockPos origin, int floorY) {
+        List<BlockPos> cells = new ArrayList<>();
+        for (int z = 0; z < 10; z++) {
+            for (int x = 0; x < 12; x++) {
+                if (x >= 10 && z >= 5 || x == 0 && z >= 8) continue;
+                cells.add(new BlockPos(origin.getX() + x, floorY, origin.getZ() + z));
+            }
+        }
+        return new MissionBuildingPlanner.FloorMask(floorY, cells);
+    }
+
     private static MissionBuildingPlanner.Site syntheticSingleFloorSite(BlockPos origin) {
         int floorY = origin.getY();
         BoundingBox bounds = new BoundingBox(
@@ -3499,6 +3887,13 @@ public final class ExampleGameTests {
                             new BlockPos(x, floorY - 1, z), Blocks.STONE.defaultBlockState(),
                             Block.UPDATE_SKIP_ALL_SIDEEFFECTS | Block.UPDATE_CLIENTS);
                 }
+            }
+        }
+        for (int z = bounds.minZ(); z <= bounds.maxZ(); z++) {
+            for (int x = bounds.minX(); x <= bounds.maxX(); x++) {
+                helper.getLevel().setBlock(
+                        new BlockPos(x, bounds.maxY(), z), Blocks.STONE.defaultBlockState(),
+                        Block.UPDATE_SKIP_ALL_SIDEEFFECTS | Block.UPDATE_CLIENTS);
             }
         }
         Direction across = site.entrance().outward().getClockWise();

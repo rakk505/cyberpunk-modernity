@@ -147,6 +147,7 @@ final class MissionJournalData extends SavedData {
             PartyService.ParticipantSnapshot participants,
             MissionService.ContractContext context,
             MissionService.ActiveMission mission,
+            BlockPos navigation,
             long updatedTick) {
         if (context.deployed()) {
             throw new IllegalArgumentException("suspended mission context is still deployed");
@@ -155,7 +156,7 @@ final class MissionJournalData extends SavedData {
                 context.instanceId(), context.kind(), mission.type(),
                 mission.definitionId(), mission.title(), mission.briefing(), mission.objective(),
                 mission.targetDistrict(), mission.target().getX(), mission.target().getY(),
-                mission.target().getZ(), mission.target().getX(), mission.target().getZ(), false,
+                mission.target().getZ(), navigation.getX(), navigation.getZ(), false,
                 mission.reward(), context.streetCred(), mission.acceptedTick(),
                 MissionService.JournalStatus.ACTIVE, updatedTick);
         boolean changed = false;

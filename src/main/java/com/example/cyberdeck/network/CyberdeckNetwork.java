@@ -63,6 +63,10 @@ public final class CyberdeckNetwork {
                 RequestCityMapPacket.TYPE,
                 RequestCityMapPacket.STREAM_CODEC,
                 RequestCityMapPacket::handle);
+        registrar.playToServer(
+                RequestNavigationTrailPacket.TYPE,
+                RequestNavigationTrailPacket.STREAM_CODEC,
+                RequestNavigationTrailPacket::handle);
         registrar.playToClient(
                 OpenCityMapPacket.TYPE,
                 OpenCityMapPacket.STREAM_CODEC,

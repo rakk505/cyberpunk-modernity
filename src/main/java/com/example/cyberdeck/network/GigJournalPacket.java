@@ -73,10 +73,16 @@ public record GigJournalPacket(
                         entry.targetX(), entry.targetZ(), entry.reward(), entry.streetCred(),
                         entry.acceptedTick(), entry.updatedTick()))
                 .toList());
-        List<AvailableGig> available = AmbientGigService.availableOffers(player).stream()
+        List<AvailableGig> available = availableGigs(AmbientGigService.availableOffers(player));
+        return new GigJournalPacket(List.copyOf(contracts), available);
+    }
+
+    /** Data-only journal projection shared with fixed-catalog runtime audits. */
+    public static List<AvailableGig> availableGigs(
+            List<AmbientGigService.DiscoveredGig> discoveredGigs) {
+        return discoveredGigs.stream()
                 .map(discovered -> from(discovered.offerId(), discovered.offer()))
                 .toList();
-        return new GigJournalPacket(List.copyOf(contracts), available);
     }
 
     private static AvailableGig from(UUID offerId, MissionService.MissionOffer offer) {

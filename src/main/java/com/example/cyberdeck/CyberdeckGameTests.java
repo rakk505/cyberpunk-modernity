@@ -103,6 +103,7 @@ import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.dimension.DimensionType;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
@@ -768,11 +769,11 @@ public final class CyberdeckGameTests {
         BlockPos execPos = helper.absolutePos(new BlockPos(6, 2, 2));
         exec.snapTo(execPos.getX() + 0.5, execPos.getY(), execPos.getZ() + 0.5, 0.0F, 0.0F);
         exec.setRole(NpcRole.EXEC);
-        helper.assertTrue(NpcVoicelineService.acceptsTrigger(
+        helper.assertTrue(!NpcVoicelineService.acceptsTrigger(
                                 exec, false, NpcVoicelineService.DialogueTrigger.ATTACK)
-                        && !NpcVoicelineService.acceptsTrigger(
+                        && NpcVoicelineService.acceptsTrigger(
                                 exec, false, NpcVoicelineService.DialogueTrigger.INTERACT),
-                "Exec dialogue must retain its existing attack trigger");
+                "Exec dialogue must use right click without intercepting melee attacks");
         helper.assertTrue(exec.getMaxHealth() == 100.0F,
                 "Execs must have substantially more health than Residents");
         helper.assertTrue(CityNpc.limitIncomingDamage(NpcRole.EXEC, exec.getMaxHealth(), 1_000.0F)
@@ -2251,6 +2252,17 @@ public final class CyberdeckGameTests {
         // Move the player far outside detection range so nothing is visible in the cone: with no
         // exposed target the meter must fall and the soldier must eventually stand down.
         player.snapTo(enemyPos.getX() + 500.5, enemyPos.getY(), enemyPos.getZ() + 0.5, 180.0F, 0.0F);
+        for (int dz = -1; dz <= 1; dz++) {
+            for (int dx = -1; dx <= 1; dx++) {
+                if (dx == 0 && dz == 0) continue;
+                for (int y = 0; y <= 1; y++) {
+                    level.setBlock(
+                            enemyPos.offset(dx, y, dz), Blocks.STONE.defaultBlockState(),
+                            Block.UPDATE_ALL);
+                }
+            }
+        }
+        level.setBlock(enemyPos.above(2), Blocks.STONE.defaultBlockState(), Block.UPDATE_ALL);
         int before = enemy.getDetection();
         enemy.aiStep();
         helper.assertTrue(enemy.getDetection() < before,

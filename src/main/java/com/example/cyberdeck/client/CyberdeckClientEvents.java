@@ -11,12 +11,15 @@ import com.example.cyberdeck.healing.HealingConsumable;
 import com.example.cyberdeck.healing.HealingState;
 import com.example.cyberdeck.network.ActivateSkillPacket;
 import com.example.cyberdeck.network.CyberwareActionPacket;
+import com.example.cyberdeck.network.RequestNavigationTrailPacket;
 import com.example.cyberdeck.network.ToggleInterfacePacket;
 import com.example.cyberdeck.network.UseHealingConsumablePacket;
 import com.example.cyberdeck.movement.TacticalAction;
 import com.example.cyberdeck.movement.TacticalMovement;
 import com.example.cyberdeck.movement.TacticalMovementPacket;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -31,6 +34,7 @@ import net.neoforged.neoforge.client.event.MovementInputUpdateEvent;
 import net.neoforged.neoforge.client.event.RenderGuiLayerEvent;
 import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
 import net.neoforged.neoforge.client.network.ClientPacketDistributor;
+import org.lwjgl.glfw.GLFW;
 
 /**
  * Handles client input for the cyberdeck: sending the toggle packet on the key press,
@@ -40,6 +44,7 @@ import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 public final class CyberdeckClientEvents {
     private static boolean quickhackUseLatched;
     private static boolean chargedJumpHeld;
+    private static boolean navigationBindingMigrationChecked;
 
     private CyberdeckClientEvents() {
     }
@@ -48,6 +53,7 @@ public final class CyberdeckClientEvents {
     @SubscribeEvent
     public static void onClientTickPre(ClientTickEvent.Pre event) {
         Minecraft mc = Minecraft.getInstance();
+        migrateNavigationBinding(mc);
         QuickhackScannerClient.tick(mc);
         if (!mc.options.keyUse.isDown()) {
             quickhackUseLatched = false;
@@ -62,6 +68,29 @@ public final class CyberdeckClientEvents {
                 }
             }
             queueSelectedQuickhack(mc);
+        }
+        while (CyberdeckClient.NAVIGATION_TRAIL_KEY.consumeClick()) {
+            if (mc.player == null || mc.gui.screen() != null) {
+                continue;
+            }
+            if (mc.options.keyChat.same(CyberdeckClient.NAVIGATION_TRAIL_KEY)) {
+                while (mc.options.keyChat.consumeClick()) {
+                    // T belongs to navigation during gameplay, not vanilla chat.
+                }
+            }
+            ClientPacketDistributor.sendToServer(RequestNavigationTrailPacket.INSTANCE);
+        }
+    }
+
+    private static void migrateNavigationBinding(Minecraft minecraft) {
+        if (navigationBindingMigrationChecked) return;
+        navigationBindingMigrationChecked = true;
+        if ("key.keyboard.t".equals(CyberdeckClient.SANDEVISTAN_KEY.saveString())
+                && "key.keyboard.t".equals(CyberdeckClient.NAVIGATION_TRAIL_KEY.saveString())) {
+            CyberdeckClient.SANDEVISTAN_KEY.setKey(
+                    InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_B));
+            KeyMapping.resetMapping();
+            minecraft.options.save();
         }
     }
 

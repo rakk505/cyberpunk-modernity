@@ -117,6 +117,7 @@
   "key.cyberdeck.open_cyberware": "Open Cyberware Screen",
   "key.cyberdeck.open_city_map": "Open Project Moon City Map",
   "key.cyberdeck.open_journal": "Open Journal",
+  "key.cyberdeck.navigation_trail": "Show Mission Navigation Trail",
   "key.cyberdeck.sandevistan": "Toggle Sandevistan",
   "key.cyberdeck.arm_cannon": "Fire Arm Cannon",
     "key.cyberdeck.thretevac": "Activate Circulatory Cyberware",
@@ -307,5 +308,7 @@
   "tooltip.cyberdeck.grenade.poison_grenade": "Bursts into a lingering toxic cloud.",
   "message.cyberdeck.wanted.started": "EXCISION ALERT // WANTED LEVEL 1",
   "message.cyberdeck.wanted.escalated": "EXCISION ESCALATION // WANTED LEVEL 3",
-  "message.cyberdeck.wanted.cleared": "EXCISION PURSUIT CLEARED"
+  "message.cyberdeck.wanted.cleared": "EXCISION PURSUIT CLEARED",
+  "message.cyberdeck.navigation.no_active": "No active mission or gig is tracked.",
+  "message.cyberdeck.navigation.unavailable": "Navigation trail unavailable here."
 }
