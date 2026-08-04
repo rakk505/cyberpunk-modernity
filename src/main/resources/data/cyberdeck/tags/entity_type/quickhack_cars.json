@@ -1,0 +1,15 @@
+{
+  "replace": false,
+  "values": [
+    "vehicle_mod:motorbike",
+    "vehicle_mod:harley_motorcycle",
+    "vehicle_mod:cyberpunk_motorbike",
+    "vehicle_mod:orange_hypercar",
+    "vehicle_mod:bmw_m3_gtr",
+    "vehicle_mod:datsun_240z",
+    "vehicle_mod:jeep_wrangler",
+    "vehicle_mod:turbowagon",
+    "vehicle_mod:dune_buggy",
+    "vehicle_mod:road_roller"
+  ]
+}

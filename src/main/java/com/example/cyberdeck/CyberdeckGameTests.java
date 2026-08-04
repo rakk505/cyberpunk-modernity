@@ -16,6 +16,8 @@ import com.example.cyberdeck.cyberware.CyberwareAttachments;
 import com.example.cyberdeck.cyberware.CyberwareData;
 import com.example.cyberdeck.cyberware.CyberwareItems;
 import com.example.cyberdeck.cyberware.CyberwareItem;
+import com.example.cyberdeck.cyberware.CyberwareMechanics;
+import com.example.cyberdeck.cyberware.CyberwareStats;
 import com.example.cyberdeck.cyberware.SandevistanProfile;
 import com.example.cyberdeck.cyberware.SlotUnlock;
 import com.example.cyberdeck.defense.DefenseContent;
@@ -23,6 +25,7 @@ import com.example.cyberdeck.defense.KangTaoTurret;
 import com.example.cyberdeck.effect.SandevistanMechanics;
 import com.example.cyberdeck.effect.SandevistanState;
 import com.example.cyberdeck.effect.CyberwareEffects;
+import com.example.cyberdeck.effect.ChargedJump;
 import com.example.cyberdeck.effect.DoubleJumpGuard;
 import com.example.cyberdeck.economy.Emmies;
 import com.example.cyberdeck.faction.EnemyCombatRole;
@@ -56,6 +59,7 @@ import com.example.cyberdeck.movement.TacticalMovement;
 import com.example.cyberdeck.movement.TacticalMovementState;
 import com.example.cyberdeck.weapon.GrenadeType;
 import com.example.cyberdeck.weapon.GunType;
+import com.example.cyberdeck.weapon.WeaponSounds;
 import com.example.cyberdeck.weapon.GunItem;
 import com.example.cyberdeck.weapon.GunFiring;
 import com.example.cyberdeck.weapon.AmmoItem;
@@ -63,12 +67,15 @@ import com.example.cyberdeck.weapon.AmmoItems;
 import com.example.cyberdeck.weapon.AmmoType;
 import com.example.cyberdeck.weapon.CyberdeckDamageTypes;
 import com.example.cyberdeck.weapon.WeaponItems;
+import com.example.cyberdeck.vehicle.RoadsideVehicleSpawns;
+import com.modernity.vehicle_mod.vehicle_mod;
 import dev.modernity.neoncity.MegacityLayout;
 import dev.modernity.neoncity.District;
 import dev.modernity.neoncity.NeonCityGenerator;
 import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
 import net.minecraft.core.BlockPos;
@@ -104,6 +111,7 @@ import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.dimension.DimensionType;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
@@ -137,8 +145,14 @@ public final class CyberdeckGameTests {
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             GUNSHOT_RADIUS = register("gunshot_radius", CyberdeckGameTests::gunshotRadius);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            WEAPON_SOUND_PROFILES = register(
+                    "weapon_sound_profiles", CyberdeckGameTests::weaponSoundProfiles);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             MOUNTED_GUN_TARGETING = register(
                     "mounted_gun_targeting", CyberdeckGameTests::mountedGunTargeting);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            ROADSIDE_VEHICLE_FUEL = register(
+                    "roadside_vehicle_fuel", CyberdeckGameTests::roadsideVehicleFuel);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             CIVILIAN_NONCOMBAT = register(
                     "civilian_noncombat", CyberdeckGameTests::civilianNoncombat);
@@ -158,6 +172,15 @@ public final class CyberdeckGameTests {
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             CYBERWARE_VARIANT_MAPPINGS = register(
                     "cyberware_variant_mappings", CyberdeckGameTests::variantMappings);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            CYBERWARE_MECHANICS_COVERAGE = register(
+                    "cyberware_mechanics_coverage", CyberdeckGameTests::cyberwareMechanicsCoverage);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            CYBERWARE_STATS = register(
+                    "cyberware_stats", CyberdeckGameTests::cyberwareStats);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            FORTIFIED_ANKLES_CHARGE = register(
+                    "fortified_ankles_charge", CyberdeckGameTests::fortifiedAnklesCharge);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             TACTICAL_MOVEMENT_MATH = register(
                     "tactical_movement_math", CyberdeckGameTests::tacticalMovementMath);
@@ -312,6 +335,29 @@ public final class CyberdeckGameTests {
         helper.assertTrue(
                 GunFiring.canHitTarget(shooter, externalTarget),
                 "mounted shooter could not hit an unrelated external target");
+        helper.succeed();
+    }
+
+    private static void roadsideVehicleFuel(GameTestHelper helper) {
+        var vehicle = vehicle_mod.BMW_M3_GTR.get().create(
+                helper.getLevel(), EntitySpawnReason.COMMAND);
+        helper.assertTrue(vehicle != null, "vehicle dependency could not create a registered car");
+        int capacity = vehicle.getFuelCapacity();
+        Set<Integer> observed = new HashSet<>();
+        for (long seed = 1; seed <= 24; seed++) {
+            int fuel = RoadsideVehicleSpawns.randomizedFuelLevel(
+                    capacity, RandomSource.create(seed));
+            helper.assertTrue(
+                    fuel >= Math.max(1, Math.round(capacity * 0.05F))
+                            && fuel <= Math.round(capacity * 0.95F),
+                    "roadside vehicle fuel escaped the configured 5%-95% range");
+            observed.add(fuel);
+        }
+        int selected = observed.iterator().next();
+        vehicle.setFuel(selected);
+        helper.assertTrue(
+                observed.size() >= 8 && vehicle.getFuel() == selected,
+                "roadside vehicles did not receive varied native fuel values");
         helper.succeed();
     }
 
@@ -823,6 +869,25 @@ public final class CyberdeckGameTests {
         helper.succeed();
     }
 
+    private static void weaponSoundProfiles(GameTestHelper helper) {
+        helper.assertTrue(WeaponSounds.fireSound(GunType.PISTOL)
+                        == WeaponSounds.PISTOL_FIRE.get(),
+                "standard sidearms must use the light-pistol recording pool");
+        helper.assertTrue(WeaponSounds.fireSound(GunType.OVERTURE)
+                        == WeaponSounds.HEAVY_PISTOL_FIRE.get(),
+                "Overture must use the heavy-pistol recording pool");
+        helper.assertTrue(WeaponSounds.fireSound(GunType.TECH_AJAX)
+                        == WeaponSounds.RIFLE_FIRE.get(),
+                "Tech variants must retain their base firearm report");
+        helper.assertTrue(WeaponSounds.fireSound(GunType.SHOTGUN)
+                        != WeaponSounds.fireSound(GunType.SNIPER),
+                "shotguns and sniper rifles must remain acoustically distinct");
+        helper.assertTrue(WeaponSounds.volume(GunType.SNIPER)
+                        > WeaponSounds.volume(GunType.SMG),
+                "sniper reports must carry farther than automatic SMG shots");
+        helper.succeed();
+    }
+
     private static void minimapRotationGeometry(GameTestHelper helper) {
         int viewport = 88;
         int halfQuad = MinimapGeometry.coveringHalfSize(viewport);
@@ -933,11 +998,11 @@ public final class CyberdeckGameTests {
         BlockPos execPos = helper.absolutePos(new BlockPos(6, 2, 2));
         exec.snapTo(execPos.getX() + 0.5, execPos.getY(), execPos.getZ() + 0.5, 0.0F, 0.0F);
         exec.setRole(NpcRole.EXEC);
-        helper.assertTrue(NpcVoicelineService.acceptsTrigger(
+        helper.assertTrue(!NpcVoicelineService.acceptsTrigger(
                                 exec, false, NpcVoicelineService.DialogueTrigger.ATTACK)
-                        && !NpcVoicelineService.acceptsTrigger(
+                        && NpcVoicelineService.acceptsTrigger(
                                 exec, false, NpcVoicelineService.DialogueTrigger.INTERACT),
-                "Exec dialogue must retain its existing attack trigger");
+                "Exec dialogue must use right click without intercepting melee attacks");
         helper.assertTrue(exec.getMaxHealth() == 100.0F,
                 "Execs must have substantially more health than Residents");
         helper.assertTrue(CityNpc.limitIncomingDamage(NpcRole.EXEC, exec.getMaxHealth(), 1_000.0F)
@@ -1661,6 +1726,75 @@ public final class CyberdeckGameTests {
         helper.succeed();
     }
 
+    private static void cyberwareMechanicsCoverage(GameTestHelper helper) {
+        HashSet<String> coveredFamilies = new HashSet<>();
+        for (Cyberware cyberware : Cyberware.VALUES) {
+            for (String flag : cyberware.flags()) {
+                helper.assertTrue(CyberwareMechanics.implementsFlag(flag),
+                        cyberware.id() + " has an unimplemented mechanics flag: " + flag);
+            }
+            for (String value : cyberware.values().keySet()) {
+                helper.assertTrue(CyberwareMechanics.implementsValue(value),
+                        cyberware.id() + " has an unimplemented mechanics value: " + value);
+            }
+            if (CyberwareMechanics.hasRuntimeEffect(cyberware)) {
+                coveredFamilies.add(cyberware.familyId());
+            }
+        }
+        helper.assertValueEqual(coveredFamilies.size(), 121,
+                "cyberware families with at least one runtime effect");
+        helper.assertTrue(Cyberware.highest("biotech_sigma_mk_1_4")
+                        .value("quickhack_duration_percent") > 0.0,
+                "Biotech Sigma's combat-quickhack duration bonus must remain positive");
+        helper.assertTrue(Cyberware.highest("raven_microcyber_mk_1_3")
+                        .value("quickhack_spread_distance_percent") > 0.0,
+                "Raven Microcyber's quickhack spread bonus must remain positive");
+        helper.succeed();
+    }
+
+    private static void cyberwareStats(GameTestHelper helper) {
+        CyberwareData data = new CyberwareData();
+        Cyberware denseMarrow = Cyberware.highest("dense_marrow");
+        Cyberware titaniumBones = Cyberware.highest("titanium_bones");
+        Cyberware microrotors = Cyberware.highest("microrotors");
+        Cyberware immovableForce = Cyberware.highest("immovable_force");
+        data.install(denseMarrow, 0);
+        data.install(titaniumBones, 1);
+        data.install(microrotors, 0);
+        data.install(immovableForce, 0);
+
+        CyberwareStats stats = CyberwareStats.from(data);
+        helper.assertTrue(stats.meleeDamageBonus() > 0.0,
+                "Dense Marrow must contribute aggregated melee damage");
+        helper.assertTrue(stats.meleeAttackSpeedBonus() > 0.0,
+                "Microrotors must contribute aggregated melee attack speed");
+        helper.assertTrue(stats.carryingCapacityMultiplier() > 1.0,
+                "Titanium Bones must expose increased carrying capacity");
+        helper.assertTrue(stats.recoilReduction() > 0.0 && stats.spreadReduction() > 0.0,
+                "Immovable Force must reduce both recoil and spread");
+        helper.succeed();
+    }
+
+    private static void fortifiedAnklesCharge(GameTestHelper helper) {
+        Cyberware ankles = Cyberware.highest("fortified_ankles");
+        helper.assertTrue(ankles != null && ankles.hasFlag("charged_jump"),
+                "Fortified Ankles must carry the charged-jump mechanic");
+        double tapVelocity = ChargedJump.verticalVelocity(0.0);
+        double fullVelocity = ChargedJump.verticalVelocity(1.0);
+        helper.assertTrue(tapVelocity > 0.42,
+                "even an uncharged Fortified Ankles release must exceed a vanilla jump");
+        helper.assertTrue(fullVelocity > tapVelocity * 1.8,
+                "holding jump must build a materially higher vertical impulse");
+        helper.assertTrue(ChargedJump.forwardVelocity(1.0)
+                        > ChargedJump.forwardVelocity(0.0),
+                "charging must also increase jump distance");
+        helper.assertTrue(ChargedJump.chargeProgress(ChargedJump.MAX_CHARGE_TICKS) == 1.0,
+                "the Fortified Ankles charge curve must cap exactly at full charge");
+        helper.assertTrue(ChargedJump.chargeProgress(ChargedJump.MAX_CHARGE_TICKS * 10) == 1.0,
+                "holding a full Fortified Ankles charge must not invalidate it");
+        helper.succeed();
+    }
+
     private static void quickhackLongRange(GameTestHelper helper) {
         helper.assertTrue(QuickhackUploads.MAX_TARGET_RANGE >= 128.0,
                 "quickhacks must reach at least eight chunks");
@@ -2347,6 +2481,17 @@ public final class CyberdeckGameTests {
         // Move the player far outside detection range so nothing is visible in the cone: with no
         // exposed target the meter must fall and the soldier must eventually stand down.
         player.snapTo(enemyPos.getX() + 500.5, enemyPos.getY(), enemyPos.getZ() + 0.5, 180.0F, 0.0F);
+        for (int dz = -1; dz <= 1; dz++) {
+            for (int dx = -1; dx <= 1; dx++) {
+                if (dx == 0 && dz == 0) continue;
+                for (int y = 0; y <= 1; y++) {
+                    level.setBlock(
+                            enemyPos.offset(dx, y, dz), Blocks.STONE.defaultBlockState(),
+                            Block.UPDATE_ALL);
+                }
+            }
+        }
+        level.setBlock(enemyPos.above(2), Blocks.STONE.defaultBlockState(), Block.UPDATE_ALL);
         int before = enemy.getDetection();
         enemy.aiStep();
         helper.assertTrue(enemy.getDetection() < before,
@@ -2903,6 +3048,7 @@ public final class CyberdeckGameTests {
         registerInstance(event, "enemy_netrunner_contracts", ENEMY_NETRUNNER_CONTRACTS, data);
         registerInstance(event, "gunshot_radius", GUNSHOT_RADIUS, data);
         registerInstance(event, "mounted_gun_targeting", MOUNTED_GUN_TARGETING, data);
+        registerInstance(event, "roadside_vehicle_fuel", ROADSIDE_VEHICLE_FUEL, data);
         registerInstance(event, "civilian_noncombat", CIVILIAN_NONCOMBAT, data);
         registerInstance(event, "civilian_population", CIVILIAN_POPULATION, data);
         registerInstance(event, "city_actor_join_compatibility",

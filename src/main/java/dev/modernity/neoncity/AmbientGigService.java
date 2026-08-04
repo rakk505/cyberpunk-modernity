@@ -22,15 +22,20 @@ public final class AmbientGigService {
     private static final long BOARD_SALT = 0x414D4249454E5447L;
     private static final String OWNER_ID_PREFIX = "cyberdeck:gig-board-owner:v2:";
     private static final int TARGET_SPREAD = 256;
+    private static final UUID OFFER_AVAILABILITY_PROBE = UUID.nameUUIDFromBytes(
+            "cyberdeck:gig-site-availability".getBytes(StandardCharsets.UTF_8));
     private static final Map<UUID, AmbientGigData.OwnerKey> LAST_OWNER = new HashMap<>();
     private static final Map<UUID, District> LAST_DISTRICT = new HashMap<>();
 
     private AmbientGigService() {
     }
 
-    public record DiscoveredGig(UUID offerId, MissionService.MissionOffer offer) {
+    public record DiscoveredGig(
+            UUID offerId,
+            MissionService.MissionOffer offer,
+            MissionBuildingPlanner.Site site) {
         public DiscoveredGig {
-            if (offerId == null || offer == null) {
+            if (offerId == null || offer == null || site == null) {
                 throw new IllegalArgumentException("Discovered gig fields are required");
             }
         }
@@ -69,14 +74,34 @@ public final class AmbientGigService {
         if (!(player.level() instanceof ServerLevel level)) return List.of();
         District district = inhabitedDistrict(player).orElse(null);
         if (district == null) return List.of();
-        return availableOffers(level, owner(player), district);
+        return offersFor(player, district);
+    }
+
+    static List<DiscoveredGig> offersFor(ServerPlayer player, District district) {
+        if (player == null || district == null
+                || !(player.level() instanceof ServerLevel level)
+                || level != level.getServer().overworld()) {
+            return List.of();
+        }
+        AmbientGigData.OwnerKey owner = owner(player);
+        ensureBoard(level, owner, district);
+        return availableOffers(level, owner, district);
     }
 
     /** Accepts one stable offer after revalidating party ownership and current district. */
     public static boolean accept(ServerPlayer player, UUID offerId) {
-        if (offerId == null || !(player.level() instanceof ServerLevel level)) return false;
+        if (offerId == null) return false;
         District district = inhabitedDistrict(player).orElse(null);
         if (district == null) return false;
+        return accept(player, district, offerId);
+    }
+
+    static boolean accept(ServerPlayer player, District district, UUID offerId) {
+        if (offerId == null || district == null
+                || !(player.level() instanceof ServerLevel level)
+                || level != level.getServer().overworld()) {
+            return false;
+        }
         AmbientGigData.OwnerKey owner = owner(player);
         DiscoveredGig discovered = availableOffers(level, owner, district).stream()
                 .filter(gig -> gig.offerId().equals(offerId))
@@ -90,11 +115,15 @@ public final class AmbientGigService {
             return false;
         }
         AmbientGigData data = AmbientGigData.get(level);
-        AmbientGigData.StoredOffer stored = new AmbientGigData.StoredOffer(
-                offerId, definition.id(), discovered.offer().targetX(),
-                discovered.offer().targetZ(), discovered.offer().reward());
+        AmbientGigData.StoredOffer stored = data.pool(owner, district)
+                .flatMap(pool -> pool.offers().stream()
+                        .filter(candidate -> candidate.id().equals(offerId))
+                        .findFirst())
+                .orElse(null);
+        if (stored == null || !offerSiteAvailable(level, discovered.site())) return false;
         if (!data.removeOffer(owner, district, offerId)) return false;
-        if (!MissionService.acceptDiscovered(player, definition, discovered.offer())) {
+        if (!MissionService.acceptDiscovered(
+                player, definition, discovered.offer(), discovered.site())) {
             data.restoreOffer(owner, district, stored);
             notifyBoardChanged(player);
             return false;
@@ -146,16 +175,28 @@ public final class AmbientGigService {
         AmbientGigData.Pool pool = AmbientGigData.get(level).pool(owner, district).orElse(null);
         if (pool == null || pool.refreshEligible()) return List.of();
         ArrayList<DiscoveredGig> available = new ArrayList<>();
+        ArrayList<MissionBuildingPlanner.Site> claimedSites = new ArrayList<>(
+                MainlineQuestData.get(level).sites());
+        pool.offers().stream()
+                .map(AmbientGigData.StoredOffer::plannedSite)
+                .flatMap(Optional::stream)
+                .forEach(claimedSites::add);
         for (AmbientGigData.StoredOffer stored : pool.offers()) {
             try {
                 MissionCatalog.MissionDefinition definition =
                         MissionCatalog.definition(stored.definitionId());
-                if (!definition.targetDistricts().contains(district)) continue;
+                MissionBuildingPlanner.Site site = offerSite(
+                        level, definition, district, stored, claimedSites);
+                if (!definition.targetDistricts().contains(district)
+                        || site == null || site.district() != district
+                        || !offerSiteAvailable(level, site)) continue;
+                claimedSites.add(site);
+                BlockPos navigation = MissionBuildingPlanner.navigationTarget(site);
                 available.add(new DiscoveredGig(stored.id(), new MissionService.MissionOffer(
                         definition.id(), definition.type(), definition.title(),
                         definition.briefing(), definition.objectiveText(), district.ordinal(),
-                        stored.targetX(), stored.targetZ(), stored.reward(),
-                        definition.streetCred())));
+                        navigation.getX(), navigation.getZ(), stored.reward(),
+                        definition.streetCred()), site));
             } catch (IllegalArgumentException removedDefinition) {
                 // A server configuration change invalidates only this entry; it is pruned on
                 // the next tick without replenishing offers the group already accepted.
@@ -172,19 +213,117 @@ public final class AmbientGigService {
         AmbientGigData data = AmbientGigData.get(level);
         AmbientGigData.Pool previous = data.pool(owner, district).orElse(null);
         if (previous != null && !previous.refreshEligible()) {
-            List<AmbientGigData.StoredOffer> retained = previous.offers().stream()
-                    .filter(offer -> valid(offer, district))
-                    .limit(OFFERS_PER_DISTRICT)
-                    .toList();
-            return data.replaceOffers(owner, district, retained);
+            return retainBoard(data, owner, district, previous);
         }
+        List<MissionBuildingPlanner.Site> candidates = GigSiteData.get(level)
+                .candidates(district).stream()
+                .filter(site -> offerSiteAvailable(level, site))
+                .toList();
+        if (candidates.isEmpty()) return false;
+        return replaceBoard(level, owner, district, previous, candidates);
+    }
 
+    /** Candidate-injected board refresh used by deterministic lifecycle tests. */
+    static boolean ensureBoard(
+            ServerLevel level,
+            AmbientGigData.OwnerKey owner,
+            District district,
+            List<MissionBuildingPlanner.Site> candidates) {
+        AmbientGigData data = AmbientGigData.get(level);
+        AmbientGigData.Pool previous = data.pool(owner, district).orElse(null);
+        if (previous != null && !previous.refreshEligible()) {
+            return retainBoard(data, owner, district, previous);
+        }
+        return replaceBoard(level, owner, district, previous, candidates);
+    }
+
+    private static boolean retainBoard(
+            AmbientGigData data,
+            AmbientGigData.OwnerKey owner,
+            District district,
+            AmbientGigData.Pool previous) {
+        List<AmbientGigData.StoredOffer> retained = previous.offers().stream()
+                .filter(offer -> valid(offer, district))
+                .limit(OFFERS_PER_DISTRICT)
+                .toList();
+        return data.replaceOffers(owner, district, retained);
+    }
+
+    private static boolean replaceBoard(
+            ServerLevel level,
+            AmbientGigData.OwnerKey owner,
+            District district,
+            AmbientGigData.Pool previous,
+            List<MissionBuildingPlanner.Site> candidates) {
+        AmbientGigData data = AmbientGigData.get(level);
         long generation = previous == null ? 0L : previous.generation() + 1L;
         data.replace(owner, district, generation,
                 generateStoredOffers(
                         NeonCityGenerator.layout(), NeonCityGenerator.contentSeed(),
-                        owner, district, generation));
+                        owner, district, generation, candidates));
         return true;
+    }
+
+    static List<AmbientGigData.StoredOffer> generateStoredOffers(
+            MegacityLayout layout,
+            long worldSeed,
+            AmbientGigData.OwnerKey owner,
+            District district,
+            long generation,
+            List<MissionBuildingPlanner.Site> candidates) {
+        List<MissionBuildingPlanner.Site> usable = candidates == null ? List.of() : candidates.stream()
+                .filter(site -> site != null && site.district() == district)
+                .collect(java.util.stream.Collectors.toMap(
+                        MissionBuildingPlanner.Site::id,
+                        site -> site,
+                        (first, ignored) -> first,
+                        java.util.LinkedHashMap::new))
+                .values().stream()
+                .sorted(java.util.Comparator
+                        .comparingLong((MissionBuildingPlanner.Site site) -> MegacityLayout.mix(
+                                boardHash(layout, worldSeed, owner, district, generation, 0),
+                                site.target().getX(), site.target().getZ()))
+                        .thenComparing(MissionBuildingPlanner.Site::id))
+                .limit(OFFERS_PER_DISTRICT)
+                .toList();
+        List<MissionCatalog.MissionDefinition> definitions = MissionCatalog.definitions().stream()
+                .filter(definition -> definition.targetDistricts().contains(district))
+                .toList();
+        if (definitions.isEmpty() || usable.isEmpty()) return List.of();
+
+        ArrayList<AmbientGigData.StoredOffer> offers = new ArrayList<>(OFFERS_PER_DISTRICT);
+        ArrayList<MissionBuildingPlanner.Site> selectedSites = new ArrayList<>(usable);
+        int buildingIndex = 0;
+        for (int index = 0; index < OFFERS_PER_DISTRICT; index++) {
+            long hash = boardHash(layout, worldSeed, owner, district, generation, index);
+            MissionCatalog.MissionDefinition definition = definitions.get(
+                    Math.floorMod((int) Long.rotateRight(hash, 19), definitions.size()));
+            MissionBuildingPlanner.Site site;
+            if (definition.type() == MissionCatalog.MissionType.NEUTRALIZE_CYBERPSYCHO) {
+                site = PublicEncounterPlanner.plan(
+                                layout, district, hash ^ BOARD_SALT,
+                                definition.id() + ":" + generation + ":" + index,
+                                selectedSites)
+                        .orElse(null);
+            } else {
+                site = buildingIndex < usable.size() ? usable.get(buildingIndex++) : null;
+            }
+            if (site == null) continue;
+            if (definition.type() == MissionCatalog.MissionType.NEUTRALIZE_CYBERPSYCHO) {
+                selectedSites.add(site);
+            }
+            BlockPos target = MissionBuildingPlanner.navigationTarget(site);
+            int reward = definition.rewardMin() + Math.floorMod(
+                    (int) Long.rotateRight(hash, 41),
+                    definition.rewardMax() - definition.rewardMin() + 1);
+            UUID offerId = UUID.nameUUIDFromBytes((
+                    worldSeed + ":" + layout.seed() + ":" + owner.party() + ":" + owner.id()
+                            + ":" + district.name() + ":" + generation + ":" + index + ":"
+                            + site.id()).getBytes(StandardCharsets.UTF_8));
+            offers.add(new AmbientGigData.StoredOffer(
+                    offerId, definition.id(), target.getX(), target.getZ(), reward, site.save()));
+        }
+        return List.copyOf(offers);
     }
 
     static List<AmbientGigData.StoredOffer> generateStoredOffers(
@@ -308,11 +447,61 @@ public final class AmbientGigService {
 
     private static boolean valid(AmbientGigData.StoredOffer offer, District district) {
         try {
-            return MissionCatalog.definition(offer.definitionId())
-                    .targetDistricts().contains(district);
+            MissionCatalog.MissionDefinition definition = MissionCatalog.definition(
+                    offer.definitionId());
+            return definition.targetDistricts().contains(district)
+                    && offer.plannedSite().filter(site -> site.district() == district)
+                            .filter(site -> definition.type()
+                                            == MissionCatalog.MissionType.NEUTRALIZE_CYBERPSYCHO
+                                    || !PublicEncounterPlanner.isPublicSite(site))
+                            .isPresent();
         } catch (IllegalArgumentException removedDefinition) {
             return false;
         }
+    }
+
+    private static boolean offerSiteAvailable(
+            ServerLevel level, MissionBuildingPlanner.Site site) {
+        return site != null
+                && (!PublicEncounterPlanner.isPublicSite(site)
+                        || PublicEncounterPlanner.isPublicTarget(
+                                NeonCityGenerator.layout(), site.district(),
+                                site.target().getX(), site.target().getZ()))
+                && !MainlineQuestService.conflictsReservedSite(level, site, null)
+                && !MissionSiteData.get(level).isReservedByOther(
+                        site.id(), site, OFFER_AVAILABILITY_PROBE);
+    }
+
+    private static MissionBuildingPlanner.Site offerSite(
+            ServerLevel level,
+            MissionCatalog.MissionDefinition definition,
+            District district,
+            AmbientGigData.StoredOffer stored,
+            List<MissionBuildingPlanner.Site> excluded) {
+        MissionBuildingPlanner.Site storedSite = stored.plannedSite().orElse(null);
+        if (definition.type() != MissionCatalog.MissionType.NEUTRALIZE_CYBERPSYCHO) {
+            return PublicEncounterPlanner.isPublicSite(storedSite) ? null : storedSite;
+        }
+        if (PublicEncounterPlanner.isPublicSite(storedSite)
+                && storedSite.district() == district
+                && offerSiteAvailable(level, storedSite)) {
+            return storedSite;
+        }
+        long seed = NeonCityGenerator.contentSeed()
+                ^ stored.id().getMostSignificantBits()
+                ^ Long.rotateLeft(stored.id().getLeastSignificantBits(), 23)
+                ^ definition.id().hashCode();
+        for (int attempt = 0; attempt < 16; attempt++) {
+            MissionBuildingPlanner.Site candidate = PublicEncounterPlanner.plan(
+                            NeonCityGenerator.layout(), district,
+                            MegacityLayout.mix(seed, attempt, district.ordinal()),
+                            definition.id() + ":" + stored.id(), excluded)
+                    .orElse(null);
+            if (candidate != null && offerSiteAvailable(level, candidate)) {
+                return candidate;
+            }
+        }
+        return null;
     }
 
     private static long boardHash(

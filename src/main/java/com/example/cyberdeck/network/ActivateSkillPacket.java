@@ -4,6 +4,9 @@ import com.example.cyberdeck.Cyberdeck;
 import com.example.cyberdeck.CyberdeckState;
 import com.example.cyberdeck.skill.QuickhackUploads;
 import com.example.cyberdeck.skill.Skill;
+import com.example.cyberdeck.skill.DeviceQuickhack;
+import com.example.cyberdeck.skill.QuickhackTargets;
+import com.example.cyberdeck.defense.KangTaoTurret;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
@@ -21,7 +24,7 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 /**
  * Sent from the client to the server when the player clicks a skill slot while targeting an entity.
  *
- * @param slot     scanner quickhack index (0-6)
+ * @param slot     target-specific scanner action index
  * @param targetId the network id of the targeted entity
  */
 public record ActivateSkillPacket(int slot, int targetId) implements CustomPacketPayload {
@@ -53,23 +56,41 @@ public record ActivateSkillPacket(int slot, int targetId) implements CustomPacke
                         "message.cyberdeck.cyberdeck_required"), true);
                 return;
             }
-            Skill skill = Skill.fromSlot(packet.slot());
-            if (skill == null || skill == Skill.STANDBY) {
-                return;
-            }
             // Selection belongs to the scanner sidebar, not to vanilla's hotbar. The server still
-            // constrains the packet to a real, non-standby Skill and owns every target/RAM check.
+            // constrains the packet to an action supported by the authoritative target entity.
             if (!(player.level() instanceof ServerLevel level)) {
                 return;
             }
             Entity target = level.getEntity(packet.targetId());
-            if (!(target instanceof LivingEntity living) || !living.isAlive()) {
+            if (target == null || !target.isAlive() || !QuickhackTargets.isActionable(target)) {
+                sendFailure(player, "message.cyberdeck.quickhack_invalid_target");
+                return;
+            }
+            if (!QuickhackTargets.isUnderScannerReticle(player, target, level)) {
                 sendFailure(player, "message.cyberdeck.quickhack_invalid_target");
                 return;
             }
 
-            QuickhackUploads.EnqueueResult result =
-                    QuickhackUploads.enqueue(player, skill, living, level);
+            DeviceQuickhack deviceQuickhack = QuickhackTargets.isDevice(target)
+                    ? DeviceQuickhack.fromSlot(target, packet.slot()) : null;
+            Skill skill = deviceQuickhack == null ? Skill.fromSlot(packet.slot()) : null;
+            if (deviceQuickhack == null
+                    && (skill == null || skill == Skill.STANDBY
+                            || !(target instanceof LivingEntity living)
+                            || !(living instanceof net.minecraft.world.entity.monster.Enemy))) {
+                return;
+            }
+
+            QuickhackUploads.EnqueueResult result = deviceQuickhack != null
+                    ? QuickhackUploads.enqueueDevice(player, deviceQuickhack, target, level)
+                    : QuickhackUploads.enqueue(player, skill, (LivingEntity) target, level);
+            String actionName = deviceQuickhack != null
+                    ? deviceQuickhack.displayName() : skill.displayName();
+            int ramCost = deviceQuickhack != null
+                    ? com.example.cyberdeck.effect.CyberwareEffects
+                            .quickhackRamCost(player, deviceQuickhack)
+                    : com.example.cyberdeck.effect.CyberwareEffects
+                            .quickhackRamCost(player, skill);
             switch (result.status()) {
                 case ACCEPTED -> {
                     // The scanner list, RAM rail and upload marker acknowledge this without a
@@ -77,7 +98,7 @@ public record ActivateSkillPacket(int slot, int targetId) implements CustomPacke
                 }
                 case INSUFFICIENT_RAM -> {
                     player.sendSystemMessage(Component.translatable("message.cyberdeck.no_ram",
-                            skill.ramCost(), result.availableRam()), true);
+                            ramCost, result.availableRam()), true);
                     playFailure(player);
                 }
                 case QUEUE_FULL -> {
@@ -88,7 +109,18 @@ public record ActivateSkillPacket(int slot, int targetId) implements CustomPacke
                 }
                 case DUPLICATE_SKILL -> {
                     player.sendSystemMessage(Component.translatable(
-                            "message.cyberdeck.quickhack_duplicate", skill.displayName()), true);
+                            "message.cyberdeck.quickhack_duplicate", actionName), true);
+                    playFailure(player);
+                }
+                case INSUFFICIENT_TIER -> {
+                    if (target instanceof KangTaoTurret turret) {
+                        player.sendSystemMessage(Component.translatable(
+                                "message.cyberdeck.turret_tier_required",
+                                turret.getSecurityLevel(),
+                                KangTaoTurret.cyberdeckSecurityLevel(
+                                        com.example.cyberdeck.cyberware.CyberwareAttachments
+                                                .get(player))), true);
+                    }
                     playFailure(player);
                 }
                 case INVALID_TARGET -> sendFailure(

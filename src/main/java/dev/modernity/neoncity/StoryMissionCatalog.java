@@ -249,7 +249,8 @@ public final class StoryMissionCatalog {
                 throw new IllegalArgumentException("story mission entry is not an object");
             }
             JsonObject value = element.getAsJsonObject();
-            MissionCatalog.MissionDefinition encounter = MissionCatalog.parseDefinition(value);
+            MissionCatalog.MissionDefinition encounter = normalizeEncounter(
+                    MissionCatalog.parseDefinition(value));
             if (!ids.add(encounter.id())) {
                 throw new IllegalArgumentException("duplicate story mission " + encounter.id());
             }
@@ -261,6 +262,21 @@ public final class StoryMissionCatalog {
         if (result.isEmpty()) throw new IllegalArgumentException("story mission DAG is empty");
         validateMissionDag(result);
         return new Catalog(result, characters);
+    }
+
+    private static MissionCatalog.MissionDefinition normalizeEncounter(
+            MissionCatalog.MissionDefinition encounter) {
+        if (encounter.type() != MissionCatalog.MissionType.NEUTRALIZE_CYBERPSYCHO
+                || encounter.guards() == 0) {
+            return encounter;
+        }
+        return new MissionCatalog.MissionDefinition(
+                encounter.id(), encounter.type(), encounter.title(), encounter.briefing(),
+                encounter.targetName(), encounter.targetDistricts(), encounter.rewardMin(),
+                encounter.rewardMax(), 0, encounter.objectiveRadius(),
+                encounter.cyberpsychoHealth(), encounter.cyberpsychoGun(),
+                encounter.cyberpsychoGrenades(), encounter.cyberware(), encounter.cargoItem(),
+                encounter.cargoCount(), encounter.streetCred(), encounter.activationRadius());
     }
 
     private static Map<String, CharacterDefinition> parseCharacters(JsonArray values) {
@@ -307,23 +323,34 @@ public final class StoryMissionCatalog {
             throw new IllegalArgumentException(encounter.id() + " has unknown target " + target);
         }
 
+        boolean cyberpsycho = encounter.type()
+                == MissionCatalog.MissionType.NEUTRALIZE_CYBERPSYCHO;
         JsonObject dag = requiredObject(value, "dag");
         List<StoryNode> nodes = parseNodes(encounter.id(), requiredArray(dag, "nodes"), characters);
+        if (cyberpsycho) {
+            nodes = nodes.stream().map(node -> new StoryNode(
+                    node.id(), node.type(), node.characterId(), node.district(), node.location(),
+                    1, node.dialogue(), node.dependsOn())).toList();
+        }
         String completionNode = id(dag, "completion_node");
         validateNodeDag(encounter.id(), nodes, completionNode);
 
         JsonObject scale = requiredObject(value, "scale");
-        int requestedFloors = range(requiredInteger(scale, "floor_count"), 2, 5, "floor_count");
-        List<Integer> enemies = integers(requiredArray(scale, "enemies_per_floor"));
-        if (enemies.size() != requestedFloors || enemies.stream().anyMatch(count -> count < 0 || count > 16)) {
+        int configuredFloors = range(
+                requiredInteger(scale, "floor_count"), cyberpsycho ? 1 : 2, 5, "floor_count");
+        List<Integer> configuredEnemies = integers(requiredArray(scale, "enemies_per_floor"));
+        if (configuredEnemies.size() != configuredFloors
+                || configuredEnemies.stream().anyMatch(count -> count < 0 || count > 16)) {
             throw new IllegalArgumentException(
                     encounter.id() + " enemies_per_floor must match floor_count and stay in 0..16");
         }
-        int configuredEnemies = enemies.stream().mapToInt(Integer::intValue).sum();
-        if (encounter.guards() != configuredEnemies) {
+        int configuredEnemyTotal = configuredEnemies.stream().mapToInt(Integer::intValue).sum();
+        if (!cyberpsycho && encounter.guards() != configuredEnemyTotal) {
             throw new IllegalArgumentException(
                     encounter.id() + " guards must equal enemies_per_floor total");
         }
+        int requestedFloors = cyberpsycho ? 1 : configuredFloors;
+        List<Integer> enemies = cyberpsycho ? List.of(0) : configuredEnemies;
         double enemyPower = requiredDouble(scale, "enemy_power");
         if (!Double.isFinite(enemyPower) || enemyPower < 1.0 || enemyPower > 4.0) {
             throw new IllegalArgumentException(encounter.id() + " enemy_power outside 1.0..4.0");
@@ -363,12 +390,15 @@ public final class StoryMissionCatalog {
             case STEAL_DATA -> NodeType.STEAL;
             case SHIP_ITEM -> NodeType.DELIVER;
         };
+        boolean cyberpsycho = encounter.type()
+                == MissionCatalog.MissionType.NEUTRALIZE_CYBERPSYCHO;
         StoryNode node = new StoryNode(
                 encounter.id() + "_objective", type, "", primary.commandCode(),
-                encounter.targetName(), 2, "", List.of());
-        int floors = 2;
+                encounter.targetName(), cyberpsycho ? 1 : 2, "", List.of());
+        int floors = cyberpsycho ? 1 : 2;
         int lower = encounter.guards() / 2;
-        List<Integer> enemies = List.of(lower, encounter.guards() - lower);
+        List<Integer> enemies = cyberpsycho
+                ? List.of(0) : List.of(lower, encounter.guards() - lower);
         return new StoryMission(
                 encounter, prerequisites, requiredStreetCred, "Mainline", primary,
                 List.of(primary), "", "", List.of(node), node.id(), floors, enemies,

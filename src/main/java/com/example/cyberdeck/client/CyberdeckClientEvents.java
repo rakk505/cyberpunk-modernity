@@ -11,24 +11,31 @@ import com.example.cyberdeck.healing.HealingConsumable;
 import com.example.cyberdeck.healing.HealingState;
 import com.example.cyberdeck.network.ActivateSkillPacket;
 import com.example.cyberdeck.network.CyberwareActionPacket;
+import com.example.cyberdeck.network.RequestNavigationTrailPacket;
 import com.example.cyberdeck.network.ToggleInterfacePacket;
 import com.example.cyberdeck.network.UseHealingConsumablePacket;
 import com.example.cyberdeck.movement.TacticalAction;
 import com.example.cyberdeck.movement.TacticalMovement;
 import com.example.cyberdeck.movement.TacticalMovementPacket;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.resources.Identifier;
-import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.player.Input;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.InputEvent;
+import net.neoforged.neoforge.client.event.MovementInputUpdateEvent;
 import net.neoforged.neoforge.client.event.RenderGuiLayerEvent;
+import net.neoforged.neoforge.client.event.RenderHandEvent;
 import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
 import net.neoforged.neoforge.client.network.ClientPacketDistributor;
+import org.lwjgl.glfw.GLFW;
 
 /**
  * Handles client input for the cyberdeck: sending the toggle packet on the key press,
@@ -37,6 +44,8 @@ import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 @EventBusSubscriber(modid = Cyberdeck.MODID, value = Dist.CLIENT)
 public final class CyberdeckClientEvents {
     private static boolean quickhackUseLatched;
+    private static boolean chargedJumpHeld;
+    private static boolean navigationBindingMigrationChecked;
 
     private CyberdeckClientEvents() {
     }
@@ -45,7 +54,31 @@ public final class CyberdeckClientEvents {
     @SubscribeEvent
     public static void onClientTickPre(ClientTickEvent.Pre event) {
         Minecraft mc = Minecraft.getInstance();
+        migrateNavigationBinding(mc);
         QuickhackScannerClient.tick(mc);
+        if (EntityControlClient.isActive()) {
+            while (CyberdeckClient.QUEUE_QUICKHACK_KEY.consumeClick()) {
+                // Do not leak a queued scanner action into the tick after remote control exits.
+            }
+            while (CyberdeckClient.PREVIOUS_QUICKHACK_KEY.consumeClick()) {
+                // Device controls replace scanner selection while the remote link is active.
+            }
+            while (CyberdeckClient.NEXT_QUICKHACK_KEY.consumeClick()) {
+                // Device controls replace scanner selection while the remote link is active.
+            }
+            while (mc.options.keyDrop.consumeClick()) {
+                // The unattended player body cannot drop items during remote control.
+            }
+            while (mc.options.keySwapOffhand.consumeClick()) {
+                // The remote-control action layer owns the normal offhand key.
+            }
+            for (KeyMapping hotbarKey : mc.options.keyHotbarSlots) {
+                while (hotbarKey.consumeClick()) {
+                    // Keep the physical player's selected item stable while controlling a device.
+                }
+            }
+            return;
+        }
         if (!mc.options.keyUse.isDown()) {
             quickhackUseLatched = false;
         }
@@ -60,6 +93,39 @@ public final class CyberdeckClientEvents {
             }
             queueSelectedQuickhack(mc);
         }
+        while (CyberdeckClient.NAVIGATION_TRAIL_KEY.consumeClick()) {
+            if (mc.player == null || mc.gui.screen() != null) {
+                continue;
+            }
+            if (mc.options.keyChat.same(CyberdeckClient.NAVIGATION_TRAIL_KEY)) {
+                while (mc.options.keyChat.consumeClick()) {
+                    // T belongs to navigation during gameplay, not vanilla chat.
+                }
+            }
+            ClientPacketDistributor.sendToServer(RequestNavigationTrailPacket.INSTANCE);
+        }
+    }
+
+    private static void migrateNavigationBinding(Minecraft minecraft) {
+        if (navigationBindingMigrationChecked) return;
+        navigationBindingMigrationChecked = true;
+        boolean changed = false;
+        if ("key.keyboard.t".equals(CyberdeckClient.SANDEVISTAN_KEY.saveString())
+                && "key.keyboard.t".equals(CyberdeckClient.NAVIGATION_TRAIL_KEY.saveString())) {
+            CyberdeckClient.SANDEVISTAN_KEY.setKey(
+                    InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_B));
+            changed = true;
+        }
+        if ("key.keyboard.t".equals(CyberdeckClient.NAVIGATION_TRAIL_KEY.saveString())
+                && "key.keyboard.t".equals(minecraft.options.keyChat.saveString())) {
+            minecraft.options.keyChat.setKey(
+                    InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_ENTER));
+            changed = true;
+        }
+        if (changed) {
+            KeyMapping.resetMapping();
+            minecraft.options.save();
+        }
     }
 
     @SubscribeEvent
@@ -67,10 +133,21 @@ public final class CyberdeckClientEvents {
         Minecraft mc = Minecraft.getInstance();
         CityMapNavigationClient.tick(mc);
         if (mc.player == null) {
+            EntityControlClient.clear();
             QuickhackScannerClient.reset();
             return;
         }
         HealingConsumableClient.migrateLegacyUseBinding(mc);
+
+        if (EntityControlClient.isActive()) {
+            while (CyberdeckClient.TOGGLE_KEY.consumeClick()) {
+                EntityControlClient.requestExit();
+            }
+            EntityControlClient.tick(mc);
+            cancelChargedJump();
+            resetJumpTracking();
+            return;
+        }
 
         while (CyberdeckClient.OPEN_CITY_MAP_KEY.consumeClick()) {
             if (mc.gui.screen() == null) {
@@ -104,6 +181,7 @@ public final class CyberdeckClientEvents {
 
         // The remaining inputs are only meaningful when a screen is not open.
         if (mc.gui.screen() != null) {
+            cancelChargedJump();
             resetJumpTracking();
             return;
         }
@@ -233,9 +311,88 @@ public final class CyberdeckClientEvents {
         jumpKeyWasDown = false;
     }
 
+    /**
+     * Fortified Ankles replaces the ordinary ground jump with a press/hold/release charge. This
+     * event runs after keyboard state is sampled but before the local player consumes it, allowing
+     * the client to suppress only the vanilla jump bit while the server owns charge duration and
+     * final velocity.
+     */
+    @SubscribeEvent
+    public static void onMovementInput(MovementInputUpdateEvent event) {
+        if (!(event.getEntity() instanceof Player player)) {
+            return;
+        }
+        var input = event.getInput();
+        Input presses = input.keyPresses;
+        if (EntityControlClient.isActive()) {
+            cancelChargedJump();
+            input.keyPresses = new Input(false, false, false, false,
+                    false, false, false);
+            return;
+        }
+        boolean installed = CyberwareAttachments.get(player).findFlag("charged_jump") != null;
+        boolean validContext = installed
+                && player.isAlive()
+                && !player.isPassenger()
+                && !player.isInWater()
+                && !player.isInLava()
+                && !player.isFallFlying()
+                && !player.getAbilities().flying
+                && TacticalMovement.get(player).action() == TacticalAction.NONE;
+        if (!validContext) {
+            cancelChargedJump();
+            return;
+        }
+
+        if (!presses.jump()) {
+            if (chargedJumpHeld) {
+                chargedJumpHeld = false;
+                ClientPacketDistributor.sendToServer(new CyberwareActionPacket(
+                        CyberwareActionPacket.Action.CHARGED_JUMP_RELEASE));
+            }
+            return;
+        }
+        if (!player.onGround() && !chargedJumpHeld) {
+            return;
+        }
+        if (!chargedJumpHeld) {
+            chargedJumpHeld = true;
+            ClientPacketDistributor.sendToServer(new CyberwareActionPacket(
+                    CyberwareActionPacket.Action.CHARGED_JUMP_START));
+        }
+
+        input.keyPresses = new Input(
+                presses.forward(),
+                presses.backward(),
+                presses.left(),
+                presses.right(),
+                false,
+                presses.shift(),
+                presses.sprint());
+    }
+
+    private static void cancelChargedJump() {
+        if (!chargedJumpHeld) {
+            return;
+        }
+        chargedJumpHeld = false;
+        ClientPacketDistributor.sendToServer(new CyberwareActionPacket(
+                CyberwareActionPacket.Action.CHARGED_JUMP_CANCEL));
+    }
+
     // RMB is a second queue control and can be cancelled cleanly by NeoForge.
     @SubscribeEvent
     public static void onUseInput(InputEvent.InteractionKeyMappingTriggered event) {
+        if (EntityControlClient.isActive()) {
+            if (event.isAttack()) {
+                EntityControlClient.requestFire();
+            }
+            if (event.isAttack() || event.isUseItem() || event.isPickBlock()) {
+                event.setCanceled(true);
+                event.setSwingHand(false);
+            }
+            return;
+        }
         if (!event.isUseItem()) {
             return;
         }
@@ -277,6 +434,13 @@ public final class CyberdeckClientEvents {
         }
     }
 
+    @SubscribeEvent
+    public static void onRenderHand(RenderHandEvent event) {
+        if (EntityControlClient.isActive()) {
+            event.setCanceled(true);
+        }
+    }
+
     private static boolean isScannerSuppressedLayer(Identifier layer) {
         return layer.equals(Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "city_minimap"))
                 || layer.equals(Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "mission_tracker"))
@@ -291,6 +455,8 @@ public final class CyberdeckClientEvents {
     @SubscribeEvent
     public static void onLogout(ClientPlayerNetworkEvent.LoggingOut event) {
         quickhackUseLatched = false;
+        chargedJumpHeld = false;
+        EntityControlClient.clear();
         QuickhackScannerClient.reset();
         QuickhackUploadClient.set(com.example.cyberdeck.network.QuickhackUploadPacket.NONE);
         HealingConsumableClient.reset();
@@ -303,7 +469,7 @@ public final class CyberdeckClientEvents {
         if (!QuickhackScannerClient.isQuickhacking()) {
             return false;
         }
-        LivingEntity target = QuickhackScannerClient.actionTarget(minecraft.level);
+        Entity target = QuickhackScannerClient.actionTarget(minecraft.level);
         if (target == null) {
             return false;
         }

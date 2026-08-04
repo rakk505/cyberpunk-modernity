@@ -4,6 +4,7 @@ import com.example.cyberdeck.cyberware.BodySlot;
 import com.example.cyberdeck.cyberware.Cyberware;
 import com.example.cyberdeck.cyberware.CyberwareAttachments;
 import com.example.cyberdeck.cyberware.CyberwareData;
+import com.example.cyberdeck.cyberware.CyberwareStats;
 import com.example.cyberdeck.cyberware.SandevistanProfile;
 import com.example.cyberdeck.ram.RamAttachments;
 import com.example.cyberdeck.faction.BallisticArmor;
@@ -15,6 +16,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.DamageTypeTags;
+import net.minecraft.tags.ItemTags;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.effect.MobEffectInstance;
@@ -25,6 +27,7 @@ import net.minecraft.world.entity.animal.golem.IronGolem;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.Projectile;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
@@ -36,6 +39,7 @@ import net.neoforged.neoforge.event.entity.living.LivingFallEvent;
 import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import net.neoforged.neoforge.event.entity.player.AttackEntityEvent;
 import net.neoforged.neoforge.event.entity.player.CriticalHitEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 
 import java.util.List;
 
@@ -46,14 +50,40 @@ public final class CyberwareCombatHandler {
     private static final double GORILLA_WALL_SLAM_RANGE = 2.25;
 
     @SubscribeEvent
+    public void onUseItem(PlayerInteractEvent.RightClickItem event) {
+        if (event.getEntity() instanceof ServerPlayer player
+                && CyberwareWeaponEffects.rangedWeaponsBlocked(player)) {
+            event.setCanceled(true);
+            event.setCancellationResult(InteractionResult.FAIL);
+        }
+    }
+
+    @SubscribeEvent
     public void onIncomingDamage(LivingIncomingDamageEvent event) {
         DamageSource source = event.getSource();
         float amount = event.getAmount();
 
+        if (event.getEntity() instanceof ServerPlayer delayedVictim
+                && ReactiveCyberware.isApplyingDelayedDamage()) {
+            Cyberware secondHeart = CyberwareAttachments.get(delayedVictim)
+                    .findFlag("second_heart");
+            if (secondHeart != null && amount >= delayedVictim.getHealth()
+                    && !ActiveAbilities.onCooldown(delayedVictim, "second_heart")) {
+                delayedVictim.setHealth(delayedVictim.getMaxHealth());
+                ActiveAbilities.setCooldown(delayedVictim, "second_heart",
+                        CyberwareEffects.cooldownTicks(
+                                delayedVictim, secondHeart, "cooldown_seconds"));
+                event.setAmount(0.0f);
+            }
+            return;
+        }
+
         if (source.getEntity() instanceof ServerPlayer attacker) {
             CyberwareData attackerData = CyberwareAttachments.get(attacker);
             Cyberware arms = attackerData.get(BodySlot.ARMS);
-            if (arms != null && arms.hasFlag("gorilla_arms")) {
+            boolean directMelee = source.getDirectEntity() == attacker
+                    && !SandevistanMechanics.gunDamageAlreadyModified();
+            if (directMelee && arms != null && arms.hasFlag("gorilla_arms")) {
                 amount += 7.0f + arms.tier().rank() * 1.0f;
             }
             if (!SandevistanMechanics.gunDamageAlreadyModified()) {
@@ -68,7 +98,7 @@ public final class CyberwareCombatHandler {
                 amount *= (float) (1.0 + blackMamba.value("poison_other_damage_percent") / 100.0);
             }
             if (CyberwareEffects.isBerserkActive(attacker)
-                    && source.getDirectEntity() == attacker) {
+                    && directMelee) {
                 Cyberware berserk = attackerData.findFlag("berserk");
                 if (berserk != null && berserk.familyId().equals("militech_berserk")) {
                     double missing = 1.0 - attacker.getHealth() / Math.max(1.0, attacker.getMaxHealth());
@@ -102,14 +132,14 @@ public final class CyberwareCombatHandler {
         }
 
         double passiveReduction = 0.0;
-        double mitigationChance = 0.0;
-        double mitigationStrength = 0.0;
         for (Cyberware cyberware : data.allInstalled()) {
             passiveReduction += cyberware.value("incoming_damage_reduction_percent") / 100.0;
-            mitigationChance += cyberware.value("mitigation_chance_percent") / 100.0;
-            mitigationStrength += cyberware.value("mitigation_strength_percent") / 100.0;
         }
         amount *= (float) (1.0 - Math.min(0.9, passiveReduction));
+
+        if (source.is(DamageTypeTags.IS_EXPLOSION)) {
+            amount *= (float) (1.0 - CyberwareStats.from(data).explosionResistance());
+        }
 
         Entity attacker = source.getEntity();
         Cyberware proximity = data.findFlag("proximity_damage_reduction");
@@ -129,14 +159,14 @@ public final class CyberwareCombatHandler {
             }
         }
 
-        if (mitigationChance > 0.0 && victim.getRandom().nextDouble() < Math.min(1.0, mitigationChance)) {
-            amount *= (float) (1.0 - Math.min(0.9, mitigationStrength));
+        double mitigationChance = ReactiveCyberware.mitigationChance(victim);
+        if (mitigationChance > 0.0 && victim.getRandom().nextDouble() < mitigationChance) {
+            amount *= (float) (1.0 - ReactiveCyberware.mitigationStrength(victim));
         }
 
         Cyberware blocker = data.findFlag("projectile_block");
         if (blocker != null && source.getDirectEntity() instanceof Projectile
-                && victim.getRandom().nextDouble()
-                < blocker.value("projectile_block_chance_percent") / 100.0) {
+                && ReactiveCyberware.tryBlockProjectile(victim, blocker)) {
             victim.level().playSound(null, victim.getX(), victim.getY(), victim.getZ(),
                     SoundEvents.SHIELD_BLOCK, SoundSource.PLAYERS, 0.8f, 1.4f);
             return 0.0f;
@@ -185,7 +215,7 @@ public final class CyberwareCombatHandler {
             level.sendParticles(ParticleTypes.ELECTRIC_SPARK,
                     victim.getX(), victim.getY(0.5), victim.getZ(), 24, 2.0, 1.0, 2.0, 0.1);
         }
-        return amount;
+        return ReactiveCyberware.afterMitigation(victim, amount);
     }
 
     @SubscribeEvent
@@ -201,8 +231,14 @@ public final class CyberwareCombatHandler {
             bonusDamage += profile.critDamageBonus();
         }
         CyberwareData data = CyberwareAttachments.get(player);
-        chance += data.allInstalled().stream()
-                .mapToDouble(cyberware -> cyberware.value("crit_chance_percent") / 100.0).sum();
+        CyberwareStats stats = CyberwareStats.from(data);
+        chance += stats.criticalChance();
+        Cyberware arms = data.get(BodySlot.ARMS);
+        if (player.getMainHandItem().is(ItemTags.SWORDS)
+                || (arms != null && (arms.hasFlag("mantis_blades")
+                        || arms.hasFlag("monowire")))) {
+            chance += stats.bladeCriticalChance();
+        }
         Cyberware distanceCrit = data.findFlag("distance_crit");
         if (distanceCrit != null) {
             double distance = player.distanceTo(event.getTarget());
@@ -309,13 +345,23 @@ public final class CyberwareCombatHandler {
             level.sendParticles(ParticleTypes.CRIT, target.getX(), target.getY(0.5), target.getZ(),
                     16, 0.4, 0.4, 0.4, 0.2);
         } else if (arms.hasFlag("mantis_blades")) {
+            if (player.distanceTo(target) > 2.0f) {
+                Vec3 leap = target.position().subtract(player.position());
+                if (leap.lengthSqr() > 1.0e-4) {
+                    leap = leap.normalize().scale(0.85).add(0.0, 0.18, 0.0);
+                    player.setDeltaMovement(leap);
+                    player.hurtMarked = true;
+                }
+            }
             level.sendParticles(ParticleTypes.SWEEP_ATTACK,
                     target.getX(), target.getY(0.6), target.getZ(), 3, 0.2, 0.1, 0.2, 0.0);
         } else if (arms.hasFlag("monowire")) {
+            double bonus = monowireDamageBonus(player, target);
+            float splashDamage = (float) (3.0 * (1.0 + bonus));
             for (LivingEntity nearby : level.getEntitiesOfClass(LivingEntity.class,
                     target.getBoundingBox().inflate(2.5),
                     entity -> entity != player && entity != target && entity.isAlive())) {
-                nearby.hurtServer(level, player.damageSources().playerAttack(player), 3.0f);
+                nearby.hurtServer(level, player.damageSources().playerAttack(player), splashDamage);
             }
         }
         applyArmStatus(player, target, arms);
@@ -334,6 +380,25 @@ public final class CyberwareCombatHandler {
         } else if (arms.hasFlag("status_bleeding")) {
             target.addEffect(new MobEffectInstance(MobEffects.WITHER, 5 * 20, 0));
         }
+    }
+
+    private static double monowireDamageBonus(ServerPlayer player, LivingEntity target) {
+        CyberwareData data = CyberwareAttachments.get(player);
+        double bonus = 0.0;
+        Cyberware paraline = data.findFlag("paraline");
+        if (paraline != null) {
+            int usedRam = Math.max(0, CyberwareEffects.maxRam(player) - RamAttachments.get(player));
+            double perRam = paraline.value("monowire_ram_damage_percent") / 100.0;
+            double cap = paraline.value("monowire_ram_damage_cap_percent") / 100.0;
+            bonus += Math.min(cap, perRam * usedRam);
+        }
+        Cyberware biotech = data.findFlag("quickhack_dot");
+        if (biotech != null && (target.hasEffect(MobEffects.POISON)
+                || target.hasEffect(MobEffects.WITHER)
+                || target.isOnFire())) {
+            bonus += biotech.value("monowire_dot_damage_percent") / 100.0;
+        }
+        return bonus;
     }
 
     private static void restoreStamina(ServerPlayer player, double fraction) {

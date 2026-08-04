@@ -3,6 +3,7 @@ package com.example.cyberdeck.effect;
 import com.example.cyberdeck.Cyberdeck;
 import com.example.cyberdeck.cyberware.Cyberware;
 import com.example.cyberdeck.cyberware.CyberwareAttachments;
+import com.example.cyberdeck.cyberware.CyberwareStats;
 
 import net.minecraft.core.Holder;
 import net.minecraft.resources.Identifier;
@@ -45,13 +46,13 @@ public final class CyberwarePassives {
         double knockback = 0.0;
         double reach = 0.0;
 
+        CyberwareStats stats = CyberwareStats.from(CyberwareAttachments.get(player));
+
         for (Cyberware cyberware : CyberwareAttachments.get(player).allInstalled()) {
             armor += cyberware.value("armor_points");
             armorMultiplier += cyberware.value("armor_multiplier_percent") / 100.0;
             maxHealth += cyberware.value("max_health_percent") / 100.0;
             movement += cyberware.value("movement_speed_percent") / 100.0;
-            attackSpeed += cyberware.value("attack_speed_percent") / 100.0;
-            attackDamage += cyberware.value("melee_damage_percent") / 100.0;
             if (cyberware.hasFlag("gorilla_arms")) {
                 knockback = Math.max(knockback, 2.0);
                 attackDamage += 0.35;
@@ -65,6 +66,8 @@ public final class CyberwarePassives {
                 reach = Math.max(reach, 2.0);
             }
         }
+        attackSpeed += stats.meleeAttackSpeedBonus();
+        attackDamage += stats.meleeDamageBonus();
 
         addIfNonZero(player, Attributes.ARMOR, ID_ARMOR, armor,
                 AttributeModifier.Operation.ADD_VALUE);

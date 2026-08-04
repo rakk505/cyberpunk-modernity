@@ -2,11 +2,17 @@ package com.example.cyberdeck.client.hud;
 
 import com.example.cyberdeck.client.QuickhackScannerClient;
 import com.example.cyberdeck.client.QuickhackUploadClient;
+import com.example.cyberdeck.cyberware.CyberwareAttachments;
+import com.example.cyberdeck.cyberware.CyberwareData;
+import com.example.cyberdeck.defense.KangTaoTurret;
+import com.example.cyberdeck.effect.CyberwareEffects;
 import com.example.cyberdeck.faction.FactionEnemy;
 import com.example.cyberdeck.faction.CyberpsychoEntity;
 import com.example.cyberdeck.npc.CityNpc;
 import com.example.cyberdeck.npc.NpcRole;
 import com.example.cyberdeck.ram.RamAttachments;
+import com.example.cyberdeck.skill.DeviceQuickhack;
+import com.example.cyberdeck.skill.QuickhackTargets;
 import com.example.cyberdeck.skill.Skill;
 
 import net.minecraft.client.DeltaTracker;
@@ -14,9 +20,11 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.client.gui.GuiLayer;
 import org.jspecify.annotations.Nullable;
 
@@ -41,7 +49,7 @@ public final class QuickhackScannerOverlay implements GuiLayer {
     private static final int RESERVED_RAM = 0xFFE36B48;
 
     private float panelVisibility;
-    private @Nullable LivingEntity animatedTarget;
+    private @Nullable Entity animatedTarget;
 
     @Override
     public void render(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker) {
@@ -59,7 +67,7 @@ public final class QuickhackScannerOverlay implements GuiLayer {
         int screenWidth = graphics.guiWidth();
         int screenHeight = graphics.guiHeight();
         Font font = minecraft.font;
-        LivingEntity lockedTarget = QuickhackScannerClient.target(minecraft.level);
+        Entity lockedTarget = QuickhackScannerClient.target(minecraft.level);
         float panelProgress = updatePanelVisibility(lockedTarget, deltaTracker);
         boolean quickhacking = QuickhackScannerClient.isQuickhacking();
 
@@ -90,7 +98,7 @@ public final class QuickhackScannerOverlay implements GuiLayer {
         }
 
         float eased = smoothstep(panelProgress);
-        if (quickhacking && animatedTarget instanceof Enemy) {
+        if (quickhacking && QuickhackTargets.isActionable(animatedTarget)) {
             int leftClipRight = Math.round((leftX + leftWidth + 12) * eased);
             int leftOffset = -Math.round(12.0F * (1.0F - eased));
             graphics.enableScissor(0, 0, leftClipRight, screenHeight);
@@ -113,7 +121,7 @@ public final class QuickhackScannerOverlay implements GuiLayer {
         graphics.disableScissor();
     }
 
-    private float updatePanelVisibility(@Nullable LivingEntity lockedTarget,
+    private float updatePanelVisibility(@Nullable Entity lockedTarget,
                                         DeltaTracker deltaTracker) {
         float realtimeTicks = Mth.clamp(deltaTracker.getRealtimeDeltaTicks(), 0.0F, 2.0F);
         if (lockedTarget != null) {
@@ -196,14 +204,18 @@ public final class QuickhackScannerOverlay implements GuiLayer {
     }
 
     private static void drawQuickhackMenu(GuiGraphicsExtractor graphics, Font font, Player player,
-                                          LivingEntity target, int x, int y, int width,
+                                          Entity target, int x, int y, int width,
                                           int screenHeight) {
         int availableRam = Math.max(0,
                 RamAttachments.get(player) - QuickhackUploadClient.reservedRam());
+        CyberwareData cyberware = CyberwareAttachments.get(player);
         boolean dense = screenHeight < 250;
         boolean showDetail = screenHeight >= 330;
         int detailHeight = showDetail ? 27 : 0;
-        int count = Skill.STANDBY.ordinal();
+        int count = QuickhackTargets.actionCount(target);
+        if (count <= 0) {
+            return;
+        }
         int availableHeight = screenHeight - y - 18 - detailHeight - 10;
         int rowHeight = Mth.clamp(availableHeight / count, dense ? 18 : 23, dense ? 22 : 36);
 
@@ -217,44 +229,99 @@ public final class QuickhackScannerOverlay implements GuiLayer {
 
         int rowY = y + 18;
         int targetId = target.getId();
-        for (int ordinal = 0; ordinal < count; ordinal++) {
-            Skill skill = Skill.fromSlot(ordinal);
-            if (skill == null) {
-                continue;
+        if (QuickhackTargets.isDevice(target)) {
+            int requiredTier = target instanceof KangTaoTurret turret
+                    ? turret.getSecurityLevel() : 0;
+            int deckTier = KangTaoTurret.cyberdeckSecurityLevel(
+                    CyberwareAttachments.get(player));
+            boolean tierLocked = requiredTier > deckTier;
+            for (int slot = 0; slot < count; slot++) {
+                DeviceQuickhack action = DeviceQuickhack.fromSlot(target, slot);
+                if (action == null) {
+                    continue;
+                }
+                int wireId = action.wireId();
+                int ramCost = CyberwareEffects.quickhackRamCost(cyberware, action);
+                boolean selected = slot == QuickhackScannerClient.selectedSkillOrdinal();
+                boolean uploading = wireId == QuickhackUploadClient.activeSkillOrdinal(targetId);
+                int queuePosition = QuickhackUploadClient.queuePosition(targetId, wireId);
+                boolean committed = uploading || queuePosition > 0;
+                boolean affordable = committed || ramCost <= availableRam;
+                String unavailable = tierLocked ? "TIER " + requiredTier + " REQUIRED" : null;
+                if (unavailable == null && target instanceof KangTaoTurret turret) {
+                    if (turret.isDeactivated()
+                            && action == DeviceQuickhack.TURRET_TAKE_CONTROL) {
+                        unavailable = "DEVICE OFFLINE";
+                    } else if (turret.isDeactivated()
+                            && action == DeviceQuickhack.TURRET_DEACTIVATE) {
+                        unavailable = "ALREADY OFFLINE";
+                    } else if (turret.isRemotelyControlled()
+                            && action == DeviceQuickhack.TURRET_TAKE_CONTROL) {
+                        unavailable = "LINK IN USE";
+                    }
+                }
+                if (unavailable == null && !affordable) {
+                    unavailable = "RAM REQUIRED";
+                }
+                drawHackRow(graphics, font, action.stack(), action.displayName(),
+                        ramCost, x, rowY, width, rowHeight, selected,
+                        unavailable, uploading, queuePosition, dense);
+                rowY += rowHeight;
             }
-            boolean selected = ordinal == QuickhackScannerClient.selectedSkillOrdinal();
-            boolean uploading = ordinal == QuickhackUploadClient.activeSkillOrdinal(targetId);
-            int queuePosition = QuickhackUploadClient.queuePosition(targetId, ordinal);
-            boolean committed = uploading || queuePosition > 0;
-            boolean affordable = committed || skill.ramCost() <= availableRam;
-            drawHackRow(graphics, font, skill, x, rowY, width, rowHeight, selected,
-                    affordable, uploading, queuePosition, dense);
-            rowY += rowHeight;
+        } else {
+            for (int ordinal = 0; ordinal < count; ordinal++) {
+                Skill skill = Skill.fromSlot(ordinal);
+                if (skill == null) {
+                    continue;
+                }
+                boolean selected = ordinal == QuickhackScannerClient.selectedSkillOrdinal();
+                int ramCost = CyberwareEffects.quickhackRamCost(cyberware, skill);
+                boolean uploading = ordinal == QuickhackUploadClient.activeSkillOrdinal(targetId);
+                int queuePosition = QuickhackUploadClient.queuePosition(targetId, ordinal);
+                boolean committed = uploading || queuePosition > 0;
+                boolean affordable = committed || ramCost <= availableRam;
+                drawHackRow(graphics, font, skill.stack(), skill.displayName(), ramCost,
+                        x, rowY, width, rowHeight, selected,
+                        affordable ? null : "RAM REQUIRED", uploading, queuePosition, dense);
+                rowY += rowHeight;
+            }
         }
 
         if (showDetail) {
-            Skill selected = QuickhackScannerClient.selectedSkill();
-            if (selected != null) {
+            DeviceQuickhack selectedDevice = QuickhackScannerClient.selectedDeviceQuickhack(
+                    Minecraft.getInstance().level);
+            Skill selectedSkill = QuickhackScannerClient.selectedSkill();
+            if (selectedDevice != null || selectedSkill != null) {
                 int detailY = rowY + 3;
                 graphics.horizontalLine(x, x + width - 1, detailY, RED_DIM);
+                int ramCost = selectedDevice == null
+                        ? CyberwareEffects.quickhackRamCost(cyberware, selectedSkill)
+                        : CyberwareEffects.quickhackRamCost(cyberware, selectedDevice);
+                int uploadTicks = selectedDevice == null
+                        ? CyberwareEffects.quickhackUploadTicks(cyberware, selectedSkill)
+                        : CyberwareEffects.quickhackUploadTicks(cyberware, selectedDevice);
                 String timing = String.format(Locale.ROOT, "%d RAM  //  %.1f SEC",
-                        selected.ramCost(), selected.uploadTicks() / 20.0F);
+                        ramCost, uploadTicks / 20.0F);
                 graphics.text(font, timing, x + 5, detailY + 5, AMBER, false);
-                graphics.text(font, trim(font, hackSummary(selected), width - 10),
+                String summary = selectedDevice == null
+                        ? hackSummary(selectedSkill) : selectedDevice.summary();
+                graphics.text(font, trim(font, summary, width - 10),
                         x + 5, detailY + 15, WHITE, false);
             }
         }
     }
 
-    private static void drawHackRow(GuiGraphicsExtractor graphics, Font font, Skill skill,
-                                    int x, int y, int width, int height, boolean selected,
-                                    boolean affordable, boolean uploading, int queuePosition,
-                                    boolean dense) {
+    private static void drawHackRow(GuiGraphicsExtractor graphics, Font font, ItemStack icon,
+                                    String displayName, int ramCost, int x, int y, int width,
+                                    int height, boolean selected,
+                                    @Nullable String unavailableState, boolean uploading,
+                                    int queuePosition, boolean dense) {
         int rowX = selected ? x - 5 : x;
         int rowWidth = selected ? width + 5 : width;
         int rowBottom = y + height - 2;
-        int border = !affordable ? RED : (selected ? CYAN_BRIGHT : CYAN_DIM);
-        int fill = !affordable ? ROW_UNAVAILABLE : (selected ? ROW_SELECTED : ROW);
+        boolean available = unavailableState == null;
+        int border = !available ? RED : (selected ? CYAN_BRIGHT : CYAN_DIM);
+        int fill = !available ? ROW_UNAVAILABLE : (selected ? ROW_SELECTED : ROW);
 
         fillCutRect(graphics, rowX, y, rowWidth, height - 1, fill);
         drawCutBorder(graphics, rowX, y, rowWidth, height - 1, border);
@@ -271,29 +338,29 @@ public final class QuickhackScannerOverlay implements GuiLayer {
         graphics.outline(iconX - 1, iconY - 1, iconSize + 2, iconSize + 2, border);
         int itemX = iconX + (iconSize - 16) / 2;
         int itemY = iconY + (iconSize - 16) / 2;
-        graphics.item(skill.stack(), itemX, itemY);
+        graphics.item(icon, itemX, itemY);
 
-        String cost = Integer.toString(skill.ramCost());
+        String cost = Integer.toString(ramCost);
         int costX = iconX - 8 - font.width(cost);
         int textX = rowX + 7;
         int nameY = dense ? y + Math.max(3, (height - font.lineHeight) / 2) : y + 4;
-        String name = trim(font, skill.displayName().toUpperCase(Locale.ROOT),
+        String name = trim(font, displayName.toUpperCase(Locale.ROOT),
                 Math.max(24, costX - textX - 7));
-        graphics.text(font, name, textX, nameY, affordable ? CYAN_BRIGHT : RED, false);
-        graphics.text(font, cost, costX, nameY, affordable ? CYAN : RED, false);
+        graphics.text(font, name, textX, nameY, available ? CYAN_BRIGHT : RED, false);
+        graphics.text(font, cost, costX, nameY, available ? CYAN : RED, false);
         if (!dense) {
             graphics.text(font, "RAM", costX - 1, y + height - 11, CYAN_DIM, false);
-            String state = !affordable ? "RAM REQUIRED"
+            String state = !available ? unavailableState
                     : (uploading ? "UPLOADING"
                     : (queuePosition > 0 ? "QUEUED " + queuePosition : "READY"));
-            int stateColor = !affordable ? RED
+            int stateColor = !available ? RED
                     : (uploading ? ORANGE : (queuePosition > 0 ? AMBER : CYAN));
             drawStatus(graphics, font, textX, y + height - 12, state, stateColor);
         }
     }
 
     private static void drawTargetReticle(GuiGraphicsExtractor graphics, Font font, int width,
-                                          int height, @Nullable LivingEntity target) {
+                                          int height, @Nullable Entity target) {
         int centerX = width / 2;
         int centerY = height / 2 + 3;
         int color = target == null ? CYAN_DIM : ORANGE;
@@ -317,7 +384,23 @@ public final class QuickhackScannerOverlay implements GuiLayer {
     }
 
     private static void drawIntelPanel(GuiGraphicsExtractor graphics, Font font, Player player,
-                                       LivingEntity target, int x, int y, int width) {
+                                       Entity target, int x, int y, int width) {
+        if (target instanceof KangTaoTurret turret) {
+            drawTurretIntelPanel(graphics, font, player, turret, x, y, width);
+            return;
+        }
+        if (QuickhackTargets.isDevice(target)) {
+            drawVehicleIntelPanel(graphics, font, player, target, x, y, width);
+            return;
+        }
+        if (target instanceof LivingEntity living) {
+            drawLivingIntelPanel(graphics, font, player, living, x, y, width);
+        }
+    }
+
+    private static void drawLivingIntelPanel(GuiGraphicsExtractor graphics, Font font,
+                                             Player player, LivingEntity target,
+                                             int x, int y, int width) {
         int height = 128;
         fillCutRect(graphics, x, y, width, height, PANEL);
         drawCutBorder(graphics, x, y, width, height, CYAN_DIM);
@@ -366,6 +449,95 @@ public final class QuickhackScannerOverlay implements GuiLayer {
         graphics.text(font, distance, x + 7, y + 113, WHITE, false);
         String status = targetStatus(target);
         graphics.text(font, status, x + width - 7 - font.width(status), y + 113, RED, false);
+    }
+
+    private static void drawTurretIntelPanel(GuiGraphicsExtractor graphics, Font font,
+                                             Player player, KangTaoTurret turret,
+                                             int x, int y, int width) {
+        int height = 128;
+        fillCutRect(graphics, x, y, width, height, PANEL);
+        drawCutBorder(graphics, x, y, width, height, CYAN_DIM);
+        graphics.fill(x, y, x + 38, y + 2, RED);
+        graphics.text(font, "DEVICE DATA", x + 7, y + 6, CYAN_DIM, false);
+
+        String name = trim(font, turret.getName().getString().toUpperCase(Locale.ROOT),
+                width - 14);
+        graphics.text(font, name, x + 7, y + 18, CYAN_BRIGHT, false);
+        graphics.text(font, trim(font, "AUTOMATED DEFENSE", width - 14),
+                x + 7, y + 29, AMBER, false);
+
+        float healthRatio = turret.getMaxHealth() <= 0.0F ? 0.0F
+                : Mth.clamp(turret.getHealth() / turret.getMaxHealth(), 0.0F, 1.0F);
+        String health = String.format(Locale.ROOT, "HP %.0f/%.0f",
+                turret.getHealth(), turret.getMaxHealth());
+        graphics.text(font, health, x + 7, y + 43, healthColor(turret), false);
+        int barWidth = width - 14;
+        graphics.fill(x + 7, y + 54, x + 7 + barWidth, y + 58, CYAN_DARK);
+        graphics.fill(x + 7, y + 54, x + 7 + Math.round(barWidth * healthRatio), y + 58,
+                healthColor(turret));
+
+        int securityTier = turret.getSecurityLevel();
+        int deckTier = KangTaoTurret.cyberdeckSecurityLevel(CyberwareAttachments.get(player));
+        boolean locked = deckTier < securityTier;
+        String deviceState = turret.isDeactivated() ? "DEACTIVATED"
+                : turret.isRemotelyControlled() ? "REMOTE CONTROL" : "ACTIVE";
+        drawIntelLine(graphics, font, "TYPE", "SECURITY TURRET",
+                x, y + 65, width, AMBER);
+        drawIntelLine(graphics, font, "SECURITY", "LEVEL " + securityTier,
+                x, y + 76, width, locked ? RED : AMBER);
+        drawIntelLine(graphics, font, "DECK", "LEVEL " + deckTier,
+                x, y + 87, width, locked ? RED : CYAN);
+        drawIntelLine(graphics, font, "STATE", deviceState,
+                x, y + 98, width, turret.isDeactivated() ? CYAN_DIM : RED);
+
+        String distance = String.format(Locale.ROOT, "%.0f M", player.distanceTo(turret));
+        graphics.text(font, distance, x + 7, y + 113, WHITE, false);
+        String status = locked ? "ACCESS DENIED"
+                : turret.isDeactivated() ? "OFFLINE" : "HOSTILE";
+        status = trim(font, status,
+                Math.max(0, width - 21 - font.width(distance)));
+        int statusColor = locked ? RED : turret.isDeactivated() ? CYAN_DIM : RED;
+        graphics.text(font, status, x + width - 7 - font.width(status), y + 113,
+                statusColor, false);
+    }
+
+    private static void drawVehicleIntelPanel(GuiGraphicsExtractor graphics, Font font,
+                                              Player player, Entity vehicle,
+                                              int x, int y, int width) {
+        int height = 128;
+        fillCutRect(graphics, x, y, width, height, PANEL);
+        drawCutBorder(graphics, x, y, width, height, CYAN_DIM);
+        graphics.fill(x, y, x + 38, y + 2, RED);
+        graphics.text(font, "DEVICE DATA", x + 7, y + 6, CYAN_DIM, false);
+
+        String name = trim(font, vehicle.getName().getString().toUpperCase(Locale.ROOT),
+                width - 14);
+        graphics.text(font, name, x + 7, y + 18, CYAN_BRIGHT, false);
+        graphics.text(font, trim(font, "VEHICLE CONTROL BUS", width - 14),
+                x + 7, y + 29, AMBER, false);
+        graphics.text(font, "SYSTEM ONLINE", x + 7, y + 43, CYAN, false);
+        int barWidth = width - 14;
+        graphics.fill(x + 7, y + 54, x + 7 + barWidth, y + 58, CYAN_DARK);
+        graphics.fill(x + 7, y + 54, x + 7 + barWidth, y + 58, CYAN);
+
+        String type = vehicle.getType().getDescription().getString().toUpperCase(Locale.ROOT);
+        double speed = vehicle.getDeltaMovement().horizontalDistance() * 20.0;
+        drawIntelLine(graphics, font, "TYPE", type, x, y + 65, width, AMBER);
+        drawIntelLine(graphics, font, "SPEED",
+                String.format(Locale.ROOT, "%.1f M/S", speed),
+                x, y + 76, width, speed > 0.1 ? ORANGE : CYAN);
+        drawIntelLine(graphics, font, "RIDERS", Integer.toString(vehicle.getPassengers().size()),
+                x, y + 87, width, vehicle.getPassengers().isEmpty() ? CYAN_DIM : AMBER);
+        drawIntelLine(graphics, font, "STATE", speed > 0.1 ? "MOVING" : "STATIONARY",
+                x, y + 98, width, speed > 0.1 ? ORANGE : CYAN);
+
+        String distance = String.format(Locale.ROOT, "%.0f M", player.distanceTo(vehicle));
+        graphics.text(font, distance, x + 7, y + 113, WHITE, false);
+        String status = "LINK READY";
+        status = trim(font, status,
+                Math.max(0, width - 21 - font.width(distance)));
+        graphics.text(font, status, x + width - 7 - font.width(status), y + 113,
+                CYAN, false);
     }
 
     private static void drawIntelLine(GuiGraphicsExtractor graphics, Font font, String label,

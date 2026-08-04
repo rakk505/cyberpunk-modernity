@@ -320,7 +320,7 @@
       "reward_emmies": {"min": 1800, "max": 1800},
       "street_cred": 40,
       "activation_radius": 112,
-      "guards": 4,
+      "guards": 0,
       "objective_radius": 96,
       "cyberpsycho": {
         "health": 160,
@@ -354,7 +354,7 @@
             "character_id": null,
             "district": "D",
             "location": "District D - Fog Trench",
-            "floor": 2,
+            "floor": 1,
             "dialogue": null,
             "depends_on": ["m05_talk_warden"]
           },
@@ -364,7 +364,7 @@
             "character_id": "fog_mother",
             "district": "D",
             "location": "District D - Old Transit Pylon",
-            "floor": 3,
+            "floor": 1,
             "dialogue": "[Static layered with Jerry, Selene, and your own voice] 'Why do you delete us? We were trying to stay warm.'",
             "depends_on": ["m05_track_mother"]
           }
@@ -372,8 +372,8 @@
         "completion_node": "m05_kill_mother"
       },
       "scale": {
-        "floor_count": 3,
-        "enemies_per_floor": [1, 2, 1],
+        "floor_count": 1,
+        "enemies_per_floor": [0],
         "enemy_type": "fog_husk",
         "enemy_faction": "militech",
         "enemy_power": 1.8

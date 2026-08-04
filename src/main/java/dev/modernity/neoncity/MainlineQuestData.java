@@ -12,6 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.nbt.CompoundTag;
@@ -31,7 +32,11 @@ final class MainlineQuestData extends SavedData {
     private static final Codec<StoredPlan> PLAN_CODEC = RecordCodecBuilder.create(instance ->
             instance.group(
                     Codec.STRING.fieldOf("mission").forGetter(StoredPlan::missionId),
-                    CompoundTag.CODEC.fieldOf("site").forGetter(StoredPlan::site))
+                    CompoundTag.CODEC.fieldOf("site").forGetter(StoredPlan::site),
+                    CompoundTag.CODEC.optionalFieldOf("interior", new CompoundTag())
+                            .forGetter(StoredPlan::interior),
+                    Codec.BOOL.optionalFieldOf("committed_recovery", false)
+                            .forGetter(StoredPlan::committedRecovery))
                     .apply(instance, StoredPlan::new));
     private static final Codec<Progress> PROGRESS_CODEC = RecordCodecBuilder.create(instance ->
             instance.group(
@@ -54,6 +59,8 @@ final class MainlineQuestData extends SavedData {
     private static volatile Map<String, MissionBuildingPlanner.Site> fixedSites;
 
     private final Map<String, CompoundTag> plans = new HashMap<>();
+    private final Map<String, CompoundTag> permanentInteriors = new HashMap<>();
+    private final Set<String> committedRecoveryPlans = new HashSet<>();
     private final Map<UUID, Progress> progress = new HashMap<>();
 
     record Progress(UUID instanceId, String missionId, List<String> completedNodes) {
@@ -71,9 +78,14 @@ final class MainlineQuestData extends SavedData {
         }
     }
 
-    private record StoredPlan(String missionId, CompoundTag site) {
+    private record StoredPlan(
+            String missionId,
+            CompoundTag site,
+            CompoundTag interior,
+            boolean committedRecovery) {
         private StoredPlan {
             site = site == null ? new CompoundTag() : site.copy();
+            interior = interior == null ? new CompoundTag() : interior.copy();
         }
     }
 
@@ -83,7 +95,14 @@ final class MainlineQuestData extends SavedData {
     private MainlineQuestData(List<StoredPlan> plans, List<Progress> progress) {
         for (StoredPlan plan : plans) {
             if (!plan.missionId().isBlank() && !plan.site().isEmpty()) {
-                this.plans.putIfAbsent(plan.missionId(), plan.site().copy());
+                CompoundTag previous = this.plans.putIfAbsent(
+                        plan.missionId(), plan.site().copy());
+                if (previous == null && plan.committedRecovery()) {
+                    this.committedRecoveryPlans.add(plan.missionId());
+                }
+                if (previous == null && matchingInterior(plan.site(), plan.interior())) {
+                    this.permanentInteriors.put(plan.missionId(), plan.interior().copy());
+                }
             }
         }
         for (Progress entry : progress) {
@@ -96,7 +115,8 @@ final class MainlineQuestData extends SavedData {
     }
 
     static Optional<MissionBuildingPlanner.Site> fixedSite(String missionId) {
-        return Optional.ofNullable(fixedSites().get(missionId));
+        return Optional.ofNullable(fixedSites().get(missionId))
+                .map(MissionBuildingPlanner::withoutMissionInteriorPlan);
     }
 
     static Map<String, MissionBuildingPlanner.Site> fixedSites() {
@@ -112,13 +132,67 @@ final class MainlineQuestData extends SavedData {
         CompoundTag encoded = plans.get(missionId);
         return encoded == null
                 ? Optional.empty()
-                : MissionBuildingPlanner.Site.load(encoded.copy());
+                : MissionBuildingPlanner.Site.load(encoded.copy())
+                        .map(MissionBuildingPlanner::withoutMissionInteriorPlan);
+    }
+
+    Optional<MissionBuildingPlanner.Site> permanentInterior(String missionId) {
+        CompoundTag encoded = permanentInteriors.get(missionId);
+        return encoded == null
+                ? Optional.empty()
+                : MissionBuildingPlanner.Site.load(encoded.copy())
+                        .map(MissionBuildingPlanner::withoutMissionTurretPlan);
     }
 
     void putSite(String missionId, MissionBuildingPlanner.Site site) {
-        CompoundTag encoded = site.save();
+        putSite(missionId, site, false);
+    }
+
+    void putSite(
+            String missionId,
+            MissionBuildingPlanner.Site site,
+            boolean committedRecovery) {
+        CompoundTag encoded = MissionBuildingPlanner.withoutMissionInteriorPlan(site).save();
         CompoundTag previous = plans.put(missionId, encoded);
+        boolean sameBuilding = previous != null && matchingSite(previous, encoded);
+        boolean interiorChanged = !sameBuilding
+                && permanentInteriors.remove(missionId) != null;
+        boolean markerChanged = committedRecovery
+                ? committedRecoveryPlans.add(missionId)
+                : committedRecoveryPlans.remove(missionId);
+        if (previous == null || !previous.equals(encoded) || markerChanged || interiorChanged) {
+            setDirty();
+        }
+    }
+
+    void commitSite(
+            String missionId,
+            MissionBuildingPlanner.Site site,
+            boolean committedRecovery,
+            MissionBuildingPlanner.Site permanentInterior) {
+        putSite(missionId, site, committedRecovery);
+        MissionBuildingPlanner.Site interior = MissionBuildingPlanner.withoutMissionTurretPlan(
+                permanentInterior);
+        if (interior == null || interior.decorations().isEmpty()
+                || !sameSite(site, interior)) {
+            return;
+        }
+        CompoundTag encoded = interior.save();
+        CompoundTag previous = permanentInteriors.put(missionId, encoded);
         if (previous == null || !previous.equals(encoded)) setDirty();
+    }
+
+    boolean isCommittedRecovery(String missionId) {
+        return committedRecoveryPlans.contains(missionId);
+    }
+
+    void removeSite(String missionId) {
+        boolean changed = plans.remove(missionId) != null;
+        changed |= permanentInteriors.remove(missionId) != null;
+        changed |= committedRecoveryPlans.remove(missionId);
+        if (changed) {
+            setDirty();
+        }
     }
 
     boolean conflicts(MissionBuildingPlanner.Site candidate, String exceptMissionId) {
@@ -127,7 +201,7 @@ final class MainlineQuestData extends SavedData {
             if (entry.getKey().equals(exceptMissionId)) continue;
             MissionBuildingPlanner.Site reserved = MissionBuildingPlanner.Site.load(
                     entry.getValue()).orElse(null);
-            if (reserved != null && overlaps(reserved, candidate)) return true;
+            if (reserved != null && buildingConflicts(reserved, candidate)) return true;
         }
         return false;
     }
@@ -136,6 +210,7 @@ final class MainlineQuestData extends SavedData {
         return plans.values().stream()
                 .map(MissionBuildingPlanner.Site::load)
                 .flatMap(Optional::stream)
+                .map(MissionBuildingPlanner::withoutMissionInteriorPlan)
                 .toList();
     }
 
@@ -164,8 +239,35 @@ final class MainlineQuestData extends SavedData {
     private List<StoredPlan> serializedPlans() {
         return plans.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
-                .map(entry -> new StoredPlan(entry.getKey(), entry.getValue()))
+                .map(entry -> new StoredPlan(
+                        entry.getKey(), entry.getValue(),
+                        permanentInteriors.getOrDefault(entry.getKey(), new CompoundTag()),
+                        committedRecoveryPlans.contains(entry.getKey())))
                 .toList();
+    }
+
+    private static boolean matchingInterior(CompoundTag site, CompoundTag interior) {
+        if (interior == null || interior.isEmpty()) return false;
+        MissionBuildingPlanner.Site structural = MissionBuildingPlanner.Site.load(site)
+                .orElse(null);
+        MissionBuildingPlanner.Site decorated = MissionBuildingPlanner.Site.load(interior)
+                .orElse(null);
+        return structural != null && decorated != null
+                && !decorated.decorations().isEmpty()
+                && sameSite(structural, decorated);
+    }
+
+    private static boolean matchingSite(CompoundTag first, CompoundTag second) {
+        MissionBuildingPlanner.Site a = MissionBuildingPlanner.Site.load(first).orElse(null);
+        MissionBuildingPlanner.Site b = MissionBuildingPlanner.Site.load(second).orElse(null);
+        return a != null && b != null && sameSite(a, b);
+    }
+
+    private static boolean sameSite(
+            MissionBuildingPlanner.Site first, MissionBuildingPlanner.Site second) {
+        return first.id().equals(second.id())
+                && first.buildingId().equals(second.buildingId())
+                && first.bounds().equals(second.bounds());
     }
 
     private List<Progress> serializedProgress() {
@@ -181,14 +283,35 @@ final class MainlineQuestData extends SavedData {
                 throw new IOException("missing " + FIXED_SITE_RESOURCE);
             }
             CompoundTag root = NbtIo.readCompressed(stream, NbtAccounter.defaultQuota());
+            CompoundTag encodedData = root.getCompoundOrEmpty("data");
+            int encodedPlanCount = encodedData.getListOrEmpty("plans").size();
             MainlineQuestData catalog = CODEC.parse(
-                            NbtOps.INSTANCE, root.getCompoundOrEmpty("data"))
+                            NbtOps.INSTANCE, encodedData)
                     .getOrThrow(IllegalStateException::new);
+            if (catalog.plans.size() != encodedPlanCount) {
+                throw new IOException("fixed mainline catalog contains a duplicate or empty plan");
+            }
             Map<String, MissionBuildingPlanner.Site> sites = new LinkedHashMap<>();
             catalog.plans.entrySet().stream()
                     .sorted(Map.Entry.comparingByKey())
                     .forEach(entry -> MissionBuildingPlanner.Site.load(entry.getValue())
+                            .map(MissionBuildingPlanner::withoutMissionInteriorPlan)
                             .ifPresent(site -> sites.put(entry.getKey(), site)));
+            if (sites.size() != catalog.plans.size()) {
+                throw new IOException("fixed mainline catalog contains an invalid site descriptor");
+            }
+            for (StoryMissionCatalog.StoryMission mission : StoryMissionCatalog.definitions()) {
+                if (mission.encounter().type()
+                        != MissionCatalog.MissionType.NEUTRALIZE_CYBERPSYCHO) {
+                    continue;
+                }
+                sites.remove(mission.id());
+                PublicEncounterPlanner.plan(
+                                NeonCityGenerator.fixedLayout(), mission.primaryDistrict(),
+                                NeonCityGenerator.contentSeed() ^ mission.id().hashCode(),
+                                mission.id(), sites.values())
+                        .ifPresent(site -> sites.put(mission.id(), site));
+            }
             Cyberdeck.LOGGER.info(
                     "[Mainline] loaded {} pre-analyzed sites for fixed city seed {}",
                     sites.size(), NeonCityGenerator.contentSeed());
@@ -202,14 +325,21 @@ final class MainlineQuestData extends SavedData {
         }
     }
 
-    private static boolean overlaps(
+    static boolean buildingConflicts(
             MissionBuildingPlanner.Site first, MissionBuildingPlanner.Site second) {
-        BoundingBox a = first.bounds();
-        BoundingBox b = second.bounds();
-        int clearance = MissionSiteData.SITE_CLEARANCE;
+        if (first.buildingId().equals(second.buildingId())) return true;
+        BoundingBox a = first.buildingBounds();
+        BoundingBox b = second.buildingBounds();
+        int clearance = hasPhysicalBuildingIdentity(first)
+                        && hasPhysicalBuildingIdentity(second)
+                ? 0 : MissionSiteData.SITE_CLEARANCE;
         return a.minX() <= b.maxX() + clearance
                 && a.maxX() + clearance >= b.minX()
                 && a.minZ() <= b.maxZ() + clearance
                 && a.maxZ() + clearance >= b.minZ();
+    }
+
+    private static boolean hasPhysicalBuildingIdentity(MissionBuildingPlanner.Site site) {
+        return !site.buildingId().equals(site.id());
     }
 }

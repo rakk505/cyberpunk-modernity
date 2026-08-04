@@ -3768,8 +3768,13 @@
       "armor": 0.0,
       "effect": "Improves Kerenzikov by enhancing the user's speed and reflexes.\nWhen Kerenzikov is active:\n−100% Stamina cost from shooting.\nSlows time by +5 relative to your enemies.",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "kerenzikov_boost"
+        ],
+        "values": {
+          "ranged_stamina_reduction_percent": 100.0,
+          "time_slow_bonus_percent": 5.0
+        }
       }
     },
     {
@@ -3784,8 +3789,13 @@
       "armor": 0.0,
       "effect": "Improves Kerenzikov by enhancing the user's speed and reflexes.\nWhen Kerenzikov is active:\n−100% Stamina cost from shooting.\nSlows time by +7.5 relative to your enemies.",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "kerenzikov_boost"
+        ],
+        "values": {
+          "ranged_stamina_reduction_percent": 100.0,
+          "time_slow_bonus_percent": 7.5
+        }
       }
     },
     {
@@ -3800,8 +3810,13 @@
       "armor": 0.0,
       "effect": "Improves Kerenzikov by enhancing the user's speed and reflexes.\nWhen Kerenzikov is active:\n−100% Stamina cost from shooting.\nSlows time by +10 relative to your enemies.",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "kerenzikov_boost"
+        ],
+        "values": {
+          "ranged_stamina_reduction_percent": 100.0,
+          "time_slow_bonus_percent": 10.0
+        }
       }
     },
     {
@@ -3816,8 +3831,13 @@
       "armor": 0.0,
       "effect": "Improves Kerenzikov by enhancing the user's speed and reflexes.\nWhen Kerenzikov is active:\n−100% Stamina cost from shooting.\nSlows time by +12.5 relative to your enemies.",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "kerenzikov_boost"
+        ],
+        "values": {
+          "ranged_stamina_reduction_percent": 100.0,
+          "time_slow_bonus_percent": 12.5
+        }
       }
     },
     {
@@ -3832,8 +3852,13 @@
       "armor": 0.0,
       "effect": "Improves Kerenzikov by enhancing the user's speed and reflexes.\nWhen Kerenzikov is active:\n−100% Stamina cost from shooting.\nSlows time by +15 relative to your enemies.",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "kerenzikov_boost"
+        ],
+        "values": {
+          "ranged_stamina_reduction_percent": 100.0,
+          "time_slow_bonus_percent": 15.0
+        }
       }
     },
     {
@@ -3848,8 +3873,13 @@
       "armor": 0.0,
       "effect": "Improves Kerenzikov by enhancing the user's speed and reflexes.\nWhen Kerenzikov is active:\n−100% Stamina cost from shooting.\nSlows time by +15 relative to your enemies.",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "kerenzikov_boost"
+        ],
+        "values": {
+          "ranged_stamina_reduction_percent": 100.0,
+          "time_slow_bonus_percent": 15.0
+        }
       }
     },
     {
@@ -3864,8 +3894,13 @@
       "armor": 0.0,
       "effect": "Improves Kerenzikov by enhancing the user's speed and reflexes.\nWhen Kerenzikov is active:\n−100% Stamina cost from shooting.\nSlows time by +15 relative to your enemies.",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "kerenzikov_boost"
+        ],
+        "values": {
+          "ranged_stamina_reduction_percent": 100.0,
+          "time_slow_bonus_percent": 15.0
+        }
       }
     },
     {
@@ -4463,7 +4498,8 @@
         ],
         "values": {
           "cooldown_reduction_percent": 15.0,
-          "trigger_cooldown_seconds": 60.0
+          "trigger_cooldown_seconds": 60.0,
+          "cooldown_restore_max_seconds": 50.0
         }
       }
     },
@@ -4484,7 +4520,8 @@
         ],
         "values": {
           "cooldown_reduction_percent": 15.0,
-          "trigger_cooldown_seconds": 60.0
+          "trigger_cooldown_seconds": 60.0,
+          "cooldown_restore_max_seconds": 50.0
         }
       }
     },
@@ -4505,7 +4542,8 @@
         ],
         "values": {
           "cooldown_reduction_percent": 15.0,
-          "trigger_cooldown_seconds": 60.0
+          "trigger_cooldown_seconds": 60.0,
+          "cooldown_restore_max_seconds": 50.0
         }
       }
     },
@@ -5039,9 +5077,12 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*Enemies take 40% longer to trace your position.\n*−2 RAM cost for Covert quickhacks.\n*+5 RAM after performing a Takedown.\n*When Overclock is active, quickhacks will not increase trace progress (but will still initiate it).",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "takedown_ram"
         ],
-        "values": {}
+        "values": {
+          "takedown_ram": 5.0
+        }
       }
     },
     {
@@ -5057,9 +5098,12 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*Enemies take 40% longer to trace your position.\n*−2 RAM cost for Covert quickhacks.\n*+5 RAM after performing a Takedown.\n*When Overclock is active, quickhacks will not increase trace progress (but will still initiate it).",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "takedown_ram"
         ],
-        "values": {}
+        "values": {
+          "takedown_ram": 5.0
+        }
       }
     },
     {
@@ -5075,9 +5119,12 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*Enemies take 40% longer to trace your position.\n*−2 RAM cost for Covert quickhacks.\n*+5 RAM after performing a Takedown.\n*When Overclock is active, quickhacks will not increase trace progress (but will still initiate it).",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "takedown_ram"
         ],
-        "values": {}
+        "values": {
+          "takedown_ram": 5.0
+        }
       }
     },
     {
@@ -5093,9 +5140,12 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*Enemies take 40% longer to trace your position.\n*−2 RAM cost for Covert quickhacks.\n*+5 RAM after performing a Takedown.\n*When Overclock is active, quickhacks will not increase trace progress (but will still initiate it).",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "takedown_ram"
         ],
-        "values": {}
+        "values": {
+          "takedown_ram": 5.0
+        }
       }
     },
     {
@@ -5111,9 +5161,12 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*Enemies take 40% longer to trace your position.\n*−2 RAM cost for Covert quickhacks.\n*+5 RAM after performing a Takedown.\n*When Overclock is active, quickhacks will not increase trace progress (but will still initiate it).",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "takedown_ram"
         ],
-        "values": {}
+        "values": {
+          "takedown_ram": 5.0
+        }
       }
     },
     {
@@ -5129,9 +5182,12 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*Enemies take 40% longer to trace your position.\n*−2 RAM cost for Covert quickhacks.\n*+5 RAM after performing a Takedown.\n*When Overclock is active, quickhacks will not increase trace progress (but will still initiate it).",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "takedown_ram"
         ],
-        "values": {}
+        "values": {
+          "takedown_ram": 5.0
+        }
       }
     },
     {
@@ -5147,9 +5203,12 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*Enemies take 40% longer to trace your position.\n*−2 RAM cost for Covert quickhacks.\n*+5 RAM after performing a Takedown.\n*When Overclock is active, quickhacks will not increase trace progress (but will still initiate it).",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "takedown_ram"
         ],
-        "values": {}
+        "values": {
+          "takedown_ram": 5.0
+        }
       }
     },
     {
@@ -5165,9 +5224,12 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*Enemies take 40% longer to trace your position.\n*−2 RAM cost for Covert quickhacks.\n*+5 RAM after performing a Takedown.\n*When Overclock is active, quickhacks will not increase trace progress (but will still initiate it).",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "takedown_ram"
         ],
-        "values": {}
+        "values": {
+          "takedown_ram": 5.0
+        }
       }
     },
     {
@@ -5183,9 +5245,12 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*Enemies take 40% longer to trace your position.\n*−2 RAM cost for Covert quickhacks.\n*+5 RAM after performing a Takedown.\n*When Overclock is active, quickhacks will not increase trace progress (but will still initiate it).",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "takedown_ram"
         ],
-        "values": {}
+        "values": {
+          "takedown_ram": 5.0
+        }
       }
     },
     {
@@ -5201,9 +5266,12 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*Enemies take 40% longer to trace your position.\n*−2 RAM cost for Covert quickhacks.\n*+5 RAM after performing a Takedown.\n*When Overclock is active, quickhacks will not increase trace progress (but will still initiate it).",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "takedown_ram"
         ],
-        "values": {}
+        "values": {
+          "takedown_ram": 5.0
+        }
       }
     },
     {
@@ -5219,9 +5287,12 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*Enemies take 40% longer to trace your position.\n*−2 RAM cost for Covert quickhacks.\n*+5 RAM after performing a Takedown.\n*When Overclock is active, quickhacks will not increase trace progress (but will still initiate it).",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "takedown_ram"
         ],
-        "values": {}
+        "values": {
+          "takedown_ram": 5.0
+        }
       }
     },
     {
@@ -5489,9 +5560,14 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*+15-60% duration for Combat quickhacks.\n*+10% damage-over-time with quickhacks.\n*+25% Monowire damage against enemies affected by a damage-over-time effect.\n*Activating Overclock resets the duration of quickhack damage-over-time effects.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "quickhack_dot"
         ],
-        "values": {}
+        "values": {
+          "quickhack_duration_percent": 60.0,
+          "quickhack_dot_damage_percent": 10.0,
+          "monowire_dot_damage_percent": 25.0
+        }
       }
     },
     {
@@ -5507,9 +5583,14 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*+15-60% duration for Combat quickhacks.\n*+10% damage-over-time with quickhacks.\n*+25% Monowire damage against enemies affected by a damage-over-time effect.\n*Activating Overclock resets the duration of quickhack damage-over-time effects.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "quickhack_dot"
         ],
-        "values": {}
+        "values": {
+          "quickhack_duration_percent": 60.0,
+          "quickhack_dot_damage_percent": 10.0,
+          "monowire_dot_damage_percent": 25.0
+        }
       }
     },
     {
@@ -5525,9 +5606,14 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*+15-60% duration for Combat quickhacks.\n*+10% damage-over-time with quickhacks.\n*+25% Monowire damage against enemies affected by a damage-over-time effect.\n*Activating Overclock resets the duration of quickhack damage-over-time effects.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "quickhack_dot"
         ],
-        "values": {}
+        "values": {
+          "quickhack_duration_percent": 60.0,
+          "quickhack_dot_damage_percent": 10.0,
+          "monowire_dot_damage_percent": 25.0
+        }
       }
     },
     {
@@ -5543,9 +5629,14 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*+15-60% duration for Combat quickhacks.\n*+10% damage-over-time with quickhacks.\n*+25% Monowire damage against enemies affected by a damage-over-time effect.\n*Activating Overclock resets the duration of quickhack damage-over-time effects.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "quickhack_dot"
         ],
-        "values": {}
+        "values": {
+          "quickhack_duration_percent": 60.0,
+          "quickhack_dot_damage_percent": 10.0,
+          "monowire_dot_damage_percent": 25.0
+        }
       }
     },
     {
@@ -5561,9 +5652,14 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*+15-60% duration for Combat quickhacks.\n*+10% damage-over-time with quickhacks.\n*+25% Monowire damage against enemies affected by a damage-over-time effect.\n*Activating Overclock resets the duration of quickhack damage-over-time effects.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "quickhack_dot"
         ],
-        "values": {}
+        "values": {
+          "quickhack_duration_percent": 60.0,
+          "quickhack_dot_damage_percent": 10.0,
+          "monowire_dot_damage_percent": 25.0
+        }
       }
     },
     {
@@ -5579,9 +5675,14 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*+15-60% duration for Combat quickhacks.\n*+10% damage-over-time with quickhacks.\n*+25% Monowire damage against enemies affected by a damage-over-time effect.\n*Activating Overclock resets the duration of quickhack damage-over-time effects.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "quickhack_dot"
         ],
-        "values": {}
+        "values": {
+          "quickhack_duration_percent": 60.0,
+          "quickhack_dot_damage_percent": 10.0,
+          "monowire_dot_damage_percent": 25.0
+        }
       }
     },
     {
@@ -5597,9 +5698,14 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*+15-60% duration for Combat quickhacks.\n*+10% damage-over-time with quickhacks.\n*+25% Monowire damage against enemies affected by a damage-over-time effect.\n*Activating Overclock resets the duration of quickhack damage-over-time effects.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "quickhack_dot"
         ],
-        "values": {}
+        "values": {
+          "quickhack_duration_percent": 60.0,
+          "quickhack_dot_damage_percent": 10.0,
+          "monowire_dot_damage_percent": 25.0
+        }
       }
     },
     {
@@ -5615,9 +5721,14 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*+15-60% duration for Combat quickhacks.\n*+10% damage-over-time with quickhacks.\n*+25% Monowire damage against enemies affected by a damage-over-time effect.\n*Activating Overclock resets the duration of quickhack damage-over-time effects.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "quickhack_dot"
         ],
-        "values": {}
+        "values": {
+          "quickhack_duration_percent": 60.0,
+          "quickhack_dot_damage_percent": 10.0,
+          "monowire_dot_damage_percent": 25.0
+        }
       }
     },
     {
@@ -5633,9 +5744,14 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*+15-60% duration for Combat quickhacks.\n*+10% damage-over-time with quickhacks.\n*+25% Monowire damage against enemies affected by a damage-over-time effect.\n*Activating Overclock resets the duration of quickhack damage-over-time effects.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "quickhack_dot"
         ],
-        "values": {}
+        "values": {
+          "quickhack_duration_percent": 60.0,
+          "quickhack_dot_damage_percent": 10.0,
+          "monowire_dot_damage_percent": 25.0
+        }
       }
     },
     {
@@ -6324,6 +6440,7 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*Unlocks the Blackwall Gateway quickhack.",
       "mechanics": {
         "flags": [
+          "blackwall_gateway",
           "cyberdeck"
         ],
         "values": {}
@@ -6342,6 +6459,7 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*Unlocks the Blackwall Gateway quickhack.",
       "mechanics": {
         "flags": [
+          "blackwall_gateway",
           "cyberdeck"
         ],
         "values": {}
@@ -6360,6 +6478,7 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*Unlocks the Blackwall Gateway quickhack.",
       "mechanics": {
         "flags": [
+          "blackwall_gateway",
           "cyberdeck"
         ],
         "values": {}
@@ -6523,9 +6642,14 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*+10% quickhack damage.\n*+2% Monowire damage per used RAM unit (max. +30%).\n*When uploading a quickhack to an enemy, shooting them with a Smart weapon will accelerate upload speed.\n*When Overclock is active:\n*Smart weapons and Monowire deal bonus Electrical damage equal to 25-60% of normal attack damage.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "paraline"
         ],
-        "values": {}
+        "values": {
+          "quickhack_damage_percent": 10.0,
+          "monowire_ram_damage_percent": 2.0,
+          "monowire_ram_damage_cap_percent": 30.0
+        }
       }
     },
     {
@@ -6541,9 +6665,14 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*+10% quickhack damage.\n*+2% Monowire damage per used RAM unit (max. +30%).\n*When uploading a quickhack to an enemy, shooting them with a Smart weapon will accelerate upload speed.\n*When Overclock is active:\n*Smart weapons and Monowire deal bonus Electrical damage equal to 25-60% of normal attack damage.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "paraline"
         ],
-        "values": {}
+        "values": {
+          "quickhack_damage_percent": 10.0,
+          "monowire_ram_damage_percent": 2.0,
+          "monowire_ram_damage_cap_percent": 30.0
+        }
       }
     },
     {
@@ -6559,9 +6688,14 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*+10% quickhack damage.\n*+2% Monowire damage per used RAM unit (max. +30%).\n*When uploading a quickhack to an enemy, shooting them with a Smart weapon will accelerate upload speed.\n*When Overclock is active:\n*Smart weapons and Monowire deal bonus Electrical damage equal to 25-60% of normal attack damage.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "paraline"
         ],
-        "values": {}
+        "values": {
+          "quickhack_damage_percent": 10.0,
+          "monowire_ram_damage_percent": 2.0,
+          "monowire_ram_damage_cap_percent": 30.0
+        }
       }
     },
     {
@@ -6577,9 +6711,14 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*+10% quickhack damage.\n*+2% Monowire damage per used RAM unit (max. +30%).\n*When uploading a quickhack to an enemy, shooting them with a Smart weapon will accelerate upload speed.\n*When Overclock is active:\n*Smart weapons and Monowire deal bonus Electrical damage equal to 25-60% of normal attack damage.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "paraline"
         ],
-        "values": {}
+        "values": {
+          "quickhack_damage_percent": 10.0,
+          "monowire_ram_damage_percent": 2.0,
+          "monowire_ram_damage_cap_percent": 30.0
+        }
       }
     },
     {
@@ -6595,9 +6734,14 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*+10% quickhack damage.\n*+2% Monowire damage per used RAM unit (max. +30%).\n*When uploading a quickhack to an enemy, shooting them with a Smart weapon will accelerate upload speed.\n*When Overclock is active:\n*Smart weapons and Monowire deal bonus Electrical damage equal to 25-60% of normal attack damage.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "paraline"
         ],
-        "values": {}
+        "values": {
+          "quickhack_damage_percent": 10.0,
+          "monowire_ram_damage_percent": 2.0,
+          "monowire_ram_damage_cap_percent": 30.0
+        }
       }
     },
     {
@@ -6613,9 +6757,14 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*+10% quickhack damage.\n*+2% Monowire damage per used RAM unit (max. +30%).\n*When uploading a quickhack to an enemy, shooting them with a Smart weapon will accelerate upload speed.\n*When Overclock is active:\n*Smart weapons and Monowire deal bonus Electrical damage equal to 25-60% of normal attack damage.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "paraline"
         ],
-        "values": {}
+        "values": {
+          "quickhack_damage_percent": 10.0,
+          "monowire_ram_damage_percent": 2.0,
+          "monowire_ram_damage_cap_percent": 30.0
+        }
       }
     },
     {
@@ -6631,9 +6780,14 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*+10% quickhack damage.\n*+2% Monowire damage per used RAM unit (max. +30%).\n*When uploading a quickhack to an enemy, shooting them with a Smart weapon will accelerate upload speed.\n*When Overclock is active:\n*Smart weapons and Monowire deal bonus Electrical damage equal to 25-60% of normal attack damage.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "paraline"
         ],
-        "values": {}
+        "values": {
+          "quickhack_damage_percent": 10.0,
+          "monowire_ram_damage_percent": 2.0,
+          "monowire_ram_damage_cap_percent": 30.0
+        }
       }
     },
     {
@@ -6649,9 +6803,14 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*+10% quickhack damage.\n*+2% Monowire damage per used RAM unit (max. +30%).\n*When uploading a quickhack to an enemy, shooting them with a Smart weapon will accelerate upload speed.\n*When Overclock is active:\n*Smart weapons and Monowire deal bonus Electrical damage equal to 25-60% of normal attack damage.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "paraline"
         ],
-        "values": {}
+        "values": {
+          "quickhack_damage_percent": 10.0,
+          "monowire_ram_damage_percent": 2.0,
+          "monowire_ram_damage_cap_percent": 30.0
+        }
       }
     },
     {
@@ -6667,9 +6826,14 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*+10% quickhack damage.\n*+2% Monowire damage per used RAM unit (max. +30%).\n*When uploading a quickhack to an enemy, shooting them with a Smart weapon will accelerate upload speed.\n*When Overclock is active:\n*Smart weapons and Monowire deal bonus Electrical damage equal to 25-60% of normal attack damage.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "paraline"
         ],
-        "values": {}
+        "values": {
+          "quickhack_damage_percent": 10.0,
+          "monowire_ram_damage_percent": 2.0,
+          "monowire_ram_damage_cap_percent": 30.0
+        }
       }
     },
     {
@@ -6685,9 +6849,14 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*+10% quickhack damage.\n*+2% Monowire damage per used RAM unit (max. +30%).\n*When uploading a quickhack to an enemy, shooting them with a Smart weapon will accelerate upload speed.\n*When Overclock is active:\n*Smart weapons and Monowire deal bonus Electrical damage equal to 25-60% of normal attack damage.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "paraline"
         ],
-        "values": {}
+        "values": {
+          "quickhack_damage_percent": 10.0,
+          "monowire_ram_damage_percent": 2.0,
+          "monowire_ram_damage_cap_percent": 30.0
+        }
       }
     },
     {
@@ -6703,9 +6872,14 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*+10% quickhack damage.\n*+2% Monowire damage per used RAM unit (max. +30%).\n*When uploading a quickhack to an enemy, shooting them with a Smart weapon will accelerate upload speed.\n*When Overclock is active:\n*Smart weapons and Monowire deal bonus Electrical damage equal to 25-60% of normal attack damage.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "paraline"
         ],
-        "values": {}
+        "values": {
+          "quickhack_damage_percent": 10.0,
+          "monowire_ram_damage_percent": 2.0,
+          "monowire_ram_damage_cap_percent": 30.0
+        }
       }
     },
     {
@@ -6973,9 +7147,12 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*−20% traceability for quickhacks uploaded through cameras.\n*−50% RAM cost for Device and Vehicle quickhacks.\n*Combat quickhacks uploaded through devices gain:\n*+15-30% damage\n*+20-50% effect duration",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "device_specialist"
         ],
-        "values": {}
+        "values": {
+          "quickhack_ram_cost_reduction_percent": 50.0
+        }
       }
     },
     {
@@ -6991,9 +7168,12 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*−20% traceability for quickhacks uploaded through cameras.\n*−50% RAM cost for Device and Vehicle quickhacks.\n*Combat quickhacks uploaded through devices gain:\n*+15-30% damage\n*+20-50% effect duration",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "device_specialist"
         ],
-        "values": {}
+        "values": {
+          "quickhack_ram_cost_reduction_percent": 50.0
+        }
       }
     },
     {
@@ -7009,9 +7189,12 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*−20% traceability for quickhacks uploaded through cameras.\n*−50% RAM cost for Device and Vehicle quickhacks.\n*Combat quickhacks uploaded through devices gain:\n*+15-30% damage\n*+20-50% effect duration",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "device_specialist"
         ],
-        "values": {}
+        "values": {
+          "quickhack_ram_cost_reduction_percent": 50.0
+        }
       }
     },
     {
@@ -7251,9 +7434,12 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*+40-100% spread distance with quickhacks.\n*Quickhacks spread to all valid enemies immediately instead of waiting for the initial upload to finish.\n*When Overclock is active:\n*+15% chance for any quickhack to spread to 2 nearby enemies.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "quickhack_spread"
         ],
-        "values": {}
+        "values": {
+          "quickhack_spread_distance_percent": 100.0
+        }
       }
     },
     {
@@ -7269,9 +7455,12 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*+40-100% spread distance with quickhacks.\n*Quickhacks spread to all valid enemies immediately instead of waiting for the initial upload to finish.\n*When Overclock is active:\n*+15% chance for any quickhack to spread to 2 nearby enemies.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "quickhack_spread"
         ],
-        "values": {}
+        "values": {
+          "quickhack_spread_distance_percent": 100.0
+        }
       }
     },
     {
@@ -7287,9 +7476,12 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*+40-100% spread distance with quickhacks.\n*Quickhacks spread to all valid enemies immediately instead of waiting for the initial upload to finish.\n*When Overclock is active:\n*+15% chance for any quickhack to spread to 2 nearby enemies.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "quickhack_spread"
         ],
-        "values": {}
+        "values": {
+          "quickhack_spread_distance_percent": 100.0
+        }
       }
     },
     {
@@ -7305,9 +7497,12 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*+40-100% spread distance with quickhacks.\n*Quickhacks spread to all valid enemies immediately instead of waiting for the initial upload to finish.\n*When Overclock is active:\n*+15% chance for any quickhack to spread to 2 nearby enemies.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "quickhack_spread"
         ],
-        "values": {}
+        "values": {
+          "quickhack_spread_distance_percent": 100.0
+        }
       }
     },
     {
@@ -7323,9 +7518,12 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*+40-100% spread distance with quickhacks.\n*Quickhacks spread to all valid enemies immediately instead of waiting for the initial upload to finish.\n*When Overclock is active:\n*+15% chance for any quickhack to spread to 2 nearby enemies.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "quickhack_spread"
         ],
-        "values": {}
+        "values": {
+          "quickhack_spread_distance_percent": 100.0
+        }
       }
     },
     {
@@ -7341,9 +7539,12 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*+40-100% spread distance with quickhacks.\n*Quickhacks spread to all valid enemies immediately instead of waiting for the initial upload to finish.\n*When Overclock is active:\n*+15% chance for any quickhack to spread to 2 nearby enemies.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "quickhack_spread"
         ],
-        "values": {}
+        "values": {
+          "quickhack_spread_distance_percent": 100.0
+        }
       }
     },
     {
@@ -7359,9 +7560,12 @@
       "effect": "*Allows you to perform quickhacks on enemies and devices while scanning.\n*+40-100% spread distance with quickhacks.\n*Quickhacks spread to all valid enemies immediately instead of waiting for the initial upload to finish.\n*When Overclock is active:\n*+15% chance for any quickhack to spread to 2 nearby enemies.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "quickhack_spread"
         ],
-        "values": {}
+        "values": {
+          "quickhack_spread_distance_percent": 100.0
+        }
       }
     },
     {
@@ -7377,10 +7581,12 @@
       "effect": "* Allows you to perform quickhacks on enemies and devices while scanning.\n* +15% weapon damage against enemies affected by non-Combat quickhacks.\n* +40% damage with Combat quickhacks when immediately followed by a non-Combat quickhack in the queue.\n* +5/8/12 Max RAM.\n* When activating Overclock, automatically upload Reboot Optics and Weapon Glitch to all enemies within 8 m.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "quickhack_combo"
         ],
         "values": {
-          "max_ram": 12.0
+          "max_ram": 12.0,
+          "quickhack_combo_damage_percent": 40.0
         }
       }
     },
@@ -7397,10 +7603,12 @@
       "effect": "* Allows you to perform quickhacks on enemies and devices while scanning.\n* +15% weapon damage against enemies affected by non-Combat quickhacks.\n* +40% damage with Combat quickhacks when immediately followed by a non-Combat quickhack in the queue.\n* +5/8/12 Max RAM.\n* When activating Overclock, automatically upload Reboot Optics and Weapon Glitch to all enemies within 8 m.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "quickhack_combo"
         ],
         "values": {
-          "max_ram": 12.0
+          "max_ram": 12.0,
+          "quickhack_combo_damage_percent": 40.0
         }
       }
     },
@@ -7417,10 +7625,12 @@
       "effect": "* Allows you to perform quickhacks on enemies and devices while scanning.\n* +15% weapon damage against enemies affected by non-Combat quickhacks.\n* +40% damage with Combat quickhacks when immediately followed by a non-Combat quickhack in the queue.\n* +5/8/12 Max RAM.\n* When activating Overclock, automatically upload Reboot Optics and Weapon Glitch to all enemies within 8 m.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "quickhack_combo"
         ],
         "values": {
-          "max_ram": 12.0
+          "max_ram": 12.0,
+          "quickhack_combo_damage_percent": 40.0
         }
       }
     },
@@ -7437,10 +7647,12 @@
       "effect": "* Allows you to perform quickhacks on enemies and devices while scanning.\n* +15% weapon damage against enemies affected by non-Combat quickhacks.\n* +40% damage with Combat quickhacks when immediately followed by a non-Combat quickhack in the queue.\n* +5/8/12 Max RAM.\n* When activating Overclock, automatically upload Reboot Optics and Weapon Glitch to all enemies within 8 m.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "quickhack_combo"
         ],
         "values": {
-          "max_ram": 12.0
+          "max_ram": 12.0,
+          "quickhack_combo_damage_percent": 40.0
         }
       }
     },
@@ -7457,10 +7669,12 @@
       "effect": "* Allows you to perform quickhacks on enemies and devices while scanning.\n* +15% weapon damage against enemies affected by non-Combat quickhacks.\n* +40% damage with Combat quickhacks when immediately followed by a non-Combat quickhack in the queue.\n* +5/8/12 Max RAM.\n* When activating Overclock, automatically upload Reboot Optics and Weapon Glitch to all enemies within 8 m.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "quickhack_combo"
         ],
         "values": {
-          "max_ram": 12.0
+          "max_ram": 12.0,
+          "quickhack_combo_damage_percent": 40.0
         }
       }
     },
@@ -7477,10 +7691,12 @@
       "effect": "* Allows you to perform quickhacks on enemies and devices while scanning.\n* +15% weapon damage against enemies affected by non-Combat quickhacks.\n* +40% damage with Combat quickhacks when immediately followed by a non-Combat quickhack in the queue.\n* +5/8/12 Max RAM.\n* When activating Overclock, automatically upload Reboot Optics and Weapon Glitch to all enemies within 8 m.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "quickhack_combo"
         ],
         "values": {
-          "max_ram": 12.0
+          "max_ram": 12.0,
+          "quickhack_combo_damage_percent": 40.0
         }
       }
     },
@@ -7497,10 +7713,12 @@
       "effect": "* Allows you to perform quickhacks on enemies and devices while scanning.\n* +15% weapon damage against enemies affected by non-Combat quickhacks.\n* +40% damage with Combat quickhacks when immediately followed by a non-Combat quickhack in the queue.\n* +5/8/12 Max RAM.\n* When activating Overclock, automatically upload Reboot Optics and Weapon Glitch to all enemies within 8 m.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "quickhack_combo"
         ],
         "values": {
-          "max_ram": 12.0
+          "max_ram": 12.0,
+          "quickhack_combo_damage_percent": 40.0
         }
       }
     },
@@ -7517,10 +7735,12 @@
       "effect": "* Allows you to perform quickhacks on enemies and devices while scanning.\n* +15% weapon damage against enemies affected by non-Combat quickhacks.\n* +40% damage with Combat quickhacks when immediately followed by a non-Combat quickhack in the queue.\n* +5/8/12 Max RAM.\n* When activating Overclock, automatically upload Reboot Optics and Weapon Glitch to all enemies within 8 m.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "quickhack_combo"
         ],
         "values": {
-          "max_ram": 12.0
+          "max_ram": 12.0,
+          "quickhack_combo_damage_percent": 40.0
         }
       }
     },
@@ -7537,10 +7757,12 @@
       "effect": "* Allows you to perform quickhacks on enemies and devices while scanning.\n* +15% weapon damage against enemies affected by non-Combat quickhacks.\n* +40% damage with Combat quickhacks when immediately followed by a non-Combat quickhack in the queue.\n* +5/8/12 Max RAM.\n* When activating Overclock, automatically upload Reboot Optics and Weapon Glitch to all enemies within 8 m.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "quickhack_combo"
         ],
         "values": {
-          "max_ram": 12.0
+          "max_ram": 12.0,
+          "quickhack_combo_damage_percent": 40.0
         }
       }
     },
@@ -7557,10 +7779,12 @@
       "effect": "* Allows you to perform quickhacks on enemies and devices while scanning.\n* +15% weapon damage against enemies affected by non-Combat quickhacks.\n* +40% damage with Combat quickhacks when immediately followed by a non-Combat quickhack in the queue.\n* +5/8/12 Max RAM.\n* When activating Overclock, automatically upload Reboot Optics and Weapon Glitch to all enemies within 8 m.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "quickhack_combo"
         ],
         "values": {
-          "max_ram": 12.0
+          "max_ram": 12.0,
+          "quickhack_combo_damage_percent": 40.0
         }
       }
     },
@@ -7577,10 +7801,12 @@
       "effect": "* Allows you to perform quickhacks on enemies and devices while scanning.\n* +15% weapon damage against enemies affected by non-Combat quickhacks.\n* +40% damage with Combat quickhacks when immediately followed by a non-Combat quickhack in the queue.\n* +5/8/12 Max RAM.\n* When activating Overclock, automatically upload Reboot Optics and Weapon Glitch to all enemies within 8 m.",
       "mechanics": {
         "flags": [
-          "cyberdeck"
+          "cyberdeck",
+          "quickhack_combo"
         ],
         "values": {
-          "max_ram": 12.0
+          "max_ram": 12.0,
+          "quickhack_combo_damage_percent": 40.0
         }
       }
     },
@@ -8684,6 +8910,7 @@
       "effect": "Launches an explosive projectile that deals massive Electrical damage.\nCharged shots gain:\n+30% damage\n+25% explosion radius\n+100% Stun chance",
       "mechanics": {
         "flags": [
+          "damage_electrical",
           "projectile_launcher"
         ],
         "values": {}
@@ -8702,6 +8929,7 @@
       "effect": "Launches an explosive projectile that deals massive Electrical damage.\nCharged shots gain:\n+30% damage\n+25% explosion radius\n+100% Stun chance",
       "mechanics": {
         "flags": [
+          "damage_electrical",
           "projectile_launcher"
         ],
         "values": {}
@@ -8720,6 +8948,7 @@
       "effect": "Launches an explosive projectile that deals massive Electrical damage.\nCharged shots gain:\n+30% damage\n+25% explosion radius\n+100% Stun chance",
       "mechanics": {
         "flags": [
+          "damage_electrical",
           "projectile_launcher"
         ],
         "values": {}
@@ -8738,6 +8967,7 @@
       "effect": "Launches an explosive projectile that deals massive Electrical damage.\nCharged shots gain:\n+30% damage\n+25% explosion radius\n+100% Stun chance",
       "mechanics": {
         "flags": [
+          "damage_electrical",
           "projectile_launcher"
         ],
         "values": {}
@@ -8756,6 +8986,7 @@
       "effect": "Launches an explosive projectile that deals massive Electrical damage.\nCharged shots gain:\n+30% damage\n+25% explosion radius\n+100% Stun chance",
       "mechanics": {
         "flags": [
+          "damage_electrical",
           "projectile_launcher"
         ],
         "values": {}
@@ -8774,6 +9005,7 @@
       "effect": "Launches an explosive projectile that deals massive Electrical damage.\nCharged shots gain:\n+30% damage\n+25% explosion radius\n+100% Stun chance",
       "mechanics": {
         "flags": [
+          "damage_electrical",
           "projectile_launcher"
         ],
         "values": {}
@@ -8792,6 +9024,7 @@
       "effect": "Launches an explosive projectile that deals massive Electrical damage.\nCharged shots gain:\n+30% damage\n+25% explosion radius\n+100% Stun chance",
       "mechanics": {
         "flags": [
+          "damage_electrical",
           "projectile_launcher"
         ],
         "values": {}
@@ -8810,6 +9043,7 @@
       "effect": "Launches an explosive projectile that deals massive Electrical damage.\nCharged shots gain:\n+30% damage\n+25% explosion radius\n+100% Stun chance",
       "mechanics": {
         "flags": [
+          "damage_electrical",
           "projectile_launcher"
         ],
         "values": {}
@@ -8828,6 +9062,7 @@
       "effect": "Launches an explosive projectile that deals massive Electrical damage.\nCharged shots gain:\n+30% damage\n+25% explosion radius\n+100% Stun chance",
       "mechanics": {
         "flags": [
+          "damage_electrical",
           "projectile_launcher"
         ],
         "values": {}
@@ -9550,6 +9785,7 @@
       "effect": "Launches an explosive projectile that deals massive Physical damage.\nCharged shots gain:\n+30% damage\n+25% explosion radius\n+40% dismemberment chance",
       "mechanics": {
         "flags": [
+          "damage_physical",
           "projectile_launcher"
         ],
         "values": {}
@@ -9568,6 +9804,7 @@
       "effect": "Launches an explosive projectile that deals massive Physical damage.\nCharged shots gain:\n+30% damage\n+25% explosion radius\n+40% dismemberment chance",
       "mechanics": {
         "flags": [
+          "damage_physical",
           "projectile_launcher"
         ],
         "values": {}
@@ -9586,6 +9823,7 @@
       "effect": "Launches an explosive projectile that deals massive Physical damage.\nCharged shots gain:\n+30% damage\n+25% explosion radius\n+40% dismemberment chance",
       "mechanics": {
         "flags": [
+          "damage_physical",
           "projectile_launcher"
         ],
         "values": {}
@@ -9604,6 +9842,7 @@
       "effect": "Launches an explosive projectile that deals massive Physical damage.\nCharged shots gain:\n+30% damage\n+25% explosion radius\n+40% dismemberment chance",
       "mechanics": {
         "flags": [
+          "damage_physical",
           "projectile_launcher"
         ],
         "values": {}
@@ -9622,6 +9861,7 @@
       "effect": "Launches an explosive projectile that deals massive Physical damage.\nCharged shots gain:\n+30% damage\n+25% explosion radius\n+40% dismemberment chance",
       "mechanics": {
         "flags": [
+          "damage_physical",
           "projectile_launcher"
         ],
         "values": {}
@@ -9640,6 +9880,7 @@
       "effect": "Launches an explosive projectile that deals massive Physical damage.\nCharged shots gain:\n+30% damage\n+25% explosion radius\n+40% dismemberment chance",
       "mechanics": {
         "flags": [
+          "damage_physical",
           "projectile_launcher"
         ],
         "values": {}
@@ -9658,6 +9899,7 @@
       "effect": "Launches an explosive projectile that deals massive Physical damage.\nCharged shots gain:\n+30% damage\n+25% explosion radius\n+40% dismemberment chance",
       "mechanics": {
         "flags": [
+          "damage_physical",
           "projectile_launcher"
         ],
         "values": {}
@@ -9676,6 +9918,7 @@
       "effect": "Launches an explosive projectile that deals massive Physical damage.\nCharged shots gain:\n+30% damage\n+25% explosion radius\n+40% dismemberment chance",
       "mechanics": {
         "flags": [
+          "damage_physical",
           "projectile_launcher"
         ],
         "values": {}
@@ -9694,6 +9937,7 @@
       "effect": "Launches an explosive projectile that deals massive Physical damage.\nCharged shots gain:\n+30% damage\n+25% explosion radius\n+40% dismemberment chance",
       "mechanics": {
         "flags": [
+          "damage_physical",
           "projectile_launcher"
         ],
         "values": {}
@@ -11098,6 +11342,7 @@
       "effect": "Launches an explosive projectile that deals massive Chemical damage. Small Poison chance.\nCharged shots gain:\n+30% damage\n+25% explosion radius\n+30% Poison chance",
       "mechanics": {
         "flags": [
+          "damage_chemical",
           "projectile_launcher",
           "status_poison"
         ],
@@ -11119,6 +11364,7 @@
       "effect": "Launches an explosive projectile that deals massive Chemical damage. Small Poison chance.\nCharged shots gain:\n+30% damage\n+25% explosion radius\n+30% Poison chance",
       "mechanics": {
         "flags": [
+          "damage_chemical",
           "projectile_launcher",
           "status_poison"
         ],
@@ -11140,6 +11386,7 @@
       "effect": "Launches an explosive projectile that deals massive Chemical damage. Small Poison chance.\nCharged shots gain:\n+30% damage\n+25% explosion radius\n+30% Poison chance",
       "mechanics": {
         "flags": [
+          "damage_chemical",
           "projectile_launcher",
           "status_poison"
         ],
@@ -11161,6 +11408,7 @@
       "effect": "Launches an explosive projectile that deals massive Chemical damage. Small Poison chance.\nCharged shots gain:\n+30% damage\n+25% explosion radius\n+30% Poison chance",
       "mechanics": {
         "flags": [
+          "damage_chemical",
           "projectile_launcher",
           "status_poison"
         ],
@@ -11182,6 +11430,7 @@
       "effect": "Launches an explosive projectile that deals massive Chemical damage. Small Poison chance.\nCharged shots gain:\n+30% damage\n+25% explosion radius\n+30% Poison chance",
       "mechanics": {
         "flags": [
+          "damage_chemical",
           "projectile_launcher",
           "status_poison"
         ],
@@ -11203,6 +11452,7 @@
       "effect": "Launches an explosive projectile that deals massive Chemical damage. Small Poison chance.\nCharged shots gain:\n+30% damage\n+25% explosion radius\n+30% Poison chance",
       "mechanics": {
         "flags": [
+          "damage_chemical",
           "projectile_launcher",
           "status_poison"
         ],
@@ -11224,6 +11474,7 @@
       "effect": "Launches an explosive projectile that deals massive Chemical damage. Small Poison chance.\nCharged shots gain:\n+30% damage\n+25% explosion radius\n+30% Poison chance",
       "mechanics": {
         "flags": [
+          "damage_chemical",
           "projectile_launcher",
           "status_poison"
         ],
@@ -11245,6 +11496,7 @@
       "effect": "Launches an explosive projectile that deals massive Chemical damage. Small Poison chance.\nCharged shots gain:\n+30% damage\n+25% explosion radius\n+30% Poison chance",
       "mechanics": {
         "flags": [
+          "damage_chemical",
           "projectile_launcher",
           "status_poison"
         ],
@@ -11266,6 +11518,7 @@
       "effect": "Launches an explosive projectile that deals massive Chemical damage. Small Poison chance.\nCharged shots gain:\n+30% damage\n+25% explosion radius\n+30% Poison chance",
       "mechanics": {
         "flags": [
+          "damage_chemical",
           "projectile_launcher",
           "status_poison"
         ],
@@ -11289,7 +11542,10 @@
         "flags": [
           "kiroshi_optics"
         ],
-        "values": {}
+        "values": {
+          "detection_reduction_percent": 20.0,
+          "scanner_enemy_range": 48
+        }
       }
     },
     {
@@ -11307,7 +11563,10 @@
         "flags": [
           "kiroshi_optics"
         ],
-        "values": {}
+        "values": {
+          "detection_reduction_percent": 23.0,
+          "scanner_enemy_range": 48
+        }
       }
     },
     {
@@ -11325,7 +11584,10 @@
         "flags": [
           "kiroshi_optics"
         ],
-        "values": {}
+        "values": {
+          "detection_reduction_percent": 26.0,
+          "scanner_enemy_range": 48
+        }
       }
     },
     {
@@ -11343,7 +11605,10 @@
         "flags": [
           "kiroshi_optics"
         ],
-        "values": {}
+        "values": {
+          "detection_reduction_percent": 29.0,
+          "scanner_enemy_range": 48
+        }
       }
     },
     {
@@ -11361,7 +11626,10 @@
         "flags": [
           "kiroshi_optics"
         ],
-        "values": {}
+        "values": {
+          "detection_reduction_percent": 32.0,
+          "scanner_enemy_range": 48
+        }
       }
     },
     {
@@ -11379,7 +11647,10 @@
         "flags": [
           "kiroshi_optics"
         ],
-        "values": {}
+        "values": {
+          "detection_reduction_percent": 35.0,
+          "scanner_enemy_range": 48
+        }
       }
     },
     {
@@ -11397,7 +11668,10 @@
         "flags": [
           "kiroshi_optics"
         ],
-        "values": {}
+        "values": {
+          "detection_reduction_percent": 38.0,
+          "scanner_enemy_range": 48
+        }
       }
     },
     {
@@ -11415,7 +11689,10 @@
         "flags": [
           "kiroshi_optics"
         ],
-        "values": {}
+        "values": {
+          "detection_reduction_percent": 41.0,
+          "scanner_enemy_range": 48
+        }
       }
     },
     {
@@ -11433,7 +11710,10 @@
         "flags": [
           "kiroshi_optics"
         ],
-        "values": {}
+        "values": {
+          "detection_reduction_percent": 44.0,
+          "scanner_enemy_range": 48
+        }
       }
     },
     {
@@ -11451,7 +11731,10 @@
         "flags": [
           "kiroshi_optics"
         ],
-        "values": {}
+        "values": {
+          "detection_reduction_percent": 44.0,
+          "scanner_enemy_range": 48
+        }
       }
     },
     {
@@ -11469,7 +11752,10 @@
         "flags": [
           "kiroshi_optics"
         ],
-        "values": {}
+        "values": {
+          "detection_reduction_percent": 44.0,
+          "scanner_enemy_range": 48
+        }
       }
     },
     {
@@ -11484,7 +11770,9 @@
       "armor": 0.0,
       "effect": "Activating a faceplate alters both your physical and digital identity, making you virtually unrecognizable. Outside of combat, you can easily escape the Law (up to Bounty level 4).\nCooldown: 1500 sec.",
       "mechanics": {
-        "flags": [],
+        "flags": [
+          "behavioral_identity"
+        ],
         "values": {}
       }
     },
@@ -11503,7 +11791,9 @@
         "flags": [
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_enemy_range": 12.5
+        }
       }
     },
     {
@@ -11521,7 +11811,9 @@
         "flags": [
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_enemy_range": 14.25
+        }
       }
     },
     {
@@ -11539,7 +11831,9 @@
         "flags": [
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_enemy_range": 16.0
+        }
       }
     },
     {
@@ -11557,7 +11851,9 @@
         "flags": [
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_enemy_range": 17.75
+        }
       }
     },
     {
@@ -11575,7 +11871,9 @@
         "flags": [
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_enemy_range": 19.5
+        }
       }
     },
     {
@@ -11593,7 +11891,9 @@
         "flags": [
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_enemy_range": 19.5
+        }
       }
     },
     {
@@ -11611,7 +11911,9 @@
         "flags": [
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_enemy_range": 19.5
+        }
       }
     },
     {
@@ -11627,7 +11929,9 @@
       "effect": "Increases Crit Chance by 25%\n10x optical zoom when scanning",
       "mechanics": {
         "flags": [],
-        "values": {}
+        "values": {
+          "crit_chance_percent": 25.0
+        }
       }
     },
     {
@@ -11643,7 +11947,9 @@
       "effect": "Increases Crit Chance by 30%\n10x optical zoom when scanning",
       "mechanics": {
         "flags": [],
-        "values": {}
+        "values": {
+          "crit_chance_percent": 30.0
+        }
       }
     },
     {
@@ -11659,7 +11965,9 @@
       "effect": "Increases Crit Chance by 35%\n10x optical zoom when scanning",
       "mechanics": {
         "flags": [],
-        "values": {}
+        "values": {
+          "crit_chance_percent": 35.0
+        }
       }
     },
     {
@@ -11675,7 +11983,9 @@
       "effect": "Increases Crit Chance by 35%\n10x optical zoom when scanning",
       "mechanics": {
         "flags": [],
-        "values": {}
+        "values": {
+          "crit_chance_percent": 35.0
+        }
       }
     },
     {
@@ -11691,7 +12001,9 @@
       "effect": "Increases Crit Chance by 35%\n10x optical zoom when scanning",
       "mechanics": {
         "flags": [],
-        "values": {}
+        "values": {
+          "crit_chance_percent": 35.0
+        }
       }
     },
     {
@@ -11710,7 +12022,9 @@
           "kiroshi_optics",
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_explosive_range": 10.0
+        }
       }
     },
     {
@@ -11729,7 +12043,9 @@
           "kiroshi_optics",
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_explosive_range": 12.38
+        }
       }
     },
     {
@@ -11748,7 +12064,9 @@
           "kiroshi_optics",
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_explosive_range": 14.75
+        }
       }
     },
     {
@@ -11767,7 +12085,9 @@
           "kiroshi_optics",
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_explosive_range": 17.12
+        }
       }
     },
     {
@@ -11786,7 +12106,9 @@
           "kiroshi_optics",
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_explosive_range": 19.5
+        }
       }
     },
     {
@@ -11805,7 +12127,9 @@
           "kiroshi_optics",
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_explosive_range": 21.88
+        }
       }
     },
     {
@@ -11824,7 +12148,9 @@
           "kiroshi_optics",
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_explosive_range": 24.25
+        }
       }
     },
     {
@@ -11843,7 +12169,9 @@
           "kiroshi_optics",
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_explosive_range": 26.62
+        }
       }
     },
     {
@@ -11862,7 +12190,9 @@
           "kiroshi_optics",
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_explosive_range": 29.0
+        }
       }
     },
     {
@@ -11881,7 +12211,9 @@
           "kiroshi_optics",
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_explosive_range": 29.0
+        }
       }
     },
     {
@@ -11900,7 +12232,9 @@
           "kiroshi_optics",
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_explosive_range": 29.0
+        }
       }
     },
     {
@@ -11919,7 +12253,9 @@
           "kiroshi_optics",
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_device_range": 15.0
+        }
       }
     },
     {
@@ -11938,7 +12274,9 @@
           "kiroshi_optics",
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_device_range": 18.0
+        }
       }
     },
     {
@@ -11957,7 +12295,9 @@
           "kiroshi_optics",
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_device_range": 21.0
+        }
       }
     },
     {
@@ -11976,7 +12316,9 @@
           "kiroshi_optics",
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_device_range": 24.0
+        }
       }
     },
     {
@@ -11995,7 +12337,9 @@
           "kiroshi_optics",
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_device_range": 27.0
+        }
       }
     },
     {
@@ -12014,7 +12358,9 @@
           "kiroshi_optics",
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_device_range": 30.0
+        }
       }
     },
     {
@@ -12033,7 +12379,9 @@
           "kiroshi_optics",
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_device_range": 33.0
+        }
       }
     },
     {
@@ -12052,7 +12400,9 @@
           "kiroshi_optics",
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_device_range": 36.0
+        }
       }
     },
     {
@@ -12071,7 +12421,9 @@
           "kiroshi_optics",
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_device_range": 39.0
+        }
       }
     },
     {
@@ -12090,7 +12442,9 @@
           "kiroshi_optics",
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_device_range": 39.0
+        }
       }
     },
     {
@@ -12109,7 +12463,9 @@
           "kiroshi_optics",
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_device_range": 39.0
+        }
       }
     },
     {
@@ -12125,9 +12481,12 @@
       "effect": "Automatically connects to your equipped Tech weapon.\nWhen aiming:\nHighlights enemies behind cover for 10% of your field of vision and up to 15 m. deep.\n4x optical zoom when scanning",
       "mechanics": {
         "flags": [
-          "kiroshi_optics"
+          "kiroshi_optics",
+          "tech_targeting"
         ],
-        "values": {}
+        "values": {
+          "scanner_wall_range": 15.0
+        }
       }
     },
     {
@@ -12143,9 +12502,12 @@
       "effect": "Automatically connects to your equipped Tech weapon.\nWhen aiming:\nHighlights enemies behind cover for 11.75% of your field of vision and up to 19.75 m. deep.\n4x optical zoom when scanning",
       "mechanics": {
         "flags": [
-          "kiroshi_optics"
+          "kiroshi_optics",
+          "tech_targeting"
         ],
-        "values": {}
+        "values": {
+          "scanner_wall_range": 19.75
+        }
       }
     },
     {
@@ -12161,9 +12523,12 @@
       "effect": "Automatically connects to your equipped Tech weapon.\nWhen aiming:\nHighlights enemies behind cover for 13.5% of your field of vision and up to 24.5 m. deep.\n6x optical zoom when scanning",
       "mechanics": {
         "flags": [
-          "kiroshi_optics"
+          "kiroshi_optics",
+          "tech_targeting"
         ],
-        "values": {}
+        "values": {
+          "scanner_wall_range": 24.5
+        }
       }
     },
     {
@@ -12179,9 +12544,12 @@
       "effect": "Automatically connects to your equipped Tech weapon.\nWhen aiming:\nHighlights enemies behind cover for 15.25% of your field of vision and up to 29.25 m. deep.\n6x optical zoom when scanning",
       "mechanics": {
         "flags": [
-          "kiroshi_optics"
+          "kiroshi_optics",
+          "tech_targeting"
         ],
-        "values": {}
+        "values": {
+          "scanner_wall_range": 29.25
+        }
       }
     },
     {
@@ -12197,9 +12565,12 @@
       "effect": "Automatically connects to your equipped Tech weapon.\nWhen aiming:\nHighlights enemies behind cover for 17% of your field of vision and up to 34 m. deep.\n6x optical zoom when scanning",
       "mechanics": {
         "flags": [
-          "kiroshi_optics"
+          "kiroshi_optics",
+          "tech_targeting"
         ],
-        "values": {}
+        "values": {
+          "scanner_wall_range": 34.0
+        }
       }
     },
     {
@@ -12215,9 +12586,12 @@
       "effect": "Automatically connects to your equipped Tech weapon.\nWhen aiming:\nHighlights enemies behind cover for 18.75% of your field of vision and up to 38.75 m. deep.\n6x optical zoom when scanning",
       "mechanics": {
         "flags": [
-          "kiroshi_optics"
+          "kiroshi_optics",
+          "tech_targeting"
         ],
-        "values": {}
+        "values": {
+          "scanner_wall_range": 38.75
+        }
       }
     },
     {
@@ -12233,9 +12607,12 @@
       "effect": "Automatically connects to your equipped Tech weapon.\nWhen aiming:\nHighlights enemies behind cover for 20.5% of your field of vision and up to 43.5 m. deep.\n8x optical zoom when scanning",
       "mechanics": {
         "flags": [
-          "kiroshi_optics"
+          "kiroshi_optics",
+          "tech_targeting"
         ],
-        "values": {}
+        "values": {
+          "scanner_wall_range": 43.5
+        }
       }
     },
     {
@@ -12251,9 +12628,12 @@
       "effect": "Automatically connects to your equipped Tech weapon.\nWhen aiming:\nHighlights enemies behind cover for 22.25% of your field of vision and up to 48.25 m. deep.\n8x optical zoom when scanning",
       "mechanics": {
         "flags": [
-          "kiroshi_optics"
+          "kiroshi_optics",
+          "tech_targeting"
         ],
-        "values": {}
+        "values": {
+          "scanner_wall_range": 48.25
+        }
       }
     },
     {
@@ -12269,9 +12649,12 @@
       "effect": "Automatically connects to your equipped Tech weapon.\nWhen aiming:\nHighlights enemies behind cover for 24% of your field of vision and up to 53 m. deep.\n10x optical zoom when scanning",
       "mechanics": {
         "flags": [
-          "kiroshi_optics"
+          "kiroshi_optics",
+          "tech_targeting"
         ],
-        "values": {}
+        "values": {
+          "scanner_wall_range": 53.0
+        }
       }
     },
     {
@@ -12287,9 +12670,12 @@
       "effect": "Automatically connects to your equipped Tech weapon.\nWhen aiming:\nHighlights enemies behind cover for 24% of your field of vision and up to 53 m. deep.\n10x optical zoom when scanning",
       "mechanics": {
         "flags": [
-          "kiroshi_optics"
+          "kiroshi_optics",
+          "tech_targeting"
         ],
-        "values": {}
+        "values": {
+          "scanner_wall_range": 53.0
+        }
       }
     },
     {
@@ -12305,9 +12691,12 @@
       "effect": "Automatically connects to your equipped Tech weapon.\nWhen aiming:\nHighlights enemies behind cover for 24% of your field of vision and up to 53 m. deep.\n10x optical zoom when scanning",
       "mechanics": {
         "flags": [
-          "kiroshi_optics"
+          "kiroshi_optics",
+          "tech_targeting"
         ],
-        "values": {}
+        "values": {
+          "scanner_wall_range": 53.0
+        }
       }
     },
     {
@@ -12325,7 +12714,11 @@
         "flags": [
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_enemy_range": 18.38,
+          "scanner_device_range": 36.75,
+          "scanner_explosive_range": 27.25
+        }
       }
     },
     {
@@ -12343,7 +12736,11 @@
         "flags": [
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_enemy_range": 18.94,
+          "scanner_device_range": 37.88,
+          "scanner_explosive_range": 28.12
+        }
       }
     },
     {
@@ -12361,7 +12758,11 @@
         "flags": [
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_enemy_range": 19.5,
+          "scanner_device_range": 39.0,
+          "scanner_explosive_range": 29.0
+        }
       }
     },
     {
@@ -12379,7 +12780,11 @@
         "flags": [
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_enemy_range": 19.5,
+          "scanner_device_range": 39.0,
+          "scanner_explosive_range": 29.0
+        }
       }
     },
     {
@@ -12397,7 +12802,11 @@
         "flags": [
           "scanner_highlight"
         ],
-        "values": {}
+        "values": {
+          "scanner_enemy_range": 19.5,
+          "scanner_device_range": 39.0,
+          "scanner_explosive_range": 29.0
+        }
       }
     },
     {
@@ -14707,7 +15116,10 @@
           "health_item_boost"
         ],
         "values": {
-          "armor_points": 9.0
+          "armor_points": 9.0,
+          "health_item_armor_percent": 5.0,
+          "health_item_stamina_reduction_percent": 15.0,
+          "duration_seconds": 5
         }
       }
     },
@@ -14727,7 +15139,10 @@
           "health_item_boost"
         ],
         "values": {
-          "armor_points": 10.6
+          "armor_points": 10.6,
+          "health_item_armor_percent": 5.83,
+          "health_item_stamina_reduction_percent": 17.5,
+          "duration_seconds": 5
         }
       }
     },
@@ -14747,7 +15162,10 @@
           "health_item_boost"
         ],
         "values": {
-          "armor_points": 12.2
+          "armor_points": 12.2,
+          "health_item_armor_percent": 6.67,
+          "health_item_stamina_reduction_percent": 20.0,
+          "duration_seconds": 5
         }
       }
     },
@@ -14767,7 +15185,10 @@
           "health_item_boost"
         ],
         "values": {
-          "armor_points": 13.8
+          "armor_points": 13.8,
+          "health_item_armor_percent": 7.5,
+          "health_item_stamina_reduction_percent": 22.5,
+          "duration_seconds": 5
         }
       }
     },
@@ -14787,7 +15208,10 @@
           "health_item_boost"
         ],
         "values": {
-          "armor_points": 15.4
+          "armor_points": 15.4,
+          "health_item_armor_percent": 8.33,
+          "health_item_stamina_reduction_percent": 25.0,
+          "duration_seconds": 5
         }
       }
     },
@@ -14807,7 +15231,10 @@
           "health_item_boost"
         ],
         "values": {
-          "armor_points": 17.0
+          "armor_points": 17.0,
+          "health_item_armor_percent": 9.17,
+          "health_item_stamina_reduction_percent": 27.5,
+          "duration_seconds": 5
         }
       }
     },
@@ -14827,7 +15254,10 @@
           "health_item_boost"
         ],
         "values": {
-          "armor_points": 18.6
+          "armor_points": 18.6,
+          "health_item_armor_percent": 10.0,
+          "health_item_stamina_reduction_percent": 30.0,
+          "duration_seconds": 5
         }
       }
     },
@@ -14843,8 +15273,13 @@
       "armor": 0.0,
       "effect": "Increased ricochet chance with Power weapons.\n+8% ricochet damage\nLinks the user's weapon and optics, offering real-time data-tracking of the weapon's status and preview of ricochet trajectory.",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "ricochet"
+        ],
+        "values": {
+          "ricochet_chance_percent": 20,
+          "ricochet_damage_percent": 8.0
+        }
       }
     },
     {
@@ -14859,8 +15294,13 @@
       "armor": 0.0,
       "effect": "Increased ricochet chance with Power weapons.\n+8% ricochet damage\nLinks the user's weapon and optics, offering real-time data-tracking of the weapon's status and preview of ricochet trajectory.",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "ricochet"
+        ],
+        "values": {
+          "ricochet_chance_percent": 20,
+          "ricochet_damage_percent": 8.0
+        }
       }
     },
     {
@@ -14875,8 +15315,13 @@
       "armor": 0.0,
       "effect": "Increased ricochet chance with Power weapons.\n+8% ricochet damage\nLinks the user's weapon and optics, offering real-time data-tracking of the weapon's status and preview of ricochet trajectory.",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "ricochet"
+        ],
+        "values": {
+          "ricochet_chance_percent": 20,
+          "ricochet_damage_percent": 8.0
+        }
       }
     },
     {
@@ -14891,8 +15336,13 @@
       "armor": 0.0,
       "effect": "Increased ricochet chance with Power weapons.\n+11.67% ricochet damage\nLinks the user's weapon and optics, offering real-time data-tracking of the weapon's status and preview of ricochet trajectory.",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "ricochet"
+        ],
+        "values": {
+          "ricochet_chance_percent": 20,
+          "ricochet_damage_percent": 11.67
+        }
       }
     },
     {
@@ -14907,8 +15357,13 @@
       "armor": 0.0,
       "effect": "Increased ricochet chance with Power weapons.\n+15.33% ricochet damage\nLinks the user's weapon and optics, offering real-time data-tracking of the weapon's status and preview of ricochet trajectory.",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "ricochet"
+        ],
+        "values": {
+          "ricochet_chance_percent": 20,
+          "ricochet_damage_percent": 15.33
+        }
       }
     },
     {
@@ -14923,8 +15378,13 @@
       "armor": 0.0,
       "effect": "Increased ricochet chance with Power weapons.\n+19% ricochet damage\nLinks the user's weapon and optics, offering real-time data-tracking of the weapon's status and preview of ricochet trajectory.",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "ricochet"
+        ],
+        "values": {
+          "ricochet_chance_percent": 20,
+          "ricochet_damage_percent": 19.0
+        }
       }
     },
     {
@@ -14939,8 +15399,13 @@
       "armor": 0.0,
       "effect": "Increased ricochet chance with Power weapons.\n+22.67% ricochet damage\nLinks the user's weapon and optics, offering real-time data-tracking of the weapon's status and preview of ricochet trajectory.",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "ricochet"
+        ],
+        "values": {
+          "ricochet_chance_percent": 20,
+          "ricochet_damage_percent": 22.67
+        }
       }
     },
     {
@@ -14955,8 +15420,13 @@
       "armor": 0.0,
       "effect": "Increased ricochet chance with Power weapons.\n+26.33% ricochet damage\nLinks the user's weapon and optics, offering real-time data-tracking of the weapon's status and preview of ricochet trajectory.",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "ricochet"
+        ],
+        "values": {
+          "ricochet_chance_percent": 20,
+          "ricochet_damage_percent": 26.33
+        }
       }
     },
     {
@@ -14971,8 +15441,13 @@
       "armor": 0.0,
       "effect": "Increased ricochet chance with Power weapons.\n+30% ricochet damage\nLinks the user's weapon and optics, offering real-time data-tracking of the weapon's status and preview of ricochet trajectory.",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "ricochet"
+        ],
+        "values": {
+          "ricochet_chance_percent": 20,
+          "ricochet_damage_percent": 30.0
+        }
       }
     },
     {
@@ -14987,8 +15462,13 @@
       "armor": 0.0,
       "effect": "Increased ricochet chance with Power weapons.\n+30% ricochet damage\nLinks the user's weapon and optics, offering real-time data-tracking of the weapon's status and preview of ricochet trajectory.",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "ricochet"
+        ],
+        "values": {
+          "ricochet_chance_percent": 20,
+          "ricochet_damage_percent": 30.0
+        }
       }
     },
     {
@@ -15003,8 +15483,13 @@
       "armor": 0.0,
       "effect": "Increased ricochet chance with Power weapons.\n+30% ricochet damage\nLinks the user's weapon and optics, offering real-time data-tracking of the weapon's status and preview of ricochet trajectory.",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "ricochet"
+        ],
+        "values": {
+          "ricochet_chance_percent": 20,
+          "ricochet_damage_percent": 30.0
+        }
       }
     },
     {
@@ -15019,8 +15504,13 @@
       "armor": 0.0,
       "effect": "When equipping or throwing a throwable weapon:\n+8% Crit Chance with throwable weapons for 6 sec.",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "throwable_crit"
+        ],
+        "values": {
+          "throwable_crit_chance_percent": 8.0,
+          "duration_seconds": 6.0
+        }
       }
     },
     {
@@ -15035,8 +15525,13 @@
       "armor": 0.0,
       "effect": "When equipping or throwing a throwable weapon:\n+12.75% Crit Chance with throwable weapons for 6 sec.",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "throwable_crit"
+        ],
+        "values": {
+          "throwable_crit_chance_percent": 12.75,
+          "duration_seconds": 6.0
+        }
       }
     },
     {
@@ -15051,8 +15546,13 @@
       "armor": 0.0,
       "effect": "When equipping or throwing a throwable weapon:\n+17.5% Crit Chance with throwable weapons for 6 sec.",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "throwable_crit"
+        ],
+        "values": {
+          "throwable_crit_chance_percent": 17.5,
+          "duration_seconds": 6.0
+        }
       }
     },
     {
@@ -15067,8 +15567,13 @@
       "armor": 0.0,
       "effect": "When equipping or throwing a throwable weapon:\n+22.25% Crit Chance with throwable weapons for 6 sec.",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "throwable_crit"
+        ],
+        "values": {
+          "throwable_crit_chance_percent": 22.25,
+          "duration_seconds": 6.0
+        }
       }
     },
     {
@@ -15083,8 +15588,13 @@
       "armor": 0.0,
       "effect": "When equipping or throwing a throwable weapon:\n+27% Crit Chance with throwable weapons for 6 sec.",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "throwable_crit"
+        ],
+        "values": {
+          "throwable_crit_chance_percent": 27.0,
+          "duration_seconds": 6.0
+        }
       }
     },
     {
@@ -15099,8 +15609,13 @@
       "armor": 0.0,
       "effect": "When equipping or throwing a throwable weapon:\n+27% Crit Chance with throwable weapons for 6 sec.",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "throwable_crit"
+        ],
+        "values": {
+          "throwable_crit_chance_percent": 27.0,
+          "duration_seconds": 6.0
+        }
       }
     },
     {
@@ -15115,8 +15630,13 @@
       "armor": 0.0,
       "effect": "When equipping or throwing a throwable weapon:\n+27% Crit Chance with throwable weapons for 6 sec.",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "throwable_crit"
+        ],
+        "values": {
+          "throwable_crit_chance_percent": 27.0,
+          "duration_seconds": 6.0
+        }
       }
     },
     {
@@ -15302,8 +15822,12 @@
       "armor": 0.0,
       "effect": "Reloading an empty weapon causes the next shot to release an electroshock that deals up to 75 Electrical damage to enemies near the point of impact.\nElectroshock damage increases with the number of bullet reloaded (max. 5 bullets).",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "reload_shock"
+        ],
+        "values": {
+          "reload_shock_damage": 75.0
+        }
       }
     },
     {
@@ -15318,8 +15842,12 @@
       "armor": 0.0,
       "effect": "Reloading an empty weapon causes the next shot to release an electroshock that deals up to 96.88 Electrical damage to enemies near the point of impact.\nElectroshock damage increases with the number of bullet reloaded (max. 5 bullets).",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "reload_shock"
+        ],
+        "values": {
+          "reload_shock_damage": 96.88
+        }
       }
     },
     {
@@ -15334,8 +15862,12 @@
       "armor": 0.0,
       "effect": "Reloading an empty weapon causes the next shot to release an electroshock that deals up to 118.75 Electrical damage to enemies near the point of impact.\nElectroshock damage increases with the number of bullet reloaded (max. 5 bullets).",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "reload_shock"
+        ],
+        "values": {
+          "reload_shock_damage": 118.75
+        }
       }
     },
     {
@@ -15350,8 +15882,12 @@
       "armor": 0.0,
       "effect": "Reloading an empty weapon causes the next shot to release an electroshock that deals up to 140.62 Electrical damage to enemies near the point of impact.\nElectroshock damage increases with the number of bullet reloaded (max. 5 bullets).",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "reload_shock"
+        ],
+        "values": {
+          "reload_shock_damage": 140.62
+        }
       }
     },
     {
@@ -15366,8 +15902,12 @@
       "armor": 0.0,
       "effect": "Reloading an empty weapon causes the next shot to release an electroshock that deals up to 162.5 Electrical damage to enemies near the point of impact.\nElectroshock damage increases with the number of bullet reloaded (max. 5 bullets).",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "reload_shock"
+        ],
+        "values": {
+          "reload_shock_damage": 162.5
+        }
       }
     },
     {
@@ -15382,8 +15922,12 @@
       "armor": 0.0,
       "effect": "Reloading an empty weapon causes the next shot to release an electroshock that deals up to 184.38 Electrical damage to enemies near the point of impact.\nElectroshock damage increases with the number of bullet reloaded (max. 5 bullets).",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "reload_shock"
+        ],
+        "values": {
+          "reload_shock_damage": 184.38
+        }
       }
     },
     {
@@ -15398,8 +15942,12 @@
       "armor": 0.0,
       "effect": "Reloading an empty weapon causes the next shot to release an electroshock that deals up to 206.25 Electrical damage to enemies near the point of impact.\nElectroshock damage increases with the number of bullet reloaded (max. 5 bullets).",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "reload_shock"
+        ],
+        "values": {
+          "reload_shock_damage": 206.25
+        }
       }
     },
     {
@@ -15414,8 +15962,12 @@
       "armor": 0.0,
       "effect": "Reloading an empty weapon causes the next shot to release an electroshock that deals up to 228.12 Electrical damage to enemies near the point of impact.\nElectroshock damage increases with the number of bullet reloaded (max. 5 bullets).",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "reload_shock"
+        ],
+        "values": {
+          "reload_shock_damage": 228.12
+        }
       }
     },
     {
@@ -15430,8 +15982,12 @@
       "armor": 0.0,
       "effect": "Reloading an empty weapon causes the next shot to release an electroshock that deals up to 250 Electrical damage to enemies near the point of impact.\nElectroshock damage increases with the number of bullet reloaded (max. 5 bullets).",
       "mechanics": {
-        "flags": [],
-        "values": {}
+        "flags": [
+          "reload_shock"
+        ],
+        "values": {
+          "reload_shock_damage": 250.0
+        }
       }
     },
     {
@@ -18595,7 +19151,9 @@
         "flags": [
           "biomonitor"
         ],
-        "values": {}
+        "values": {
+          "health_item_effectiveness_percent": 2.0
+        }
       }
     },
     {
@@ -18613,7 +19171,9 @@
         "flags": [
           "biomonitor"
         ],
-        "values": {}
+        "values": {
+          "health_item_effectiveness_percent": 3.75
+        }
       }
     },
     {
@@ -18631,7 +19191,9 @@
         "flags": [
           "biomonitor"
         ],
-        "values": {}
+        "values": {
+          "health_item_effectiveness_percent": 5.5
+        }
       }
     },
     {
@@ -18649,7 +19211,9 @@
         "flags": [
           "biomonitor"
         ],
-        "values": {}
+        "values": {
+          "health_item_effectiveness_percent": 7.25
+        }
       }
     },
     {
@@ -18667,7 +19231,9 @@
         "flags": [
           "biomonitor"
         ],
-        "values": {}
+        "values": {
+          "health_item_effectiveness_percent": 9.0
+        }
       }
     },
     {
@@ -18685,7 +19251,9 @@
         "flags": [
           "biomonitor"
         ],
-        "values": {}
+        "values": {
+          "health_item_effectiveness_percent": 10.75
+        }
       }
     },
     {
@@ -18703,7 +19271,9 @@
         "flags": [
           "biomonitor"
         ],
-        "values": {}
+        "values": {
+          "health_item_effectiveness_percent": 12.5
+        }
       }
     },
     {
@@ -18721,7 +19291,9 @@
         "flags": [
           "biomonitor"
         ],
-        "values": {}
+        "values": {
+          "health_item_effectiveness_percent": 14.25
+        }
       }
     },
     {
@@ -18739,7 +19311,9 @@
         "flags": [
           "biomonitor"
         ],
-        "values": {}
+        "values": {
+          "health_item_effectiveness_percent": 16.0
+        }
       }
     },
     {
@@ -18757,7 +19331,9 @@
         "flags": [
           "biomonitor"
         ],
-        "values": {}
+        "values": {
+          "health_item_effectiveness_percent": 16.0
+        }
       }
     },
     {
@@ -18775,7 +19351,9 @@
         "flags": [
           "biomonitor"
         ],
-        "values": {}
+        "values": {
+          "health_item_effectiveness_percent": 16.0
+        }
       }
     },
     {
@@ -20683,9 +21261,15 @@
       "armor": 74.0,
       "effect": "Required Perk: Built Different\nFor each point in Technical Ability gain:\n+1.0% explosion resistance\n+0.5% Tech weapon damage\n+0.5% Health Item recharge speed\n+0.5% Grenade recharge speed",
       "mechanics": {
-        "flags": [],
+        "flags": [
+          "technical_adaptation"
+        ],
         "values": {
-          "armor_points": 7.4
+          "armor_points": 7.4,
+          "explosion_resistance_percent": 3,
+          "tech_weapon_damage_percent": 1.5,
+          "health_item_cooldown_reduction_percent": 1.5,
+          "grenade_cooldown_reduction_percent": 1.5
         }
       }
     },
@@ -20701,9 +21285,15 @@
       "armor": 88.67,
       "effect": "Required Perk: Built Different\nFor each point in Technical Ability gain:\n+1.0% explosion resistance\n+0.5% Tech weapon damage\n+0.5% Health Item recharge speed\n+0.5% Grenade recharge speed",
       "mechanics": {
-        "flags": [],
+        "flags": [
+          "technical_adaptation"
+        ],
         "values": {
-          "armor_points": 8.867
+          "armor_points": 8.867,
+          "explosion_resistance_percent": 4,
+          "tech_weapon_damage_percent": 2.0,
+          "health_item_cooldown_reduction_percent": 2.0,
+          "grenade_cooldown_reduction_percent": 2.0
         }
       }
     },
@@ -20719,9 +21309,15 @@
       "armor": 103.33,
       "effect": "Required Perk: Built Different\nFor each point in Technical Ability gain:\n+1.0% explosion resistance\n+0.5% Tech weapon damage\n+0.5% Health Item recharge speed\n+0.5% Grenade recharge speed",
       "mechanics": {
-        "flags": [],
+        "flags": [
+          "technical_adaptation"
+        ],
         "values": {
-          "armor_points": 10.333
+          "armor_points": 10.333,
+          "explosion_resistance_percent": 5,
+          "tech_weapon_damage_percent": 2.5,
+          "health_item_cooldown_reduction_percent": 2.5,
+          "grenade_cooldown_reduction_percent": 2.5
         }
       }
     },
@@ -20737,9 +21333,15 @@
       "armor": 118.0,
       "effect": "Required Perk: Built Different\nFor each point in Technical Ability gain:\n+1.0% explosion resistance\n+0.5% Tech weapon damage\n+0.5% Health Item recharge speed\n+0.5% Grenade recharge speed",
       "mechanics": {
-        "flags": [],
+        "flags": [
+          "technical_adaptation"
+        ],
         "values": {
-          "armor_points": 11.8
+          "armor_points": 11.8,
+          "explosion_resistance_percent": 6,
+          "tech_weapon_damage_percent": 3.0,
+          "health_item_cooldown_reduction_percent": 3.0,
+          "grenade_cooldown_reduction_percent": 3.0
         }
       }
     },
@@ -20755,9 +21357,15 @@
       "armor": 132.67,
       "effect": "Required Perk: Built Different\nFor each point in Technical Ability gain:\n+1.0% explosion resistance\n+0.5% Tech weapon damage\n+0.5% Health Item recharge speed\n+0.5% Grenade recharge speed",
       "mechanics": {
-        "flags": [],
+        "flags": [
+          "technical_adaptation"
+        ],
         "values": {
-          "armor_points": 13.267
+          "armor_points": 13.267,
+          "explosion_resistance_percent": 7,
+          "tech_weapon_damage_percent": 3.5,
+          "health_item_cooldown_reduction_percent": 3.5,
+          "grenade_cooldown_reduction_percent": 3.5
         }
       }
     },
@@ -20773,9 +21381,15 @@
       "armor": 147.33,
       "effect": "Required Perk: Built Different\nFor each point in Technical Ability gain:\n+1.0% explosion resistance\n+0.5% Tech weapon damage\n+0.5% Health Item recharge speed\n+0.5% Grenade recharge speed",
       "mechanics": {
-        "flags": [],
+        "flags": [
+          "technical_adaptation"
+        ],
         "values": {
-          "armor_points": 14.733
+          "armor_points": 14.733,
+          "explosion_resistance_percent": 8,
+          "tech_weapon_damage_percent": 4.0,
+          "health_item_cooldown_reduction_percent": 4.0,
+          "grenade_cooldown_reduction_percent": 4.0
         }
       }
     },
@@ -20791,9 +21405,15 @@
       "armor": 162.0,
       "effect": "Required Perk: Built Different\nFor each point in Technical Ability gain:\n+1.0% explosion resistance\n+0.5% Tech weapon damage\n+0.5% Health Item recharge speed\n+0.5% Grenade recharge speed",
       "mechanics": {
-        "flags": [],
+        "flags": [
+          "technical_adaptation"
+        ],
         "values": {
-          "armor_points": 16.2
+          "armor_points": 16.2,
+          "explosion_resistance_percent": 9,
+          "tech_weapon_damage_percent": 4.5,
+          "health_item_cooldown_reduction_percent": 4.5,
+          "grenade_cooldown_reduction_percent": 4.5
         }
       }
     },
@@ -20809,9 +21429,15 @@
       "armor": 162.0,
       "effect": "Required Perk: Built Different\nFor each point in Technical Ability gain:\n+1.0% explosion resistance\n+0.5% Tech weapon damage\n+0.5% Health Item recharge speed\n+0.5% Grenade recharge speed",
       "mechanics": {
-        "flags": [],
+        "flags": [
+          "technical_adaptation"
+        ],
         "values": {
-          "armor_points": 16.2
+          "armor_points": 16.2,
+          "explosion_resistance_percent": 10,
+          "tech_weapon_damage_percent": 5.0,
+          "health_item_cooldown_reduction_percent": 5.0,
+          "grenade_cooldown_reduction_percent": 5.0
         }
       }
     },
@@ -20827,9 +21453,15 @@
       "armor": 162.0,
       "effect": "Required Perk: Built Different\nFor each point in Technical Ability gain:\n+1.0% explosion resistance\n+0.5% Tech weapon damage\n+0.5% Health Item recharge speed\n+0.5% Grenade recharge speed",
       "mechanics": {
-        "flags": [],
+        "flags": [
+          "technical_adaptation"
+        ],
         "values": {
-          "armor_points": 16.2
+          "armor_points": 16.2,
+          "explosion_resistance_percent": 11,
+          "tech_weapon_damage_percent": 5.5,
+          "health_item_cooldown_reduction_percent": 5.5,
+          "grenade_cooldown_reduction_percent": 5.5
         }
       }
     },

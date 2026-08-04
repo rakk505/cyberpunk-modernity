@@ -36,7 +36,8 @@ public final class QuickhackUploads {
         INVALID_TARGET,
         QUEUE_FULL,
         DUPLICATE_SKILL,
-        INSUFFICIENT_RAM
+        INSUFFICIENT_RAM,
+        INSUFFICIENT_TIER
     }
 
     /** Result returned after the server atomically validates and reserves a queue entry. */
@@ -46,7 +47,45 @@ public final class QuickhackUploads {
         }
     }
 
-    private record ReservedHack(Skill skill, int ramCost) {
+    private record ReservedHack(
+            int wireId, Skill skill, DeviceQuickhack deviceQuickhack, int ramCost) {
+        private static ReservedHack combat(ServerPlayer caster, Skill skill) {
+            return new ReservedHack(skill.ordinal(), skill, null,
+                    com.example.cyberdeck.effect.CyberwareEffects
+                            .quickhackRamCost(caster, skill));
+        }
+
+        private static ReservedHack device(ServerPlayer caster, DeviceQuickhack quickhack) {
+            return new ReservedHack(quickhack.wireId(), null, quickhack,
+                    com.example.cyberdeck.effect.CyberwareEffects
+                            .quickhackRamCost(caster, quickhack));
+        }
+
+        private int uploadTicks(ServerPlayer caster) {
+            return skill != null
+                    ? com.example.cyberdeck.effect.CyberwareEffects
+                            .quickhackUploadTicks(caster, skill)
+                    : com.example.cyberdeck.effect.CyberwareEffects
+                            .quickhackUploadTicks(caster, deviceQuickhack);
+        }
+
+        private boolean canExecute(ServerPlayer caster, Entity target, ServerLevel level) {
+            return skill != null && target instanceof LivingEntity living
+                    && living instanceof Enemy && living.isAlive()
+                    || deviceQuickhack != null
+                            && DeviceQuickhackExecutor.canExecute(
+                                    deviceQuickhack, caster, target, level);
+        }
+
+        private boolean execute(ServerPlayer caster, Entity target, ServerLevel level) {
+            if (skill != null && target instanceof LivingEntity living) {
+                SkillExecutor.execute(skill, caster, living, level);
+                return true;
+            } else if (deviceQuickhack != null) {
+                return DeviceQuickhackExecutor.execute(deviceQuickhack, caster, target, level);
+            }
+            return false;
+        }
     }
 
     private static final class UploadQueue {
@@ -56,7 +95,7 @@ public final class QuickhackUploads {
         private long startTick;
         private long endTick;
 
-        private UploadQueue(LivingEntity target) {
+        private UploadQueue(Entity target) {
             this.targetUuid = target.getUUID();
             this.targetId = target.getId();
         }
@@ -77,6 +116,19 @@ public final class QuickhackUploads {
      */
     public static EnqueueResult enqueue(ServerPlayer caster, Skill skill, LivingEntity target,
                                         ServerLevel level) {
+        ReservedHack hack = skill == null || skill == Skill.STANDBY
+                ? null : ReservedHack.combat(caster, skill);
+        return enqueue(caster, hack, target, level);
+    }
+
+    public static EnqueueResult enqueueDevice(
+            ServerPlayer caster, DeviceQuickhack quickhack, Entity target, ServerLevel level) {
+        ReservedHack hack = quickhack == null ? null : ReservedHack.device(caster, quickhack);
+        return enqueue(caster, hack, target, level);
+    }
+
+    private static EnqueueResult enqueue(
+            ServerPlayer caster, ReservedHack hack, Entity target, ServerLevel level) {
         CasterUploads uploads = UPLOADS.get(caster.getUUID());
         boolean pruned = uploads != null && pruneInvalidTargets(caster, uploads, level);
         if (uploads != null && uploads.byTarget.isEmpty()) {
@@ -89,11 +141,17 @@ public final class QuickhackUploads {
             syncAfterRejectedEnqueue(caster, uploads, pruned);
             return new EnqueueResult(EnqueueStatus.INACTIVE, 0, available);
         }
-        if (skill == null || skill == Skill.STANDBY) {
+        if (hack == null) {
             syncAfterRejectedEnqueue(caster, uploads, pruned);
             return new EnqueueResult(EnqueueStatus.INVALID_SKILL, 0, available);
         }
-        if (!isValidNewTarget(caster, target, level)) {
+        if (hack.deviceQuickhack() != null
+                && target instanceof com.example.cyberdeck.defense.KangTaoTurret turret
+                && !turret.hasSufficientCyberdeck(caster)) {
+            syncAfterRejectedEnqueue(caster, uploads, pruned);
+            return new EnqueueResult(EnqueueStatus.INSUFFICIENT_TIER, 0, available);
+        }
+        if (!isValidNewTarget(caster, target, level, hack)) {
             syncAfterRejectedEnqueue(caster, uploads, pruned);
             return new EnqueueResult(EnqueueStatus.INVALID_TARGET, 0, available);
         }
@@ -105,14 +163,14 @@ public final class QuickhackUploads {
         UploadQueue queue = uploads == null ? null : uploads.byTarget.get(target.getUUID());
         if (queue != null) {
             for (ReservedHack queued : queue.hacks) {
-                if (queued.skill() == skill) {
+                if (queued.wireId() == hack.wireId()) {
                     syncAfterRejectedEnqueue(caster, uploads, pruned);
                     return new EnqueueResult(EnqueueStatus.DUPLICATE_SKILL, 0, available);
                 }
             }
         }
 
-        int cost = com.example.cyberdeck.effect.CyberwareEffects.quickhackRamCost(caster, skill);
+        int cost = hack.ramCost();
         if (available < cost) {
             syncAfterRejectedEnqueue(caster, uploads, pruned);
             return new EnqueueResult(EnqueueStatus.INSUFFICIENT_RAM, 0, available);
@@ -126,7 +184,7 @@ public final class QuickhackUploads {
             queue = new UploadQueue(target);
             uploads.byTarget.put(target.getUUID(), queue);
         }
-        queue.hacks.addLast(new ReservedHack(skill, cost));
+        queue.hacks.addLast(hack);
         if (queue.hacks.size() == 1) {
             beginHead(queue, caster, level.getGameTime());
         }
@@ -140,7 +198,8 @@ public final class QuickhackUploads {
         if (uploads == null) {
             return;
         }
-        if (!caster.isAlive() || !CyberdeckState.hasInstalledCyberdeck(caster)) {
+        if (!caster.isAlive() || caster.isSpectator()
+                || !CyberdeckState.hasInstalledCyberdeck(caster)) {
             cancel(caster);
             return;
         }
@@ -150,8 +209,8 @@ public final class QuickhackUploads {
         Iterator<UploadQueue> iterator = uploads.byTarget.values().iterator();
         while (iterator.hasNext()) {
             UploadQueue queue = iterator.next();
-            LivingEntity target = resolveTarget(queue, level);
-            if (!isValidContinuingTarget(caster, target, level)) {
+            Entity target = resolveTarget(queue, level);
+            if (!isValidContinuingTarget(caster, target, level, queue.hacks.peekFirst())) {
                 iterator.remove();
                 changed = true;
                 continue;
@@ -166,13 +225,26 @@ public final class QuickhackUploads {
                 changed = true;
                 continue;
             }
+            if (!completed.canExecute(caster, target, level)) {
+                queue.hacks.removeFirst();
+                changed = true;
+                if (queue.hacks.isEmpty()) {
+                    iterator.remove();
+                } else {
+                    beginHead(queue, caster, now);
+                }
+                continue;
+            }
             if (!RamAttachments.spend(caster, completed.ramCost())) {
                 cancel(caster);
                 return;
             }
 
             queue.hacks.removeFirst();
-            SkillExecutor.execute(completed.skill(), caster, target, level);
+            if (!completed.execute(caster, target, level)) {
+                RamAttachments.set(caster,
+                        RamAttachments.get(caster) + completed.ramCost());
+            }
             changed = true;
 
             if (queue.hacks.isEmpty()) {
@@ -181,7 +253,7 @@ public final class QuickhackUploads {
             }
 
             target = resolveTarget(queue, level);
-            if (!isValidContinuingTarget(caster, target, level)) {
+            if (!isValidContinuingTarget(caster, target, level, queue.hacks.peekFirst())) {
                 iterator.remove();
                 continue;
             }
@@ -261,7 +333,8 @@ public final class QuickhackUploads {
     private static boolean pruneInvalidTargets(ServerPlayer caster, CasterUploads uploads,
                                                ServerLevel level) {
         return uploads.byTarget.values().removeIf(queue ->
-                !isValidContinuingTarget(caster, resolveTarget(queue, level), level));
+                !isValidContinuingTarget(caster, resolveTarget(queue, level), level,
+                        queue.hacks.peekFirst()));
     }
 
     private static int queuedHackCount(CasterUploads uploads) {
@@ -285,42 +358,48 @@ public final class QuickhackUploads {
         }
     }
 
-    private static boolean isValidNewTarget(ServerPlayer caster, LivingEntity target,
-                                            ServerLevel level) {
+    private static boolean isValidNewTarget(ServerPlayer caster, Entity target,
+                                            ServerLevel level, ReservedHack hack) {
         return caster.isAlive()
+                && !caster.isSpectator()
                 && target != caster
-                && target instanceof Enemy
+                && (hack.skill() != null && target instanceof Enemy
+                        || hack.deviceQuickhack() != null
+                                && hack.deviceQuickhack().supports(target))
                 && target.isPickable()
                 && target.level() == level
                 && target.isAlive()
                 && caster.distanceToSqr(target) <= MAX_TARGET_RANGE_SQR
-                && caster.hasLineOfSight(target);
+                && caster.hasLineOfSight(target)
+                && hack.canExecute(caster, target, level);
     }
 
-    private static boolean isValidContinuingTarget(ServerPlayer caster, LivingEntity target,
-                                                   ServerLevel level) {
+    private static boolean isValidContinuingTarget(ServerPlayer caster, Entity target,
+                                                   ServerLevel level, ReservedHack hack) {
         return target != null
+                && hack != null
                 && target.level() == level
                 && target.isAlive()
-                && caster.distanceToSqr(target) <= MAX_TARGET_RANGE_SQR;
+                && caster.distanceToSqr(target) <= MAX_TARGET_RANGE_SQR
+                && (hack.skill() != null && target instanceof Enemy
+                        || hack.deviceQuickhack() != null
+                                && hack.deviceQuickhack().supports(target))
+                && hack.canExecute(caster, target, level);
     }
 
     /** Resolves by ID and verifies UUID too, preventing a recycled network ID from changing target. */
-    private static LivingEntity resolveTarget(UploadQueue queue, ServerLevel level) {
+    private static Entity resolveTarget(UploadQueue queue, ServerLevel level) {
         Entity entity = level.getEntity(queue.targetId);
-        if (!(entity instanceof LivingEntity living)
-                || !queue.targetUuid.equals(living.getUUID())) {
+        if (entity == null || !queue.targetUuid.equals(entity.getUUID())) {
             return null;
         }
-        return living;
+        return entity;
     }
 
     private static void beginHead(UploadQueue queue, ServerPlayer caster, long now) {
         ReservedHack head = queue.hacks.peekFirst();
         queue.startTick = now;
-        queue.endTick = now + (head == null ? 0
-                : com.example.cyberdeck.effect.CyberwareEffects
-                        .quickhackUploadTicks(caster, head.skill()));
+        queue.endTick = now + (head == null ? 0 : head.uploadTicks(caster));
     }
 
     private static void sync(ServerPlayer caster, CasterUploads uploads) {
@@ -333,10 +412,10 @@ public final class QuickhackUploads {
             }
             List<Integer> skills = new ArrayList<>(queue.hacks.size());
             for (ReservedHack hack : queue.hacks) {
-                skills.add(hack.skill().ordinal());
+                skills.add(hack.wireId());
             }
             snapshots.add(new QuickhackUploadPacket.TargetUpload(
-                    head.skill().ordinal(), queue.targetId, queue.startTick, queue.endTick,
+                    head.wireId(), queue.targetId, queue.startTick, queue.endTick,
                     skills));
         }
         sendSnapshot(caster, new QuickhackUploadPacket(reservedRam(caster), snapshots));

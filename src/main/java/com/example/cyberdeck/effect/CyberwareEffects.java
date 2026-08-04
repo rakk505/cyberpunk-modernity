@@ -5,14 +5,19 @@ import com.example.cyberdeck.cyberware.CyberwareAttachments;
 import com.example.cyberdeck.cyberware.CyberwareData;
 import com.example.cyberdeck.cyberware.CyberwareUnlocks;
 import com.example.cyberdeck.cyberware.BodySlot;
+import com.example.cyberdeck.defense.KangTaoTurret;
 import com.example.cyberdeck.ram.RamAttachments;
 import com.example.cyberdeck.skill.Skill;
+import com.example.cyberdeck.skill.DeviceQuickhack;
+import com.example.cyberdeck.weapon.GunItem;
 
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.phys.AABB;
 
@@ -24,6 +29,7 @@ import java.util.UUID;
 public final class CyberwareEffects {
     private static final Map<UUID, Boolean> IN_COMBAT = new HashMap<>();
     private static final Map<UUID, Double> RAM_REGEN_BUFFER = new HashMap<>();
+    private static final Map<UUID, Skill> LAST_QUICKHACK = new HashMap<>();
 
     private CyberwareEffects() {
     }
@@ -41,8 +47,15 @@ public final class CyberwareEffects {
     }
 
     public static double sumValue(ServerPlayer player, String key) {
+        return sumValue(data(player), key);
+    }
+
+    public static double sumValue(CyberwareData data, String key) {
         double result = 0.0;
-        for (Cyberware cyberware : data(player).allInstalled()) {
+        if (data == null) {
+            return result;
+        }
+        for (Cyberware cyberware : data.allInstalled()) {
             result += cyberware.value(key);
         }
         return result;
@@ -54,27 +67,89 @@ public final class CyberwareEffects {
     }
 
     public static int quickhackRamCost(ServerPlayer player, Skill skill) {
-        return Math.max(0, skill.ramCost());
+        return quickhackRamCost(data(player), skill);
+    }
+
+    public static int quickhackRamCost(CyberwareData data, Skill skill) {
+        double extraReduction = skill == Skill.CYBERPSYCHOSIS
+                && data != null && data.findFlag("blackwall_gateway") != null ? 0.50 : 0.0;
+        return quickhackRamCost(data, skill.ramCost(), extraReduction);
+    }
+
+    public static int quickhackRamCost(ServerPlayer player, DeviceQuickhack quickhack) {
+        return quickhackRamCost(data(player), quickhack);
+    }
+
+    public static int quickhackRamCost(CyberwareData data, DeviceQuickhack quickhack) {
+        return quickhackRamCost(data, quickhack.ramCost(), 0.0);
+    }
+
+    private static int quickhackRamCost(
+            CyberwareData data, int baseCost, double extraReduction) {
+        double reduction = sumValue(data, "quickhack_ram_cost_reduction_percent") / 100.0
+                + extraReduction;
+        return Math.max(0, (int) Math.ceil(baseCost * (1.0 - Math.min(0.75, reduction))));
     }
 
     public static int quickhackUploadTicks(ServerPlayer player, Skill skill) {
-        if (skill.uploadTicks() <= 0) {
-            return 0;
-        }
-        double speed = Math.max(0.0, sumValue(player, "quickhack_upload_speed_percent")) / 100.0;
-        return Math.max(1, (int) Math.round(skill.uploadTicks() / (1.0 + speed)));
+        return quickhackUploadTicks(data(player), skill);
     }
 
-    public static double quickhackDamageMultiplier(ServerPlayer player) {
-        double bonus = 0.0;
-        CyberwareData data = data(player);
-        if (data.hasFamily("paraline_mk_1_5")) {
-            bonus += 0.10;
+    public static int quickhackUploadTicks(CyberwareData data, Skill skill) {
+        int baseTicks = skill.uploadTicks();
+        if (baseTicks <= 0) {
+            return 0;
         }
-        if (data.hasFamily("biotech_sigma_mk_1_4")) {
-            bonus += 0.10;
+        double speed = Math.max(0.0, sumValue(data, "quickhack_upload_speed_percent")) / 100.0;
+        return Math.max(1, (int) Math.round(baseTicks / (1.0 + speed)));
+    }
+
+    public static int quickhackUploadTicks(ServerPlayer player, DeviceQuickhack quickhack) {
+        return quickhackUploadTicks(data(player), quickhack);
+    }
+
+    public static int quickhackUploadTicks(CyberwareData data, DeviceQuickhack quickhack) {
+        int baseTicks = quickhack.uploadTicks();
+        if (baseTicks <= 0) {
+            return 0;
         }
-        return 1.0 + bonus;
+        double speed = Math.max(0.0, sumValue(data, "quickhack_upload_speed_percent")) / 100.0;
+        return Math.max(1, (int) Math.round(baseTicks / (1.0 + speed)));
+    }
+
+    public static double quickhackDamageMultiplier(ServerPlayer player, Skill skill) {
+        double bonus = sumValue(player, "quickhack_damage_percent") / 100.0;
+        if (skill == Skill.OVERHEAT || skill == Skill.CONTAGION) {
+            bonus += sumValue(player, "quickhack_dot_damage_percent") / 100.0;
+        }
+        Skill previous = LAST_QUICKHACK.put(player.getUUID(), skill);
+        Cyberware combo = data(player).findFlag("quickhack_combo");
+        if (combo != null && isCombatQuickhack(skill) && previous != null
+                && !isCombatQuickhack(previous)) {
+            bonus += combo.value("quickhack_combo_damage_percent") / 100.0;
+        }
+        double multiplier = 1.0 + bonus;
+        double criticalChance = com.example.cyberdeck.cyberware.CyberwareStats
+                .from(data(player)).quickhackCriticalChance();
+        if (criticalChance > 0.0 && isDamagingQuickhack(skill)
+                && player.getRandom().nextDouble() < criticalChance) {
+            multiplier *= 1.5;
+        }
+        return multiplier;
+    }
+
+    public static double quickhackDurationMultiplier(ServerPlayer player) {
+        return 1.0 + Math.max(0.0,
+                sumValue(player, "quickhack_duration_percent") / 100.0);
+    }
+
+    public static double quickhackSpreadRadius(ServerPlayer player, double baseRadius) {
+        double bonus = sumValue(player, "quickhack_spread_distance_percent") / 100.0;
+        return baseRadius * (1.0 + Math.max(0.0, bonus));
+    }
+
+    public static double quickhackSpreadChance(ServerPlayer player) {
+        return hasFlag(player, "quickhack_spread") ? 1.0 : 0.5;
     }
 
     public static boolean canQuickhack(ServerPlayer player) {
@@ -101,6 +176,69 @@ public final class CyberwareEffects {
         for (Cyberware cyberware : data.sockets(BodySlot.FACE)) {
             if (cyberware != null
                     && !"behavioral_imprint_synced_faceplate".equals(cyberware.familyId())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static double scannerRange(ServerPlayer player) {
+        CyberwareData data = data(player);
+        if (canQuickhack(data)) {
+            return com.example.cyberdeck.skill.QuickhackUploads.MAX_TARGET_RANGE;
+        }
+        double range = 32.0;
+        for (Cyberware cyberware : data.sockets(BodySlot.FACE)) {
+            if (cyberware == null) {
+                continue;
+            }
+            range = Math.max(range, cyberware.value("scanner_enemy_range"));
+            range = Math.max(range, cyberware.value("scanner_device_range"));
+            range = Math.max(range, cyberware.value("scanner_explosive_range"));
+            range = Math.max(range, cyberware.value("scanner_wall_range"));
+        }
+        return range;
+    }
+
+    public static boolean shouldScannerHighlight(
+            ServerPlayer player, LivingEntity target, double distance) {
+        CyberwareData data = data(player);
+        if (canQuickhack(data)) {
+            return distance <= com.example.cyberdeck.skill.QuickhackUploads.MAX_TARGET_RANGE;
+        }
+        for (Cyberware optics : data.sockets(BodySlot.FACE)) {
+            if (optics == null
+                    || "behavioral_imprint_synced_faceplate".equals(optics.familyId())) {
+                continue;
+            }
+            boolean ordinarySight = distance <= Math.max(32.0,
+                    optics.value("scanner_enemy_range")) && player.hasLineOfSight(target);
+            if (ordinarySight) {
+                return true;
+            }
+            if ((optics.familyId().equals("clairvoyant")
+                    || optics.familyId().equals("the_oracle"))
+                    && target instanceof Enemy
+                    && distance <= optics.value("scanner_enemy_range")) {
+                return true;
+            }
+            if ((optics.familyId().equals("sentry")
+                    || optics.familyId().equals("the_oracle"))
+                    && target instanceof KangTaoTurret
+                    && distance <= optics.value("scanner_device_range")) {
+                return true;
+            }
+            if ((optics.familyId().equals("doomsayer")
+                    || optics.familyId().equals("the_oracle"))
+                    && target instanceof Creeper
+                    && distance <= optics.value("scanner_explosive_range")) {
+                return true;
+            }
+            if (optics.hasFlag("tech_targeting")
+                    && player.getMainHandItem().getItem() instanceof GunItem gun
+                    && gun.gun().isTech()
+                    && target instanceof Enemy
+                    && distance <= optics.value("scanner_wall_range")) {
                 return true;
             }
         }
@@ -146,6 +284,8 @@ public final class CyberwareEffects {
         if (combatSpeed != null && ActiveAbilities.isActive(player, "combat_speed")) {
             movement += combatSpeed.value("combat_speed_percent") / 100.0;
         }
+        movement += ReactiveCyberware.detectionMovementBonus(player, inCombat);
+        movement += ReactiveCyberware.takedownMovementBonus(player);
 
         Cyberware berserk = data.findFlag("berserk");
         double attackSpeed = 0.0;
@@ -156,6 +296,7 @@ public final class CyberwareEffects {
         CyberwarePassives.setDynamicMovement(player, movement);
         CyberwarePassives.setDynamicAttackSpeed(player, attackSpeed);
         CyberwarePassives.setDynamicArmor(player, dynamicArmor(player));
+        ReactiveCyberware.tick(player);
 
         if (player.tickCount % 20 == 0) {
             tickRam(player);
@@ -183,6 +324,11 @@ public final class CyberwareEffects {
         Cyberware lowRam = data.findFlag("low_ram_armor");
         if (lowRam != null && RamAttachments.get(player) <= 2) {
             armor += lowRam.value("armor_points") * lowRam.value("low_ram_armor_percent") / 100.0;
+        }
+        Cyberware healthBoost = data.findFlag("health_item_boost");
+        if (healthBoost != null && ActiveAbilities.isActive(player, "health_item_boost")) {
+            armor += sumValue(player, "armor_points")
+                    * healthBoost.value("health_item_armor_percent") / 100.0;
         }
         return armor;
     }
@@ -230,7 +376,9 @@ public final class CyberwareEffects {
                 || ActiveAbilities.onCooldown(player, biomonitor.id())) {
             return;
         }
-        player.heal(player.getMaxHealth() * 0.25f);
+        double effectiveness = com.example.cyberdeck.cyberware.CyberwareStats
+                .from(data(player)).healthItemEffectiveness();
+        player.heal(player.getMaxHealth() * 0.25f * (float) (1.0 + effectiveness));
         ActiveAbilities.setCooldown(player, biomonitor.id(), 30 * 20);
         player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
                 SoundEvents.BREWING_STAND_BREW, SoundSource.PLAYERS, 0.6f, 1.3f);
@@ -258,6 +406,25 @@ public final class CyberwareEffects {
         return ActiveAbilities.isActive(player, "berserk") && hasFlag(player, "berserk");
     }
 
+    public static void onHealthItemUsed(ServerPlayer player) {
+        Cyberware booster = data(player).findFlag("health_item_boost");
+        if (booster == null) {
+            return;
+        }
+        int duration = Math.max(1,
+                (int) Math.round(booster.value("duration_seconds") * 20.0));
+        ActiveAbilities.activate(player, "health_item_boost", duration);
+    }
+
+    public static double activeStaminaReduction(ServerPlayer player) {
+        Cyberware booster = data(player).findFlag("health_item_boost");
+        if (booster == null || !ActiveAbilities.isActive(player, "health_item_boost")) {
+            return 0.0;
+        }
+        return Math.min(1.0,
+                booster.value("health_item_stamina_reduction_percent") / 100.0);
+    }
+
     private static boolean isInCombat(ServerPlayer player) {
         AABB area = player.getBoundingBox().inflate(18.0);
         return !player.level().getEntitiesOfClass(Mob.class, area,
@@ -273,5 +440,19 @@ public final class CyberwareEffects {
     public static void forget(UUID id) {
         IN_COMBAT.remove(id);
         RAM_REGEN_BUFFER.remove(id);
+        LAST_QUICKHACK.remove(id);
+    }
+
+    private static boolean isCombatQuickhack(Skill skill) {
+        return skill == Skill.OVERHEAT
+                || skill == Skill.SHORT_CIRCUIT
+                || skill == Skill.CONTAGION
+                || skill == Skill.DETONATE;
+    }
+
+    private static boolean isDamagingQuickhack(Skill skill) {
+        return skill == Skill.OVERHEAT
+                || skill == Skill.CONTAGION
+                || skill == Skill.DETONATE;
     }
 }

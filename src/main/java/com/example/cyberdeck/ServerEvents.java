@@ -24,9 +24,7 @@ import java.util.List;
  * Glitch enforcement.
  */
 public final class ServerEvents {
-    // How far the scan reaches and how wide the "field of view" cone is (dot-product threshold).
-    private static final double SCAN_RANGE =
-            com.example.cyberdeck.skill.QuickhackUploads.MAX_TARGET_RANGE;
+    // How wide the scanner field-of-view cone is (dot-product threshold).
     private static final double FOV_DOT = 0.5; // ~120 degree cone
 
     @SubscribeEvent
@@ -46,11 +44,14 @@ public final class ServerEvents {
         // Smart Link target acquisition is independent of the cyberdeck operating system/interface.
         com.example.cyberdeck.weapon.SmartTargeting.tick(player, level);
 
+        com.example.cyberdeck.control.RemoteEntityControl.tick(player);
+
         // Capability removal closes either interface immediately; a removed deck also releases RAM.
         if (CyberdeckState.hasQuickhackSession(player)
                 && !CyberdeckState.hasInstalledCyberdeck(player)) {
             CyberdeckState.deactivate(player);
             com.example.cyberdeck.skill.QuickhackUploads.cancel(player);
+            com.example.cyberdeck.control.RemoteEntityControl.end(player);
             return;
         }
         if (CyberdeckState.hasScanOnlySession(player)
@@ -70,7 +71,8 @@ public final class ServerEvents {
         // Outline valid entities within the player's field of view while either scanner is active.
         Vec3 eye = player.getEyePosition();
         Vec3 look = player.getLookAngle().normalize();
-        AABB scanBox = player.getBoundingBox().inflate(SCAN_RANGE);
+        double scanRange = com.example.cyberdeck.effect.CyberwareEffects.scannerRange(player);
+        AABB scanBox = player.getBoundingBox().inflate(scanRange);
         List<LivingEntity> candidates = level.getEntitiesOfClass(LivingEntity.class, scanBox,
                 ServerEvents::isTargetable);
         for (LivingEntity entity : candidates) {
@@ -82,6 +84,10 @@ public final class ServerEvents {
                 continue;
             }
             if (look.dot(toEntity.normalize()) < FOV_DOT) {
+                continue;
+            }
+            if (!com.example.cyberdeck.effect.CyberwareEffects.shouldScannerHighlight(
+                    player, entity, Math.sqrt(toEntity.lengthSqr()))) {
                 continue;
             }
             // Re-apply a short glowing effect each tick so it stays lit while in view.
@@ -117,7 +123,8 @@ public final class ServerEvents {
     }
 
     private static boolean isTargetable(LivingEntity entity) {
-        return entity.isAlive() && (entity instanceof Enemy || entity instanceof CityNpc);
+        return entity.isAlive() && (entity instanceof Enemy || entity instanceof CityNpc
+                || entity instanceof com.example.cyberdeck.defense.KangTaoTurret);
     }
 
     /** No hostile AI, vanilla or modded, may select a city civilian as an attack target. */

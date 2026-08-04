@@ -1,5 +1,7 @@
 package dev.modernity.neoncity;
 
+import com.example.cyberdeck.Cyberdeck;
+
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -37,10 +39,10 @@ import net.minecraft.world.phys.AABB;
 /**
  * Bounded live-world planner for mission interiors in imported Arnis buildings.
  *
- * <p>The Arnis catalog is tile based and has no room metadata. This planner therefore accepts only
- * buildings whose already-placed blocks prove that they contain connected, enclosed walkable
- * floors and enough safe space for an entrance, stairs, patrols, and cover. It never treats an
- * unverified catalog tile as a building.</p>
+ * <p>The Arnis catalog is tile based and has no room metadata. This planner first identifies
+ * connected, enclosed structural volume, then synthesizes the entrance, bounded mission floors,
+ * stairs, patrols, and furnishings. Generated features are validated before a site is advertised;
+ * they are not prerequisites the imported building must already contain.</p>
  */
 public final class MissionBuildingPlanner {
     private static final Direction[] HORIZONTAL = {
@@ -49,15 +51,15 @@ public final class MissionBuildingPlanner {
     private static final long SITE_SALT = 0x4D495353494F4E42L;
     private static final int MAX_SEARCH_RADIUS_CHUNKS = 16;
     private static final int MAX_PROFILE_ATTEMPTS = 16;
-    private static final int MAX_ATLAS_REGION_RADIUS_CHUNKS = 2;
-    private static final int MAX_ATLAS_BUILDING_LABELS = 64;
+    private static final int MAX_ATLAS_REGION_RADIUS_CHUNKS = 8;
+    private static final int MAX_ATLAS_BUILDING_LABELS = 256;
     private static final int MAX_ATLAS_SITES = 24;
     private static final int MAX_ATLAS_FLOORS = 32;
     private static final int MAX_ATLAS_PATHS = 128;
     private static final int MAX_ATLAS_BRANCHES = 4;
     private static final int MAX_ATLAS_PLAN_VARIANTS = 4;
     private static final int MAX_ENTRANCE_CANDIDATES = 24;
-    private static final int MAX_ENTRANCE_WALL_DEPTH = 4;
+    private static final int MAX_ENTRANCE_WALL_DEPTH = 8;
     private static final int SCAN_MARGIN = 2;
     private static final int MAX_SCAN_HEIGHT = 72;
     private static final int MIN_FLOOR_CELLS = 64;
@@ -73,18 +75,23 @@ public final class MissionBuildingPlanner {
     private static final int MIN_STAIR_HORIZONTAL_GAP = 3;
     private static final int MAX_STAIR_CANDIDATES = 64;
     private static final int MAX_SITE_VOLUME = 40_000;
-    private static final int LARGE_OFFICE_CELLS = 120;
+    private static final int MIN_THEMED_FLOOR_CELLS = 80;
+    private static final int FULL_THEME_FLOOR_CELLS = 120;
     private static final int MAX_EXTERIOR_PATH_NODES = 4_096;
     private static final int EXTERIOR_SEARCH_MARGIN = 40;
     private static final int MAX_EXISTING_ENTRANCE_APPROACH_DISTANCE = 12;
     private static final int CORRIDOR_CLEARANCE = 1;
     private static final int MAX_EXPLOSIVE_CANISTERS_PER_SITE = 2;
-    private static final int MAX_PARTITION_COLUMNS_PER_FLOOR = 6;
+    private static final int MAX_PARTITION_COLUMNS_PER_FLOOR = 12;
+    private static final int MAX_BOUNDARY_PARTITION_COLUMNS_PER_FLOOR = 8;
+    private static final int MAX_INTERNAL_PARTITION_COLUMNS_PER_FLOOR = 4;
     private static final int MAX_DECORATIONS = 1_024;
     private static final int MAX_MISSION_FLOOR_CELLS = 144;
     private static final int MAX_MISSION_WINDOW_CANDIDATES = 32;
     private static final int MAX_ENTRANCE_TO_MISSION_DISTANCE = 20;
-    private static final int CURRENT_SITE_VERSION = 2;
+    private static final int MAX_INTERIOR_PLAN_VARIANTS = 6;
+    private static final int MASKED_SITE_VERSION = 2;
+    private static final int CURRENT_SITE_VERSION = 3;
     private static final int LEGACY_SITE_VERSION = 1;
     private static final int MAX_RESTORATION_BLOCKS = 8_192;
     private static final int MAX_MISSION_TURRETS_PER_SITE = 2;
@@ -94,6 +101,7 @@ public final class MissionBuildingPlanner {
     private static final int MIN_TURRET_FORWARD_ARC = 4;
     private static final int MIN_TURRET_TOTAL_ARC = 8;
     private static final long TURRET_SALT = 0x545552524554534CL;
+    private static final long INTERIOR_SALT = 0x494E544552494F52L;
     private static final int PLACE_FLAGS =
             Block.UPDATE_SKIP_ALL_SIDEEFFECTS | Block.UPDATE_CLIENTS;
 
@@ -123,6 +131,15 @@ public final class MissionBuildingPlanner {
         VENDING_MACHINE,
         COMPUTER_DESK,
         FULL_HEIGHT_PARTITION
+    }
+
+    private enum FloorTheme {
+        LOBBY,
+        OPEN_OFFICE,
+        OPERATIONS,
+        LOUNGE,
+        STORAGE,
+        EXECUTIVE
     }
 
     public record Entrance(BlockPos position, Direction outward, int wallDepth, boolean existing) {
@@ -285,7 +302,25 @@ public final class MissionBuildingPlanner {
             List<PatrolRoute> patrolRoutes,
             List<Decoration> decorations,
             List<FloorMask> floorMasks,
-            long planSeed) {
+            long planSeed,
+            String buildingId,
+            BoundingBox buildingBounds) {
+        public Site(
+                String id,
+                District district,
+                BoundingBox bounds,
+                List<Integer> floorYs,
+                BlockPos target,
+                Entrance entrance,
+                List<StairRun> stairs,
+                List<PatrolRoute> patrolRoutes,
+                List<Decoration> decorations,
+                List<FloorMask> floorMasks,
+                long planSeed) {
+            this(id, district, bounds, floorYs, target, entrance, stairs, patrolRoutes,
+                    decorations, floorMasks, planSeed, id, bounds);
+        }
+
         /** Compatibility constructor for legacy callers; maskless sites cannot be reinstalled. */
         public Site(
                 String id,
@@ -317,6 +352,9 @@ public final class MissionBuildingPlanner {
             patrolRoutes = patrolRoutes == null ? List.of() : List.copyOf(patrolRoutes);
             decorations = decorations == null ? List.of() : List.copyOf(decorations);
             floorMasks = floorMasks == null ? List.of() : List.copyOf(floorMasks);
+            buildingId = buildingId == null || buildingId.isBlank() ? id : buildingId;
+            buildingBounds = buildingBounds == null ? bounds : copy(buildingBounds);
+            BoundingBox completeBuildingBounds = buildingBounds;
             if (stairs.size() != floorYs.size() - 1
                     || patrolRoutes.size() != floorYs.size()
                     || decorations.size() > MAX_DECORATIONS
@@ -325,6 +363,15 @@ public final class MissionBuildingPlanner {
                             .collect(java.util.stream.Collectors.toSet())
                             .equals(Set.copyOf(floorYs))
                     || !contains(bounds, target)
+                    || buildingBounds.getXSpan() <= 0
+                    || buildingBounds.getZSpan() <= 0
+                    || buildingBounds.maxX() < bounds.minX()
+                    || buildingBounds.minX() > bounds.maxX()
+                    || buildingBounds.maxZ() < bounds.minZ()
+                    || buildingBounds.minZ() > bounds.maxZ()
+                    || !floorMasks.isEmpty() && floorMasks.stream()
+                            .flatMap(mask -> mask.cells().stream())
+                            .anyMatch(cell -> !contains(completeBuildingBounds, cell))
                     || !topologyWithinBounds(
                             bounds, floorYs, entrance, stairs, patrolRoutes, decorations)
                     || !floorMasks.isEmpty() && !validFloorMasks(
@@ -365,6 +412,8 @@ public final class MissionBuildingPlanner {
             tag.putString("Decor", encodeDecorations(decorations));
             if (!floorMasks.isEmpty()) {
                 tag.putString("FloorMasks", encodeFloorMasks(floorMasks));
+                tag.putString("BuildingId", buildingId);
+                putBounds(tag, "Building", buildingBounds);
             }
             tag.putLong("PlanSeed", planSeed);
             return tag;
@@ -373,7 +422,9 @@ public final class MissionBuildingPlanner {
         public static Optional<Site> load(CompoundTag tag) {
             try {
                 int version = tag == null ? 0 : tag.getIntOr("Version", 0);
-                if (version != LEGACY_SITE_VERSION && version != CURRENT_SITE_VERSION) {
+                if (version != LEGACY_SITE_VERSION
+                        && version != MASKED_SITE_VERSION
+                        && version != CURRENT_SITE_VERSION) {
                     return Optional.empty();
                 }
                 District[] districts = District.values();
@@ -386,16 +437,18 @@ public final class MissionBuildingPlanner {
                 if (facingOrdinal < 0 || facingOrdinal >= directions.length) {
                     return Optional.empty();
                 }
-                List<FloorMask> floorMasks = version == CURRENT_SITE_VERSION
+                List<FloorMask> floorMasks = version >= MASKED_SITE_VERSION
                         ? decodeFloorMasks(tag.getStringOr("FloorMasks", ""))
                         : List.of();
-                if (version == CURRENT_SITE_VERSION && floorMasks.isEmpty()) {
+                if (version >= MASKED_SITE_VERSION && floorMasks.isEmpty()) {
                     return Optional.empty();
                 }
+                BoundingBox siteBounds = readBounds(tag);
+                String siteId = tag.getStringOr("Id", "");
                 return Optional.of(new Site(
-                        tag.getStringOr("Id", ""),
+                        siteId,
                         districts[districtOrdinal],
-                        readBounds(tag),
+                        siteBounds,
                         decodeIntegers(tag.getStringOr("Floors", ""), MAX_FLOORS),
                         readPos(tag, "Target"),
                         new Entrance(
@@ -407,7 +460,11 @@ public final class MissionBuildingPlanner {
                         decodePatrols(tag.getStringOr("Patrols", "")),
                         decodeDecorations(tag.getStringOr("Decor", "")),
                         floorMasks,
-                        tag.getLongOr("PlanSeed", 0L)));
+                        tag.getLongOr("PlanSeed", 0L),
+                        version >= CURRENT_SITE_VERSION
+                                ? tag.getStringOr("BuildingId", siteId) : siteId,
+                        version >= CURRENT_SITE_VERSION
+                                ? readBounds(tag, "Building") : siteBounds));
             } catch (RuntimeException malformed) {
                 return Optional.empty();
             }
@@ -684,15 +741,16 @@ public final class MissionBuildingPlanner {
                     : List.copyOf(buildingFloors.subList(
                             0, Math.min(buildingFloors.size(), maximumFloors)));
             PlanningResult planning = truncated
-                    ? PlanningResult.rejected("rejected: building touches scan boundary")
+                    ? PlanningResult.rejected("rejected: boundary-clipped structural volume")
                     : missionFloors.size() < minimumFloors
                             ? PlanningResult.rejected("rejected: insufficient floors")
                             : sites.size() >= MAX_ATLAS_SITES
                                     ? PlanningResult.rejected("rejected: scan site limit reached")
                                     : planAtlasSite(
                                             level, district, centerChunkX, centerChunkZ,
-                                            buildingSeed, missionFloors);
-            Optional<Site> planned = planning.site();
+                                            buildingSeed, missionFloors, minimumFloors);
+            Optional<Site> planned = planning.site().map(site ->
+                    withBuildingReservation(site, buildingId, buildingBounds));
             if (planned.isPresent()) sites.add(planned.orElseThrow());
             labels.add(new BuildingLabel(
                     buildingId,
@@ -712,19 +770,23 @@ public final class MissionBuildingPlanner {
             int chunkX,
             int chunkZ,
             long buildingSeed,
-            List<FloorProfile> floors) {
+            List<FloorProfile> floors,
+            int minimumFloors) {
         PlanningResult best = PlanningResult.rejected("rejected: no viable mission layout");
-        for (int variant = 0; variant < MAX_ATLAS_PLAN_VARIANTS; variant++) {
-            long planSeed = variant == 0
-                    ? buildingSeed
-                    : MegacityLayout.mix(
-                            buildingSeed ^ 0x504C414E56415249L,
-                            variant,
-                            floors.getFirst().y());
-            PlanningResult candidate = planSiteDetailed(
-                    level, district, chunkX, chunkZ, planSeed, floors);
-            if (candidate.site().isPresent()) return candidate;
-            best = candidate;
+        for (int floorCount = floors.size(); floorCount >= minimumFloors; floorCount--) {
+            List<FloorProfile> selectedFloors = List.copyOf(floors.subList(0, floorCount));
+            for (int variant = 0; variant < MAX_ATLAS_PLAN_VARIANTS; variant++) {
+                long planSeed = variant == 0 && floorCount == floors.size()
+                        ? buildingSeed
+                        : MegacityLayout.mix(
+                                buildingSeed ^ 0x504C414E56415249L,
+                                variant + floorCount * MAX_ATLAS_PLAN_VARIANTS,
+                                floors.getFirst().y());
+                PlanningResult candidate = planSiteDetailed(
+                        level, district, chunkX, chunkZ, planSeed, selectedFloors);
+                if (candidate.site().isPresent()) return candidate;
+                best = candidate;
+            }
         }
         return best;
     }
@@ -800,6 +862,11 @@ public final class MissionBuildingPlanner {
 
     /** Package-visible rejection detail for deterministic GameTest diagnostics. */
     static String preflightFailure(ServerLevel level, Site site) {
+        return preflightFailure(level, site, true);
+    }
+
+    private static String preflightFailure(
+            ServerLevel level, Site site, boolean rejectOccupiedEdits) {
         if (level == null || site == null || !loadSiteChunks(level, site.bounds())) {
             return "site or chunks unavailable";
         }
@@ -817,13 +884,13 @@ public final class MissionBuildingPlanner {
             if (!edit.matches(current) && !edit.policy().accepts(level, edit.position(), current)) {
                 return "unsafe edit at " + edit.position();
             }
-            if (!edit.matches(current) && edit.state().blocksMotion()
+            if (rejectOccupiedEdits && !edit.matches(current) && edit.state().blocksMotion()
                     && !level.getEntitiesOfClass(
                             Entity.class, new AABB(edit.position()), Entity::isAlive).isEmpty()) {
                 return "entity occupies edit at " + edit.position();
             }
         }
-        if (!level.getEntitiesOfClass(
+        if (rejectOccupiedEdits && !level.getEntitiesOfClass(
                 Entity.class, new AABB(site.target()), Entity::isAlive).isEmpty()) {
             return "entity occupies target";
         }
@@ -882,7 +949,7 @@ public final class MissionBuildingPlanner {
     public static BlockPos navigationTarget(Site site) {
         Entrance entrance = site.entrance();
         return entrance.position().relative(
-                entrance.outward(), Math.max(0, entrance.wallDepth()));
+                entrance.outward(), Math.max(1, entrance.wallDepth()));
     }
 
     /** Adds deterministic entity slots after the selected building geometry has been installed. */
@@ -900,6 +967,233 @@ public final class MissionBuildingPlanner {
         return copyWithDecorations(site, decorations);
     }
 
+    /** Removes entity-only turret slots so uninstalled building edits can be preflighted safely. */
+    static Site withoutMissionTurretPlan(Site site) {
+        if (site == null) return null;
+        return copyWithDecorations(site, site.decorations().stream()
+                .filter(decoration -> decoration.kind() != DecorKind.MISSION_TURRET)
+                .toList());
+    }
+
+    /** Reduces a catalog entry to topology; furnishings are generated when the contract activates. */
+    static Site withoutMissionInteriorPlan(Site site) {
+        return site == null ? null : copyWithDecorations(site, List.of());
+    }
+
+    /** Attaches the complete segmented-building identity used by cross-contract reservations. */
+    static Site withBuildingReservation(
+            Site site, String buildingId, BoundingBox buildingBounds) {
+        if (site == null) return null;
+        return new Site(
+                site.id(), site.district(), site.bounds(), site.floorYs(), site.target(),
+                site.entrance(), site.stairs(), site.patrolRoutes(), site.decorations(),
+                site.floorMasks(), site.planSeed(), buildingId, buildingBounds);
+    }
+
+    /**
+     * Dresses a selected structural site without making furnishings a site-selection prerequisite.
+     * Different contracts can reuse one building with a stable, contract-specific floor treatment.
+     */
+    static Site withMissionInteriorPlan(ServerLevel level, Site site, long variationSalt) {
+        return withMissionInteriorPlan(level, site, variationSalt, null);
+    }
+
+    /** Applies a cohesive floor program for the contract objective when its type is known. */
+    static Site withMissionInteriorPlan(
+            ServerLevel level,
+            Site site,
+            long variationSalt,
+            MissionCatalog.MissionType missionType) {
+        return withMissionInteriorPlan(level, site, variationSalt, missionType, "");
+    }
+
+    /** Applies an authored story-site program, falling back to the objective-type program. */
+    static Site withMissionInteriorPlan(
+            ServerLevel level,
+            Site site,
+            long variationSalt,
+            MissionCatalog.MissionType missionType,
+            String missionId) {
+        if (level == null || site == null || site.floorMasks().isEmpty()) return site;
+        Site original = withoutMissionTurretPlan(site);
+        Site structural = withoutMissionInteriorPlan(site);
+        List<FloorProfile> floors = floorProfiles(structural);
+        if (floors.size() != structural.floorYs().size()) return original;
+        long baseSeed = MegacityLayout.mix(
+                structural.planSeed() ^ INTERIOR_SALT ^ variationSalt,
+                structural.district().ordinal(), structural.floorYs().size());
+        InteriorPlanCandidate best = null;
+        ArrayList<String> failures = new ArrayList<>();
+        for (int variant = 0; variant < MAX_INTERIOR_PLAN_VARIANTS; variant++) {
+            long seed = MegacityLayout.mix(
+                    baseSeed, variant, structural.target().getY());
+            List<Decoration> decorations = planDecorations(
+                    level, floors, structural.entrance(), structural.stairs(),
+                    structural.patrolRoutes(), structural.target(), seed, missionType, missionId);
+            if (decorations.isEmpty()) {
+                failures.add(variant + "=empty");
+                continue;
+            }
+            if (decorations.stream().noneMatch(
+                    decoration -> decoration.kind() == DecorKind.EXPLOSIVE_CANISTER)) {
+                failures.add(variant + "=missing canister");
+                continue;
+            }
+            Site planned = copyWithDecorations(structural, decorations);
+            String failure = preflightFailure(level, planned, false);
+            if (failure != null) {
+                Site repaired = repairInteriorPlan(
+                        level, structural, decorations, floors, seed, missionType, missionId);
+                if (repaired == null) {
+                    failures.add(variant + "=" + failure);
+                    continue;
+                }
+                planned = repaired;
+                decorations = repaired.decorations();
+            }
+            if (!realizesFloorProgram(planned, missionType, missionId, seed)) {
+                failures.add(variant + "=missing floor role");
+                continue;
+            }
+            InteriorPlanCandidate candidate = new InteriorPlanCandidate(
+                    planned,
+                    interiorQuality(floors, decorations, seed, missionType, missionId),
+                    variant);
+            if (best == null || betterInterior(candidate, best)) best = candidate;
+        }
+        if (best != null) return best.site();
+        if (hasExplosiveCanisterPlan(original)
+                && realizesFloorProgram(original, missionType, missionId, baseSeed)
+                && preflightFailure(level, original, false) == null) {
+            return original;
+        }
+        Cyberdeck.LOGGER.warn(
+                "[MissionInterior] no safe role-complete variant for {}; "
+                        + "using structural plan so deployment can select another site: {}",
+                structural.id(), failures);
+        return structural;
+    }
+
+    private static List<FloorProfile> floorProfiles(Site site) {
+        ArrayList<FloorProfile> floors = new ArrayList<>();
+        for (int floorY : site.floorYs()) {
+            Set<BlockPos> cells = site.missionCells(floorY);
+            if (cells.isEmpty()) return List.of();
+            floors.add(new FloorProfile(floorY, cells, rect(cells)));
+        }
+        return List.copyOf(floors);
+    }
+
+    /** Validates only entrance, stair, floor-mask, and objective geometry. */
+    static boolean preflightSiteGeometry(ServerLevel level, Site site) {
+        return siteGeometryFailure(level, site) == null;
+    }
+
+    static String siteGeometryFailure(ServerLevel level, Site site) {
+        return preflightFailure(level, withoutMissionInteriorPlan(site), false);
+    }
+
+    static Site repairStructuralFloorMasks(ServerLevel level, Site site) {
+        Site structural = withoutMissionInteriorPlan(site);
+        String failure = siteGeometryFailure(level, structural);
+        if (failure == null) return structural;
+        if (!failure.startsWith("DFS cannot reach")) return null;
+        DfsAudit audit = depthFirstAudit(
+                level, structural, edits(structural), Set.of());
+        Set<BlockPos> unreachable = Set.copyOf(audit.unreachable());
+        LinkedHashSet<BlockPos> required = new LinkedHashSet<>();
+        structural.patrolRoutes().forEach(route -> required.addAll(route.waypoints()));
+        required.add(structural.target());
+        BlockPos entranceInside = structural.entrance().position()
+                .relative(structural.entrance().outward().getOpposite());
+        required.add(entranceInside);
+        if (!structural.entrance().existing()) {
+            required.add(entranceInside.relative(
+                    structural.entrance().outward().getClockWise()));
+        }
+        structural.stairs().forEach(stair -> required.addAll(stairLandingCells(stair)));
+        if (required.stream().anyMatch(unreachable::contains)) return null;
+
+        ArrayList<FloorMask> masks = new ArrayList<>();
+        try {
+            for (FloorMask mask : structural.floorMasks()) {
+                List<BlockPos> retained = mask.cells().stream()
+                        .filter(cell -> !unreachable.contains(cell))
+                        .toList();
+                masks.add(new FloorMask(mask.floorY(), retained));
+            }
+            Site repaired = new Site(
+                    structural.id(), structural.district(), structural.bounds(),
+                    structural.floorYs(), structural.target(), structural.entrance(),
+                    structural.stairs(), structural.patrolRoutes(), List.of(), masks,
+                    structural.planSeed(), structural.buildingId(), structural.buildingBounds());
+            return siteGeometryFailure(level, repaired) == null ? repaired : null;
+        } catch (IllegalArgumentException invalidMask) {
+            return null;
+        }
+    }
+
+    static boolean preflightInteriorPlan(ServerLevel level, Site site) {
+        return preflightFailure(level, site, false) == null;
+    }
+
+    private static Site repairInteriorPlan(
+            ServerLevel level,
+            Site structural,
+            List<Decoration> decorations,
+            List<FloorProfile> floors,
+            long seed,
+            MissionCatalog.MissionType missionType,
+            String missionId) {
+        ArrayList<Decoration> retained = new ArrayList<>(decorations);
+        HashSet<Decoration> protectedRoleAnchors = new HashSet<>();
+        for (int floorIndex = 0; floorIndex < floors.size(); floorIndex++) {
+            FloorProfile floor = floors.get(floorIndex);
+            FloorTheme theme = floorTheme(
+                    seed, floorIndex, floors.size(), missionType, missionId);
+            Decoration anchor = retained.stream()
+                    .filter(decoration -> decoration.position().getY() == floor.y())
+                    .filter(decoration -> anchorsTheme(theme, decoration.kind()))
+                    .findFirst().orElse(null);
+            if (anchor == null) return null;
+            protectedRoleAnchors.add(anchor);
+        }
+        Set<Long> protectedColumns = retained.stream()
+                .filter(decoration -> decoration.kind() == DecorKind.EXPLOSIVE_CANISTER)
+                .map(decoration -> decoration.position().relative(
+                        decoration.facing().getOpposite()))
+                .map(position -> ChunkPos.pack(position.getX(), position.getZ()))
+                .collect(java.util.stream.Collectors.toSet());
+        HashSet<Long> removedColumns = new HashSet<>();
+        for (int index = retained.size() - 1; index >= 0; index--) {
+            Decoration decoration = retained.get(index);
+            if (decoration.kind() == DecorKind.EXPLOSIVE_CANISTER
+                    || protectedRoleAnchors.contains(decoration)) {
+                continue;
+            }
+            if (decoration.kind() == DecorKind.FULL_HEIGHT_PARTITION) {
+                long column = ChunkPos.pack(
+                        decoration.position().getX(), decoration.position().getZ());
+                if (protectedColumns.contains(column) || !removedColumns.add(column)) continue;
+                retained.removeIf(candidate ->
+                        candidate.kind() == DecorKind.FULL_HEIGHT_PARTITION
+                                && ChunkPos.pack(
+                                        candidate.position().getX(), candidate.position().getZ())
+                                        == column);
+            } else {
+                retained.remove(index);
+            }
+            Site repaired = copyWithDecorations(structural, retained);
+            if (hasExplosiveCanisterPlan(repaired)
+                    && realizesFloorProgram(repaired, missionType, missionId, seed)
+                    && preflightFailure(level, repaired, false) == null) {
+                return repaired;
+            }
+            index = Math.min(index, retained.size());
+        }
+        return null;
+    }
+
     static List<Decoration> missionTurretPlacements(Site site) {
         if (site == null) return List.of();
         return site.decorations().stream()
@@ -909,6 +1203,11 @@ public final class MissionBuildingPlanner {
 
     static boolean hasMissionTurretPlan(Site site) {
         return site != null && !missionTurretPlacements(site).isEmpty();
+    }
+
+    static boolean hasExplosiveCanisterPlan(Site site) {
+        return site != null && site.decorations().stream().anyMatch(
+                decoration -> decoration.kind() == DecorKind.EXPLOSIVE_CANISTER);
     }
 
     static List<Decoration> computerDeskPlacements(Site site) {
@@ -994,7 +1293,7 @@ public final class MissionBuildingPlanner {
         return new Site(
                 site.id(), site.district(), site.bounds(), site.floorYs(), site.target(),
                 site.entrance(), site.stairs(), site.patrolRoutes(), decorations,
-                site.floorMasks(), site.planSeed());
+                site.floorMasks(), site.planSeed(), site.buildingId(), site.buildingBounds());
     }
 
     private static List<Decoration> planMissionTurrets(ServerLevel level, Site site) {
@@ -1361,11 +1660,6 @@ public final class MissionBuildingPlanner {
         if (target == null) {
             return PlanningResult.rejected("rejected: no safe objective position");
         }
-        List<Decoration> decorations = planDecorations(
-                level, floors, entrance, stairs, routes, target, planSeed);
-        if (!hasRequiredDecorations(floors, decorations)) {
-            return PlanningResult.rejected("rejected: required mission cover does not fit");
-        }
         String id = district.resourceCode()
                 + ":" + chunkX + ":" + chunkZ + ":"
                 + Long.toUnsignedString(planSeed, 16);
@@ -1379,11 +1673,11 @@ public final class MissionBuildingPlanner {
                     entrance,
                     stairs,
                     routes,
-                    decorations,
+                    List.of(),
                     floors.stream().map(floor -> new FloorMask(
                             floor.y(), List.copyOf(floor.cells()))).toList(),
                     planSeed);
-            String preflight = preflightFailure(level, site);
+            String preflight = preflightFailure(level, site, false);
             return preflight == null
                     ? PlanningResult.accepted(site)
                     : PlanningResult.rejected("rejected: " + preflight);
@@ -1403,12 +1697,12 @@ public final class MissionBuildingPlanner {
                 || level.canSeeSky(position)) {
             return false;
         }
-        if (!hasCeiling(level, position, 7)) {
+        if (!hasCeiling(level, position, MAX_STORY_HEIGHT)) {
             return false;
         }
         int enclosingDirections = 0;
         for (Direction direction : HORIZONTAL) {
-            for (int distance = 1; distance <= 10; distance++) {
+            for (int distance = 1; distance <= 16; distance++) {
                 BlockState state = level.getBlockState(position.relative(direction, distance));
                 if (state.blocksMotion()) {
                     enclosingDirections++;
@@ -1581,10 +1875,20 @@ public final class MissionBuildingPlanner {
         for (BlockPos cell : cells) {
             for (Direction direction : orderedDirections(seed, cell)) {
                 BlockPos first = cell.relative(direction);
+                Direction across = direction.getClockWise();
+                BlockPos secondInside = cell.relative(across);
+                BlockPos second = first.relative(across);
                 if (!floor.cells().contains(first)
-                        && existingAccess(level, floor, first, direction)) {
+                        && floor.cells().contains(secondInside)
+                        && !floor.cells().contains(second)
+                        && supportedEditableDoorway(level, first)
+                        && supportedEditableDoorway(level, second)
+                        && hasExteriorApproach(
+                                level, floor, first.relative(direction), direction)
+                        && hasExteriorApproach(
+                                level, floor, second.relative(direction), direction)) {
                     Entrance entrance = new Entrance(first, direction, 0, true);
-                    if (level.getBlockState(first).getBlock() instanceof DoorBlock) {
+                    if (isCompleteDoor(level, first)) {
                         explicitDoors.add(entrance);
                     } else {
                         generatedDoors.add(new Entrance(first, direction, 1, false));
@@ -1603,7 +1907,12 @@ public final class MissionBuildingPlanner {
         }
         ArrayList<Entrance> entrances = new ArrayList<>(MAX_ENTRANCE_CANDIDATES);
         appendEntrances(entrances, explicitDoors);
-        appendEntrances(entrances, generatedDoors);
+        appendEntrances(entrances, generatedDoors.stream()
+                .filter(entrance -> entrance.wallDepth() > 1)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new)));
+        appendEntrances(entrances, generatedDoors.stream()
+                .filter(entrance -> entrance.wallDepth() == 1)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new)));
         return List.copyOf(entrances);
     }
 
@@ -1645,9 +1954,9 @@ public final class MissionBuildingPlanner {
                 }
             }
         }
-        windows.sort(Comparator.comparingInt(FloorWindow::area).reversed()
-                .thenComparingInt(FloorWindow::areaDelta)
-                .thenComparingLong(FloorWindow::score));
+        windows.sort(Comparator.comparingInt(FloorWindow::areaDelta)
+                .thenComparingLong(FloorWindow::score)
+                .thenComparing(Comparator.comparingInt(FloorWindow::area).reversed()));
 
         ArrayList<List<FloorProfile>> results = new ArrayList<>();
         for (FloorWindow window : windows) {
@@ -1792,6 +2101,12 @@ public final class MissionBuildingPlanner {
         return false;
     }
 
+    private static boolean hasExteriorApproach(
+            ServerLevel level, FloorProfile floor, BlockPos first, Direction outward) {
+        return isExposedGroundPassage(level, first)
+                || existingAccess(level, floor, first, outward);
+    }
+
     private static boolean isExposedGroundPassage(ServerLevel level, BlockPos position) {
         return isPassage(level, position)
                 && (!NeonCityGenerator.isMegacityWorld(level)
@@ -1814,6 +2129,7 @@ public final class MissionBuildingPlanner {
         }
         for (int depth = 1; depth <= MAX_ENTRANCE_WALL_DEPTH; depth++) {
             boolean validWall = true;
+            boolean facadePresent = false;
             for (int lane = 0; lane < 2 && validWall; lane++) {
                 BlockPos wall = inside.relative(across, lane).relative(outward);
                 for (int step = 0; step < depth && validWall; step++) {
@@ -1823,21 +2139,32 @@ public final class MissionBuildingPlanner {
                         break;
                     }
                     for (int y = 0; y < 3; y++) {
-                        if (!isCarvable(level, slice.above(y))) {
+                        BlockPos carved = slice.above(y);
+                        if (!isSafelyEditable(level, carved)) {
                             validWall = false;
                             break;
+                        }
+                        if (step == 0 && !level.getBlockState(carved).isAir()) {
+                            facadePresent = true;
                         }
                     }
                 }
                 BlockPos outside = wall.relative(outward, depth);
-                validWall &= isPassage(level, outside)
-                        && existingAccess(level, floor, outside, outward);
+                validWall &= hasExteriorApproach(level, floor, outside, outward);
             }
-            if (validWall) {
+            if (validWall && facadePresent) {
                 return depth;
             }
         }
         return 0;
+    }
+
+    private static boolean supportedEditableDoorway(ServerLevel level, BlockPos position) {
+        if (!level.getBlockState(position.below()).blocksMotion()) return false;
+        for (int height = 0; height < 3; height++) {
+            if (!isSafelyEditable(level, position.above(height))) return false;
+        }
+        return true;
     }
 
     private static List<StairRun> findStairPlan(
@@ -2112,10 +2439,14 @@ public final class MissionBuildingPlanner {
             List<StairRun> stairs,
             List<PatrolRoute> routes,
             BlockPos target,
-            long seed) {
+            long seed,
+            MissionCatalog.MissionType missionType,
+            String missionId) {
         List<Decoration> result = new ArrayList<>();
         Set<BlockPos> occupied = new HashSet<>();
         Set<BlockPos> blockedCells = new HashSet<>();
+        reserveStructuralObstructions(
+                level, floors, entrance, stairs, occupied, blockedCells);
         reserve(occupied, target, 2);
         reserve(occupied, entrance.position(), 2);
         for (StairRun stair : stairs) {
@@ -2138,7 +2469,7 @@ public final class MissionBuildingPlanner {
             PatrolRoute route = routes.stream()
                     .filter(value -> value.floorY() == floor.y()).findFirst().orElseThrow();
             Set<BlockPos> circulation = circulationSpine(
-                    floor, entrance, stairs, route, target);
+                    floor, entrance, stairs, route, target, blockedCells);
             for (BlockPos position : circulation) {
                 reserve(occupied, position, CORRIDOR_CLEARANCE);
             }
@@ -2146,15 +2477,46 @@ public final class MissionBuildingPlanner {
             Direction longAxis = floor.bounds().width() >= floor.bounds().depth()
                     ? Direction.EAST : Direction.SOUTH;
             Direction across = longAxis.getClockWise();
-            addBoundaryPartitionBases(
+            FloorTheme theme = floorTheme(
+                    seed, floorIndex, floors.size(), missionType, missionId);
+            if (explosiveCanisters == 0
+                    && (addWallBackedDecoration(
+                                    level, result, occupied, blockedCells, floor,
+                                    DecorKind.EXPLOSIVE_CANISTER,
+                                    entrance, stairs, routes, target,
+                                    seed ^ 0x4558504C4F534956L ^ floor.y())
+                            || addPartitionBackedCanister(
+                                    level, result, occupied, blockedCells, List.of(floor),
+                                    entrance, stairs, routes, target, seed))) {
+                explosiveCanisters++;
+            }
+            if (!addRequiredRoleAnchor(
+                    result, occupied, blockedCells, floor, theme, longAxis,
+                    entrance, stairs, routes, target, seed ^ floor.y())) {
+                return List.of();
+            }
+            int floorPartitionLimit = maximumPartitionBases(floor.cells().size());
+            int partitionColumns = Math.toIntExact(result.stream().filter(decoration ->
+                            decoration.kind() == DecorKind.FULL_HEIGHT_PARTITION
+                                    && decoration.position().getY() == floor.y())
+                    .count());
+            partitionColumns += addBoundaryPartitionBases(
                     level, result, occupied, blockedCells, floor,
-                    entrance, stairs, routes, target);
-            if (floor.cells().size() >= 96) {
+                    entrance, stairs, routes, target,
+                    Math.min(MAX_BOUNDARY_PARTITION_COLUMNS_PER_FLOOR,
+                            floorPartitionLimit - partitionColumns));
+            if (floor.cells().size() >= 96
+                    && theme == FloorTheme.STORAGE
+                    && partitionColumns < floorPartitionLimit) {
+                int internalBudget = Math.min(
+                        MAX_INTERNAL_PARTITION_COLUMNS_PER_FLOOR,
+                        floorPartitionLimit - partitionColumns);
                 addFullHeightPartitionBases(
                         level, result, occupied, blockedCells, floor, longAxis,
-                        entrance, stairs, routes, target);
+                        entrance, stairs, routes, target, theme, seed ^ floor.y(),
+                        internalBudget);
             }
-            if (floorIndex == 0) {
+            if (theme == FloorTheme.LOBBY) {
                 BlockPos inside = entrance.position().relative(entrance.outward().getOpposite());
                 Direction inward = entrance.outward().getOpposite();
                 Direction lobbyAcross = inward.getClockWise();
@@ -2184,79 +2546,42 @@ public final class MissionBuildingPlanner {
                         entrance, stairs, routes, target, 1);
             }
 
-            if (floor.cells().size() >= LARGE_OFFICE_CELLS) {
-                addRoomPartitions(
-                        result, occupied, blockedCells, floor, longAxis,
-                        entrance, stairs, routes, target);
-                int wantedPods = Math.min(8, Math.max(2, floor.cells().size() / 48));
-                int pods = 0;
-                for (int z = floor.bounds().minZ + 2;
-                        z <= floor.bounds().maxZ - 2 && pods < wantedPods; z += 4) {
-                    for (int x = floor.bounds().minX + 2;
-                            x <= floor.bounds().maxX - 2 && pods < wantedPods; x += 4) {
-                        if (addDecoration(result, occupied, blockedCells, floor,
-                                new Decoration(
-                                        new BlockPos(x, floor.y(), z),
-                                        DecorKind.CUBICLE_POD, longAxis),
-                                entrance, stairs, routes, target, 1)) {
-                            pods++;
-                        }
-                    }
-                }
-                List<BlockPos> roomAnchors = List.of(
-                        new BlockPos(
-                                floor.bounds().minX + 2, floor.y(), floor.bounds().maxZ - 3),
-                        new BlockPos(
-                                floor.bounds().maxX - 3, floor.y(), floor.bounds().minZ + 2),
-                        new BlockPos(
-                                floor.bounds().maxX - 3, floor.y(), floor.bounds().maxZ - 3));
-                addFirstDecoration(result, occupied, blockedCells, floor, roomAnchors,
-                        DecorKind.CONFERENCE_TABLE, longAxis,
-                        entrance, stairs, routes, target, 1);
-
-                int racks = 0;
-                for (int offset = 2; offset < Math.max(
-                        floor.bounds().width(), floor.bounds().depth()) - 2 && racks < 3;
-                        offset += 2) {
-                    BlockPos rack = longAxis.getAxis() == Direction.Axis.X
-                            ? new BlockPos(
-                                    floor.bounds().maxX - 1, floor.y(), floor.bounds().minZ + offset)
-                            : new BlockPos(
-                                    floor.bounds().minX + offset, floor.y(), floor.bounds().maxZ - 1);
-                    if (addDecoration(result, occupied, blockedCells, floor,
-                            new Decoration(rack, DecorKind.SERVER_RACK, longAxis.getOpposite()),
-                            entrance, stairs, routes, target, 0)) {
-                        racks++;
-                    }
-                }
-                addFirstDecoration(result, occupied, blockedCells, floor, roomAnchors.reversed(),
-                        DecorKind.WATER_COOLER, across,
-                        entrance, stairs, routes, target, 1);
-
-                if (explosiveCanisters < MAX_EXPLOSIVE_CANISTERS_PER_SITE) {
-                    for (BlockPos anchor : roomAnchors.reversed()) {
-                        if (!safeCanisterPosition(anchor, entrance, stairs, routes, target)) {
-                            continue;
-                        }
-                        if (addDecoration(result, occupied, blockedCells, floor,
-                                new Decoration(
-                                        anchor, DecorKind.EXPLOSIVE_CANISTER,
-                                        longAxis.getOpposite()),
-                                entrance, stairs, routes, target, 1)) {
-                            explosiveCanisters++;
-                            break;
-                        }
-                    }
-                }
+            if (explosiveCanisters > 0
+                    && explosiveCanisters < MAX_EXPLOSIVE_CANISTERS_PER_SITE
+                    && (theme == FloorTheme.STORAGE || theme == FloorTheme.OPERATIONS)
+                    && addWallBackedDecoration(
+                            level, result, occupied, blockedCells, floor,
+                            DecorKind.EXPLOSIVE_CANISTER, entrance, stairs, routes, target,
+                            seed ^ 0x4558504C4F534956L ^ floor.y())) {
+                explosiveCanisters++;
+            }
+            if (floor.cells().size() >= MIN_THEMED_FLOOR_CELLS) {
+                int internalPartitionBudget = Math.min(
+                        MAX_INTERNAL_PARTITION_COLUMNS_PER_FLOOR,
+                        Math.max(0, floorPartitionLimit
+                                - partitionBasesOnFloor(result, floor.y())));
+                addThemedFloor(
+                        level, result, occupied, blockedCells, floor, theme, longAxis,
+                        entrance, stairs, routes, target, seed ^ floor.y(),
+                        internalPartitionBudget);
             }
 
-            addWallBackedDecoration(
-                    level, result, occupied, blockedCells, floor,
-                    DecorKind.VENDING_MACHINE, entrance, stairs, routes, target, seed);
-            addComputerDesk(
-                    level, result, occupied, blockedCells, floor,
-                    entrance, stairs, routes, target, seed);
-            if (result.stream().noneMatch(decoration ->
+            if (theme == FloorTheme.LOBBY || theme == FloorTheme.LOUNGE) {
+                addWallBackedDecoration(
+                        level, result, occupied, blockedCells, floor,
+                        DecorKind.VENDING_MACHINE, entrance, stairs, routes, target, seed);
+            }
+            if (theme == FloorTheme.OPEN_OFFICE
+                    || theme == FloorTheme.OPERATIONS
+                    || theme == FloorTheme.EXECUTIVE) {
+                addComputerDesk(
+                        level, result, occupied, blockedCells, floor,
+                        entrance, stairs, routes, target, seed ^ floor.y());
+            }
+            if ((theme == FloorTheme.LOBBY
+                    || theme == FloorTheme.LOUNGE
+                    || theme == FloorTheme.EXECUTIVE)
+                    && result.stream().noneMatch(decoration ->
                     decoration.position().getY() == floor.y()
                             && decoration.kind() == DecorKind.PLANTER)) {
                 addFirstDecoration(
@@ -2265,7 +2590,10 @@ public final class MissionBuildingPlanner {
                         DecorKind.PLANTER, longAxis,
                         entrance, stairs, routes, target, 1);
             }
-            if (result.stream().noneMatch(decoration ->
+            if ((theme == FloorTheme.LOBBY
+                    || theme == FloorTheme.LOUNGE
+                    || theme == FloorTheme.EXECUTIVE)
+                    && result.stream().noneMatch(decoration ->
                     decoration.position().getY() == floor.y()
                             && decoration.kind() == DecorKind.COUCH)) {
                 addFirstDecoration(
@@ -2275,12 +2603,11 @@ public final class MissionBuildingPlanner {
                         entrance, stairs, routes, target, 1);
             }
 
-            int wanted = floorIndex == 0 ? 3 : 4;
+            int wanted = wantedFurnishings(floor, theme);
             if (furnishingsOnFloor(result, floor.y()) < wanted) {
                 for (BlockPos candidate : structuredFloorCandidates(floor, longAxis)) {
                     if (furnishingsOnFloor(result, floor.y()) >= wanted) break;
-                    DecorKind kind = floorIndex == 0
-                            ? DecorKind.FILING_CABINET : DecorKind.CUBICLE_DESK;
+                    DecorKind kind = fallbackDecoration(theme);
                     addDecoration(result, occupied, blockedCells, floor,
                             new Decoration(candidate, kind, longAxis),
                             entrance, stairs, routes, target, 1);
@@ -2298,7 +2625,35 @@ public final class MissionBuildingPlanner {
                 }
             }
         }
+        if (result.stream().noneMatch(
+                        decoration -> decoration.kind() == DecorKind.EXPLOSIVE_CANISTER)
+                && !addPartitionBackedCanister(
+                        level, result, occupied, blockedCells, floors,
+                        entrance, stairs, routes, target, seed)) {
+            return List.of();
+        }
         return expandFullHeightPartitions(level, floors, result);
+    }
+
+    private static void reserveStructuralObstructions(
+            ServerLevel level,
+            List<FloorProfile> floors,
+            Entrance entrance,
+            List<StairRun> stairs,
+            Set<BlockPos> occupied,
+            Set<BlockPos> blocked) {
+        ArrayList<Edit> structuralEdits = new ArrayList<>();
+        if (!entrance.existing()) addEntranceEdits(structuralEdits, entrance);
+        for (StairRun stair : stairs) addStairEdits(structuralEdits, stair);
+        Map<BlockPos, BlockState> overlay = new HashMap<>();
+        for (Edit edit : structuralEdits) overlay.put(edit.position(), edit.state());
+        for (FloorProfile floor : floors) {
+            for (BlockPos cell : floor.cells()) {
+                if (plannedPassage(level, cell, overlay)) continue;
+                occupied.add(cell);
+                blocked.add(cell);
+            }
+        }
     }
 
     private static void reserveStairHeadroomProjections(
@@ -2330,26 +2685,30 @@ public final class MissionBuildingPlanner {
             Entrance entrance,
             List<StairRun> stairs,
             PatrolRoute route,
-            BlockPos target) {
-        LinkedHashSet<BlockPos> portals = new LinkedHashSet<>(route.waypoints());
+            BlockPos target,
+            Set<BlockPos> blocked) {
+        Set<BlockPos> traversable = new HashSet<>(floor.cells());
+        traversable.removeAll(blocked);
+        LinkedHashSet<BlockPos> portals = new LinkedHashSet<>();
         BlockPos entranceInside = entrance.position().relative(entrance.outward().getOpposite());
         if (entranceInside.getY() == floor.y()) {
             portals.add(entranceInside);
             portals.add(entranceInside.relative(entrance.outward().getClockWise()));
         }
         for (StairRun stair : stairs) {
-            for (BlockPos landing : stairFloorClearanceCells(stair)) {
+            for (BlockPos landing : stairLandingCells(stair)) {
                 if (landing.getY() == floor.y()) portals.add(landing);
             }
         }
         if (target.getY() == floor.y()) portals.add(target);
-        portals.retainAll(floor.cells());
+        portals.addAll(route.waypoints());
+        portals.retainAll(traversable);
         LinkedHashSet<BlockPos> spine = new LinkedHashSet<>();
         BlockPos root = portals.stream().findFirst().orElse(null);
         if (root == null) return spine;
         spine.add(root);
         for (BlockPos portal : portals) {
-            spine.addAll(shortestFloorPath(floor.cells(), root, portal));
+            spine.addAll(shortestFloorPath(traversable, root, portal));
         }
         return spine;
     }
@@ -2383,7 +2742,318 @@ public final class MissionBuildingPlanner {
         return List.copyOf(path);
     }
 
-    private static void addRoomPartitions(
+    private static FloorTheme floorTheme(
+            long seed,
+            int floorIndex,
+            int floorCount,
+            MissionCatalog.MissionType missionType,
+            String missionId) {
+        FloorTheme authored = authoredFloorTheme(missionId, floorIndex, floorCount);
+        if (authored != null) return authored;
+        if (floorIndex == 0) return FloorTheme.LOBBY;
+        if (missionType != null) {
+            boolean topFloor = floorIndex == floorCount - 1;
+            return switch (missionType) {
+                case ASSASSINATE_TARGET -> topFloor
+                        ? FloorTheme.EXECUTIVE
+                        : alternatingFloorTheme(
+                                floorIndex, FloorTheme.OPEN_OFFICE, FloorTheme.OPERATIONS);
+                case SHIP_ITEM -> topFloor
+                        ? FloorTheme.STORAGE
+                        : alternatingFloorTheme(
+                                floorIndex, FloorTheme.LOUNGE, FloorTheme.STORAGE);
+                case STEAL_DATA -> topFloor
+                        ? FloorTheme.OPERATIONS
+                        : switch (Math.floorMod(floorIndex - 1, 3)) {
+                            case 0 -> FloorTheme.OPEN_OFFICE;
+                            case 1 -> FloorTheme.OPERATIONS;
+                            default -> FloorTheme.STORAGE;
+                        };
+                case NEUTRALIZE_CYBERPSYCHO -> topFloor
+                        ? FloorTheme.OPERATIONS
+                        : alternatingFloorTheme(
+                                floorIndex, FloorTheme.STORAGE, FloorTheme.OPERATIONS);
+            };
+        }
+        if (floorIndex == floorCount - 1) return FloorTheme.EXECUTIVE;
+        FloorTheme[] middle = {
+                FloorTheme.OPEN_OFFICE,
+                FloorTheme.OPERATIONS,
+                FloorTheme.LOUNGE,
+                FloorTheme.STORAGE
+        };
+        int offset = Math.floorMod((int) Long.rotateRight(seed, 19), middle.length);
+        return middle[(offset + floorIndex - 1) % middle.length];
+    }
+
+    private static FloorTheme authoredFloorTheme(
+            String missionId, int floorIndex, int floorCount) {
+        boolean topFloor = floorIndex == floorCount - 1;
+        return switch (missionId == null ? "" : missionId) {
+            case "m01_deliver_datashards" -> floorIndex == 0
+                    ? FloorTheme.LOBBY
+                    : topFloor ? FloorTheme.STORAGE : FloorTheme.LOUNGE;
+            case "m02_assassinate_g_exec" -> floorIndex == 0
+                    ? FloorTheme.LOBBY
+                    : topFloor
+                            ? FloorTheme.EXECUTIVE
+                            : alternatingFloorTheme(
+                                    floorIndex, FloorTheme.OPEN_OFFICE, FloorTheme.OPERATIONS);
+            case "m03_steal_weights" -> floorIndex == 1
+                    ? FloorTheme.OPEN_OFFICE
+                    : floorIndex == floorCount - 2
+                            ? FloorTheme.STORAGE : FloorTheme.OPERATIONS;
+            case "m04_assassinate_fixer" -> floorIndex % 2 == 0
+                    ? FloorTheme.STORAGE : FloorTheme.OPERATIONS;
+            case "m05_kill_cyberpsycho" -> topFloor
+                    ? FloorTheme.OPERATIONS : FloorTheme.STORAGE;
+            default -> null;
+        };
+    }
+
+    private static FloorTheme alternatingFloorTheme(
+            int floorIndex, FloorTheme first, FloorTheme second) {
+        return Math.floorMod(floorIndex - 1, 2) == 0 ? first : second;
+    }
+
+    static List<String> floorProgram(
+            MissionCatalog.MissionType missionType, String missionId, int floorCount) {
+        if (floorCount < 1 || floorCount > MAX_FLOORS) return List.of();
+        return java.util.stream.IntStream.range(0, floorCount)
+                .mapToObj(index -> floorTheme(
+                        0L, index, floorCount, missionType, missionId).name())
+                .toList();
+    }
+
+    static boolean realizesFloorProgram(
+            Site site, MissionCatalog.MissionType missionType, String missionId) {
+        return realizesFloorProgram(site, missionType, missionId,
+                site == null ? 0L : site.planSeed());
+    }
+
+    private static boolean realizesFloorProgram(
+            Site site,
+            MissionCatalog.MissionType missionType,
+            String missionId,
+            long themeSeed) {
+        if (site == null || site.floorYs().isEmpty()) return false;
+        for (int floorIndex = 0; floorIndex < site.floorYs().size(); floorIndex++) {
+            int floorY = site.floorYs().get(floorIndex);
+            FloorTheme theme = floorTheme(
+                    themeSeed, floorIndex, site.floorYs().size(), missionType, missionId);
+            Set<DecorKind> treatment = site.decorations().stream()
+                    .filter(decoration -> decoration.position().getY() == floorY)
+                    .map(Decoration::kind)
+                    .filter(MissionBuildingPlanner::isThemeFurnishing)
+                    .collect(java.util.stream.Collectors.toSet());
+            if (!realizesTheme(theme, treatment)) return false;
+        }
+        return true;
+    }
+
+    private static DecorKind fallbackDecoration(FloorTheme theme) {
+        return requiredRoleAnchor(theme);
+    }
+
+    private static DecorKind requiredRoleAnchor(FloorTheme theme) {
+        return switch (theme) {
+            case OPEN_OFFICE -> DecorKind.CUBICLE_DESK;
+            case LOUNGE -> DecorKind.COUCH;
+            case OPERATIONS -> DecorKind.SERVER_RACK;
+            case LOBBY -> DecorKind.RECEPTION_DESK;
+            case STORAGE -> DecorKind.FILING_CABINET;
+            case EXECUTIVE -> DecorKind.COMPUTER_DESK;
+        };
+    }
+
+    private static boolean addRequiredRoleAnchor(
+            List<Decoration> result,
+            Set<BlockPos> occupied,
+            Set<BlockPos> blocked,
+            FloorProfile floor,
+            FloorTheme theme,
+            Direction preferredFacing,
+            Entrance entrance,
+            List<StairRun> stairs,
+            List<PatrolRoute> routes,
+            BlockPos target,
+        long seed) {
+        DecorKind required = requiredRoleAnchor(theme);
+        LinkedHashSet<BlockPos> candidates = new LinkedHashSet<>(ordered(
+                Set.copyOf(structuredFloorCandidates(floor, preferredFacing)), seed));
+        candidates.addAll(ordered(floor.cells(), seed ^ 0x524F4C45414E4348L));
+        for (BlockPos candidate : candidates) {
+            for (Direction facing : orderedDirections(seed, candidate)) {
+                if (addDecoration(
+                        result, occupied, blocked, floor,
+                        new Decoration(candidate, required, facing),
+                        entrance, stairs, routes, target, 1)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static void addThemedFloor(
+            ServerLevel level,
+            List<Decoration> result,
+            Set<BlockPos> occupied,
+            Set<BlockPos> blocked,
+            FloorProfile floor,
+            FloorTheme theme,
+            Direction longAxis,
+            Entrance entrance,
+            List<StairRun> stairs,
+            List<PatrolRoute> routes,
+            BlockPos target,
+            long seed,
+            int internalPartitionBudget) {
+        Direction across = longAxis.getClockWise();
+        boolean compact = floor.cells().size() < FULL_THEME_FLOOR_CELLS;
+        List<BlockPos> structured = structuredFloorCandidates(floor, longAxis);
+        List<BlockPos> reversed = structured.reversed();
+        List<BlockPos> anchors = List.of(
+                new BlockPos(
+                        floor.bounds().minX + 2, floor.y(), floor.bounds().maxZ - 3),
+                new BlockPos(
+                        floor.bounds().maxX - 3, floor.y(), floor.bounds().minZ + 2),
+                new BlockPos(
+                        floor.bounds().maxX - 3, floor.y(), floor.bounds().maxZ - 3));
+        switch (theme) {
+            case LOBBY -> {
+                addFirstDecoration(result, occupied, blocked, floor, anchors,
+                        DecorKind.CONFERENCE_TABLE, longAxis,
+                        entrance, stairs, routes, target, 1);
+                addRepeatedDecorations(result, occupied, blocked, floor, reversed,
+                        DecorKind.COUCH, across, compact ? 1 : 2,
+                        entrance, stairs, routes, target, 1);
+                addFirstDecoration(result, occupied, blocked, floor, anchors.reversed(),
+                        DecorKind.WATER_COOLER, across,
+                        entrance, stairs, routes, target, 1);
+            }
+            case OPEN_OFFICE -> {
+                if ((!compact || floor.cells().size() >= 96)
+                        && internalPartitionBudget > 0) {
+                    addRoomPartitions(result, occupied, blocked, floor, longAxis,
+                            entrance, stairs, routes, target, internalPartitionBudget);
+                }
+                addCubiclePods(result, occupied, blocked, floor, longAxis, compact ? 2 : 4,
+                        entrance, stairs, routes, target);
+                addFirstDecoration(result, occupied, blocked, floor, anchors,
+                        DecorKind.CONFERENCE_TABLE, longAxis,
+                        entrance, stairs, routes, target, 1);
+                addRepeatedDecorations(result, occupied, blocked, floor, reversed,
+                        DecorKind.FILING_CABINET, across, compact ? 1 : 2,
+                        entrance, stairs, routes, target, 1);
+            }
+            case OPERATIONS -> {
+                if ((!compact || floor.cells().size() >= 96)
+                        && internalPartitionBudget > 0) {
+                    addRoomPartitions(result, occupied, blocked, floor, longAxis,
+                            entrance, stairs, routes, target, internalPartitionBudget);
+                }
+                for (int count = 0; count < (compact ? 1 : 3); count++) {
+                    addComputerDesk(level, result, occupied, blocked, floor,
+                            entrance, stairs, routes, target, seed + count);
+                }
+                addRepeatedDecorations(result, occupied, blocked, floor, reversed,
+                        DecorKind.SERVER_RACK, across, compact ? 2 : 4,
+                        entrance, stairs, routes, target, 1);
+            }
+            case LOUNGE -> {
+                addFirstDecoration(result, occupied, blocked, floor, anchors,
+                        DecorKind.CONFERENCE_TABLE, across,
+                        entrance, stairs, routes, target, 1);
+                addFirstDecoration(result, occupied, blocked, floor, anchors.reversed(),
+                        DecorKind.WATER_COOLER, longAxis,
+                        entrance, stairs, routes, target, 1);
+                addRepeatedDecorations(result, occupied, blocked, floor, structured,
+                        DecorKind.COUCH, longAxis, compact ? 2 : 3,
+                        entrance, stairs, routes, target, 1);
+                addRepeatedDecorations(result, occupied, blocked, floor, reversed,
+                        DecorKind.PLANTER, across, compact ? 2 : 3,
+                        entrance, stairs, routes, target, 1);
+            }
+            case STORAGE -> {
+                addRepeatedDecorations(result, occupied, blocked, floor, structured,
+                        DecorKind.SERVER_RACK, longAxis, compact ? 2 : 4,
+                        entrance, stairs, routes, target, 1);
+                addRepeatedDecorations(result, occupied, blocked, floor, reversed,
+                        DecorKind.FILING_CABINET, across, compact ? 2 : 4,
+                        entrance, stairs, routes, target, 1);
+            }
+            case EXECUTIVE -> {
+                addFirstDecoration(result, occupied, blocked, floor, anchors,
+                        DecorKind.CONFERENCE_TABLE, longAxis,
+                        entrance, stairs, routes, target, 1);
+                for (int count = 0; count < (compact ? 1 : 2); count++) {
+                    addComputerDesk(level, result, occupied, blocked, floor,
+                            entrance, stairs, routes, target, seed + count);
+                }
+                addRepeatedDecorations(result, occupied, blocked, floor, reversed,
+                        DecorKind.COUCH, across, compact ? 1 : 2,
+                        entrance, stairs, routes, target, 1);
+                addRepeatedDecorations(result, occupied, blocked, floor, structured,
+                        DecorKind.PLANTER, longAxis, compact ? 1 : 2,
+                        entrance, stairs, routes, target, 1);
+            }
+        }
+    }
+
+    private static int addRepeatedDecorations(
+            List<Decoration> result,
+            Set<BlockPos> occupied,
+            Set<BlockPos> blocked,
+            FloorProfile floor,
+            List<BlockPos> candidates,
+            DecorKind kind,
+            Direction facing,
+            int wanted,
+            Entrance entrance,
+            List<StairRun> stairs,
+            List<PatrolRoute> routes,
+            BlockPos target,
+            int clearance) {
+        int added = 0;
+        for (BlockPos candidate : candidates) {
+            if (added >= wanted) break;
+            if (addDecoration(result, occupied, blocked, floor,
+                    new Decoration(candidate, kind, facing),
+                    entrance, stairs, routes, target, clearance)) {
+                added++;
+            }
+        }
+        return added;
+    }
+
+    private static void addCubiclePods(
+            List<Decoration> result,
+            Set<BlockPos> occupied,
+            Set<BlockPos> blocked,
+            FloorProfile floor,
+            Direction facing,
+            int wanted,
+            Entrance entrance,
+            List<StairRun> stairs,
+            List<PatrolRoute> routes,
+            BlockPos target) {
+        int added = 0;
+        for (int z = floor.bounds().minZ + 2;
+                z <= floor.bounds().maxZ - 2 && added < wanted; z += 4) {
+            for (int x = floor.bounds().minX + 2;
+                    x <= floor.bounds().maxX - 2 && added < wanted; x += 4) {
+                if (addDecoration(result, occupied, blocked, floor,
+                        new Decoration(new BlockPos(x, floor.y(), z),
+                                DecorKind.CUBICLE_POD, facing),
+                        entrance, stairs, routes, target, 1)) {
+                    added++;
+                }
+            }
+        }
+    }
+
+    private static int addRoomPartitions(
             List<Decoration> result,
             Set<BlockPos> occupied,
             Set<BlockPos> blocked,
@@ -2392,22 +3062,28 @@ public final class MissionBuildingPlanner {
             Entrance entrance,
             List<StairRun> stairs,
             List<PatrolRoute> routes,
-            BlockPos target) {
+            BlockPos target,
+            int limit) {
+        if (limit <= 0) return 0;
         boolean splitAlongX = longAxis.getAxis() == Direction.Axis.X;
         int fixed = splitAlongX
-                ? (floor.bounds().minX + floor.bounds().maxX()) / 2
-                : (floor.bounds().minZ + floor.bounds().maxZ()) / 2;
+                ? floor.bounds().minX + floor.bounds().width() * 2 / 3
+                : floor.bounds().minZ + floor.bounds().depth() * 2 / 3;
         int start = splitAlongX ? floor.bounds().minZ + 1 : floor.bounds().minX + 1;
         int end = splitAlongX ? floor.bounds().maxZ - 1 : floor.bounds().maxX - 1;
         Direction facing = splitAlongX ? Direction.EAST : Direction.SOUTH;
-        for (int variable = start; variable <= end; variable++) {
+        int added = 0;
+        for (int variable = start; variable <= end && added < limit; variable++) {
             BlockPos position = splitAlongX
                     ? new BlockPos(fixed, floor.y(), variable)
                     : new BlockPos(variable, floor.y(), fixed);
-            addDecoration(result, occupied, blocked, floor,
+            if (addDecoration(result, occupied, blocked, floor,
                     new Decoration(position, DecorKind.ROOM_PARTITION, facing),
-                    entrance, stairs, routes, target, 0);
+                    entrance, stairs, routes, target, 0)) {
+                added++;
+            }
         }
+        return added;
     }
 
     private static void addFullHeightPartitionBases(
@@ -2420,17 +3096,57 @@ public final class MissionBuildingPlanner {
             Entrance entrance,
             List<StairRun> stairs,
             List<PatrolRoute> routes,
-            BlockPos target) {
+            BlockPos target,
+            FloorTheme theme,
+            long seed,
+            int limit) {
+        if (limit <= 0) return;
         boolean fixedX = longAxis.getAxis() == Direction.Axis.X;
-        int fixed = fixedX
-                ? (floor.bounds().minX + floor.bounds().maxX()) / 2
-                : (floor.bounds().minZ + floor.bounds().maxZ()) / 2;
+        int fixed = bestPartitionCoordinate(floor, occupied, fixedX, seed);
+        if (fixed == Integer.MIN_VALUE) return;
         int start = fixedX ? floor.bounds().minZ + 1 : floor.bounds().minX + 1;
         int end = fixedX ? floor.bounds().maxZ - 1 : floor.bounds().maxX - 1;
+        int columns = addFullHeightPartitionLine(
+                level, result, occupied, blocked, floor, fixedX, fixed, start, end,
+                entrance, stairs, routes, target, limit);
+        if (floor.cells().size() < 132
+                || (theme != FloorTheme.OPERATIONS && theme != FloorTheme.STORAGE)
+                || columns >= limit) {
+            return;
+        }
+        boolean secondaryFixedX = !fixedX;
+        int secondaryFixed = bestPartitionCoordinate(
+                floor, occupied, secondaryFixedX, seed ^ 0x9E3779B97F4A7C15L);
+        if (secondaryFixed == Integer.MIN_VALUE) return;
+        int secondaryStart = secondaryFixedX
+                ? floor.bounds().minZ + 1 : floor.bounds().minX + 1;
+        int secondaryEnd = secondaryFixedX
+                ? floor.bounds().maxZ - 1 : floor.bounds().maxX - 1;
+        addFullHeightPartitionLine(
+                level, result, occupied, blocked, floor, secondaryFixedX, secondaryFixed,
+                secondaryStart, secondaryEnd, entrance, stairs, routes, target,
+                limit - columns);
+    }
+
+    private static int addFullHeightPartitionLine(
+            ServerLevel level,
+            List<Decoration> result,
+            Set<BlockPos> occupied,
+            Set<BlockPos> blocked,
+            FloorProfile floor,
+            boolean fixedX,
+            int fixed,
+            int start,
+            int end,
+            Entrance entrance,
+            List<StairRun> stairs,
+            List<PatrolRoute> routes,
+            BlockPos target,
+            int limit) {
         Direction facing = fixedX ? Direction.EAST : Direction.SOUTH;
         int columns = 0;
         for (int variable = start;
-                variable <= end && columns < MAX_PARTITION_COLUMNS_PER_FLOOR;
+                variable <= end && columns < limit;
                 variable++) {
             BlockPos position = fixedX
                     ? new BlockPos(fixed, floor.y(), variable)
@@ -2442,9 +3158,38 @@ public final class MissionBuildingPlanner {
                 columns++;
             }
         }
+        return columns;
     }
 
-    private static void addBoundaryPartitionBases(
+    private static int bestPartitionCoordinate(
+            FloorProfile floor, Set<BlockPos> occupied, boolean fixedX, long seed) {
+        int minimum = fixedX ? floor.bounds().minX + 2 : floor.bounds().minZ + 2;
+        int maximum = fixedX ? floor.bounds().maxX - 2 : floor.bounds().maxZ - 2;
+        if (minimum > maximum) return Integer.MIN_VALUE;
+        int center = (minimum + maximum) / 2;
+        int best = Integer.MIN_VALUE;
+        long bestScore = Long.MIN_VALUE;
+        for (int fixed = minimum; fixed <= maximum; fixed++) {
+            int usable = 0;
+            int start = fixedX ? floor.bounds().minZ + 1 : floor.bounds().minX + 1;
+            int end = fixedX ? floor.bounds().maxZ - 1 : floor.bounds().maxX - 1;
+            for (int variable = start; variable <= end; variable++) {
+                BlockPos position = fixedX
+                        ? new BlockPos(fixed, floor.y(), variable)
+                        : new BlockPos(variable, floor.y(), fixed);
+                if (floor.cells().contains(position) && !occupied.contains(position)) usable++;
+            }
+            long score = usable * 1_000L - Math.abs(fixed - center) * 10L
+                    + Math.floorMod(positionScore(seed, fixed, floor.y()), 10L);
+            if (usable >= 4 && score > bestScore) {
+                best = fixed;
+                bestScore = score;
+            }
+        }
+        return best;
+    }
+
+    private static int addBoundaryPartitionBases(
             ServerLevel level,
             List<Decoration> result,
             Set<BlockPos> occupied,
@@ -2453,7 +3198,8 @@ public final class MissionBuildingPlanner {
             Entrance entrance,
             List<StairRun> stairs,
             List<PatrolRoute> routes,
-            BlockPos target) {
+            BlockPos target,
+            int limit) {
         Set<BlockPos> candidates = new HashSet<>();
         for (BlockPos position : floor.cells()) {
             for (Direction direction : HORIZONTAL) {
@@ -2463,17 +3209,24 @@ public final class MissionBuildingPlanner {
                 }
             }
         }
-        candidates.stream()
+        int columns = 0;
+        for (BlockPos position : candidates.stream()
                 .filter(position -> fullHeightColumnClearOfStairs(
                         level, position, stairs))
                 .sorted(Comparator.comparingInt((BlockPos position) -> position.getX())
                         .thenComparingInt(position -> position.getZ()))
-                .forEach(position -> addDecoration(
-                        result, occupied, blocked, floor,
-                        new Decoration(
-                                position, DecorKind.FULL_HEIGHT_PARTITION,
-                                boundaryFacing(floor, position)),
-                        entrance, stairs, routes, target, 0));
+                .toList()) {
+            if (columns >= limit) break;
+            if (addDecoration(
+                    result, occupied, blocked, floor,
+                    new Decoration(
+                            position, DecorKind.FULL_HEIGHT_PARTITION,
+                            boundaryFacing(floor, position)),
+                    entrance, stairs, routes, target, 0)) {
+                columns++;
+            }
+        }
+        return columns;
     }
 
     private static boolean fullHeightColumnClearOfStairs(
@@ -2536,7 +3289,10 @@ public final class MissionBuildingPlanner {
                         || !floor.cells().contains(approach)
                         || occupied.contains(approach)
                         || blocked.contains(approach)
-                        || !isPassage(level, approach)) {
+                        || !isPassage(level, approach)
+                        || (kind == DecorKind.EXPLOSIVE_CANISTER
+                                && !safeCanisterPosition(
+                                        position, entrance, stairs, routes, target))) {
                     continue;
                 }
                 candidates.add(new WallFixtureCandidate(
@@ -2555,6 +3311,73 @@ public final class MissionBuildingPlanner {
                     entrance, stairs, routes, target, 0)) {
                 occupied.add(candidate.position().relative(candidate.facing()));
                 return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean addPartitionBackedCanister(
+            ServerLevel level,
+            List<Decoration> result,
+            Set<BlockPos> occupied,
+            Set<BlockPos> blocked,
+            List<FloorProfile> floors,
+            Entrance entrance,
+            List<StairRun> stairs,
+            List<PatrolRoute> routes,
+            BlockPos target,
+            long seed) {
+        if (result.size() + 2 > MAX_DECORATIONS) return false;
+        for (int safetyPass = 0; safetyPass < 2; safetyPass++) {
+            for (FloorProfile floor : floors) {
+                if (partitionBasesOnFloor(result, floor.y())
+                                >= maximumPartitionBases(floor.cells().size())
+                        || furnishingsOnFloor(result, floor.y())
+                                >= maximumFurnishings(floor)
+                        || furnishingFootprintOnFloor(result, floor.y()) + 1
+                                > maximumFurnishingFootprint(floor)) {
+                    continue;
+                }
+                for (BlockPos position : ordered(
+                        floor.cells(), seed ^ 0x43414E4953544552L ^ floor.y())) {
+                    if (safetyPass == 0
+                            ? !safeCanisterPosition(position, entrance, stairs, routes, target)
+                            : !safeCompactCanisterPosition(
+                                    position, entrance, stairs, routes, target)) {
+                        continue;
+                    }
+                    for (Direction facing : orderedDirections(seed, position)) {
+                        BlockPos backing = position.relative(facing.getOpposite());
+                        BlockPos approach = position.relative(facing);
+                        if (!floor.cells().contains(backing)
+                                || !floor.cells().contains(approach)
+                                || occupied.contains(position)
+                                || occupied.contains(backing)
+                                || occupied.contains(approach)
+                                || blocked.contains(position)
+                                || blocked.contains(backing)
+                                || blocked.contains(approach)
+                                || !isPassage(level, approach)
+                                || !fullHeightColumnClearOfStairs(level, backing, stairs)
+                                || !preservesFloorConnectivity(
+                                        floor, List.of(backing, position), blocked,
+                                        entrance, stairs, routes, target)) {
+                            continue;
+                        }
+                        Decoration partition = new Decoration(
+                                backing, DecorKind.FULL_HEIGHT_PARTITION, facing);
+                        Decoration canister = new Decoration(
+                                position, DecorKind.EXPLOSIVE_CANISTER, facing);
+                        result.add(partition);
+                        result.add(canister);
+                        blocked.add(backing);
+                        blocked.add(position);
+                        occupied.add(backing);
+                        occupied.add(position);
+                        occupied.add(approach);
+                        return true;
+                    }
+                }
             }
         }
         return false;
@@ -2595,28 +3418,83 @@ public final class MissionBuildingPlanner {
             ServerLevel level,
             List<FloorProfile> floors,
             List<Decoration> planned) {
-        ArrayList<Decoration> expanded = new ArrayList<>();
-        Map<Integer, FloorProfile> byY = floors.stream().collect(
-                java.util.stream.Collectors.toMap(FloorProfile::y, floor -> floor));
-        for (Decoration decoration : planned) {
-            if (decoration.kind() != DecorKind.FULL_HEIGHT_PARTITION) {
-                expanded.add(decoration);
-                if (expanded.size() > MAX_DECORATIONS) return List.of();
-                continue;
-            }
-            FloorProfile floor = byY.get(decoration.position().getY());
-            if (floor == null) return List.of();
-            int wallHeight = ceilingDistance(level, decoration.position());
-            if (wallHeight < 2) return List.of();
-            for (int offset = 0; offset < wallHeight; offset++) {
-                expanded.add(new Decoration(
-                        decoration.position().above(offset),
-                        DecorKind.FULL_HEIGHT_PARTITION,
-                        decoration.facing()));
-            }
-            if (expanded.size() > MAX_DECORATIONS) return List.of();
+        ArrayList<Decoration> expanded = planned.stream()
+                .filter(decoration -> decoration.kind() != DecorKind.FULL_HEIGHT_PARTITION)
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+        if (expanded.size() >= MAX_DECORATIONS) {
+            return List.copyOf(expanded.subList(0, MAX_DECORATIONS));
         }
+        Map<Integer, List<Decoration>> columnsByFloor = new LinkedHashMap<>();
+        for (FloorProfile floor : floors) columnsByFloor.put(floor.y(), new ArrayList<>());
+        for (Decoration decoration : planned) {
+            if (decoration.kind() == DecorKind.FULL_HEIGHT_PARTITION) {
+                columnsByFloor.computeIfAbsent(
+                        decoration.position().getY(), ignored -> new ArrayList<>()).add(decoration);
+            }
+        }
+
+        int budget = MAX_DECORATIONS - expanded.size();
+        Set<BlockPos> selectedColumns = new HashSet<>();
+        Set<BlockPos> requiredBacking = planned.stream()
+                .filter(decoration -> decoration.kind() == DecorKind.VENDING_MACHINE
+                        || decoration.kind() == DecorKind.EXPLOSIVE_CANISTER)
+                .map(decoration -> decoration.position().relative(
+                        decoration.facing().getOpposite()))
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        for (List<Decoration> floorColumns : columnsByFloor.values()) {
+            for (Decoration column : floorColumns) {
+                if (!requiredBacking.contains(column.position())) continue;
+                int used = appendFullHeightColumn(level, expanded, column, budget);
+                if (used > 0) {
+                    budget -= used;
+                    selectedColumns.add(column.position());
+                }
+            }
+        }
+
+        Map<Integer, Integer> nextColumn = new LinkedHashMap<>();
+        columnsByFloor.keySet().forEach(floorY -> nextColumn.put(floorY, 0));
+        boolean considered;
+        do {
+            considered = false;
+            for (Map.Entry<Integer, List<Decoration>> entry : columnsByFloor.entrySet()) {
+                List<Decoration> columns = entry.getValue();
+                int index = nextColumn.get(entry.getKey());
+                while (index < columns.size()
+                        && selectedColumns.contains(columns.get(index).position())) {
+                    index++;
+                }
+                if (index >= columns.size()) {
+                    nextColumn.put(entry.getKey(), index);
+                    continue;
+                }
+                Decoration column = columns.get(index);
+                nextColumn.put(entry.getKey(), index + 1);
+                considered = true;
+                int used = appendFullHeightColumn(level, expanded, column, budget);
+                if (used > 0) {
+                    budget -= used;
+                    selectedColumns.add(column.position());
+                }
+            }
+        } while (considered && budget >= 2);
         return List.copyOf(expanded);
+    }
+
+    private static int appendFullHeightColumn(
+            ServerLevel level,
+            List<Decoration> expanded,
+            Decoration column,
+            int budget) {
+        int wallHeight = ceilingDistance(level, column.position());
+        if (wallHeight < 2 || wallHeight > budget) return 0;
+        for (int offset = 0; offset < wallHeight; offset++) {
+            expanded.add(new Decoration(
+                    column.position().above(offset),
+                    DecorKind.FULL_HEIGHT_PARTITION,
+                    column.facing()));
+        }
+        return wallHeight;
     }
 
     private static int ceilingDistance(ServerLevel level, BlockPos position) {
@@ -2666,7 +3544,19 @@ public final class MissionBuildingPlanner {
         Direction across = decoration.facing().getClockWise();
         List<BlockPos> footprint = decorationFootprint(
                 decoration.position(), decoration.kind(), across);
+        if (isPartition(decoration.kind())
+                && partitionBasesOnFloor(result, floor.y())
+                        >= maximumPartitionBases(floor.cells().size())) {
+            return false;
+        }
+        if (isFurnishing(decoration.kind())
+                && (furnishingsOnFloor(result, floor.y()) >= maximumFurnishings(floor)
+                        || furnishingFootprintOnFloor(result, floor.y()) + footprint.size()
+                                > maximumFurnishingFootprint(floor))) {
+            return false;
+        }
         if (footprint.stream().anyMatch(occupied::contains)
+                || footprint.stream().anyMatch(blocked::contains)
                 || footprint.stream().anyMatch(position -> !floor.cells().contains(position))
                 || !preservesFloorConnectivity(
                         floor, footprint, blocked, entrance, stairs, routes, target)) {
@@ -2678,6 +3568,33 @@ public final class MissionBuildingPlanner {
         return true;
     }
 
+    private static boolean isPartition(DecorKind kind) {
+        return kind == DecorKind.ROOM_PARTITION || kind == DecorKind.FULL_HEIGHT_PARTITION;
+    }
+
+    private static boolean isFurnishing(DecorKind kind) {
+        return !isPartition(kind) && kind != DecorKind.MISSION_TURRET;
+    }
+
+    private static int partitionBasesOnFloor(List<Decoration> decorations, int floorY) {
+        return Math.toIntExact(decorations.stream()
+                .filter(decoration -> decoration.position().getY() == floorY)
+                .filter(decoration -> isPartition(decoration.kind()))
+                .count());
+    }
+
+    private static int furnishingFootprintOnFloor(
+            List<Decoration> decorations, int floorY) {
+        Set<BlockPos> footprint = new HashSet<>();
+        decorations.stream()
+                .filter(decoration -> decoration.position().getY() == floorY)
+                .filter(decoration -> isFurnishing(decoration.kind()))
+                .forEach(decoration -> footprint.addAll(decorationFootprint(
+                        decoration.position(), decoration.kind(),
+                        decoration.facing().getClockWise())));
+        return footprint.size();
+    }
+
     private static long furnishingsOnFloor(List<Decoration> decorations, int floorY) {
         return decorations.stream()
                 .filter(decoration -> decoration.position().getY() == floorY)
@@ -2686,6 +3603,130 @@ public final class MissionBuildingPlanner {
                     default -> true;
                 })
                 .count();
+    }
+
+    private static int maximumFurnishings(FloorProfile floor) {
+        return floor.cells().size() >= FULL_THEME_FLOOR_CELLS ? 5 : 4;
+    }
+
+    static int maximumPartitionBases(int floorCells) {
+        return Math.min(
+                MAX_PARTITION_COLUMNS_PER_FLOOR,
+                Math.max(6, floorCells / 12));
+    }
+
+    private static int maximumFurnishingFootprint(FloorProfile floor) {
+        return Math.min(18, Math.max(8, floor.cells().size() / 7));
+    }
+
+    private static int wantedFurnishings(FloorProfile floor, FloorTheme theme) {
+        int base = switch (theme) {
+            case LOBBY, LOUNGE, EXECUTIVE -> 3;
+            case OPEN_OFFICE, OPERATIONS, STORAGE -> 4;
+        };
+        if (floor.cells().size() >= FULL_THEME_FLOOR_CELLS) base++;
+        return Math.min(maximumFurnishings(floor), base);
+    }
+
+    private static InteriorQuality interiorQuality(
+            List<FloorProfile> floors,
+            List<Decoration> decorations,
+            long seed,
+            MissionCatalog.MissionType missionType,
+            String missionId) {
+        int floorsAtTarget = 0;
+        int furnishingShortfall = 0;
+        int furnishingExcess = 0;
+        int totalFurnishings = 0;
+        int partitionFloors = 0;
+        int themeAnchors = 0;
+        Set<DecorKind> furnishingKinds = new HashSet<>();
+        Set<Set<DecorKind>> floorTreatments = new HashSet<>();
+        for (int floorIndex = 0; floorIndex < floors.size(); floorIndex++) {
+            FloorProfile floor = floors.get(floorIndex);
+            int actual = Math.toIntExact(furnishingsOnFloor(decorations, floor.y()));
+            FloorTheme theme = floorTheme(
+                    seed, floorIndex, floors.size(), missionType, missionId);
+            int wanted = wantedFurnishings(floor, theme);
+            totalFurnishings += actual;
+            if (actual == wanted) floorsAtTarget++;
+            furnishingShortfall += Math.max(0, wanted - actual);
+            furnishingExcess += Math.max(0, actual - wanted);
+            Set<DecorKind> treatment = decorations.stream()
+                    .filter(decoration -> decoration.position().getY() == floor.y())
+                    .map(Decoration::kind)
+                    .filter(MissionBuildingPlanner::isThemeFurnishing)
+                    .collect(java.util.stream.Collectors.toSet());
+            furnishingKinds.addAll(treatment);
+            floorTreatments.add(Set.copyOf(treatment));
+            if (realizesTheme(theme, treatment)) {
+                themeAnchors++;
+            }
+            if (decorations.stream().anyMatch(decoration ->
+                    decoration.position().getY() == floor.y()
+                            && (decoration.kind() == DecorKind.ROOM_PARTITION
+                                    || decoration.kind()
+                                            == DecorKind.FULL_HEIGHT_PARTITION))) {
+                partitionFloors++;
+            }
+        }
+        int canisters = Math.toIntExact(decorations.stream()
+                .filter(decoration -> decoration.kind() == DecorKind.EXPLOSIVE_CANISTER)
+                .count());
+        return new InteriorQuality(
+                canisters > 0,
+                floorsAtTarget,
+                furnishingShortfall,
+                furnishingExcess,
+                themeAnchors,
+                floorTreatments.size(),
+                furnishingKinds.size(),
+                partitionFloors,
+                totalFurnishings,
+                canisters);
+    }
+
+    private static boolean betterInterior(
+            InteriorPlanCandidate candidate, InteriorPlanCandidate current) {
+        InteriorQuality next = candidate.quality();
+        InteriorQuality best = current.quality();
+        int comparison = Boolean.compare(next.hasCanister(), best.hasCanister());
+        if (comparison != 0) return comparison > 0;
+        comparison = Integer.compare(next.themeAnchors(), best.themeAnchors());
+        if (comparison != 0) return comparison > 0;
+        comparison = Integer.compare(next.floorsAtTarget(), best.floorsAtTarget());
+        if (comparison != 0) return comparison > 0;
+        comparison = Integer.compare(best.furnishingShortfall(), next.furnishingShortfall());
+        if (comparison != 0) return comparison > 0;
+        comparison = Integer.compare(best.furnishingExcess(), next.furnishingExcess());
+        if (comparison != 0) return comparison > 0;
+        comparison = Integer.compare(
+                next.floorTreatmentDiversity(), best.floorTreatmentDiversity());
+        if (comparison != 0) return comparison > 0;
+        comparison = Integer.compare(best.totalFurnishings(), next.totalFurnishings());
+        if (comparison != 0) return comparison > 0;
+        comparison = Integer.compare(next.kindDiversity(), best.kindDiversity());
+        if (comparison != 0) return comparison > 0;
+        comparison = Integer.compare(best.partitionFloors(), next.partitionFloors());
+        if (comparison != 0) return comparison > 0;
+        comparison = Integer.compare(best.canisters(), next.canisters());
+        if (comparison != 0) return comparison > 0;
+        return candidate.variant() < current.variant();
+    }
+
+    private static boolean realizesTheme(FloorTheme theme, Set<DecorKind> treatment) {
+        return treatment.contains(requiredRoleAnchor(theme));
+    }
+
+    private static boolean anchorsTheme(FloorTheme theme, DecorKind kind) {
+        return kind == requiredRoleAnchor(theme);
+    }
+
+    private static boolean isThemeFurnishing(DecorKind kind) {
+        return kind != DecorKind.ROOM_PARTITION
+                && kind != DecorKind.FULL_HEIGHT_PARTITION
+                && kind != DecorKind.MISSION_TURRET
+                && kind != DecorKind.EXPLOSIVE_CANISTER;
     }
 
     private static List<BlockPos> structuredFloorCandidates(
@@ -2707,16 +3748,37 @@ public final class MissionBuildingPlanner {
             List<StairRun> stairs,
             List<PatrolRoute> routes,
             BlockPos target) {
-        if (horizontalDistance(position, entrance.position()) < 6
-                || horizontalDistance(position, target) < 6
-                || stairs.stream().anyMatch(stair ->
-                        horizontalDistance(position, stair.start()) < 5)
+        if (position.getY() == entrance.position().getY()
+                        && horizontalDistance(position, entrance.position()) < 6
+                || position.getY() == target.getY()
+                        && horizontalDistance(position, target) < 6
+                || stairs.stream().flatMap(stair -> stairFloorClearanceCells(stair).stream())
+                        .anyMatch(clearance -> clearance.getY() == position.getY()
+                                && horizontalDistance(position, clearance) < 5)
                 || routes.stream().flatMap(route -> route.waypoints().stream()).anyMatch(
                         waypoint -> waypoint.getY() == position.getY()
                                 && horizontalDistance(position, waypoint) < 4)) {
             return false;
         }
         return true;
+    }
+
+    private static boolean safeCompactCanisterPosition(
+            BlockPos position,
+            Entrance entrance,
+            List<StairRun> stairs,
+            List<PatrolRoute> routes,
+            BlockPos target) {
+        return (position.getY() != entrance.position().getY()
+                        || horizontalDistance(position, entrance.position()) >= 3)
+                && (position.getY() != target.getY()
+                        || horizontalDistance(position, target) >= 3)
+                && stairs.stream().flatMap(stair -> stairFloorClearanceCells(stair).stream())
+                        .noneMatch(clearance -> clearance.getY() == position.getY()
+                                && horizontalDistance(position, clearance) < 3)
+                && routes.stream().flatMap(route -> route.waypoints().stream())
+                        .noneMatch(waypoint -> waypoint.getY() == position.getY()
+                                && horizontalDistance(position, waypoint) < 2);
     }
 
     private static int horizontalDistance(BlockPos first, BlockPos second) {
@@ -2727,24 +3789,6 @@ public final class MissionBuildingPlanner {
     private static int blockDistance(BlockPos first, BlockPos second) {
         return horizontalDistance(first, second)
                 + Math.abs(first.getY() - second.getY());
-    }
-
-    private static boolean hasRequiredDecorations(
-            List<FloorProfile> floors, List<Decoration> decorations) {
-        for (int floorIndex = 0; floorIndex < floors.size(); floorIndex++) {
-            int floorY = floors.get(floorIndex).y();
-            long actual = furnishingsOnFloor(decorations, floorY);
-            if (actual < 2) {
-                return false;
-            }
-        }
-        long kinds = decorations.stream()
-                .filter(decoration -> decoration.kind() != DecorKind.MISSION_TURRET)
-                .map(Decoration::kind)
-                .distinct()
-                .count();
-        return kinds >= 3 && decorations.stream().anyMatch(
-                decoration -> decoration.kind() == DecorKind.EXPLOSIVE_CANISTER);
     }
 
     private static boolean preservesFloorConnectivity(
@@ -2771,7 +3815,7 @@ public final class MissionBuildingPlanner {
             required.add(entranceInside.relative(entrance.outward().getClockWise()));
         }
         for (StairRun stair : stairs) {
-            for (BlockPos position : stairFloorClearanceCells(stair)) {
+            for (BlockPos position : stairLandingCells(stair)) {
                 if (position.getY() == floor.y()) {
                     required.add(position);
                 }
@@ -3205,7 +4249,7 @@ public final class MissionBuildingPlanner {
         Entrance entrance = site.entrance();
         Set<BlockPos> groundFloor = floorMaskCells(site, site.floorYs().getFirst());
         if (groundFloor.isEmpty()
-                || !existingAccess(
+                || !hasExteriorApproach(
                         level,
                         new FloorProfile(
                                 site.floorYs().getFirst(), groundFloor, rect(groundFloor)),
@@ -3293,13 +4337,20 @@ public final class MissionBuildingPlanner {
     }
 
     private static boolean loadSiteChunks(ServerLevel level, BoundingBox bounds) {
-        int minChunkX = Math.floorDiv(bounds.minX(), 16);
-        int maxChunkX = Math.floorDiv(bounds.maxX(), 16);
-        int minChunkZ = Math.floorDiv(bounds.minZ(), 16);
-        int maxChunkZ = Math.floorDiv(bounds.maxZ(), 16);
-        if ((maxChunkX - minChunkX + 1) * (maxChunkZ - minChunkZ + 1) > 9) {
+        int siteMinChunkX = Math.floorDiv(bounds.minX(), 16);
+        int siteMaxChunkX = Math.floorDiv(bounds.maxX(), 16);
+        int siteMinChunkZ = Math.floorDiv(bounds.minZ(), 16);
+        int siteMaxChunkZ = Math.floorDiv(bounds.maxZ(), 16);
+        if ((siteMaxChunkX - siteMinChunkX + 1)
+                        * (siteMaxChunkZ - siteMinChunkZ + 1) > 9) {
             return false;
         }
+        // Arnis templates can cross their origin chunk. Stabilize one neighboring chunk before
+        // reading facade or interior states so a later backing-wall lookup cannot change a plan.
+        int minChunkX = siteMinChunkX - 1;
+        int maxChunkX = siteMaxChunkX + 1;
+        int minChunkZ = siteMinChunkZ - 1;
+        int maxChunkZ = siteMaxChunkZ + 1;
         for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
             for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
                 level.getChunk(chunkX, chunkZ);
@@ -3617,18 +4668,31 @@ public final class MissionBuildingPlanner {
     }
 
     private static void putBounds(CompoundTag tag, BoundingBox bounds) {
-        tag.putInt("MinX", bounds.minX());
-        tag.putInt("MinY", bounds.minY());
-        tag.putInt("MinZ", bounds.minZ());
-        tag.putInt("MaxX", bounds.maxX());
-        tag.putInt("MaxY", bounds.maxY());
-        tag.putInt("MaxZ", bounds.maxZ());
+        putBounds(tag, "", bounds);
+    }
+
+    private static void putBounds(
+            CompoundTag tag, String prefix, BoundingBox bounds) {
+        tag.putInt(prefix + "MinX", bounds.minX());
+        tag.putInt(prefix + "MinY", bounds.minY());
+        tag.putInt(prefix + "MinZ", bounds.minZ());
+        tag.putInt(prefix + "MaxX", bounds.maxX());
+        tag.putInt(prefix + "MaxY", bounds.maxY());
+        tag.putInt(prefix + "MaxZ", bounds.maxZ());
     }
 
     private static BoundingBox readBounds(CompoundTag tag) {
+        return readBounds(tag, "");
+    }
+
+    private static BoundingBox readBounds(CompoundTag tag, String prefix) {
         return new BoundingBox(
-                tag.getIntOr("MinX", 0), tag.getIntOr("MinY", 0), tag.getIntOr("MinZ", 0),
-                tag.getIntOr("MaxX", -1), tag.getIntOr("MaxY", -1), tag.getIntOr("MaxZ", -1));
+                tag.getIntOr(prefix + "MinX", 0),
+                tag.getIntOr(prefix + "MinY", 0),
+                tag.getIntOr(prefix + "MinZ", 0),
+                tag.getIntOr(prefix + "MaxX", -1),
+                tag.getIntOr(prefix + "MaxY", -1),
+                tag.getIntOr(prefix + "MaxZ", -1));
     }
 
     private static void putPos(CompoundTag tag, String prefix, BlockPos position) {
@@ -3815,6 +4879,22 @@ public final class MissionBuildingPlanner {
     }
 
     private record FloorProfile(int y, Set<BlockPos> cells, Rect bounds) {
+    }
+
+    private record InteriorQuality(
+            boolean hasCanister,
+            int floorsAtTarget,
+            int furnishingShortfall,
+            int furnishingExcess,
+            int themeAnchors,
+            int floorTreatmentDiversity,
+            int kindDiversity,
+            int partitionFloors,
+            int totalFurnishings,
+            int canisters) {
+    }
+
+    private record InteriorPlanCandidate(Site site, InteriorQuality quality, int variant) {
     }
 
     private record FloorStack(List<FloorProfile> floors, long score) {

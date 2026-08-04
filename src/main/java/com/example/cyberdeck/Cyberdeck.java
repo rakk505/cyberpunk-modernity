@@ -29,6 +29,8 @@ import com.example.cyberdeck.weapon.SmartLockState;
 import com.example.cyberdeck.weapon.WeaponComponents;
 import com.example.cyberdeck.weapon.WeaponEntities;
 import com.example.cyberdeck.weapon.WeaponItems;
+import com.example.cyberdeck.vehicle.VehicleQuickhackAttachments;
+import com.example.cyberdeck.weapon.WeaponSounds;
 import com.example.cyberdeck.wanted.WantedState;
 import com.example.cyberdeck.wanted.WantedGameTests;
 import com.example.cyberdeck.wanted.WantedSystem;
@@ -62,10 +64,12 @@ public class Cyberdeck {
         StreetCredState.ATTACHMENT_TYPES.register(modEventBus);
         WantedState.ATTACHMENT_TYPES.register(modEventBus);
         LifepathState.ATTACHMENT_TYPES.register(modEventBus);
+        VehicleQuickhackAttachments.ATTACHMENT_TYPES.register(modEventBus);
         DefenseContent.register(modEventBus);
 
         // Guns, ammo, grenades, ballistic armor and their entities.
         WeaponItems.ITEMS.register(modEventBus);
+        WeaponSounds.SOUND_EVENTS.register(modEventBus);
         AmmoItems.ITEMS.register(modEventBus);
         WeaponComponents.COMPONENTS.register(modEventBus);
         MoneyShardComponents.COMPONENTS.register(modEventBus);

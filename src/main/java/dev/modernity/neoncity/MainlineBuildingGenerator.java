@@ -217,7 +217,7 @@ final class MainlineBuildingGenerator {
         return new MissionBuildingPlanner.Decoration(origin.offset(x, y, z), kind, facing);
     }
 
-    private static void buildTower(ServerLevel level, MissionBuildingPlanner.Site site, District district) {
+    static void buildTower(ServerLevel level, MissionBuildingPlanner.Site site, District district) {
         BoundingBox bounds = site.bounds();
         for (int z = bounds.minZ(); z <= bounds.maxZ(); z++) {
             for (int x = bounds.minX(); x <= bounds.maxX(); x++) {

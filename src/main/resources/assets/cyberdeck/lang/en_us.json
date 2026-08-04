@@ -118,6 +118,7 @@
   "key.cyberdeck.open_cyberware": "Open Cyberware Screen",
   "key.cyberdeck.open_city_map": "Open Project Moon City Map",
   "key.cyberdeck.open_journal": "Open Journal",
+  "key.cyberdeck.navigation_trail": "Show Mission Navigation Trail",
   "key.cyberdeck.sandevistan": "Toggle Sandevistan",
   "key.cyberdeck.arm_cannon": "Fire Arm Cannon",
     "key.cyberdeck.thretevac": "Activate Circulatory Cyberware",
@@ -311,7 +312,18 @@
   "tooltip.cyberdeck.gun.tech": "Tech weapon: slower firing; cyan rounds penetrate one block.",
   "tooltip.cyberdeck.grenade.incendiary_grenade": "Detonates in a burst of fire.",
   "tooltip.cyberdeck.grenade.poison_grenade": "Bursts into a lingering toxic cloud.",
+  "subtitles.cyberdeck.weapon.pistol": "Pistol fires",
+  "subtitles.cyberdeck.weapon.heavy_pistol": "Heavy pistol fires",
+  "subtitles.cyberdeck.weapon.smg": "Submachine gun fires",
+  "subtitles.cyberdeck.weapon.rifle": "Rifle fires",
+  "subtitles.cyberdeck.weapon.shotgun": "Shotgun fires",
+  "subtitles.cyberdeck.weapon.sniper": "Sniper rifle fires",
   "message.cyberdeck.wanted.started": "EXCISION ALERT // WANTED LEVEL 1",
   "message.cyberdeck.wanted.escalated": "EXCISION ESCALATION // WANTED LEVEL 3",
-  "message.cyberdeck.wanted.cleared": "EXCISION PURSUIT CLEARED"
+  "message.cyberdeck.wanted.cleared": "EXCISION PURSUIT CLEARED",
+  "message.cyberdeck.navigation.no_active": "No active mission or gig is tracked.",
+  "message.cyberdeck.navigation.no_open_route": "No open route to the active objective.",
+  "message.cyberdeck.navigation.unavailable": "Navigation trail unavailable here.",
+  "message.cyberdeck.turret_tier_required": "ACCESS DENIED // Turret level %s exceeds installed cyberdeck tier %s.",
+  "message.cyberdeck.device_quickhack_failed": "DEVICE LINK FAILED // Target state changed before execution."
 }

@@ -90,6 +90,38 @@ final class MissionSiteData extends SavedData {
         return true;
     }
 
+    /** Returns a copy-safe exact site descriptor owned by this contract reservation. */
+    java.util.Optional<MissionBuildingPlanner.Site> reservedSite(UUID instanceId) {
+        if (instanceId == null) return java.util.Optional.empty();
+        return reservations.values().stream()
+                .filter(reservation -> reservation.instanceId().equals(instanceId))
+                .sorted(java.util.Comparator.comparing(Reservation::siteId))
+                .map(Reservation::sitePlan)
+                .filter(tag -> !tag.isEmpty())
+                .map(MissionBuildingPlanner.Site::load)
+                .flatMap(java.util.Optional::stream)
+                .findFirst();
+    }
+
+    /** Enriches legacy reservations from a surviving participant copy of the exact site. */
+    boolean storeSite(UUID instanceId, MissionBuildingPlanner.Site site) {
+        if (instanceId == null || site == null) return false;
+        boolean found = false;
+        boolean changed = false;
+        for (Map.Entry<String, Reservation> entry : reservations.entrySet()) {
+            Reservation reservation = entry.getValue();
+            if (!reservation.instanceId().equals(instanceId)) continue;
+            found = true;
+            Reservation enriched = reservation.withSite(site);
+            if (!enriched.equals(reservation)) {
+                entry.setValue(enriched);
+                changed = true;
+            }
+        }
+        if (changed) setDirty();
+        return found;
+    }
+
     void releaseIfOwned(String siteId, UUID instanceId) {
         Reservation existing = reservations.get(siteId);
         if (existing != null && existing.instanceId().equals(instanceId)) {
@@ -122,6 +154,17 @@ final class MissionSiteData extends SavedData {
     boolean hasReservation(UUID instanceId) {
         return instanceId != null && reservations.values().stream()
                 .anyMatch(reservation -> reservation.instanceId().equals(instanceId));
+    }
+
+    boolean isReservedSite(MissionBuildingPlanner.Site site) {
+        if (site == null) return false;
+        return reservations.values().stream()
+                .map(Reservation::sitePlan)
+                .filter(tag -> !tag.isEmpty())
+                .map(MissionBuildingPlanner.Site::load)
+                .flatMap(java.util.Optional::stream)
+                .anyMatch(reserved -> reserved.id().equals(site.id())
+                        && reserved.buildingId().equals(site.buildingId()));
     }
 
     /** Records which online contract members have physically entered the target district. */
@@ -251,6 +294,7 @@ final class MissionSiteData extends SavedData {
             int maxZ,
             List<UUID> enteredPlayers,
             CompoundTag restoration,
+            CompoundTag sitePlan,
             List<UUID> participants,
             String lifecycle) {
         private static final Codec<Reservation> CODEC = RecordCodecBuilder.create(instance ->
@@ -267,6 +311,8 @@ final class MissionSiteData extends SavedData {
                                 .forGetter(Reservation::enteredPlayers),
                         CompoundTag.CODEC.optionalFieldOf("restoration", new CompoundTag())
                                 .forGetter(Reservation::restoration),
+                        CompoundTag.CODEC.optionalFieldOf("site_plan", new CompoundTag())
+                                .forGetter(Reservation::sitePlan),
                         UUIDUtil.CODEC.listOf().optionalFieldOf("participants", List.of())
                                 .forGetter(Reservation::participants),
                         Codec.STRING.optionalFieldOf("lifecycle", LIFECYCLE_ACTIVE)
@@ -278,6 +324,7 @@ final class MissionSiteData extends SavedData {
                     ? List.of()
                     : enteredPlayers.stream().filter(id -> id != null).distinct().sorted().toList();
             restoration = restoration == null ? new CompoundTag() : restoration.copy();
+            sitePlan = sitePlan == null ? new CompoundTag() : sitePlan.copy();
             participants = participants == null
                     ? List.of()
                     : participants.stream().filter(id -> id != null).distinct().sorted().toList();
@@ -289,10 +336,20 @@ final class MissionSiteData extends SavedData {
             };
         }
 
+        @Override
+        public CompoundTag restoration() {
+            return restoration.copy();
+        }
+
+        @Override
+        public CompoundTag sitePlan() {
+            return sitePlan.copy();
+        }
+
         private static Reservation legacy(String siteId, UUID instanceId) {
             return new Reservation(
                     siteId, instanceId, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
-                    List.of(), new CompoundTag(), List.of(), LIFECYCLE_ACTIVE);
+                    List.of(), new CompoundTag(), new CompoundTag(), List.of(), LIFECYCLE_ACTIVE);
         }
 
         private static Reservation from(
@@ -313,6 +370,7 @@ final class MissionSiteData extends SavedData {
                     site.bounds().maxZ(),
                     new ArrayList<>(enteredPlayers),
                     restoration,
+                    site.save(),
                     participants,
                     lifecycle);
         }
@@ -320,20 +378,29 @@ final class MissionSiteData extends SavedData {
         private Reservation withEntered(Set<UUID> entered) {
             return new Reservation(
                     siteId, instanceId, district, minX, minZ, maxX, maxZ,
-                    new ArrayList<>(entered), restoration, participants, lifecycle);
+                    new ArrayList<>(entered), restoration, sitePlan, participants, lifecycle);
         }
 
         private Reservation withRestoration(CompoundTag nextRestoration) {
             return new Reservation(
                     siteId, instanceId, district, minX, minZ, maxX, maxZ,
-                    enteredPlayers, nextRestoration, participants, lifecycle);
+                    enteredPlayers, nextRestoration, sitePlan, participants, lifecycle);
+        }
+
+        private Reservation withSite(MissionBuildingPlanner.Site site) {
+            return new Reservation(
+                    siteId, instanceId, site.district().ordinal(),
+                    site.bounds().minX(), site.bounds().minZ(),
+                    site.bounds().maxX(), site.bounds().maxZ(),
+                    enteredPlayers, restoration, site.save(), participants, lifecycle);
         }
 
         private Reservation withCompletion(
                 List<UUID> completionParticipants, String completionLifecycle) {
             return new Reservation(
                     siteId, instanceId, district, minX, minZ, maxX, maxZ,
-                    enteredPlayers, restoration, completionParticipants, completionLifecycle);
+                    enteredPlayers, restoration, sitePlan,
+                    completionParticipants, completionLifecycle);
         }
 
         private boolean canRetainCompletion() {
@@ -357,10 +424,20 @@ final class MissionSiteData extends SavedData {
                     || maxX == UNKNOWN || maxZ == UNKNOWN) {
                 return false;
             }
-            return minX <= site.bounds().maxX() + SITE_CLEARANCE
-                    && maxX + SITE_CLEARANCE >= site.bounds().minX()
-                    && minZ <= site.bounds().maxZ() + SITE_CLEARANCE
-                    && maxZ + SITE_CLEARANCE >= site.bounds().minZ();
+            MissionBuildingPlanner.Site reserved = MissionBuildingPlanner.Site.load(sitePlan)
+                    .orElse(null);
+            if (reserved != null) {
+                return MainlineQuestData.buildingConflicts(reserved, site);
+            }
+            net.minecraft.world.level.levelgen.structure.BoundingBox reservedBounds =
+                    new net.minecraft.world.level.levelgen.structure.BoundingBox(
+                            minX, 0, minZ, maxX, 0, maxZ);
+            return reservedBounds.minX() <= site.buildingBounds().maxX() + SITE_CLEARANCE
+                    && reservedBounds.maxX() + SITE_CLEARANCE
+                            >= site.buildingBounds().minX()
+                    && reservedBounds.minZ() <= site.buildingBounds().maxZ() + SITE_CLEARANCE
+                    && reservedBounds.maxZ() + SITE_CLEARANCE
+                            >= site.buildingBounds().minZ();
         }
     }
 }

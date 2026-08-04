@@ -30,7 +30,25 @@ public final class ActiveAbilities {
     }
 
     public static void setCooldown(ServerPlayer player, String ability, int ticks) {
-        cooldowns.put(key(player, ability), ticks);
+        int remaining = Math.max(0, ticks);
+        com.example.cyberdeck.cyberware.Cyberware tuner =
+                CyberwareEffects.findFlag(player, "quantum_tuner");
+        if (tuner != null
+                && !ability.equals(tuner.id())
+                && !onCooldown(player, tuner.id())) {
+            int restored = Math.max(0,
+                    (int) Math.round(tuner.value("cooldown_restore_max_seconds") * 20.0));
+            if (restored > 0) {
+                remaining = Math.max(0, remaining - restored);
+                cooldowns.put(key(player, tuner.id()), Math.max(1,
+                        (int) Math.round(tuner.value("trigger_cooldown_seconds") * 20.0)));
+            }
+        }
+        if (remaining > 0) {
+            cooldowns.put(key(player, ability), remaining);
+        } else {
+            cooldowns.remove(key(player, ability));
+        }
     }
 
     public static int cooldownRemaining(ServerPlayer player, String ability) {

@@ -101,6 +101,9 @@ public final class GenericGunClientExtension implements IClientItemExtensions {
             if (started != null) {
                 float elapsed = (System.nanoTime() - started) / 1_000_000_000.0F;
                 float recoil = 1.0F - Mth.clamp(elapsed / 0.18F, 0.0F, 1.0F);
+                recoil *= (float) (1.0 - com.example.cyberdeck.cyberware.CyberwareStats
+                        .from(com.example.cyberdeck.cyberware.CyberwareAttachments.get(player))
+                        .recoilReduction());
                 if (recoil <= 0.0F) {
                     recoilStarted.remove(gun);
                 } else {

@@ -1,5 +1,6 @@
 package dev.modernity.neoncity;
 
+import com.example.cyberdeck.network.GigJournalPacket;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -7,9 +8,14 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.commands.CommandSourceStack;
@@ -49,6 +55,22 @@ public final class NeonCityCommand {
                         .then(Commands.literal("port")
                                 .executes(context -> port(context.getSource())))
                         .then(buildingCommands())
+                        .then(gigSiteCommands())
+                        .then(Commands.literal("story_anchor")
+                                .then(Commands.argument("mission", StringArgumentType.word())
+                                        .suggests((context, builder) ->
+                                                SharedSuggestionProvider.suggest(
+                                                        StoryMissionCatalog.definitions().stream()
+                                                                .map(StoryMissionCatalog.StoryMission::id)
+                                                                .toList(),
+                                                        builder))
+                                        .then(Commands.argument("node", StringArgumentType.word())
+                                                .executes(context -> storyAnchor(
+                                                        context.getSource(),
+                                                        StringArgumentType.getString(
+                                                                context, "mission"),
+                                                        StringArgumentType.getString(
+                                                                context, "node"))))))
                         .then(Commands.literal("atlas")
                                 .then(Commands.argument("district", StringArgumentType.greedyString())
                                         .suggests((context, builder) ->
@@ -114,6 +136,68 @@ public final class NeonCityCommand {
                                                                 IntegerArgumentType.getInteger(context, "chunkZ"),
                                                                 IntegerArgumentType.getInteger(context, "radius")))))))
         );
+    }
+
+    private static LiteralArgumentBuilder<CommandSourceStack> gigSiteCommands() {
+        return Commands.literal("gig_sites")
+                .then(Commands.literal("parse")
+                        .then(Commands.argument("district", StringArgumentType.greedyString())
+                                .suggests((context, builder) ->
+                                        SharedSuggestionProvider.suggest(DISTRICT_CODES, builder))
+                                .executes(context -> parseGigSites(
+                                        context.getSource(),
+                                        StringArgumentType.getString(context, "district")))))
+                .then(Commands.literal("rescan")
+                        .then(Commands.argument("district", StringArgumentType.greedyString())
+                                .suggests((context, builder) ->
+                                        SharedSuggestionProvider.suggest(DISTRICT_CODES, builder))
+                                .executes(context -> rescanGigSites(
+                                        context.getSource(),
+                                        StringArgumentType.getString(context, "district")))))
+                .then(Commands.literal("prune")
+                        .then(Commands.argument("district", StringArgumentType.word())
+                                .suggests((context, builder) ->
+                                        SharedSuggestionProvider.suggest(DISTRICT_CODES, builder))
+                                .then(Commands.argument("site", StringArgumentType.greedyString())
+                                        .executes(context -> pruneGigSite(
+                                                context.getSource(),
+                                                StringArgumentType.getString(
+                                                        context, "district"),
+                                                StringArgumentType.getString(
+                                                        context, "site"))))))
+                .then(Commands.literal("export")
+                        .then(Commands.argument("artifact", StringArgumentType.word())
+                                .then(Commands.argument(
+                                                "districts", StringArgumentType.greedyString())
+                                        .executes(context -> exportGigSites(
+                                                context.getSource(),
+                                                StringArgumentType.getString(
+                                                        context, "artifact"),
+                                                StringArgumentType.getString(
+                                                        context, "districts"))))))
+                .then(Commands.literal("merge")
+                        .then(Commands.argument("artifact", StringArgumentType.word())
+                                .then(Commands.argument("shards", StringArgumentType.greedyString())
+                                        .executes(context -> mergeGigSites(
+                                                context.getSource(),
+                                                StringArgumentType.getString(
+                                                        context, "artifact"),
+                                                StringArgumentType.getString(
+                                                        context, "shards"))))))
+                .then(Commands.literal("audit_reads")
+                        .then(Commands.argument("district", StringArgumentType.greedyString())
+                                .suggests((context, builder) ->
+                                        SharedSuggestionProvider.suggest(DISTRICT_CODES, builder))
+                                .executes(context -> auditGigSiteReads(
+                                        context.getSource(), StringArgumentType.getString(
+                                                context, "district")))))
+                .then(Commands.literal("audit_plans")
+                        .then(Commands.argument("district", StringArgumentType.greedyString())
+                                .suggests((context, builder) ->
+                                        SharedSuggestionProvider.suggest(DISTRICT_CODES, builder))
+                                .executes(context -> auditGigSitePlans(
+                                        context.getSource(), StringArgumentType.getString(
+                                                context, "district")))));
     }
 
     private static LiteralArgumentBuilder<CommandSourceStack> buildingCommands() {
@@ -480,6 +564,378 @@ public final class NeonCityCommand {
                 found.sourceTileX(), found.sourceTileZ(), found.mirror(), found.rotation(),
                 found.patch().sourceSurfaceY())), false);
         return 1;
+    }
+
+    private static int parseGigSites(CommandSourceStack source, String code) {
+        return parseGigSites(source, code, false);
+    }
+
+    private static int rescanGigSites(CommandSourceStack source, String code) {
+        return parseGigSites(source, code, true);
+    }
+
+    private static int parseGigSites(
+            CommandSourceStack source, String code, boolean rebuild) {
+        Optional<District> parsed = parseDistrict(code);
+        if (parsed.isEmpty()) {
+            source.sendFailure(Component.literal("Unknown district code."));
+            return 0;
+        }
+        ServerLevel level = source.getServer().overworld();
+        if (!NeonCityGenerator.isEnabled() || !NeonCityGenerator.isMegacityWorld(level)) {
+            source.sendFailure(Component.literal(
+                    "Gig sites can only be parsed in a Project Moon Megacity world."));
+            return 0;
+        }
+        District district = parsed.get();
+        GigSiteData.ScanResult result;
+        try {
+            GigSiteData data = GigSiteData.get(level);
+            result = rebuild
+                    ? data.rebuildCandidates(level, district)
+                    : data.ensureCandidates(level, district);
+        } catch (RuntimeException exception) {
+            source.sendFailure(Component.literal(
+                    "Gig-site parse failed: " + exception.getMessage()));
+            return 0;
+        }
+        List<MissionBuildingPlanner.Site> sites = result.sites();
+        source.sendSuccess(() -> Component.literal(String.format(
+                "Gig scan summary // district=%s // candidates=%d // regions=%d // "
+                        + "buildings=%d // ready=%d // reused=%s // structural=%s // filters=%s",
+                district.commandCode(), sites.size(), result.regions(), result.buildings(),
+                result.readyBuildings(), result.reused(), result.structuralDecisions(),
+                result.filterRejections())), false);
+        if (sites.isEmpty()) {
+            source.sendFailure(Component.literal(
+                    "No verified gig buildings were found in " + district.label() + "."));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal(String.format(
+                "Persisted %d verified gig buildings in %s.",
+                sites.size(), district.label())).withStyle(ChatFormatting.AQUA), false);
+        for (MissionBuildingPlanner.Site site : sites) {
+            BlockPos door = site.entrance().position();
+            BlockPos approach = MissionBuildingPlanner.navigationTarget(site);
+            source.sendSuccess(() -> Component.literal(String.format(
+                    "%s // door=(%d,%d,%d) // approach=(%d,%d,%d) // floors=%d",
+                    site.id(), door.getX(), door.getY(), door.getZ(),
+                    approach.getX(), approach.getY(), approach.getZ(),
+                    site.floorYs().size())), false);
+        }
+        return sites.size();
+    }
+
+    private static int exportGigSites(
+            CommandSourceStack source, String artifact, String districtList) {
+        List<District> districts;
+        try {
+            districts = parseDistrictList(districtList);
+            GigSiteData.ArtifactResult result = GigSiteData.exportShard(
+                    source.getServer().overworld(), artifact, districts);
+            source.sendSuccess(() -> Component.literal(String.format(
+                    "Exported gig-site shard // path=%s // districts=%d // sites=%d // "
+                            + "deficient=%s",
+                    result.path(), result.districts(), result.sites(), result.deficient()))
+                    .withStyle(result.deficient().isEmpty()
+                            ? ChatFormatting.AQUA : ChatFormatting.YELLOW), false);
+            return result.sites();
+        } catch (Exception exception) {
+            source.sendFailure(Component.literal("Gig-site export failed: "
+                    + exception.getMessage()));
+            return 0;
+        }
+    }
+
+    private static int pruneGigSite(
+            CommandSourceStack source, String districtCode, String siteId) {
+        District district = parseDistrict(districtCode).orElse(null);
+        if (district == null || siteId == null || siteId.isBlank()) {
+            source.sendFailure(Component.literal("Unknown district or empty site ID."));
+            return 0;
+        }
+        GigSiteData data = GigSiteData.get(source.getServer().overworld());
+        int before = data.candidates(district).size();
+        if (before <= GigSiteData.MIN_FIXED_SITES_PER_DISTRICT) {
+            source.sendFailure(Component.literal(
+                    "Cannot prune " + district.label() + " below "
+                            + GigSiteData.MIN_FIXED_SITES_PER_DISTRICT + " sites."));
+            return 0;
+        }
+        if (!data.remove(district, siteId)) {
+            source.sendFailure(Component.literal("Unknown gig site " + siteId));
+            return 0;
+        }
+        int retained = data.candidates(district).size();
+        source.sendSuccess(() -> Component.literal(
+                        "Pruned " + siteId + " from " + district.label()
+                                + "; retained=" + retained)
+                .withStyle(ChatFormatting.YELLOW), false);
+        return retained;
+    }
+
+    private static int mergeGigSites(
+            CommandSourceStack source, String artifact, String shardList) {
+        try {
+            List<String> shards = splitTokens(shardList);
+            GigSiteData.ArtifactResult result = GigSiteData.mergeShards(
+                    source.getServer().overworld(), artifact, shards);
+            source.sendSuccess(() -> Component.literal(String.format(
+                    "Merged gig-site catalog // path=%s // format=%d // seed=%d // "
+                            + "layout=%d // generator=%s // districts=%d // sites=%d",
+                    result.path(), GigSiteData.FORMAT_VERSION,
+                    NeonCityGenerator.contentSeed(), NeonCityGenerator.layout().seed(),
+                    NeonCityGenerator.GENERATOR_FINGERPRINT,
+                    result.districts(), result.sites())).withStyle(ChatFormatting.AQUA), false);
+            return result.sites();
+        } catch (Exception exception) {
+            source.sendFailure(Component.literal("Gig-site merge failed: "
+                    + exception.getMessage()));
+            return 0;
+        }
+    }
+
+    private static int auditGigSiteReads(CommandSourceStack source, String districtCode) {
+        District district = parseDistrict(districtCode).orElse(null);
+        if (district == null) {
+            source.sendFailure(Component.literal("Unknown district code."));
+            return 0;
+        }
+        ServerLevel level = source.getServer().overworld();
+        List<MissionBuildingPlanner.Site> candidates = GigSiteData.get(level).candidates(district);
+        if (candidates.isEmpty()) {
+            source.sendFailure(Component.literal(
+                    "No pre-analyzed gig markers for " + district.label()));
+            return 0;
+        }
+        Set<Long> candidateChunks = candidateChunks(candidates);
+        Set<Long> loadedBefore = loadedChunks(level, candidateChunks);
+        int generatedBefore = NeonCityGenerator.generatedChunks();
+        long scansBefore = ArnisBuildingAtlas.compilationRequests();
+
+        AmbientGigData.OwnerKey owner = new AmbientGigData.OwnerKey(false,
+                UUID.nameUUIDFromBytes(("cyberdeck:catalog-audit:" + district.name())
+                        .getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        AmbientGigService.ensureBoard(level, owner, district);
+        List<AmbientGigService.DiscoveredGig> offers =
+                AmbientGigService.availableOffers(level, owner, district);
+        long mapMarkers = CityMapService.markers(
+                        NeonCityGenerator.fixedLayout(), Optional.empty(), List.of(), offers)
+                .stream()
+                .filter(marker -> marker.kind()
+                        == com.example.cyberdeck.network.OpenCityMapPacket.MarkerKind.AVAILABLE_GIG)
+                .count();
+        int journalEntries = GigJournalPacket.availableGigs(offers).size();
+
+        Set<Long> newlyLoaded = loadedChunks(level, candidateChunks);
+        newlyLoaded.removeAll(loadedBefore);
+        boolean unchanged = loadedBefore.isEmpty()
+                && ArnisBuildingAtlas.compilationRequests() == scansBefore
+                && NeonCityGenerator.generatedChunks() == generatedBefore
+                && newlyLoaded.isEmpty();
+        boolean projections = offers.size() == AmbientGigService.OFFERS_PER_DISTRICT
+                && mapMarkers == offers.size() && journalEntries == offers.size();
+        String summary = String.format(
+                "Gig read audit // district=%s // offers=%d // map_markers=%d // "
+                        + "journal_entries=%d // candidate_chunks=%d // loaded_before=%d // "
+                        + "scans=%d->%d // generated=%d->%d // new_candidate_chunks=%d",
+                district.commandCode(), offers.size(), mapMarkers, journalEntries,
+                candidateChunks.size(), loadedBefore.size(), scansBefore,
+                ArnisBuildingAtlas.compilationRequests(), generatedBefore,
+                NeonCityGenerator.generatedChunks(), newlyLoaded.size());
+        if (!unchanged || !projections) {
+            source.sendFailure(Component.literal("FAILED: " + summary));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal("PASS: " + summary)
+                .withStyle(ChatFormatting.AQUA), false);
+        return offers.size();
+    }
+
+    private static int auditGigSitePlans(CommandSourceStack source, String districtCode) {
+        District district = parseDistrict(districtCode).orElse(null);
+        if (district == null) {
+            source.sendFailure(Component.literal("Unknown district code."));
+            return 0;
+        }
+        ServerLevel level = source.getServer().overworld();
+        if (!NeonCityGenerator.isEnabled() || !NeonCityGenerator.isMegacityWorld(level)) {
+            source.sendFailure(Component.literal(
+                    "Gig plans can only be audited in a Project Moon Megacity world."));
+            return 0;
+        }
+        List<MissionBuildingPlanner.Site> candidates =
+                GigSiteData.get(level).candidates(district);
+        Set<Long> allCandidateChunks = candidateChunks(candidates);
+        long scansBefore = ArnisBuildingAtlas.compilationRequests();
+        ArrayList<String> failures = new ArrayList<>();
+        int passed = 0;
+        for (MissionBuildingPlanner.Site structural : candidates) {
+            Set<Long> loadedBefore = loadedChunks(level, allCandidateChunks);
+            Set<Long> selectedChunks = candidateChunks(List.of(structural));
+            // Arnis facade completion may inspect one chunk beyond the planner's one-chunk
+            // stabilization ring; neither layer may reach an unrelated remote candidate.
+            Set<Long> selectedGenerationHalo = chunkHalo(selectedChunks, 2);
+            MissionBuildingPlanner.RestorationSnapshot original = null;
+            try {
+                MissionBuildingPlanner.Site usable =
+                        MissionBuildingPlanner.repairStructuralFloorMasks(level, structural);
+                if (usable == null) {
+                    String structuralFailure =
+                            MissionBuildingPlanner.siteGeometryFailure(level, structural);
+                    failures.add(structural.id() + "=structural " + structuralFailure);
+                    continue;
+                }
+                long salt = MegacityLayout.mix(
+                        NeonCityGenerator.contentSeed() ^ usable.planSeed(),
+                        district.ordinal(), usable.id().hashCode());
+                MissionBuildingPlanner.Site planned =
+                        MissionBuildingPlanner.withMissionInteriorPlan(
+                                level, usable, salt);
+                if (!MissionBuildingPlanner.hasExplosiveCanisterPlan(planned)
+                        || planned.decorations().isEmpty()
+                        || !MissionBuildingPlanner.preflightInteriorPlan(level, planned)) {
+                    failures.add(structural.id() + "=interior "
+                            + MissionBuildingPlanner.preflightFailure(level, planned));
+                    continue;
+                }
+                original = MissionBuildingPlanner.captureOriginalStates(level, planned);
+                if (MissionBuildingPlanner.install(level, planned)
+                                != MissionBuildingPlanner.InstallationResult.INSTALLED
+                        || !MissionBuildingPlanner.auditDepthFirstTraversal(
+                                level, planned).accessible()
+                        || !MissionBuildingPlanner.hasAccessibleObjectivePath(level, planned)) {
+                    failures.add(structural.id() + "=installed DFS");
+                    continue;
+                }
+                passed++;
+            } catch (RuntimeException exception) {
+                failures.add(structural.id() + "=" + exception.getClass().getSimpleName());
+            } finally {
+                if (original != null
+                        && !MissionBuildingPlanner.restoreOriginalStates(level, original)) {
+                    failures.add(structural.id() + "=restore");
+                }
+                Set<Long> unexpected = loadedChunks(level, allCandidateChunks);
+                unexpected.removeAll(loadedBefore);
+                unexpected.removeAll(selectedGenerationHalo);
+                if (!unexpected.isEmpty()) {
+                    failures.add(structural.id() + "=loaded other candidate chunks "
+                            + unexpected.size());
+                }
+            }
+        }
+        if (ArnisBuildingAtlas.compilationRequests() != scansBefore) {
+            failures.add("Arnis scans=" + scansBefore + "->"
+                    + ArnisBuildingAtlas.compilationRequests());
+        }
+        String summary = String.format(
+                "Gig plan audit // district=%s // passed=%d/%d // scans=%d->%d // failures=%s",
+                district.commandCode(), passed, candidates.size(), scansBefore,
+                ArnisBuildingAtlas.compilationRequests(), failures.stream().limit(8).toList());
+        if (passed != candidates.size() || !failures.isEmpty()) {
+            source.sendFailure(Component.literal("FAILED: " + summary));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal("PASS: " + summary)
+                .withStyle(ChatFormatting.AQUA), false);
+        return passed;
+    }
+
+    private static Set<Long> chunkHalo(Set<Long> chunks, int radius) {
+        HashSet<Long> halo = new HashSet<>();
+        for (long packed : chunks) {
+            int centerX = ChunkPos.getX(packed);
+            int centerZ = ChunkPos.getZ(packed);
+            for (int dz = -radius; dz <= radius; dz++) {
+                for (int dx = -radius; dx <= radius; dx++) {
+                    halo.add(ChunkPos.pack(centerX + dx, centerZ + dz));
+                }
+            }
+        }
+        return halo;
+    }
+
+    private static Set<Long> candidateChunks(List<MissionBuildingPlanner.Site> candidates) {
+        HashSet<Long> chunks = new HashSet<>();
+        for (MissionBuildingPlanner.Site site : candidates) {
+            for (int chunkZ = Math.floorDiv(site.bounds().minZ(), 16);
+                    chunkZ <= Math.floorDiv(site.bounds().maxZ(), 16); chunkZ++) {
+                for (int chunkX = Math.floorDiv(site.bounds().minX(), 16);
+                        chunkX <= Math.floorDiv(site.bounds().maxX(), 16); chunkX++) {
+                    chunks.add(ChunkPos.pack(chunkX, chunkZ));
+                }
+            }
+        }
+        return chunks;
+    }
+
+    private static Set<Long> loadedChunks(ServerLevel level, Set<Long> candidates) {
+        HashSet<Long> loaded = new HashSet<>();
+        for (long packed : candidates) {
+            int chunkX = ChunkPos.getX(packed);
+            int chunkZ = ChunkPos.getZ(packed);
+            if (level.getChunkSource().getChunkNow(chunkX, chunkZ) != null) loaded.add(packed);
+        }
+        return loaded;
+    }
+
+    private static List<District> parseDistrictList(String value) {
+        LinkedHashSet<District> districts = new LinkedHashSet<>();
+        List<String> tokens = splitTokens(value);
+        for (String token : tokens) {
+            District district = parseDistrict(token).orElseThrow(() ->
+                    new IllegalArgumentException("unknown district code " + token));
+            if (!districts.add(district)) {
+                throw new IllegalArgumentException("duplicate district code " + token);
+            }
+        }
+        if (districts.isEmpty()) throw new IllegalArgumentException("no districts supplied");
+        return List.copyOf(districts);
+    }
+
+    private static List<String> splitTokens(String value) {
+        if (value == null || value.isBlank()) return List.of();
+        return Arrays.stream(value.trim().split("[,\\s]+"))
+                .filter(token -> !token.isBlank())
+                .toList();
+    }
+
+    private static int storyAnchor(
+            CommandSourceStack source, String missionId, String nodeId) {
+        StoryMissionCatalog.StoryMission mission;
+        StoryMissionCatalog.StoryNode node;
+        try {
+            mission = StoryMissionCatalog.definition(missionId);
+            node = mission.node(nodeId);
+        } catch (IllegalArgumentException exception) {
+            source.sendFailure(Component.literal(exception.getMessage()));
+            return 0;
+        }
+        if (node.type() != StoryMissionCatalog.NodeType.TALK
+                && node.type() != StoryMissionCatalog.NodeType.DELIVER) {
+            source.sendFailure(Component.literal(
+                    "Only TALK and DELIVER nodes have a character anchor."));
+            return 0;
+        }
+        ServerLevel level = source.getServer().overworld();
+        if (!NeonCityGenerator.isEnabled() || !NeonCityGenerator.isMegacityWorld(level)) {
+            source.sendFailure(Component.literal(
+                    "Story anchors can only be resolved in a Project Moon Megacity world."));
+            return 0;
+        }
+        try {
+            BlockPos anchor = MainlineQuestService.nodePosition(level, mission, node);
+            source.sendSuccess(() -> Component.literal(String.format(
+                    "%s/%s character anchor=(%d,%d,%d), road=%s, sky=%s",
+                    mission.id(), node.id(), anchor.getX(), anchor.getY(), anchor.getZ(),
+                    NeonCityGenerator.roadAt(anchor.getX(), anchor.getZ()),
+                    level.canSeeSky(anchor.above()))).withStyle(ChatFormatting.AQUA), false);
+            return 1;
+        } catch (IllegalStateException exception) {
+            source.sendFailure(Component.literal(exception.getMessage()));
+            return 0;
+        }
     }
 
     private static int merchant(CommandSourceStack source, String code) {

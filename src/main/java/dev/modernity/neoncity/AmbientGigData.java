@@ -19,7 +19,7 @@ import net.minecraft.world.level.saveddata.SavedDataType;
 
 /** Persistent, party-owned district gig boards. */
 final class AmbientGigData extends SavedData {
-    private static final int FORMAT_VERSION = 2;
+    private static final int FORMAT_VERSION = 3;
     private static final int MAX_APPLIED_COMPLETIONS = 8_192;
 
     private static final Codec<StoredOffer> OFFER_CODEC = RecordCodecBuilder.create(instance ->
@@ -28,7 +28,10 @@ final class AmbientGigData extends SavedData {
                     Codec.STRING.fieldOf("definition").forGetter(StoredOffer::definitionId),
                     Codec.INT.fieldOf("x").forGetter(StoredOffer::targetX),
                     Codec.INT.fieldOf("z").forGetter(StoredOffer::targetZ),
-                    Codec.INT.fieldOf("reward").forGetter(StoredOffer::reward))
+                    Codec.INT.fieldOf("reward").forGetter(StoredOffer::reward),
+                    net.minecraft.nbt.CompoundTag.CODEC.optionalFieldOf(
+                                    "site", new net.minecraft.nbt.CompoundTag())
+                            .forGetter(StoredOffer::site))
                     .apply(instance, StoredOffer::new));
 
     private static final Codec<StoredPool> POOL_CODEC = RecordCodecBuilder.create(instance ->
@@ -65,7 +68,7 @@ final class AmbientGigData extends SavedData {
                     .apply(instance, AmbientGigData::new));
 
     static final SavedDataType<AmbientGigData> TYPE = new SavedDataType<>(
-            Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "ambient_gig_boards_v1"),
+            Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "ambient_gig_boards_v2"),
             AmbientGigData::new,
             CODEC);
 
@@ -75,9 +78,29 @@ final class AmbientGigData extends SavedData {
         }
     }
 
-    record StoredOffer(UUID id, String definitionId, int targetX, int targetZ, int reward) {
+    record StoredOffer(
+            UUID id,
+            String definitionId,
+            int targetX,
+            int targetZ,
+            int reward,
+            net.minecraft.nbt.CompoundTag site) {
         StoredOffer {
             definitionId = definitionId == null ? "" : definitionId;
+            site = site == null ? new net.minecraft.nbt.CompoundTag() : site.copy();
+        }
+
+        StoredOffer(UUID id, String definitionId, int targetX, int targetZ, int reward) {
+            this(id, definitionId, targetX, targetZ, reward, new net.minecraft.nbt.CompoundTag());
+        }
+
+        @Override
+        public net.minecraft.nbt.CompoundTag site() {
+            return site.copy();
+        }
+
+        Optional<MissionBuildingPlanner.Site> plannedSite() {
+            return MissionBuildingPlanner.Site.load(site);
         }
     }
 
@@ -292,7 +315,9 @@ final class AmbientGigData extends SavedData {
             List<StoredOffer> offers = stored.offers().stream()
                     .filter(offer -> offer.id() != null
                             && !offer.definitionId().isBlank()
-                            && offer.reward() > 0)
+                            && offer.reward() > 0
+                            && offer.plannedSite().filter(
+                                    site -> site.district() == district).isPresent())
                     .limit(AmbientGigService.OFFERS_PER_DISTRICT)
                     .toList();
             return Optional.of(new Pool(

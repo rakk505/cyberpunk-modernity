@@ -142,6 +142,9 @@ public final class TacticalPlayerAnimations {
         float recoil = movement.lastShotTick() < 0L
                 ? 0.0F
                 : 1.0F - (float) Mth.clamp((now - movement.lastShotTick()) / 5.0, 0.0, 1.0);
+        recoil *= (float) (1.0 - com.example.cyberdeck.cyberware.CyberwareStats
+                .from(com.example.cyberdeck.cyberware.CyberwareAttachments.get(player))
+                .recoilReduction());
 
         return new TacticalPoseData(
                 movement.action(), progress, forward, lateral,

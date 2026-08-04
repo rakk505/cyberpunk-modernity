@@ -31,10 +31,13 @@ import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.renderer.entity.ThrownItemRenderer;
 import net.minecraft.client.renderer.entity.NoopRenderer;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
+import net.minecraft.client.renderer.entity.EntityRenderer;
+import net.minecraft.client.renderer.entity.state.EntityRenderState;
 import net.minecraft.client.renderer.entity.player.AvatarRenderer;
 import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.PlayerModelType;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
@@ -83,11 +86,19 @@ public final class CyberdeckClient {
             GLFW.GLFW_KEY_I,
             CATEGORY);
 
-    // Sandevistan (default T).
+    // Shows a short server-authoritative ground trail to the active mission or gig (default T).
+    public static final KeyMapping NAVIGATION_TRAIL_KEY = new KeyMapping(
+            "key.cyberdeck.navigation_trail",
+            KeyConflictContext.IN_GAME,
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_T,
+            CATEGORY);
+
+    // Sandevistan (default B; T is reserved for active-contract navigation).
     public static final KeyMapping SANDEVISTAN_KEY = new KeyMapping(
             "key.cyberdeck.sandevistan",
             InputConstants.Type.KEYSYM,
-            GLFW.GLFW_KEY_T,
+            GLFW.GLFW_KEY_B,
             CATEGORY);
 
     // Arm Cannon (default V).
@@ -260,6 +271,15 @@ public final class CyberdeckClient {
     /** Adds the scanner's orange silhouette to only the entity under the reticle. */
     private void registerRenderStateModifiers(RegisterRenderStateModifiersEvent event) {
         event.registerEntityModifier(
+                new TypeToken<EntityRenderer<Entity, EntityRenderState>>() {},
+                (entity, state) -> {
+                    if (com.example.cyberdeck.skill.QuickhackTargets.isDevice(entity)
+                            && QuickhackScannerClient.isActive()
+                            && entity.getId() == QuickhackScannerClient.directTargetId()) {
+                        state.outlineColor = 0xFFFF653C;
+                    }
+                });
+        event.registerEntityModifier(
                 new TypeToken<LivingEntityRenderer<LivingEntity, LivingEntityRenderState, ?>>() {},
                 (entity, state) -> {
                     if (entity instanceof com.example.cyberdeck.faction.FactionEnemy enemy
@@ -289,6 +309,7 @@ public final class CyberdeckClient {
         event.register(OPEN_CYBERWARE_KEY);
         event.register(OPEN_CITY_MAP_KEY);
         event.register(OPEN_JOURNAL_KEY);
+        event.register(NAVIGATION_TRAIL_KEY);
         event.register(SANDEVISTAN_KEY);
         event.register(ARM_CANNON_KEY);
         event.register(THRETEVAC_KEY);
