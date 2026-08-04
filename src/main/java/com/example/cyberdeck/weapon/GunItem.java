@@ -1,5 +1,6 @@
 package com.example.cyberdeck.weapon;
 
+import com.example.cyberdeck.WeaponGlitchData;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -61,6 +62,9 @@ public final class GunItem extends Item {
     public InteractionResult use(Level level, Player player, InteractionHand hand) {
         ItemStack held = player.getItemInHand(hand);
 
+        if (WeaponGlitchData.isGlitched(player)) {
+            return InteractionResult.FAIL;
+        }
         if (player instanceof ServerPlayer serverPlayer
                 && com.example.cyberdeck.effect.CyberwareWeaponEffects
                         .rangedWeaponsBlocked(serverPlayer)) {
@@ -103,6 +107,7 @@ public final class GunItem extends Item {
         if (gun.reloadTicks() > 0 && entity instanceof Player player
                 && level instanceof ServerLevel serverLevel && player instanceof ServerPlayer serverPlayer
                 && !ReloadState.get(player).active() && magazine(stack) > 0
+                && !WeaponGlitchData.isGlitched(player)
                 && !player.getCooldowns().isOnCooldown(stack)
                 && !com.example.cyberdeck.effect.CyberwareWeaponEffects
                         .rangedWeaponsBlocked(serverPlayer)) {
@@ -113,6 +118,9 @@ public final class GunItem extends Item {
 
     /** Fires a single shot, spends a round, and auto-reloads when the magazine empties. */
     private void fireOnce(ServerLevel level, ServerPlayer player, ItemStack stack) {
+        if (WeaponGlitchData.isGlitched(player)) {
+            return;
+        }
         GunFiring.fire(level, player, gun);
         player.getCooldowns().addCooldown(stack, gun.cooldownTicks());
         int remaining = magazine(stack) - 1;
@@ -124,7 +132,8 @@ public final class GunItem extends Item {
 
     /** Begins a reload if there is reserve ammo (or creative). Sets client-synced reload state. */
     public void tryStartReload(ServerLevel level, ServerPlayer player, ItemStack stack) {
-        if (ReloadState.get(player).active() || magazine(stack) >= gun.magazineSize()) {
+        if (WeaponGlitchData.isGlitched(player)
+                || ReloadState.get(player).active() || magazine(stack) >= gun.magazineSize()) {
             return;
         }
         if (!hasReserveAmmo(player)) {
@@ -139,6 +148,10 @@ public final class GunItem extends Item {
 
     /** Called by the server tick handler when the reload timer completes: tops up the magazine. */
     public void completeReload(ServerPlayer player, ItemStack stack) {
+        if (WeaponGlitchData.isGlitched(player)) {
+            ReloadState.clear(player);
+            return;
+        }
         int needed = gun.magazineSize() - magazine(stack);
         int loaded = 0;
         if (needed > 0) {

@@ -2,6 +2,8 @@ package com.example.cyberdeck.faction;
 
 import com.example.cyberdeck.Cyberdeck;
 import com.example.cyberdeck.city.CityWorlds;
+import dev.modernity.neoncity.District;
+import dev.modernity.neoncity.MegacityLayout;
 import dev.modernity.neoncity.NeonCityGenerator;
 import java.util.ArrayList;
 import java.util.List;
@@ -103,13 +105,19 @@ public final class FactionSpawns {
         }
         requested = plan.positions().size();
 
+        District spawnDistrict = NeonCityGenerator.sample(
+                plan.anchor().getX(), plan.anchor().getZ()).district();
+        boolean rCorp = isRCorpPatrol(spawnDistrict, random.nextFloat());
         Faction faction = Faction.VALUES[random.nextInt(Faction.VALUES.length)];
         java.util.UUID patrolId = new java.util.UUID(random.nextLong(), random.nextLong());
         List<Integer> skinVariants = FactionSquads.uniqueSkinVariants(random, requested);
+        List<EnemyCombatRole> rCorpRoles = rCorp
+                ? FactionSquads.rCorpRolePlan(requested) : List.of();
         List<FactionEnemy> members = new ArrayList<>(requested);
         for (int index = 0; index < plan.positions().size(); index++) {
             FactionEnemy enemy = createMember(
                     level, plan.positions().get(index), plan.anchor(), faction,
+                    rCorp ? rCorpRoles.get(index) : EnemyCombatRole.STANDARD,
                     skinVariants.get(index), random);
             if (enemy == null) {
                 for (FactionEnemy member : members) {
@@ -130,8 +138,9 @@ public final class FactionSpawns {
                 return;
             }
         }
-        Cyberdeck.LOGGER.info("Spawned {}-member {} district patrol near {}",
-                members.size(), members.getFirst().getDistrict().code(), player.getScoreboardName());
+        Cyberdeck.LOGGER.info("Spawned {}-member {} patrol in {} near {}",
+                members.size(), rCorp ? "R Corp paramilitary" : "corporate",
+                members.getFirst().getDistrict().code(), player.getScoreboardName());
     }
 
     private static SpawnPlan findSpawnPlan(
@@ -269,7 +278,7 @@ public final class FactionSpawns {
     }
 
     private static FactionEnemy createMember(ServerLevel level, BlockPos position, BlockPos home,
-                                             Faction faction, int skinVariant,
+                                             Faction faction, EnemyCombatRole role, int skinVariant,
                                              RandomSource random) {
         FactionEnemy enemy = FactionEntities.FACTION_ENEMY.get().create(
                 level, EntitySpawnReason.NATURAL);
@@ -286,8 +295,41 @@ public final class FactionSpawns {
                 EntitySpawnReason.NATURAL, null);
         enemy.setHome(home);
         enemy.setAmbientPatrol(true);
-        FactionSquads.equip(enemy, faction, random, skinVariant);
+        if (role == EnemyCombatRole.STANDARD) {
+            FactionSquads.equip(enemy, faction, random, skinVariant);
+        } else {
+            FactionSquads.equipRCorp(enemy, role, random, skinVariant);
+        }
         return enemy;
+    }
+
+    /** Regional R Corp weighting: east/south dominate, center remains possible, elsewhere is rare. */
+    public static float rCorpPatrolChance(District district) {
+        if (district == null) {
+            return 0.0F;
+        }
+        MegacityLayout.Node node = NeonCityGenerator.layout().node(district);
+        return rCorpPatrolChance(node.x(), node.z());
+    }
+
+    public static float rCorpPatrolChance(int districtX, int districtZ) {
+        long radiusSquared = (long) districtX * districtX + (long) districtZ * districtZ;
+        if (radiusSquared <= 1_600L * 1_600L) {
+            return 0.18F;
+        }
+        boolean east = districtX >= 500;
+        boolean south = districtZ >= 500;
+        if (east && south) {
+            return 0.72F;
+        }
+        if (east || south) {
+            return 0.55F;
+        }
+        return 0.03F;
+    }
+
+    public static boolean isRCorpPatrol(District district, float roll) {
+        return roll >= 0.0F && roll < rCorpPatrolChance(district);
     }
 
     /** Selects one of the only two authored squad sizes without ever clipping to a partial squad. */

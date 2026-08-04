@@ -109,6 +109,50 @@ class State(NamedTuple):
     properties: tuple[tuple[str, str], ...]
 
 
+GLOWSTONE = "minecraft:glowstone"
+SEA_LANTERN = State("minecraft:sea_lantern", ())
+CAMOUFLAGED_SEA_LANTERN = "cyberdeck:camouflaged_sea_lantern"
+LIGHT_SURFACE_ORDER = (
+    "blackstone",
+    "gray_concrete",
+    "light_gray_concrete",
+    "mud_bricks",
+    "nether_bricks",
+    "oak_planks",
+    "polished_andesite",
+    "smooth_stone",
+    "stone_bricks",
+    "white_concrete",
+)
+LIGHT_SURFACES = {
+    "minecraft:blackstone": "blackstone",
+    "minecraft:blackstone_slab": "blackstone",
+    "minecraft:blackstone_stairs": "blackstone",
+    "minecraft:gray_concrete": "gray_concrete",
+    "minecraft:light_gray_concrete": "light_gray_concrete",
+    "minecraft:mud_bricks": "mud_bricks",
+    "minecraft:mud_brick_slab": "mud_bricks",
+    "minecraft:mud_brick_stairs": "mud_bricks",
+    "minecraft:nether_bricks": "nether_bricks",
+    "minecraft:nether_brick_slab": "nether_bricks",
+    "minecraft:nether_brick_stairs": "nether_bricks",
+    "minecraft:oak_planks": "oak_planks",
+    "minecraft:oak_slab": "oak_planks",
+    "minecraft:oak_stairs": "oak_planks",
+    "minecraft:polished_andesite": "polished_andesite",
+    "minecraft:polished_andesite_slab": "polished_andesite",
+    "minecraft:polished_andesite_stairs": "polished_andesite",
+    "minecraft:smooth_stone": "smooth_stone",
+    "minecraft:smooth_stone_slab": "smooth_stone",
+    "minecraft:stone_bricks": "stone_bricks",
+    "minecraft:chiseled_stone_bricks": "stone_bricks",
+    "minecraft:cracked_stone_bricks": "stone_bricks",
+    "minecraft:stone_brick_slab": "stone_bricks",
+    "minecraft:stone_brick_stairs": "stone_bricks",
+    "minecraft:white_concrete": "white_concrete",
+}
+
+
 @dataclass(frozen=True)
 class Selection:
     name: str
@@ -447,6 +491,44 @@ def _block_entities(chunk: dict[str, Any]) -> Counter[str]:
     return result
 
 
+def normalize_embedded_lights(
+    raw_blocks: Iterable[tuple[int, int, int, State]],
+) -> tuple[list[tuple[int, int, int, State]], Counter[str]]:
+    """Replace Arnis glowstone with deterministic, non-ticking sea-lantern states."""
+    source = list(raw_blocks)
+    occupied = {(x, y, z): state for x, y, z, state in source}
+    result: list[tuple[int, int, int, State]] = []
+    stats: Counter[str] = Counter()
+    for x, y, z, state in source:
+        if state.name != GLOWSTONE:
+            result.append((x, y, z, state))
+            continue
+        if (x, y + 1, z) in occupied:
+            replacement = SEA_LANTERN
+            stats["covered"] += 1
+        else:
+            votes: Counter[str] = Counter()
+            for delta_x, delta_z in ((0, -1), (1, 0), (0, 1), (-1, 0)):
+                neighbour = occupied.get((x + delta_x, y, z + delta_z))
+                if neighbour is not None:
+                    surface = LIGHT_SURFACES.get(neighbour.name)
+                    if surface is not None:
+                        votes[surface] += 1
+            if votes:
+                surface = max(LIGHT_SURFACE_ORDER, key=lambda item: votes[item])
+                replacement = State(
+                    CAMOUFLAGED_SEA_LANTERN,
+                    (("surface", surface),),
+                )
+                stats["camouflaged"] += 1
+                stats[f"surface:{surface}"] += 1
+            else:
+                replacement = SEA_LANTERN
+                stats["fallback"] += 1
+        result.append((x, y, z, replacement))
+    return result, stats
+
+
 def build_patch(
     regions: RegionStore,
     selection: Selection,
@@ -482,10 +564,6 @@ def build_patch(
                     dangerous[state.name] += 1
                     continue
                 raw_blocks.append((patch_x, world_y, patch_z, state))
-                column = (patch_x, patch_z)
-                previous = top_surface.get(column)
-                if previous is None or world_y >= previous[0]:
-                    top_surface[column] = (world_y, state.name)
 
     if missing and not allow_missing:
         sample = ", ".join(f"{x},{z}" for x, z in missing[:8])
@@ -495,6 +573,12 @@ def build_patch(
         )
     if not raw_blocks:
         raise ImportFailure(f"selection {selection.name!r} contains no importable blocks")
+    raw_blocks, _ = normalize_embedded_lights(raw_blocks)
+    for patch_x, world_y, patch_z, state in raw_blocks:
+        column = (patch_x, patch_z)
+        previous = top_surface.get(column)
+        if previous is None or world_y >= previous[0]:
+            top_surface[column] = (world_y, state.name)
     min_y = requested_min_y if requested_min_y is not None else min(v[1] for v in raw_blocks)
     max_y = requested_max_y if requested_max_y is not None else max(v[1] for v in raw_blocks)
     if min_y > max_y:

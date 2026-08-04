@@ -1,5 +1,6 @@
 package dev.modernity.neoncity;
 
+import com.example.cyberdeck.advertising.GeneratedAdPlacement;
 import com.example.cyberdeck.city.CityLootGeneration;
 import com.mojang.logging.LogUtils;
 import com.mojang.serialization.MapCodec;
@@ -72,6 +73,8 @@ public final class NeonCityGenerator {
     public static final int ENQUEUE_RADIUS_CHUNKS = 10;
     public static final int SPAWN_PREWARM_RADIUS_CHUNKS = 1;
     public static final int MAX_PENDING_CHUNKS = 768;
+    private static final int AD_BACKFILL_RADIUS_CHUNKS = 2;
+    private static final int MAX_PENDING_AD_BACKFILLS = 256;
     public static final int TRAVEL_LOOKAHEAD_TICKS = 100;
     public static final int TRAVEL_CORRIDOR_MARGIN_CHUNKS = 1;
     public static final int TRAVEL_CORRIDOR_SAMPLE_BLOCKS = 8;
@@ -110,7 +113,10 @@ public final class NeonCityGenerator {
     private static final ArrayDeque<ChunkPos> PENDING = new ArrayDeque<>();
     private static final ArrayDeque<ChunkPos> NEAR_PENDING = new ArrayDeque<>();
     private static final ArrayDeque<ChunkPos> URGENT_PENDING = new ArrayDeque<>();
+    private static final ArrayDeque<ChunkPos> AD_BACKFILL_PENDING = new ArrayDeque<>();
     private static final Set<Long> QUEUED = new HashSet<>();
+    private static final Set<Long> AD_BACKFILL_QUEUED = new HashSet<>();
+    private static final Set<Long> AD_BACKFILL_FAILED = new HashSet<>();
     private static final Set<Long> GENERATED = new HashSet<>();
     private static final Map<Long, AlleyMaze.Plan> DIAGNOSTIC_ALLEY_PLANS = new HashMap<>();
     private static final Map<Long, Optional<ArnisPatchLibrary.Placement>>
@@ -261,7 +267,10 @@ public final class NeonCityGenerator {
         PENDING.clear();
         NEAR_PENDING.clear();
         URGENT_PENDING.clear();
+        AD_BACKFILL_PENDING.clear();
         QUEUED.clear();
+        AD_BACKFILL_QUEUED.clear();
+        AD_BACKFILL_FAILED.clear();
         GENERATED.clear();
         DIAGNOSTIC_ALLEY_PLANS.clear();
         USABLE_ARNIS_PLACEMENTS.clear();
@@ -295,6 +304,11 @@ public final class NeonCityGenerator {
         int added = enqueueAround(player.getBlockX(), player.getBlockZ());
         int centerChunkX = SectionPos.blockToSectionCoord(player.getBlockX());
         int centerChunkZ = SectionPos.blockToSectionCoord(player.getBlockZ());
+        enqueueAdBackfillsAround(
+                (ServerLevel) player.level(),
+                centerChunkX,
+                centerChunkZ,
+                AD_BACKFILL_RADIUS_CHUNKS);
         for (int deltaZ = -1; deltaZ <= 1; deltaZ++) {
             for (int deltaX = -1; deltaX <= 1; deltaX++) {
                 promoteNear(new ChunkPos(centerChunkX + deltaX, centerChunkZ + deltaZ));
@@ -549,6 +563,7 @@ public final class NeonCityGenerator {
     public static boolean tick(ServerLevel level) {
         drainCompletedLightRefreshes(level);
         if (!enabled || savedData == null) return false;
+        boolean attemptedAdBackfill = backfillNextGeneratedAd(level);
         scheduleChunkPlanning(level);
         long startedNanos = System.nanoTime();
         int processed = 0;
@@ -574,7 +589,88 @@ public final class NeonCityGenerator {
             CityGenerationTrace.foregroundBatch(
                     processed, System.nanoTime() - startedNanos, stoppedByBudget);
         }
-        return processed > 0;
+        return processed > 0 || attemptedAdBackfill;
+    }
+
+    private static void enqueueAdBackfillsAround(
+            ServerLevel level, int centerChunkX, int centerChunkZ, int radius) {
+        if (savedData == null || radius < 0) return;
+        for (int deltaZ = -radius; deltaZ <= radius; deltaZ++) {
+            for (int deltaX = -radius; deltaX <= radius; deltaX++) {
+                enqueueAdBackfill(level,
+                        new ChunkPos(centerChunkX + deltaX, centerChunkZ + deltaZ));
+            }
+        }
+    }
+
+    private static void enqueueAdBackfill(ServerLevel level, ChunkPos chunk) {
+        long key = chunk.pack();
+        if (!GENERATED.contains(key)
+                || savedData == null
+                || savedData.isAdDecorated(key)
+                || AD_BACKFILL_QUEUED.contains(key)
+                || AD_BACKFILL_FAILED.contains(key)
+                || AD_BACKFILL_PENDING.size() >= MAX_PENDING_AD_BACKFILLS
+                || level.getChunkSource().getChunkNow(chunk.x(), chunk.z()) == null) {
+            return;
+        }
+        AD_BACKFILL_QUEUED.add(key);
+        AD_BACKFILL_PENDING.addLast(chunk);
+    }
+
+    private static boolean backfillNextGeneratedAd(ServerLevel level) {
+        while (!AD_BACKFILL_PENDING.isEmpty()) {
+            ChunkPos chunk = AD_BACKFILL_PENDING.removeFirst();
+            long key = chunk.pack();
+            AD_BACKFILL_QUEUED.remove(key);
+            if (!GENERATED.contains(key)
+                    || savedData == null
+                    || savedData.isAdDecorated(key)) {
+                continue;
+            }
+            if (level.getChunkSource().getChunkNow(chunk.x(), chunk.z()) == null) {
+                continue;
+            }
+
+            boolean completed = false;
+            try {
+                Optional<ArnisPatchLibrary.Placement> selected = usableArnisPlacement(
+                        chunk.x(), chunk.z());
+                if (selected.isPresent()
+                        && !isReservedMainlineBuildingChunk(level, chunk)) {
+                    ArnisPatchLibrary.Placement placement = selected.get();
+                    StructureTemplate template = level.getStructureManager()
+                            .get(placement.patch().templateId()).orElse(null);
+                    if (template == null) {
+                        LOGGER.warn("[NeonCity] cannot backfill ad; missing Arnis template {}",
+                                placement.patch().templateId());
+                    } else if (!templateMatchesCatalog(template, placement.patch())) {
+                        LOGGER.warn("[NeonCity] cannot backfill ad; Arnis template {} changed size",
+                                placement.patch().templateId());
+                    } else {
+                        GeneratedAdPlacement.Result result =
+                                GeneratedAdPlacement.backfillForArnisTile(
+                                        level,
+                                        chunk,
+                                        placement,
+                                        template,
+                                        CITY_GROUND_Y - placement.patch().surfaceOffset());
+                        completed = result != GeneratedAdPlacement.Result.RETRYABLE_FAILURE;
+                    }
+                } else {
+                    completed = true;
+                }
+            } catch (RuntimeException exception) {
+                LOGGER.error("[NeonCity] failed animated-ad backfill for {}", chunk, exception);
+            }
+            if (completed) {
+                savedData.markAdDecorated(key);
+            } else {
+                AD_BACKFILL_FAILED.add(key);
+            }
+            return true;
+        }
+        return false;
     }
 
     private static boolean generateFirstLoaded(
@@ -716,6 +812,7 @@ public final class NeonCityGenerator {
                 removePending(key);
                 if (GENERATED.contains(key)) {
                     QuicktimeTravelService.installCanonicalStations(level, chunk);
+                    enqueueAdBackfill(level, chunk);
                     continue;
                 }
                 if (!chunkTouchesCity(chunkX, chunkZ)) continue;
@@ -788,6 +885,7 @@ public final class NeonCityGenerator {
         GENERATED.add(key);
         CityChunkPlanner.cancel(key);
         savedData.markGenerated(key, GENERATOR_FINGERPRINT);
+        savedData.markAdDecorated(key);
     }
 
     static ChunkBuildPlan planChunk(ChunkPos chunk) {
@@ -923,6 +1021,17 @@ public final class NeonCityGenerator {
                 if (trace != null) trace.phase(CityGenerationTrace.Phase.URBAN_CRATES);
                 UrbanCrateGeneration.decorateChunk(level, chunk, samples);
             }
+            if (patchTemplate != null
+                    && patchPlacement.isPresent()
+                    && !isReservedMainlineBuildingChunk(level, chunk)) {
+                ArnisPatchLibrary.Placement placement = patchPlacement.get();
+                GeneratedAdPlacement.placeForArnisTile(
+                        level,
+                        chunk,
+                        placement,
+                        patchTemplate,
+                        CITY_GROUND_Y - placement.patch().surfaceOffset());
+            }
             if (trace != null) trace.phase(CityGenerationTrace.Phase.CLIENT_REFRESH);
             scheduleTrackingClientRefresh(level, chunk);
             succeeded = true;
@@ -933,6 +1042,24 @@ public final class NeonCityGenerator {
         } finally {
             if (trace != null) trace.finish(succeeded);
         }
+    }
+
+    static boolean isFixedMainlineBuildingChunk(ChunkPos chunk) {
+        return MainlineQuestData.fixedSites().values().stream()
+                .anyMatch(site -> chunkIntersects(chunk, site.buildingBounds()));
+    }
+
+    static boolean isReservedMainlineBuildingChunk(ServerLevel level, ChunkPos chunk) {
+        return isFixedMainlineBuildingChunk(chunk)
+                || MainlineQuestData.get(level).sites().stream()
+                        .anyMatch(site -> chunkIntersects(chunk, site.buildingBounds()));
+    }
+
+    private static boolean chunkIntersects(ChunkPos chunk, BoundingBox bounds) {
+        return chunk.getMinBlockX() <= bounds.maxX()
+                && chunk.getMaxBlockX() >= bounds.minX()
+                && chunk.getMinBlockZ() <= bounds.maxZ()
+                && chunk.getMaxBlockZ() >= bounds.minZ();
     }
 
     static UrbanSample[][] sampleChunk(int minX, int minZ) {
@@ -1078,9 +1205,10 @@ public final class NeonCityGenerator {
         BoundingBox destinationBounds = new BoundingBox(
                 minX, minY, minZ,
                 chunk.getMaxBlockX(), minY + patch.sizeY() - 1, chunk.getMaxBlockZ());
+        ArnisColumnMaskProcessor columnMask = new ArnisColumnMaskProcessor(
+                minX, minZ, samples, placement.patch().district());
         StructurePlaceSettings settings = arnisPlaceSettings(placement, destinationBounds)
-                .addProcessor(new ArnisColumnMaskProcessor(
-                        minX, minZ, samples, placement.patch().district()));
+                .addProcessor(columnMask);
         BoundingBox transformedBounds = template.getBoundingBox(settings, anchor);
         if (!sameBounds(destinationBounds, transformedBounds)) {
             LOGGER.error("[NeonCity] transformed Arnis template {} escaped chunk {}: expected {}, got {}",
@@ -1093,6 +1221,9 @@ public final class NeonCityGenerator {
         if (!placed) {
             LOGGER.error("[NeonCity] Arnis template {} refused placement into {}",
                     patch.templateId(), chunk);
+        } else {
+            ArnisEmbeddedLighting.finish(
+                    level, columnMask.retainedGlowstone(), destinationBounds, PLACE_FLAGS);
         }
         return placed;
     }
@@ -1113,6 +1244,7 @@ public final class NeonCityGenerator {
         private final int minX;
         private final int minZ;
         private final boolean[] retained = new boolean[16 * 16];
+        private final List<BlockPos> retainedGlowstone = new ArrayList<>();
 
         private ArnisColumnMaskProcessor(
                 int minX,
@@ -1148,7 +1280,17 @@ public final class NeonCityGenerator {
             if (localX < 0 || localX >= 16 || localZ < 0 || localZ >= 16) {
                 return null;
             }
-            return retained[localZ * 16 + localX] ? processedBlockInfo : null;
+            if (!retained[localZ * 16 + localX]) {
+                return null;
+            }
+            if (processedBlockInfo.state().is(Blocks.GLOWSTONE)) {
+                retainedGlowstone.add(worldPosition.immutable());
+            }
+            return processedBlockInfo;
+        }
+
+        private List<BlockPos> retainedGlowstone() {
+            return retainedGlowstone;
         }
     }
 

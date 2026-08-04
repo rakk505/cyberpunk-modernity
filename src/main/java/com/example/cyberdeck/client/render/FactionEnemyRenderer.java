@@ -7,12 +7,16 @@ import com.example.cyberdeck.faction.TacticalManeuver;
 import com.example.cyberdeck.movement.TacticalAction;
 import com.example.cyberdeck.weapon.GunItem;
 
+import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.model.geom.ModelLayers;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.entity.ArmorModelSet;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.entity.HumanoidMobRenderer;
 import net.minecraft.client.renderer.entity.layers.HumanoidArmorLayer;
+import net.minecraft.client.renderer.gizmos.DrawableGizmoPrimitives;
+import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.HumanoidArm;
@@ -28,10 +32,16 @@ public final class FactionEnemyRenderer
 
     private static final Identifier[] TACTICAL_SKINS =
             new Identifier[FactionEnemy.TACTICAL_SKIN_COUNT];
+    private static final Identifier[] R_CORP_SKINS =
+            new Identifier[FactionEnemy.R_CORP_SKIN_COUNT];
     static {
         for (int index = 0; index < TACTICAL_SKINS.length; index++) {
             TACTICAL_SKINS[index] = Identifier.fromNamespaceAndPath(
                     "cyberdeck", "textures/entity/faction_enemy/tactical_" + index + ".png");
+        }
+        for (int index = 0; index < R_CORP_SKINS.length; index++) {
+            R_CORP_SKINS[index] = Identifier.fromNamespaceAndPath(
+                    "cyberdeck", "textures/entity/faction_enemy/r_corp_" + index + ".png");
         }
     }
     private static final Identifier CYBERPSYCHO_SKIN = Identifier.fromNamespaceAndPath(
@@ -68,6 +78,9 @@ public final class FactionEnemyRenderer
         if (state.cyberpsycho) {
             return state.skinVariant == 1 ? FOG_MOTHER_SKIN : CYBERPSYCHO_SKIN;
         }
+        if (state.rCorp) {
+            return R_CORP_SKINS[Math.floorMod(state.skinVariant, R_CORP_SKINS.length)];
+        }
         return TACTICAL_SKINS[Math.floorMod(state.skinVariant, TACTICAL_SKINS.length)];
     }
 
@@ -89,7 +102,20 @@ public final class FactionEnemyRenderer
         state.cyberpsycho = enemy instanceof CyberpsychoEntity;
         state.traumaTeam = enemy.isTraumaTeam();
         state.excision = enemy.isExcision();
+        state.rCorp = enemy.isRCorp();
         state.skinVariant = enemy.getSkinVariant();
+        state.quickhackTraceStart = null;
+        state.quickhackTraceEnd = null;
+        if (enemy.isEnemyQuickhackUploading()) {
+            net.minecraft.world.entity.Entity target =
+                    enemy.level().getEntity(enemy.getEnemyQuickhackTargetId());
+            if (target instanceof net.minecraft.world.entity.LivingEntity living && living.isAlive()) {
+                state.quickhackTraceStart = enemy.getEyePosition(partialTick)
+                        .add(enemy.getViewVector(partialTick).scale(0.22));
+                state.quickhackTraceEnd = living.getPosition(partialTick)
+                        .add(0.0, living.getBbHeight() * 0.62, 0.0);
+            }
+        }
 
         // The off-hand slot is this entity's holster, not a second simultaneously wielded gun.
         // Hide that model so the synchronized hand swap visibly replaces the primary with the
@@ -147,6 +173,19 @@ public final class FactionEnemyRenderer
         }
 
         state.tacticalPose = extractTacticalPose(enemy, renderTick);
+    }
+
+    @Override
+    public void submit(FactionEnemyRenderState state, PoseStack poseStack,
+                       SubmitNodeCollector submitNodeCollector, CameraRenderState camera) {
+        super.submit(state, poseStack, submitNodeCollector, camera);
+        if (state.quickhackTraceStart == null || state.quickhackTraceEnd == null) {
+            return;
+        }
+        DrawableGizmoPrimitives trace = new DrawableGizmoPrimitives();
+        trace.addLine(state.quickhackTraceStart, state.quickhackTraceEnd, 0xFFFF2020, 3.0F);
+        trace.addPoint(state.quickhackTraceStart, 0xFFFF5A40, 5.0F);
+        trace.submit(submitNodeCollector, camera, true);
     }
 
     private static TacticalPoseData extractTacticalPose(FactionEnemy enemy, double renderTick) {

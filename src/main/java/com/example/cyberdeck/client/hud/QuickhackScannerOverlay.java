@@ -415,6 +415,8 @@ public final class QuickhackScannerOverlay implements GuiLayer {
                 ? "TRAUMA TEAM"
                 : target instanceof FactionEnemy enemy && enemy.isExcision()
                 ? "EXCISION"
+                : target instanceof FactionEnemy enemy && enemy.isRCorp()
+                ? "R CORP PARAMILITARY"
                 : target instanceof FactionEnemy enemy
                 ? enemy.getDistrict() == null
                         ? "CORPORATE SECURITY"
@@ -558,6 +560,12 @@ public final class QuickhackScannerOverlay implements GuiLayer {
         }
         if (target instanceof FactionEnemy enemy && enemy.isExcision()) {
             return "EXCISION AGENT";
+        }
+        if (target instanceof FactionEnemy enemy && enemy.isRCorp()) {
+            return "R CORP " + enemy.getCombatRole().name();
+        }
+        if (target instanceof FactionEnemy enemy && enemy.isNetrunner()) {
+            return "CORPORATE NETRUNNER";
         }
         if (target instanceof FactionEnemy) {
             return "CORPORATE SOLDIER";

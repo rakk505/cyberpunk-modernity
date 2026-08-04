@@ -11,7 +11,7 @@ import java.util.EnumSet;
  * grenades in stock. A cooldown between throws keeps them from spamming.
  */
 public final class ThrowGrenadeGoal extends Goal {
-    private static final double MIN_RANGE = 4.0;   // don't grenade point-blank (self-damage)
+    private static final double MIN_RANGE = 5.5;   // blast radius plus a self-damage margin
     private static final double MAX_RANGE = 16.0;  // realistic lob distance
     private static final double MIN_RANGE_SQR = MIN_RANGE * MIN_RANGE;
     private static final double MAX_RANGE_SQR = MAX_RANGE * MAX_RANGE;
@@ -35,6 +35,7 @@ public final class ThrowGrenadeGoal extends Goal {
             return false;
         }
         if (soldier.isWeaponGlitching()
+                || !soldier.canUseConventionalCombat()
                 || soldier.getGrenadeCount() <= 0
                 || !soldier.isTriggered()) {
             return false;
@@ -54,6 +55,10 @@ public final class ThrowGrenadeGoal extends Goal {
         if (soldier.hasAllyInLineOfFire(candidate)) {
             return false;
         }
+        if (soldier.hasCombatAllyNear(
+                candidate.getBoundingBox().getCenter(), soldier.getGrenadeType().radius())) {
+            return false;
+        }
         this.target = candidate;
         return true;
     }
@@ -61,6 +66,7 @@ public final class ThrowGrenadeGoal extends Goal {
     @Override
     public boolean canContinueToUse() {
         return !soldier.isWeaponGlitching()
+                && soldier.canUseConventionalCombat()
                 && windup > 0 && target != null && target.isAlive()
                 && soldier.getGrenadeCount() > 0;
     }

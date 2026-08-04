@@ -1,0 +1,19 @@
+{
+  "clips": [
+    {
+      "id": "neon_skyline",
+      "file": "neon_skyline.mp4",
+      "duration_seconds": 30
+    },
+    {
+      "id": "chrome_cola",
+      "file": "chrome_cola.mp4",
+      "duration_seconds": 36
+    },
+    {
+      "id": "orbital_air",
+      "file": "orbital_air.mp4",
+      "duration_seconds": 42
+    }
+  ]
+}

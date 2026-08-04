@@ -1,0 +1,14 @@
+{
+  "variants": {
+    "surface=blackstone": { "model": "cyberdeck:block/camouflaged_sea_lantern_blackstone" },
+    "surface=gray_concrete": { "model": "cyberdeck:block/camouflaged_sea_lantern_gray_concrete" },
+    "surface=light_gray_concrete": { "model": "cyberdeck:block/camouflaged_sea_lantern_light_gray_concrete" },
+    "surface=mud_bricks": { "model": "cyberdeck:block/camouflaged_sea_lantern_mud_bricks" },
+    "surface=nether_bricks": { "model": "cyberdeck:block/camouflaged_sea_lantern_nether_bricks" },
+    "surface=oak_planks": { "model": "cyberdeck:block/camouflaged_sea_lantern_oak_planks" },
+    "surface=polished_andesite": { "model": "cyberdeck:block/camouflaged_sea_lantern_polished_andesite" },
+    "surface=smooth_stone": { "model": "cyberdeck:block/camouflaged_sea_lantern_smooth_stone" },
+    "surface=stone_bricks": { "model": "cyberdeck:block/camouflaged_sea_lantern_stone_bricks" },
+    "surface=white_concrete": { "model": "cyberdeck:block/camouflaged_sea_lantern_white_concrete" }
+  }
+}

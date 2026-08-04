@@ -2,6 +2,55 @@
 
 Generated: 2026-08-03
 
+## Enemy Netrunners And R Corp Addendum (2026-08-04)
+
+- Branch: `enemy-netrunners`, based on `a196e91e4f46e24bf5d6c6a95d94a81779a7e084`.
+- Added R Corp as a separate synchronized enemy archetype, avoiding changes to the shared legacy
+  faction enum, branded armor registration, merchant catalog, and turret allegiance rules.
+- Added exact R Corp patrol rosters: Assault/Sapper/Netrunner for three-person squads and three
+  Assault/Sapper/Netrunner for five-person squads. Four-person reinforcement drops use two
+  Assault/Sapper/Netrunner and retain R Corp identity.
+- Weighted R Corp patrols heavily toward eastern and southern district coordinates, with a smaller
+  center-city chance and rare north/west appearances. Existing public-space placement, highway
+  exclusion, patrol caps, and exact three/five-person cluster sizes remain intact.
+- Added Assault Saratoga SMGs, Sapper Unity sidearms plus two incendiary grenades, and Netrunner
+  Yukimura smart guns. Every R Corp member keeps the existing hidden ballistic stats and visible
+  black Bulletproof Vest.
+- Added eight original, deterministic orange/gray R Corp tactical skins with diverse headgear,
+  faces, cloth shades, plate layouts, and optics. The generator and asset provenance are checked in.
+- Added generic corporate netrunners with exactly one randomly assigned hostile quickhack:
+  Cripple Movement, Weapon Glitch, or Blind. R Corp netrunners always receive Blind.
+- Added a server-authoritative 60-tick hostile upload, 100-tick effect, 300-tick per-netrunner
+  cooldown, and per-player reservation covering upload plus effect lifetime. Different players can
+  be targeted concurrently, but two netrunners cannot stack uploads on one player.
+- Added death, logout, respawn, dimension-change, source-removal, and server-stop cleanup. Active
+  target entity IDs are never persisted across reloads; archetype, role, assigned hack, skin, and
+  cooldown are persisted.
+- Added cover-first netrunner movement using same-floor, obstruction-tested, reachable paths. Cover
+  searches are throttled, existing cover is held, and guns/melee/grenades are disabled until the
+  quickhack enters cooldown.
+- Added the five-second Blind and Cripple effects plus a five-second Weapon Glitch. Weapon Glitch
+  now blocks hitscan fire, charged shots, manual/automatic reloads, and projectile firing without
+  consuming ammunition.
+- Added an always-on-top red upload trace and red netrunner outline visible without scanner mode.
+  Scanner target data now reports R Corp and netrunner identity correctly.
+- Added friendly-fire grouping for R Corp bullets and incendiary ally/self-distance safeguards.
+- Added `enemy_netrunner_contracts` regression coverage for regional weights, 3/5/4 role plans,
+  exact loadouts, armor/name/skin contracts, hostile hack selection, effect/cooldown timing,
+  combat-priority gating, multiplayer reservations, and hitscan Weapon Glitch ammunition safety.
+- Verification: full Gradle build passed; all 76 required NeoForge GameTests passed; dedicated server
+  boot passed; managed-client load/connect passed.
+- Visual evidence:
+  - Eight R Corp variants and weapons: SHA-256
+    `4b3bba4f5e44df6533818921568dbf2bafe85b3eba348eb4c45e716072a0f68b`.
+  - Hostile netrunner red outline/trace without scanner mode: SHA-256
+    `05ca90f2baf4332f15610448f0a284a374ee82980752ab22ebff66ed924a1e9d`.
+- Installed verified JAR: `cyberdeck-1.5.0.jar`, SHA-256
+  `79f7ae0c79846b57e0067eec72609fc4a3ab4e7a1c4efa30f38d4c2059b54aaa`.
+- Multiplayer review note: hostile Blind/Cripple deliberately does not overwrite an already-active
+  vanilla effect of the same type. The hostile slot and cooldown are still consumed, preserving
+  unrelated potion/cyberware effect chains.
+
 ## Branch And Repository State
 
 - Current working branch: `codex/district-patrol-enemies`
@@ -911,6 +960,46 @@ branch.
   and hash-matched the sandbox artifact at
   `06374c92c37753406a43f1ad994feb2dd05565d4e19d07c1e57e75f98896ae5e`.
 
+### `4482e8dd` - Immersive Arnis Sea-Lantern Floors
+
+- Added `tools/arnis/rewrite_embedded_lighting.py`, a dependency-free audit/apply/check command
+  for deterministic Arnis NBT lighting migration.
+- New Arnis imports normalize glowstone before writing their structure palettes.
+- Covered glowstone becomes a vanilla sea lantern.
+- Exposed glowstone becomes a generated-only camouflaged sea lantern whose top texture is selected
+  by deterministic majority vote across same-height cardinal floor neighbours.
+- Added ten static top finishes: blackstone, gray concrete, light-gray concrete, mud bricks, nether
+  bricks, oak planks, polished andesite, smooth stone, stone bricks, and white concrete.
+- Slab, stair, cracked, and chiseled members of those material families vote for their matching
+  full-block finish.
+- Unsupported, transparent, or neighbourless contexts safely fall back to a vanilla sea lantern.
+- Added baked blockstate/model assets that reuse vanilla textures; no copied texture PNGs, dynamic
+  models, block entities, render callbacks, or ticking blocks were introduced.
+- Existing checked-in Arnis tiles use a bounded first-generation placement pass so the feature is
+  active without committing 10,858 rewritten binary NBT files. The district column-mask processor
+  records only retained imported glowstone positions, which are then replaced once.
+- A complete read-only archive audit found 1,300,095 glowstone blocks: 33,332 covered, 1,265,868
+  camouflaged, and 895 safe fallbacks. The ten top finishes cover 99.93% of exposed lights.
+- The optional `--apply` migration updates structure bytes, catalog SHA-256 values, compressed byte
+  counts, palette sizes, catalog validation, and the bound open-park audit.
+- Added GameTests for covered, exposed, unsupported, light-level, material-selection, and
+  masked-column behavior.
+- Full build passed; all 76 required GameTests passed; clean day and night client captures verified
+  seamless top textures and retained light emission for all ten finishes.
+- The generation pass has no recurring multiplayer cost after a chunk is first built. Only newly
+  generated or previously ungenerated chunks are updated; existing generated chunks retain their
+  glowstone unless changed separately with a world-edit or admin process.
+- The complete focused implementation report is in `IMMERSIVE_SEA_LANTERN_REPORT.md`.
+- `27e34942` added the focused report. Merge commits `6b9ae44b` and `6fed34f6` integrated the two
+  current-main updates while retaining hostile-quickhack, remote-control, traffic, and Arnis
+  lighting behavior.
+- Turret and canister explosion tests now allow one server tick for stationary victims to enter the
+  level entity index before synchronous explosion assertions, removing a latent suite flake.
+- The merged full build and all 82 required GameTests passed.
+- The merged dedicated server and managed client both loaded with current main's required
+  updated `vehicle_mod` runtime. A final night capture verified all ten camouflaged floor-light
+  surfaces.
+
 ## Multiplayer And Private Two-Player Review Summary
 
 - Scanner mode is per-player and synchronized from server-owned attachments.
@@ -971,6 +1060,8 @@ branch.
 - District atmosphere density: merged-current-main build passed; all 75 GameTests passed; D, T,
   and neutral control captures verified the intended visual separation; the merged JAR was
   installed and hash-matched.
+- Immersive Arnis lighting: full build and all 76 GameTests passed; a complete 17,920-tile dry-run
+  migration audit passed; real day/night client captures verified all ten floor finishes.
 - Each completed implementation commit was pushed to
   its named remote feature branch.
 - The final packaged JAR was installed in the local Minecraft `mods` directory and hash-matched to

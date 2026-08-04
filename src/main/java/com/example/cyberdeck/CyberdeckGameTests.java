@@ -1,6 +1,12 @@
 package com.example.cyberdeck;
 
 import com.mojang.authlib.GameProfile;
+import com.example.cyberdeck.advertising.AdClip;
+import com.example.cyberdeck.advertising.AdDisplayBlockEntity;
+import com.example.cyberdeck.advertising.AdDisplayPlacement;
+import com.example.cyberdeck.advertising.AdvertisingContent;
+import com.example.cyberdeck.advertising.GeneratedAdSurfaceCatalog;
+import com.example.cyberdeck.advertising.LargeAdSurfaceValidator;
 import com.example.cyberdeck.city.CityWorlds;
 import com.example.cyberdeck.city.CityActorJoinCompatibility;
 import com.example.cyberdeck.city.AmmoCacheBlock;
@@ -28,11 +34,14 @@ import com.example.cyberdeck.effect.CyberwareEffects;
 import com.example.cyberdeck.effect.ChargedJump;
 import com.example.cyberdeck.effect.DoubleJumpGuard;
 import com.example.cyberdeck.economy.Emmies;
+import com.example.cyberdeck.faction.EnemyCombatRole;
+import com.example.cyberdeck.faction.EnemyQuickhack;
 import com.example.cyberdeck.faction.Faction;
 import com.example.cyberdeck.faction.FactionEnemy;
 import com.example.cyberdeck.faction.FactionEntities;
 import com.example.cyberdeck.faction.FactionSpawns;
 import com.example.cyberdeck.faction.FactionSquads;
+import com.example.cyberdeck.faction.HostileQuickhackState;
 import com.example.cyberdeck.faction.TacticalManeuver;
 import com.example.cyberdeck.healing.HealingConsumable;
 import com.example.cyberdeck.healing.HealingState;
@@ -54,6 +63,7 @@ import com.example.cyberdeck.ram.RamAttachments;
 import com.example.cyberdeck.movement.TacticalAction;
 import com.example.cyberdeck.movement.TacticalMovement;
 import com.example.cyberdeck.movement.TacticalMovementState;
+import com.example.cyberdeck.weapon.GrenadeType;
 import com.example.cyberdeck.weapon.GunType;
 import com.example.cyberdeck.weapon.WeaponSounds;
 import com.example.cyberdeck.weapon.GunItem;
@@ -78,6 +88,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.Connection;
@@ -140,10 +151,16 @@ public final class CyberdeckGameTests {
             DISTRICT_PATROL_LOADOUT = register(
                     "district_patrol_loadout", CyberdeckGameTests::districtPatrolLoadout);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            ENEMY_NETRUNNER_CONTRACTS = register(
+                    "enemy_netrunner_contracts", CyberdeckGameTests::enemyNetrunnerContracts);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             GUNSHOT_RADIUS = register("gunshot_radius", CyberdeckGameTests::gunshotRadius);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             WEAPON_SOUND_PROFILES = register(
                     "weapon_sound_profiles", CyberdeckGameTests::weaponSoundProfiles);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            LARGE_AD_SURFACE = register(
+                    "large_ad_surface", CyberdeckGameTests::largeAdSurface);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             MOUNTED_GUN_TARGETING = register(
                     "mounted_gun_targeting", CyberdeckGameTests::mountedGunTargeting);
@@ -790,6 +807,176 @@ public final class CyberdeckGameTests {
         helper.succeed();
     }
 
+    private static void enemyNetrunnerContracts(GameTestHelper helper) {
+        float eastChance = FactionSpawns.rCorpPatrolChance(3_000, 0);
+        float southChance = FactionSpawns.rCorpPatrolChance(0, 3_000);
+        float southeastChance = FactionSpawns.rCorpPatrolChance(3_000, 3_000);
+        float centerChance = FactionSpawns.rCorpPatrolChance(0, 0);
+        float northChance = FactionSpawns.rCorpPatrolChance(0, -3_000);
+        float westChance = FactionSpawns.rCorpPatrolChance(-3_000, 0);
+        helper.assertTrue(eastChance > centerChance && southChance > centerChance
+                        && centerChance > northChance && centerChance > westChance
+                        && southeastChance >= eastChance && southeastChance >= southChance,
+                "R Corp patrol weighting must favor east/south, retain center spawns, and make "
+                        + "north/west rare");
+
+        helper.assertTrue(FactionSquads.rCorpRolePlan(3).equals(List.of(
+                        EnemyCombatRole.ASSAULT,
+                        EnemyCombatRole.SAPPER,
+                        EnemyCombatRole.NETRUNNER)),
+                "three-member R Corp role plan");
+        helper.assertTrue(FactionSquads.rCorpRolePlan(5).equals(List.of(
+                        EnemyCombatRole.ASSAULT,
+                        EnemyCombatRole.ASSAULT,
+                        EnemyCombatRole.ASSAULT,
+                        EnemyCombatRole.SAPPER,
+                        EnemyCombatRole.NETRUNNER)),
+                "five-member R Corp role plan");
+        helper.assertTrue(FactionSquads.rCorpRolePlan(
+                        FactionSquads.REINFORCEMENT_COUNT).equals(List.of(
+                        EnemyCombatRole.ASSAULT,
+                        EnemyCombatRole.ASSAULT,
+                        EnemyCombatRole.SAPPER,
+                        EnemyCombatRole.NETRUNNER)),
+                "four-member R Corp reinforcement role plan");
+
+        ServerLevel level = helper.getLevel();
+        FactionEnemy assault = FactionEntities.FACTION_ENEMY.get().create(
+                level, EntitySpawnReason.EVENT);
+        FactionEnemy sapper = FactionEntities.FACTION_ENEMY.get().create(
+                level, EntitySpawnReason.EVENT);
+        FactionEnemy netrunner = FactionEntities.FACTION_ENEMY.get().create(
+                level, EntitySpawnReason.EVENT);
+        helper.assertTrue(assault != null && sapper != null && netrunner != null,
+                "could not create R Corp loadout fixtures");
+        if (assault == null || sapper == null || netrunner == null) {
+            return;
+        }
+
+        FactionSquads.equipRCorp(
+                assault, EnemyCombatRole.ASSAULT, RandomSource.create(401L), 0);
+        FactionSquads.equipRCorp(
+                sapper, EnemyCombatRole.SAPPER, RandomSource.create(402L), 1);
+        FactionSquads.equipRCorp(
+                netrunner, EnemyCombatRole.NETRUNNER, RandomSource.create(403L), 2);
+
+        helper.assertTrue(assault.isRCorp() && sapper.isRCorp() && netrunner.isRCorp(),
+                "every R Corp role must retain the R Corp archetype");
+        helper.assertTrue(assault.getCombatRole() == EnemyCombatRole.ASSAULT
+                        && sapper.getCombatRole() == EnemyCombatRole.SAPPER
+                        && netrunner.getCombatRole() == EnemyCombatRole.NETRUNNER,
+                "R Corp loadouts must preserve their exact combat roles");
+        helper.assertTrue(assault.getName().getString().equals("R Corp Paramilitary")
+                        && sapper.getName().getString().equals("R Corp Paramilitary")
+                        && netrunner.getName().getString().equals("R Corp Paramilitary"),
+                "all R Corp roles must use the authored paramilitary name");
+        helper.assertTrue(assault.getMainHandItem().is(
+                        WeaponItems.gun(GunType.SARATOGA).get()),
+                "R Corp Assault must carry the Saratoga cyberpunk SMG");
+        helper.assertTrue(sapper.getMainHandItem().is(
+                        WeaponItems.gun(GunType.UNITY).get())
+                        && sapper.getGrenadeType() == GrenadeType.INCENDIARY
+                        && sapper.getGrenadeCount() == 2,
+                "R Corp Sapper must carry a Unity and two incendiary grenades");
+        helper.assertTrue(netrunner.getMainHandItem().is(
+                        WeaponItems.gun(GunType.YUKIMURA).get())
+                        && netrunner.getEnemyQuickhack() == EnemyQuickhack.BLIND,
+                "R Corp Netrunner must carry a Yukimura and know only Blind");
+        for (FactionEnemy member : List.of(assault, sapper, netrunner)) {
+            helper.assertTrue(member.getItemBySlot(EquipmentSlot.CHEST)
+                            .is(WeaponItems.BULLETPROOF_VEST.get())
+                            && member.getItemBySlot(EquipmentSlot.HEAD).isEmpty()
+                            && member.getItemBySlot(EquipmentSlot.LEGS).isEmpty()
+                            && member.getItemBySlot(EquipmentSlot.FEET).isEmpty(),
+                    "R Corp paramilitary must use only the common Bulletproof Vest armor item");
+        }
+
+        HashSet<EnemyQuickhack> hostileAssignments = new HashSet<>();
+        for (int seed = 0; seed < 64; seed++) {
+            EnemyQuickhack quickhack = EnemyQuickhack.randomHostile(RandomSource.create(seed));
+            helper.assertTrue(quickhack != EnemyQuickhack.NONE,
+                    "generic hostile netrunner was assigned the NONE quickhack");
+            hostileAssignments.add(quickhack);
+        }
+        helper.assertTrue(hostileAssignments.equals(java.util.Set.of(
+                        EnemyQuickhack.CRIPPLE_MOVEMENT,
+                        EnemyQuickhack.WEAPON_GLITCH,
+                        EnemyQuickhack.BLIND)),
+                "generic hostile netrunners must draw from exactly the three authored quickhacks");
+        helper.assertValueEqual(FactionEnemy.ENEMY_QUICKHACK_COOLDOWN_TICKS, 15 * 20,
+                "enemy quickhack cooldown ticks");
+        helper.assertValueEqual(EnemyQuickhack.EFFECT_TICKS, 5 * 20,
+                "enemy quickhack effect ticks");
+        long combatTick = level.getGameTime();
+        netrunner.setEnemyQuickhackCooldownEndTick(combatTick);
+        helper.assertTrue(netrunner.isEnemyQuickhackReady()
+                        && !netrunner.canUseConventionalCombat(),
+                "a ready enemy netrunner must prioritize quickhacking over shooting");
+        netrunner.setEnemyQuickhackCooldownEndTick(
+                combatTick + FactionEnemy.ENEMY_QUICKHACK_COOLDOWN_TICKS);
+        helper.assertTrue(!netrunner.isEnemyQuickhackReady()
+                        && netrunner.canUseConventionalCombat(),
+                "an enemy netrunner may shoot only while its quickhack is cooling down");
+
+        ServerPlayer player = makeSurvivalServerPlayerInLevel(helper);
+        long uploadStart = level.getGameTime();
+        HostileQuickhackState.clearPlayer(player);
+        helper.assertTrue(HostileQuickhackState.tryReserve(
+                        player, netrunner, EnemyQuickhack.BLIND, uploadStart + 2L),
+                "the first enemy netrunner must reserve an unoccupied player");
+        helper.assertFalse(HostileQuickhackState.tryReserve(
+                        player, assault, EnemyQuickhack.CRIPPLE_MOVEMENT, uploadStart + 2L),
+                "a second enemy netrunner must not reserve the same player");
+        helper.assertFalse(HostileQuickhackState.complete(
+                        player, netrunner, EnemyQuickhack.BLIND, uploadStart + 1L),
+                "an enemy quickhack must not complete before its upload deadline");
+        helper.assertTrue(HostileQuickhackState.complete(
+                        player, netrunner, EnemyQuickhack.BLIND, uploadStart + 2L),
+                "the reserved enemy quickhack must complete at its upload deadline");
+        MobEffectInstance blind = player.getEffect(MobEffects.BLINDNESS);
+        helper.assertTrue(blind != null && blind.getDuration() == EnemyQuickhack.EFFECT_TICKS,
+                "R Corp Blind must apply for exactly five seconds");
+        helper.assertFalse(HostileQuickhackState.tryReserve(
+                        player, assault, EnemyQuickhack.CRIPPLE_MOVEMENT, uploadStart + 3L),
+                "the hostile quickhack slot must remain occupied for the effect lifetime");
+        HostileQuickhackState.clearPlayer(player);
+
+        ServerPlayer secondPlayer = makeSurvivalServerPlayerInLevel(helper);
+        helper.assertTrue(HostileQuickhackState.tryReserve(
+                        player, netrunner, EnemyQuickhack.BLIND, uploadStart + 4L)
+                        && HostileQuickhackState.tryReserve(
+                        secondPlayer, assault, EnemyQuickhack.CRIPPLE_MOVEMENT, uploadStart + 4L),
+                "different players must accept independent hostile quickhack uploads");
+        HostileQuickhackState.clearPlayer(player);
+        HostileQuickhackState.clearPlayer(secondPlayer);
+
+        ItemStack gunStack = new ItemStack(WeaponItems.gun(GunType.SARATOGA).get());
+        player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, gunStack);
+        GunItem gun = (GunItem) gunStack.getItem();
+        int roundsBefore = gun.magazine(gunStack);
+        WeaponGlitchData.glitchFor(player, 3);
+        helper.assertTrue(WeaponGlitchData.isGlitched(player),
+                "glitchFor must activate the timed player weapon lockout");
+        helper.assertTrue(gun.use(level, player, net.minecraft.world.InteractionHand.MAIN_HAND)
+                        == net.minecraft.world.InteractionResult.FAIL,
+                "a glitched player gun must reject its use action");
+        helper.assertValueEqual(gun.magazine(gunStack), roundsBefore,
+                "a rejected glitched shot must not spend magazine ammunition");
+
+        helper.runAfterDelay(2, () -> helper.assertTrue(WeaponGlitchData.isGlitched(player),
+                "glitchFor expired before its requested duration"));
+        helper.runAfterDelay(3, () -> {
+            helper.assertFalse(WeaponGlitchData.isGlitched(player),
+                    "glitchFor remained active after its requested duration");
+            assault.discard();
+            sapper.discard();
+            netrunner.discard();
+            disconnectTestPlayer(player);
+            disconnectTestPlayer(secondPlayer);
+            helper.succeed();
+        });
+    }
+
     private static void gunshotRadius(GameTestHelper helper) {
         helper.assertTrue(GunshotAlerts.hearingRadius(GunType.MANTIS_BLADE) == 0.0,
                 "Mantis Blade attacks must not emit a gunshot alert");
@@ -821,6 +1008,96 @@ public final class CyberdeckGameTests {
         helper.assertTrue(WeaponSounds.volume(GunType.SNIPER)
                         > WeaponSounds.volume(GunType.SMG),
                 "sniper reports must carry farther than automatic SMG shots");
+        helper.succeed();
+    }
+
+    private static void largeAdSurface(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        Direction facing = Direction.SOUTH;
+        BlockPos relativeAnchor = new BlockPos(2, 2, 2);
+        BlockPos anchor = helper.absolutePos(relativeAnchor);
+        List<BlockPos> targets = LargeAdSurfaceValidator.targets(anchor, facing);
+        for (BlockPos target : targets) {
+            level.setBlock(target.relative(facing.getOpposite()),
+                    Blocks.STONE.defaultBlockState(), 3);
+        }
+
+        helper.assertValueEqual(targets.size(), LargeAdSurfaceValidator.CELL_COUNT,
+                "large display validation must remain bounded to 32 cells");
+        helper.assertTrue(LargeAdSurfaceValidator.validate(level, anchor, facing).valid(),
+                "an unobstructed solid 8 x 4 wall must accept the large display");
+
+        BlockPos firstSupport = anchor.relative(facing.getOpposite());
+        level.setBlock(firstSupport, Blocks.GLASS.defaultBlockState(), 3);
+        helper.assertTrue(LargeAdSurfaceValidator.validate(level, anchor, facing).failure()
+                        == LargeAdSurfaceValidator.Failure.GLASS,
+                "large displays must explicitly reject glass support");
+        level.setBlock(firstSupport, Blocks.STONE.defaultBlockState(), 3);
+
+        BlockPos blockedTarget = targets.get(targets.size() - 1);
+        level.setBlock(blockedTarget, Blocks.STONE.defaultBlockState(), 3);
+        helper.assertTrue(LargeAdSurfaceValidator.validate(level, anchor, facing).failure()
+                        == LargeAdSurfaceValidator.Failure.BLOCKED,
+                "large displays must reject any occupied panel cell");
+        level.setBlock(blockedTarget, Blocks.AIR.defaultBlockState(), 3);
+
+        ServerPlayer player = makeSurvivalServerPlayerInLevel(helper);
+        ItemStack display = new ItemStack(AdvertisingContent.LARGE_AD_DISPLAY.get(), 2);
+        player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, display);
+        BlockPos clickedSupport = anchor.relative(facing.getOpposite());
+        var hit = new net.minecraft.world.phys.BlockHitResult(
+                Vec3.atCenterOf(clickedSupport), facing, clickedSupport, false);
+        var context = new net.minecraft.world.item.context.UseOnContext(
+                level, player, net.minecraft.world.InteractionHand.MAIN_HAND, display, hit);
+        helper.assertTrue(AdvertisingContent.LARGE_AD_DISPLAY.get().useOn(context).consumesAction(),
+                "the large display item must place on a validated wall");
+        helper.assertValueEqual(display.getCount(), 1,
+                "successful large display placement must consume one item");
+
+        int anchors = 0;
+        int panels = 0;
+        for (BlockPos target : targets) {
+            BlockState state = level.getBlockState(target);
+            if (state.is(AdvertisingContent.AD_DISPLAY_ANCHOR.get())) {
+                anchors++;
+            } else if (state.is(AdvertisingContent.AD_DISPLAY_PANEL.get())) {
+                panels++;
+            }
+            helper.assertValueEqual(state.getLightEmission(level, target), 15,
+                    "every large display cell must emit sea-lantern-level light");
+            helper.assertTrue(state.getDestroySpeed(level, target) < 0.0F,
+                    "every large display cell must be unbreakable");
+        }
+        helper.assertValueEqual(anchors, 1,
+                "a large display must create exactly one ticking anchor");
+        helper.assertValueEqual(panels, LargeAdSurfaceValidator.CELL_COUNT - 1,
+                "the remaining large display cells must be inert panels");
+        helper.assertTrue(level.getBlockEntity(anchor) instanceof AdDisplayBlockEntity,
+                "the rendering anchor must own the display block entity");
+        for (AdClip clip : AdClip.values()) {
+            helper.assertTrue(clip.durationTicks() >= 600 && clip.durationTicks() <= 900,
+                    "every advertising clip must last 30 to 45 seconds");
+        }
+        helper.assertTrue(GeneratedAdSurfaceCatalog.size() > 0,
+                "the offline Arnis facade scan must expose generated ad placements");
+
+        int generatedWidth = 12;
+        int generatedHeight = 5;
+        BlockPos generatedAnchor = helper.absolutePos(new BlockPos(2, 8, 2));
+        List<BlockPos> generatedTargets = LargeAdSurfaceValidator.targets(
+                generatedAnchor, facing, generatedWidth, generatedHeight);
+        for (BlockPos target : generatedTargets) {
+            level.setBlock(target.relative(facing.getOpposite()),
+                    Blocks.STONE.defaultBlockState(), 3);
+        }
+        helper.assertTrue(AdDisplayPlacement.place(
+                        level, generatedAnchor, facing, generatedWidth, generatedHeight),
+                "catalog-driven placement must support variable large rectangles");
+        helper.assertTrue(level.getBlockEntity(generatedAnchor)
+                        instanceof AdDisplayBlockEntity generated
+                        && generated.displayWidth() == generatedWidth
+                        && generated.displayHeight() == generatedHeight,
+                "variable dimensions must be stored on the rendering anchor");
         helper.succeed();
     }
 
@@ -2981,6 +3258,7 @@ public final class CyberdeckGameTests {
         registerInstance(event, "city_layer_classification", CITY_LAYER_CLASSIFICATION, data);
         registerInstance(event, "cluster_plan", CLUSTER_PLAN, data);
         registerInstance(event, "district_patrol_loadout", DISTRICT_PATROL_LOADOUT, data);
+        registerInstance(event, "enemy_netrunner_contracts", ENEMY_NETRUNNER_CONTRACTS, data);
         registerInstance(event, "gunshot_radius", GUNSHOT_RADIUS, data);
         registerInstance(event, "mounted_gun_targeting", MOUNTED_GUN_TARGETING, data);
         registerInstance(event, "roadside_vehicle_fuel", ROADSIDE_VEHICLE_FUEL, data);
@@ -3013,6 +3291,7 @@ public final class CyberdeckGameTests {
                 true,
                 8);
         registerInstance(event, "detection_line_of_sight", DETECTION_LINE_OF_SIGHT, arena);
+        registerInstance(event, "large_ad_surface", LARGE_AD_SURFACE, arena);
         registerInstance(event, "detection_crouch", DETECTION_CROUCH, arena);
         registerInstance(event, "detection_decay", DETECTION_DECAY, arena);
         registerInstance(event, "cyberpsycho_balance", CYBERPSYCHO_BALANCE, data);

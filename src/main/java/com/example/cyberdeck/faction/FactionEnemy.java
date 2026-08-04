@@ -28,7 +28,6 @@ import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal;
-import net.minecraft.world.entity.ai.goal.MeleeAttackGoal;
 import net.minecraft.world.entity.ai.goal.RandomLookAroundGoal;
 import net.minecraft.world.entity.ai.goal.RangedAttackGoal;
 import net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal;
@@ -103,8 +102,27 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
             SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Integer> DATA_SKIN =
             SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Integer> DATA_ARCHETYPE =
+            SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Integer> DATA_COMBAT_ROLE =
+            SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Integer> DATA_ENEMY_QUICKHACK =
+            SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Integer> DATA_ENEMY_QUICKHACK_TARGET =
+            SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Long> DATA_ENEMY_QUICKHACK_START =
+            SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.LONG);
+    private static final EntityDataAccessor<Long> DATA_ENEMY_QUICKHACK_END =
+            SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.LONG);
+    private static final EntityDataAccessor<Long> DATA_ENEMY_QUICKHACK_COOLDOWN_END =
+            SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.LONG);
 
     public static final int TACTICAL_SKIN_COUNT = 8;
+    public static final int R_CORP_SKIN_COUNT = 8;
+    public static final int ENEMY_QUICKHACK_UPLOAD_TICKS = 3 * 20;
+    public static final int ENEMY_QUICKHACK_COOLDOWN_TICKS = 15 * 20;
+    public static final double ENEMY_QUICKHACK_RANGE = 24.0;
+    private static final double ENEMY_QUICKHACK_CONTINUE_RANGE = 32.0;
     public static final double MISSION_DETECTION_RANGE = 24.0;
     public static final double AMBIENT_DETECTION_RANGE = 14.0;
     private static final double MISSION_ALERT_RADIUS = 20.0;
@@ -226,6 +244,13 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         entityData.define(DATA_AMBIENT_PATROL, false);
         entityData.define(DATA_DISTRICT, -1);
         entityData.define(DATA_SKIN, 0);
+        entityData.define(DATA_ARCHETYPE, EnemyArchetype.CORPORATE.ordinal());
+        entityData.define(DATA_COMBAT_ROLE, EnemyCombatRole.STANDARD.ordinal());
+        entityData.define(DATA_ENEMY_QUICKHACK, EnemyQuickhack.NONE.ordinal());
+        entityData.define(DATA_ENEMY_QUICKHACK_TARGET, -1);
+        entityData.define(DATA_ENEMY_QUICKHACK_START, -1L);
+        entityData.define(DATA_ENEMY_QUICKHACK_END, -1L);
+        entityData.define(DATA_ENEMY_QUICKHACK_COOLDOWN_END, 0L);
     }
 
     @Override
@@ -235,6 +260,7 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         // Grenade lob takes priority over shooting when a grenade is carried and in range.
         this.goalSelector.addGoal(0, new WeaponMalfunctionGoal(this));
         this.goalSelector.addGoal(1, new ThrowGrenadeGoal(this));
+        this.goalSelector.addGoal(1, new NetrunnerCoverGoal(this));
         // No MOVE/LOOK flags: tactical impulses can happen while RangedAttackGoal keeps aiming and
         // firing. The entity owns validation and physics so reload/glitch can cancel immediately.
         this.goalSelector.addGoal(2, new TacticalManeuverGoal(this));
@@ -243,10 +269,11 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         // and a melee-priority attack goal (faster speed so it sprints to close the gap) sits above
         // the ranged slot for melee holders. The plain melee goal remains as a fallback finisher.
         this.goalSelector.addGoal(2, new FilteredRangedAttackGoal(
-                this, 1.0, 20, 15.0f, this::isGunArmed));
+                this, 1.0, 20, 15.0f, this::canUseRangedPositioning));
         this.goalSelector.addGoal(2, new FilteredMeleeAttackGoal(
-                this, 1.35, true, this::isMeleeArmed));
-        this.goalSelector.addGoal(3, new MeleeAttackGoal(this, 1.0, false));
+                this, 1.35, true, this::isMeleeArmedForCombat));
+        this.goalSelector.addGoal(3, new FilteredMeleeAttackGoal(
+                this, 1.0, false, this::canUseConventionalCombat));
         // Authored mission routes take precedence; ordinary squads retain their bounded area patrol.
         this.goalSelector.addGoal(6, new PatrolRouteGoal(this, 0.8));
         this.goalSelector.addGoal(7, new PatrolAreaGoal(
@@ -300,7 +327,103 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
     }
 
     public void setSkinVariant(int variant) {
-        this.getEntityData().set(DATA_SKIN, Math.floorMod(variant, TACTICAL_SKIN_COUNT));
+        int count = isRCorp() ? R_CORP_SKIN_COUNT : TACTICAL_SKIN_COUNT;
+        this.getEntityData().set(DATA_SKIN, Math.floorMod(variant, count));
+    }
+
+    public EnemyArchetype getArchetype() {
+        return EnemyArchetype.byOrdinal(this.getEntityData().get(DATA_ARCHETYPE));
+    }
+
+    public void setArchetype(EnemyArchetype archetype) {
+        this.getEntityData().set(DATA_ARCHETYPE, archetype.ordinal());
+        setSkinVariant(getSkinVariant());
+    }
+
+    public boolean isRCorp() {
+        return getArchetype() == EnemyArchetype.R_CORP;
+    }
+
+    public EnemyCombatRole getCombatRole() {
+        return EnemyCombatRole.byOrdinal(this.getEntityData().get(DATA_COMBAT_ROLE));
+    }
+
+    public void setCombatRole(EnemyCombatRole role) {
+        this.getEntityData().set(DATA_COMBAT_ROLE, role.ordinal());
+        if (role != EnemyCombatRole.NETRUNNER) {
+            setEnemyQuickhack(EnemyQuickhack.NONE);
+            cancelEnemyQuickhackUpload(false);
+        }
+    }
+
+    public boolean isNetrunner() {
+        return getCombatRole() == EnemyCombatRole.NETRUNNER;
+    }
+
+    public EnemyQuickhack getEnemyQuickhack() {
+        return EnemyQuickhack.byOrdinal(this.getEntityData().get(DATA_ENEMY_QUICKHACK));
+    }
+
+    public void setEnemyQuickhack(EnemyQuickhack quickhack) {
+        this.getEntityData().set(DATA_ENEMY_QUICKHACK, quickhack.ordinal());
+    }
+
+    public int getEnemyQuickhackTargetId() {
+        return this.getEntityData().get(DATA_ENEMY_QUICKHACK_TARGET);
+    }
+
+    public long getEnemyQuickhackStartTick() {
+        return this.getEntityData().get(DATA_ENEMY_QUICKHACK_START);
+    }
+
+    public long getEnemyQuickhackEndTick() {
+        return this.getEntityData().get(DATA_ENEMY_QUICKHACK_END);
+    }
+
+    public long getEnemyQuickhackCooldownEndTick() {
+        return this.getEntityData().get(DATA_ENEMY_QUICKHACK_COOLDOWN_END);
+    }
+
+    public void setEnemyQuickhackCooldownEndTick(long tick) {
+        this.getEntityData().set(DATA_ENEMY_QUICKHACK_COOLDOWN_END, Math.max(0L, tick));
+    }
+
+    public boolean isEnemyQuickhackUploading() {
+        return isNetrunner()
+                && getEnemyQuickhackTargetId() >= 0
+                && getEnemyQuickhackStartTick() >= 0L
+                && this.level().getGameTime() < getEnemyQuickhackEndTick();
+    }
+
+    public boolean isEnemyQuickhackReady() {
+        return isNetrunner() && getEnemyQuickhack() != EnemyQuickhack.NONE
+                && !isEnemyQuickhackUploading()
+                && this.level().getGameTime() >= getEnemyQuickhackCooldownEndTick();
+    }
+
+    /** Netrunners reposition while ready, but may only actually fire during their hack cooldown. */
+    private boolean canUseRangedPositioning() {
+        return isGunArmed() && !isEnemyQuickhackUploading();
+    }
+
+    public boolean canUseConventionalCombat() {
+        return !isNetrunner()
+                || !isEnemyQuickhackUploading()
+                && this.level().getGameTime() < getEnemyQuickhackCooldownEndTick();
+    }
+
+    private boolean isMeleeArmedForCombat() {
+        return isMeleeArmed() && canUseConventionalCombat();
+    }
+
+    public boolean isCombatAlly(FactionEnemy other) {
+        if (other == null) {
+            return false;
+        }
+        if (isRCorp() || other.isRCorp()) {
+            return isRCorp() && other.isRCorp();
+        }
+        return getFaction() == other.getFaction();
     }
 
     public UUID getAlertGroupId() {
@@ -347,7 +470,14 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         if (isTraumaTeam()) {
             return Component.translatable("entity.cyberdeck.trauma_team_responder");
         }
+        if (isRCorp()) {
+            return Component.translatable("entity.cyberdeck.r_corp_paramilitary");
+        }
         District district = getDistrict();
+        if (isNetrunner() && district != null) {
+            return Component.translatable(
+                    "entity.cyberdeck.faction_enemy.netrunner", district.code());
+        }
         return district == null
                 ? super.getName()
                 : Component.translatable("entity.cyberdeck.faction_enemy.district", district.code());
@@ -539,12 +669,14 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
      * No-op if it has no grenades left or isn't on the server.
      */
     public void throwGrenadeAt(LivingEntity target) {
-        if (target instanceof CityNpc || isWeaponGlitching() || grenadeCount <= 0
+        if (target instanceof CityNpc || isWeaponGlitching() || !canUseConventionalCombat()
+                || grenadeCount <= 0
                 || !(this.level() instanceof ServerLevel level)) {
             return;
         }
         // Don't lob into a teammate: skip the throw if an ally sits in the grenade's flight path.
-        if (allyInLineOfFire(target.getBoundingBox().getCenter())) {
+        if (allyInLineOfFire(target.getBoundingBox().getCenter())
+                || hasCombatAllyNear(target.getBoundingBox().getCenter(), grenadeType.radius())) {
             return;
         }
         var grenadeItem = grenadeType == com.example.cyberdeck.weapon.GrenadeType.POISON
@@ -572,6 +704,7 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
             return;
         }
         tickWeaponGlitch(level);
+        tickEnemyQuickhack(level);
         if (!isWeaponGlitching()) {
             tickGunReload(level);
         }
@@ -590,6 +723,104 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         // --- BEGIN throwable-distraction hook (self-contained; see distraction block below) ---
         applyDistractionLook();
         // --- END throwable-distraction hook ---
+    }
+
+    private void tickEnemyQuickhack(ServerLevel level) {
+        if (!isNetrunner() || getEnemyQuickhack() == EnemyQuickhack.NONE
+                || !isTriggered() || isWeaponGlitching()) {
+            cancelEnemyQuickhackUpload(isWeaponGlitching());
+            return;
+        }
+
+        long now = level.getGameTime();
+        if (getEnemyQuickhackTargetId() >= 0) {
+            Entity entity = level.getEntity(getEnemyQuickhackTargetId());
+            if (!(entity instanceof net.minecraft.server.level.ServerPlayer target)
+                    || !isValidQuickhackTarget(target, ENEMY_QUICKHACK_CONTINUE_RANGE)
+                    || !HostileQuickhackState.isReservedBy(
+                            target, getUUID(), getEnemyQuickhack())) {
+                cancelEnemyQuickhackUpload(true);
+                return;
+            }
+            if (now < getEnemyQuickhackEndTick()) {
+                return;
+            }
+            boolean completed = HostileQuickhackState.complete(
+                    target, this, getEnemyQuickhack(), now);
+            clearEnemyQuickhackUploadData();
+            setEnemyQuickhackCooldownEndTick(
+                    now + (completed ? ENEMY_QUICKHACK_COOLDOWN_TICKS : 20L));
+            return;
+        }
+
+        if (now < getEnemyQuickhackCooldownEndTick()) {
+            return;
+        }
+        net.minecraft.server.level.ServerPlayer target = chooseQuickhackTarget(level);
+        if (target == null) {
+            return;
+        }
+        long uploadEnd = now + ENEMY_QUICKHACK_UPLOAD_TICKS;
+        if (!HostileQuickhackState.tryReserve(target, this, getEnemyQuickhack(), uploadEnd)) {
+            setEnemyQuickhackCooldownEndTick(now + 20L);
+            return;
+        }
+        this.setTarget(target);
+        endTacticalManeuver();
+        this.getEntityData().set(DATA_ENEMY_QUICKHACK_TARGET, target.getId());
+        this.getEntityData().set(DATA_ENEMY_QUICKHACK_START, now);
+        this.getEntityData().set(DATA_ENEMY_QUICKHACK_END, uploadEnd);
+        level.playSound(null, this, SoundEvents.BEACON_POWER_SELECT,
+                SoundSource.HOSTILE, 0.75F, 1.7F);
+    }
+
+    private net.minecraft.server.level.ServerPlayer chooseQuickhackTarget(ServerLevel level) {
+        List<net.minecraft.server.level.ServerPlayer> candidates = new java.util.ArrayList<>();
+        if (this.getTarget() instanceof net.minecraft.server.level.ServerPlayer primary) {
+            candidates.add(primary);
+        }
+        for (net.minecraft.server.level.ServerPlayer player : level.players()) {
+            if (!candidates.contains(player)) {
+                candidates.add(player);
+            }
+        }
+        candidates.sort(java.util.Comparator.comparingDouble(this::distanceToSqr));
+        for (net.minecraft.server.level.ServerPlayer candidate : candidates) {
+            if (isValidQuickhackTarget(candidate, ENEMY_QUICKHACK_RANGE)
+                    && this.hasLineOfSight(candidate)
+                    && !HostileQuickhackState.isOccupied(candidate)) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    private boolean isValidQuickhackTarget(
+            net.minecraft.server.level.ServerPlayer player, double range) {
+        return player.isAlive() && !player.isCreative() && !player.isSpectator()
+                && player.level() == this.level()
+                && this.distanceToSqr(player) <= range * range
+                && this.canAttack(player);
+    }
+
+    public void cancelEnemyQuickhackUpload(boolean shortCooldown) {
+        if (getEnemyQuickhackTargetId() >= 0 && this.level() instanceof ServerLevel level
+                && level.getEntity(getEnemyQuickhackTargetId())
+                        instanceof net.minecraft.server.level.ServerPlayer target) {
+            HostileQuickhackState.cancelReservation(target, getUUID());
+        } else {
+            HostileQuickhackState.cancelForSource(getUUID());
+        }
+        clearEnemyQuickhackUploadData();
+        if (shortCooldown && this.level() instanceof ServerLevel level) {
+            setEnemyQuickhackCooldownEndTick(level.getGameTime() + 20L);
+        }
+    }
+
+    private void clearEnemyQuickhackUploadData() {
+        this.getEntityData().set(DATA_ENEMY_QUICKHACK_TARGET, -1);
+        this.getEntityData().set(DATA_ENEMY_QUICKHACK_START, -1L);
+        this.getEntityData().set(DATA_ENEMY_QUICKHACK_END, -1L);
     }
 
     private boolean tickAmbientRetirement(ServerLevel level) {
@@ -643,10 +874,9 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         if (isTacticalManeuvering() || isWeaponGlitching() || !this.onGround()) {
             return;
         }
-        Faction faction = getFaction();
         List<FactionEnemy> allies = level.getEntitiesOfClass(FactionEnemy.class,
                 this.getBoundingBox().inflate(TEAMMATE_SPACING),
-                e -> e != this && e.isAlive() && e.getFaction() == faction);
+                e -> e != this && e.isAlive() && isCombatAlly(e));
         if (allies.isEmpty()) {
             return;
         }
@@ -684,6 +914,14 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         return target != null && allyInLineOfFire(target.getBoundingBox().getCenter());
     }
 
+    public boolean hasCombatAllyNear(Vec3 position, double radius) {
+        return !this.level().getEntitiesOfClass(
+                FactionEnemy.class,
+                new AABB(position, position).inflate(radius),
+                enemy -> enemy != this && enemy.isAlive() && isCombatAlly(enemy)
+                        && enemy.distanceToSqr(position) <= radius * radius).isEmpty();
+    }
+
     /**
      * True if a same-faction ally sits inside the corridor between this soldier's eyes and
      * {@code targetPos}. Used to withhold shooting and grenades that would hit a teammate.
@@ -696,11 +934,10 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
             return false;
         }
         Vec3 dir = toTarget.scale(1.0 / shotLength);
-        Faction faction = getFaction();
         AABB corridor = new AABB(eye, targetPos).inflate(FRIENDLY_FIRE_CLEARANCE);
         List<FactionEnemy> allies = this.level().getEntitiesOfClass(
                 FactionEnemy.class, corridor,
-                e -> e != this && e.isAlive() && e.getFaction() == faction);
+                e -> e != this && e.isAlive() && isCombatAlly(e));
         for (FactionEnemy ally : allies) {
             Vec3 toAlly = ally.getBoundingBox().getCenter().subtract(eye);
             double along = toAlly.dot(dir);
@@ -851,6 +1088,7 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
                 && this.canAttack(target)
                 && !this.isWeaponGlitching()
                 && !this.isGunReloading()
+                && this.canUseConventionalCombat()
                 && this.onGround()
                 && !this.horizontalCollision
                 && !this.isPassenger()
@@ -993,6 +1231,7 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
     /** Starts (or restarts) a visible, combat-blocking Weapon Glitch on the held weapon. */
     public void beginWeaponGlitch(ServerLevel level) {
         endTacticalManeuver();
+        cancelEnemyQuickhackUpload(true);
         clearGunReload();
 
         boolean canSwitchToSecondary = !isUsingSecondary()
@@ -1156,6 +1395,15 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
      * decays to zero, it stands down and returns to its peaceful patrol.
      */
     private void accumulateDetection(ServerLevel level) {
+        // Cover is an intentional part of the netrunner's upload. Keep the fight engaged through
+        // the following cooldown so breaking sight does not make it forget the player on the exact
+        // tick the upload completes, before it gets a chance to use its firearm.
+        if (isNetrunner() && isTriggered()
+                && (isEnemyQuickhackUploading()
+                || level.getGameTime() < getEnemyQuickhackCooldownEndTick())) {
+            setDetection(DETECTION_THRESHOLD);
+            return;
+        }
         Player exposedPlayer = null;
         double bestExposureScore = Double.MAX_VALUE;
         double detectionRange = detectionRange();
@@ -1211,7 +1459,8 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
                 setDetection(detection);
             }
             // A triggered soldier that has fully lost its quarry stands down and returns to peace.
-            if (detection <= 0 && isTriggered() && !hasVisibleHostileTarget()) {
+            if (detection <= 0 && isTriggered() && !isEnemyQuickhackUploading()
+                    && !hasVisibleHostileTarget()) {
                 standDown();
             }
         }
@@ -1244,6 +1493,7 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
 
     /** Returns a fully-decayed soldier to its peaceful patrol state (clears aggro + target). */
     private void standDown() {
+        cancelEnemyQuickhackUpload(false);
         setTriggered(false);
         this.setTarget(null);
         this.setAggressive(false);
@@ -1259,11 +1509,10 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         this.setTarget(target);
         level.playSound(null, this, SoundEvents.PILLAGER_CELEBRATE, SoundSource.HOSTILE, 1.0f, 0.9f);
 
-        Faction faction = getFaction();
         double alertRadius = isAmbientPatrol() ? AMBIENT_ALERT_RADIUS : MISSION_ALERT_RADIUS;
         List<FactionEnemy> allies = level.getEntitiesOfClass(FactionEnemy.class,
                 new AABB(this.blockPosition()).inflate(alertRadius),
-                e -> e != this && e.isAlive() && e.getFaction() == faction
+                e -> e != this && e.isAlive() && isCombatAlly(e)
                         && e.isAmbientPatrol() == isAmbientPatrol()
                         && sharesAlertGroup(e)
                         && !e.isTriggered());
@@ -1285,7 +1534,8 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         if (!isTriggered() || target != this.getTarget()) {
             return;
         }
-        if (isWeaponGlitching() || !this.hasLineOfSight(target)) {
+        if (isWeaponGlitching() || !canUseConventionalCombat()
+                || !this.hasLineOfSight(target)) {
             return;
         }
         // Hold fire if a squadmate is standing in the shot corridor (friendly-fire prevention).
@@ -1317,6 +1567,7 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
     public boolean doHurtTarget(ServerLevel level, Entity target) {
         return !(target instanceof CityNpc)
                 && !isWeaponGlitching()
+                && canUseConventionalCombat()
                 && super.doHurtTarget(level, target);
     }
 
@@ -1362,6 +1613,10 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
             output.putString("District", district.name());
         }
         output.putInt("SkinVariant", getSkinVariant());
+        output.putString("EnemyArchetype", getArchetype().id());
+        output.putString("CombatRole", getCombatRole().id());
+        output.putString("EnemyQuickhack", getEnemyQuickhack().id());
+        output.putLong("EnemyQuickhackCooldownEnd", getEnemyQuickhackCooldownEndTick());
         if (!ballisticTier.isEmpty()) {
             output.putString("BallisticTier", ballisticTier);
         }
@@ -1431,9 +1686,24 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         if (districtId.isEmpty()) {
             assignDistrictFromPosition();
         }
+        setArchetype(EnemyArchetype.byId(
+                input.getStringOr("EnemyArchetype", EnemyArchetype.CORPORATE.id())));
+        setCombatRole(EnemyCombatRole.byId(
+                input.getStringOr("CombatRole", EnemyCombatRole.STANDARD.id())));
+        EnemyQuickhack savedQuickhack = EnemyQuickhack.byId(
+                input.getStringOr("EnemyQuickhack", EnemyQuickhack.NONE.id()));
+        if (isNetrunner() && savedQuickhack == EnemyQuickhack.NONE) {
+            savedQuickhack = isRCorp()
+                    ? EnemyQuickhack.BLIND : EnemyQuickhack.CRIPPLE_MOVEMENT;
+        }
+        setEnemyQuickhack(isNetrunner() ? savedQuickhack : EnemyQuickhack.NONE);
+        setEnemyQuickhackCooldownEndTick(
+                input.getLongOr("EnemyQuickhackCooldownEnd", 0L));
+        clearEnemyQuickhackUploadData();
         setSkinVariant(input.getInt("SkinVariant").isPresent()
                 ? input.getIntOr("SkinVariant", 0)
-                : Math.floorMod(getUUID().hashCode(), TACTICAL_SKIN_COUNT));
+                : Math.floorMod(getUUID().hashCode(),
+                        isRCorp() ? R_CORP_SKIN_COUNT : TACTICAL_SKIN_COUNT));
         String alertGroup = input.getStringOr("AlertGroup", "");
         if (alertGroup.isEmpty()) {
             alertGroup = this.getPersistentData().getString(LEGACY_MISSION_INSTANCE_TAG)
@@ -1501,6 +1771,14 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
     @Override
     public boolean shouldBeSaved() {
         return !isAmbientPatrol() && super.shouldBeSaved();
+    }
+
+    @Override
+    public void onRemoval(Entity.RemovalReason reason) {
+        if (!this.level().isClientSide()) {
+            HostileQuickhackState.cancelForSource(getUUID());
+        }
+        super.onRemoval(reason);
     }
 
     public static String encodePatrolRoute(List<BlockPos> route) {

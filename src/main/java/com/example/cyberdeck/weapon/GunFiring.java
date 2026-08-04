@@ -1,5 +1,6 @@
 package com.example.cyberdeck.weapon;
 
+import com.example.cyberdeck.WeaponGlitchData;
 import com.example.cyberdeck.effect.SandevistanMechanics;
 import com.example.cyberdeck.defense.ExplosiveCanisterBlock;
 import com.example.cyberdeck.defense.KangTaoTurret;
@@ -44,6 +45,9 @@ public final class GunFiring {
      * caller is responsible for ammo and cooldown; this method only resolves the shot.
      */
     public static void fire(ServerLevel level, LivingEntity shooter, GunType gun) {
+        if (WeaponGlitchData.isGlitched(shooter)) {
+            return;
+        }
         Vec3 direction = shooter.getViewVector(1.0F).normalize();
         Vec3 origin = shooter.getEyePosition();
         fire(level, shooter, gun, origin, direction, false);
@@ -59,7 +63,7 @@ public final class GunFiring {
             GunType gun,
             Vec3 origin,
             Vec3 direction) {
-        if (direction.lengthSqr() < 1.0E-8) {
+        if (WeaponGlitchData.isGlitched(shooter) || direction.lengthSqr() < 1.0E-8) {
             return;
         }
         fire(level, shooter, gun, origin, direction.normalize(), true);
@@ -274,6 +278,11 @@ public final class GunFiring {
                 || sharesMountedVehicle(shooter, entity)
                 || !entity.isAlive()
                 || entity.isSpectator()) {
+            return false;
+        }
+        if (shooter instanceof FactionEnemy soldier
+                && living instanceof FactionEnemy ally
+                && soldier.isCombatAlly(ally)) {
             return false;
         }
         if (shooter instanceof KangTaoTurret turret) {

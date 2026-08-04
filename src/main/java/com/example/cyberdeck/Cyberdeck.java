@@ -1,5 +1,6 @@
 package com.example.cyberdeck;
 
+import com.example.cyberdeck.advertising.AdvertisingContent;
 import com.example.cyberdeck.cyberware.CyberwareAttachments;
 import com.example.cyberdeck.cyberware.CyberwareItems;
 import com.example.cyberdeck.defense.DefenseContent;
@@ -35,8 +36,9 @@ import com.example.cyberdeck.wanted.WantedState;
 import com.example.cyberdeck.wanted.WantedGameTests;
 import com.example.cyberdeck.wanted.WantedSystem;
 import com.mojang.logging.LogUtils;
-import dev.modernity.neoncity.ProjectMoonCityModule;
+import dev.modernity.neoncity.ArnisLightingBlocks;
 import dev.modernity.neoncity.MissionBlocks;
+import dev.modernity.neoncity.ProjectMoonCityModule;
 import dev.modernity.neoncity.QuicktimeBlocks;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
@@ -65,6 +67,7 @@ public class Cyberdeck {
         LifepathState.ATTACHMENT_TYPES.register(modEventBus);
         VehicleQuickhackAttachments.ATTACHMENT_TYPES.register(modEventBus);
         DefenseContent.register(modEventBus);
+        AdvertisingContent.register(modEventBus);
 
         // Guns, ammo, grenades, ballistic armor and their entities.
         WeaponItems.ITEMS.register(modEventBus);
@@ -82,6 +85,7 @@ public class Cyberdeck {
         LifepathGameTests.bootstrap(modEventBus);
         QuicktimeBlocks.register(modEventBus);
         MissionBlocks.register(modEventBus);
+        ArnisLightingBlocks.register(modEventBus);
         ProjectMoonCityModule.bootstrap(modEventBus);
         CityLootBlocks.register(modEventBus);
 
@@ -90,6 +94,7 @@ public class Cyberdeck {
         modEventBus.addListener(CyberwareItems::addToTab);
         modEventBus.addListener(WeaponItems::addToTab);
         modEventBus.addListener(DefenseContent::addToTab);
+        modEventBus.addListener(AdvertisingContent::addToTab);
         modEventBus.addListener(DefenseContent::registerTests);
         modEventBus.addListener(Cyberdeck::registerEntityAttributes);
 

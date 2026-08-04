@@ -5113,6 +5113,16 @@ public final class ExampleGameTests {
                         && deferredBannerLedger.pendingBanners().isEmpty(),
                 "deferred banner ledger did not preserve bounded queue identity");
 
+        long decoratedChunk = ChunkPos.pack(7, -4);
+        helper.assertTrue(
+                !deferredBannerLedger.markAdDecorated(decoratedChunk)
+                        && deferredBannerLedger.markGenerated(
+                                decoratedChunk, NeonCityGenerator.GENERATOR_FINGERPRINT)
+                        && deferredBannerLedger.markAdDecorated(decoratedChunk)
+                        && deferredBannerLedger.isAdDecorated(decoratedChunk)
+                        && !deferredBannerLedger.markAdDecorated(decoratedChunk),
+                "animated-ad migration ledger accepted an unstamped chunk or lost idempotence");
+
         BlockPos bannerSupport = new BlockPos(
                 chunk.getMinBlockX() + 8, minY + 20, chunk.getMinBlockZ() + 8);
         helper.getLevel().setBlock(bannerSupport, Blocks.STONE.defaultBlockState(), Block.UPDATE_ALL);

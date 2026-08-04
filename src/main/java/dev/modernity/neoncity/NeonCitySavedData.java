@@ -44,7 +44,10 @@ public final class NeonCitySavedData extends SavedData {
                             .forGetter(NeonCitySavedData::serializedChunks),
                     DEFERRED_BANNER_CODEC.listOf()
                             .optionalFieldOf("pending_banners", List.of())
-                            .forGetter(NeonCitySavedData::serializedBanners)
+                            .forGetter(NeonCitySavedData::serializedBanners),
+                    Codec.LONG.listOf()
+                            .optionalFieldOf("ad_decorated_chunks", List.of())
+                            .forGetter(NeonCitySavedData::serializedAdDecoratedChunks)
             ).apply(instance, NeonCitySavedData::new));
 
     public static final SavedDataType<NeonCitySavedData> TYPE = new SavedDataType<>(
@@ -57,6 +60,7 @@ public final class NeonCitySavedData extends SavedData {
     private final String generatorFingerprint;
     private final Set<Long> generatedChunks;
     private final LinkedHashMap<Long, DeferredBanner> pendingBanners;
+    private final Set<Long> adDecoratedChunks;
 
     public record DeferredBanner(
             int x, int y, int z, int outwardOrdinal, int districtOrdinal) {
@@ -66,14 +70,16 @@ public final class NeonCitySavedData extends SavedData {
     }
 
     public NeonCitySavedData() {
-        this(FORMAT_VERSION, NeonCityGenerator.generatorFingerprint(), List.of(), List.of());
+        this(FORMAT_VERSION, NeonCityGenerator.generatorFingerprint(),
+                List.of(), List.of(), List.of());
     }
 
     private NeonCitySavedData(
             int formatVersion,
             String generatorFingerprint,
             List<Long> generatedChunks,
-            List<DeferredBanner> pendingBanners) {
+            List<DeferredBanner> pendingBanners,
+            List<Long> adDecoratedChunks) {
         this.formatVersion = formatVersion;
         this.generatorFingerprint = generatorFingerprint;
         this.generatedChunks = new HashSet<>(generatedChunks);
@@ -81,6 +87,8 @@ public final class NeonCitySavedData extends SavedData {
         for (DeferredBanner banner : pendingBanners) {
             this.pendingBanners.put(banner.key(), banner);
         }
+        this.adDecoratedChunks = new HashSet<>(adDecoratedChunks);
+        this.adDecoratedChunks.retainAll(this.generatedChunks);
     }
 
     public int formatVersion() {
@@ -109,6 +117,18 @@ public final class NeonCitySavedData extends SavedData {
 
     public Set<Long> snapshot() {
         return Set.copyOf(generatedChunks);
+    }
+
+    public boolean isAdDecorated(long chunkKey) {
+        return adDecoratedChunks.contains(chunkKey);
+    }
+
+    public boolean markAdDecorated(long chunkKey) {
+        if (!generatedChunks.contains(chunkKey) || !adDecoratedChunks.add(chunkKey)) {
+            return false;
+        }
+        setDirty();
+        return true;
     }
 
     public List<DeferredBanner> pendingBanners() {
@@ -143,5 +163,11 @@ public final class NeonCitySavedData extends SavedData {
 
     private List<DeferredBanner> serializedBanners() {
         return List.copyOf(pendingBanners.values());
+    }
+
+    private List<Long> serializedAdDecoratedChunks() {
+        ArrayList<Long> chunks = new ArrayList<>(adDecoratedChunks);
+        chunks.sort(Long::compare);
+        return chunks;
     }
 }
