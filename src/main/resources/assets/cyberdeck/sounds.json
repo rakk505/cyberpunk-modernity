@@ -1,0 +1,50 @@
+{
+  "weapon.pistol.fire": {
+    "subtitle": "subtitles.cyberdeck.weapon.pistol",
+    "sounds": [
+      { "name": "cyberdeck:weapons/pistol_1", "attenuation_distance": 80 },
+      { "name": "cyberdeck:weapons/pistol_2", "attenuation_distance": 80 },
+      { "name": "cyberdeck:weapons/pistol_3", "attenuation_distance": 80 }
+    ]
+  },
+  "weapon.heavy_pistol.fire": {
+    "subtitle": "subtitles.cyberdeck.weapon.heavy_pistol",
+    "sounds": [
+      { "name": "cyberdeck:weapons/heavy_pistol_1", "attenuation_distance": 96 },
+      { "name": "cyberdeck:weapons/heavy_pistol_2", "attenuation_distance": 96 },
+      { "name": "cyberdeck:weapons/heavy_pistol_3", "attenuation_distance": 96 }
+    ]
+  },
+  "weapon.smg.fire": {
+    "subtitle": "subtitles.cyberdeck.weapon.smg",
+    "sounds": [
+      { "name": "cyberdeck:weapons/smg_1", "attenuation_distance": 96 },
+      { "name": "cyberdeck:weapons/smg_2", "attenuation_distance": 96 },
+      { "name": "cyberdeck:weapons/smg_3", "attenuation_distance": 96 }
+    ]
+  },
+  "weapon.rifle.fire": {
+    "subtitle": "subtitles.cyberdeck.weapon.rifle",
+    "sounds": [
+      { "name": "cyberdeck:weapons/rifle_1", "attenuation_distance": 128 },
+      { "name": "cyberdeck:weapons/rifle_2", "attenuation_distance": 128 },
+      { "name": "cyberdeck:weapons/rifle_3", "attenuation_distance": 128 }
+    ]
+  },
+  "weapon.shotgun.fire": {
+    "subtitle": "subtitles.cyberdeck.weapon.shotgun",
+    "sounds": [
+      { "name": "cyberdeck:weapons/shotgun_1", "attenuation_distance": 112 },
+      { "name": "cyberdeck:weapons/shotgun_2", "attenuation_distance": 112 },
+      { "name": "cyberdeck:weapons/shotgun_3", "attenuation_distance": 112 }
+    ]
+  },
+  "weapon.sniper.fire": {
+    "subtitle": "subtitles.cyberdeck.weapon.sniper",
+    "sounds": [
+      { "name": "cyberdeck:weapons/sniper_1", "attenuation_distance": 160 },
+      { "name": "cyberdeck:weapons/sniper_2", "attenuation_distance": 160 },
+      { "name": "cyberdeck:weapons/sniper_3", "attenuation_distance": 160 }
+    ]
+  }
+}

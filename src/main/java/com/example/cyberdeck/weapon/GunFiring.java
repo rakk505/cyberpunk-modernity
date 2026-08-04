@@ -13,7 +13,6 @@ import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
-import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.damagesource.DamageSource;
@@ -164,9 +163,10 @@ public final class GunFiring {
 
     private static void playFireSound(ServerLevel level, LivingEntity shooter,
                                       GunType gun, RandomSource rng) {
-        SoundEvent sound = fireSound(gun);
+        SoundEvent sound = WeaponSounds.fireSound(gun);
+        SoundSource source = shooter instanceof Player ? SoundSource.PLAYERS : SoundSource.HOSTILE;
         level.playSound(null, shooter.getX(), shooter.getY(), shooter.getZ(),
-                sound, SoundSource.PLAYERS, 1.0f, pitchFor(gun, rng));
+                sound, source, WeaponSounds.volume(gun), pitchFor(gun, rng));
     }
 
     /**
@@ -359,24 +359,7 @@ public final class GunFiring {
         return shooter.damageSources().mobAttack(shooter);
     }
 
-    private static SoundEvent fireSound(GunType gun) {
-        return switch (gun.baseGun()) {
-            case SHOTGUN, M2038, CARNAGE -> SoundEvents.GENERIC_EXPLODE.value();
-            case SNIPER, GRAD -> SoundEvents.FIREWORK_ROCKET_BLAST;
-            default -> SoundEvents.CROSSBOW_SHOOT;
-        };
-    }
-
     private static float pitchFor(GunType gun, RandomSource rng) {
-        float base = switch (gun.baseGun()) {
-            case SNIPER, GRAD -> 0.7f;
-            case SHOTGUN, M2038, CARNAGE -> 0.6f;
-            case ASSAULT_RIFLE, AJAX, COPPERHEAD -> 1.3f;
-            case SMG, SARATOGA, G58_DIAN, YUKIMURA -> 1.6f;
-            case PISTOL, OVERTURE, UNITY, THREE_FIVE_ONE_SIX -> 1.1f;
-            case MANTIS_BLADE -> 0.9f;
-            default -> 1.1f; // baseGun() never returns a Tech variant.
-        };
-        return base + (rng.nextFloat() - 0.5f) * 0.1f;
+        return WeaponSounds.basePitch(gun) + (rng.nextFloat() - 0.5f) * 0.05f;
     }
 }
