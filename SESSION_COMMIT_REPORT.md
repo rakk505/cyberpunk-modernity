@@ -960,7 +960,7 @@ branch.
   and hash-matched the sandbox artifact at
   `06374c92c37753406a43f1ad994feb2dd05565d4e19d07c1e57e75f98896ae5e`.
 
-### Immersive Arnis Sea-Lantern Floors
+### `4482e8dd` - Immersive Arnis Sea-Lantern Floors
 
 - Added `tools/arnis/rewrite_embedded_lighting.py`, a dependency-free audit/apply/check command
   for deterministic Arnis NBT lighting migration.
@@ -989,6 +989,7 @@ branch.
 - The generation pass has no recurring multiplayer cost after a chunk is first built. Only newly
   generated or previously ungenerated chunks are updated; existing generated chunks retain their
   glowstone unless changed separately with a world-edit or admin process.
+- The complete focused implementation report is in `IMMERSIVE_SEA_LANTERN_REPORT.md`.
 
 ## Multiplayer And Private Two-Player Review Summary
 
