@@ -133,6 +133,10 @@ configurations {
 }
 
 dependencies {
+    // Required at runtime by mod metadata and available to the dedicated vehicle integration.
+    compileOnly files("libs/vehicle_mod-1.0.0.jar")
+    localRuntime files("libs/vehicle_mod-1.0.0.jar")
+
     // Example optional mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
     // compileOnly "mezz.jei:jei-${mc_version}-common-api:${jei_version}"
@@ -163,6 +167,7 @@ var generateModMetadata = tasks.register("generateModMetadata", ProcessResources
             minecraft_version      : minecraft_version,
             minecraft_version_range: minecraft_version_range,
             neo_version            : neo_version,
+            vehicle_mod_version_range: vehicle_mod_version_range,
             mod_id                 : mod_id,
             mod_name               : mod_name,
             mod_license            : mod_license,

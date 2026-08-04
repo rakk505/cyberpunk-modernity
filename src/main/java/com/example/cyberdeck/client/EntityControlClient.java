@@ -142,7 +142,10 @@ public final class EntityControlClient {
             }
         }
         minecraft.setCameraEntity(cameraTarget);
-        minecraft.options.setCameraType(CameraType.FIRST_PERSON);
+        minecraft.options.setCameraType(
+                kind == DeviceKind.CAR
+                        ? CameraType.THIRD_PERSON_BACK
+                        : CameraType.FIRST_PERSON);
 
         if (kind == DeviceKind.TURRET) {
             updateTurretAim(player, target);

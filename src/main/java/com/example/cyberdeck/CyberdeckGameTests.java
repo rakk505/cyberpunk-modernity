@@ -63,12 +63,15 @@ import com.example.cyberdeck.weapon.AmmoItems;
 import com.example.cyberdeck.weapon.AmmoType;
 import com.example.cyberdeck.weapon.CyberdeckDamageTypes;
 import com.example.cyberdeck.weapon.WeaponItems;
+import com.example.cyberdeck.vehicle.RoadsideVehicleSpawns;
+import com.modernity.vehicle_mod.vehicle_mod;
 import dev.modernity.neoncity.MegacityLayout;
 import dev.modernity.neoncity.District;
 import dev.modernity.neoncity.NeonCityGenerator;
 import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
 import net.minecraft.core.BlockPos;
@@ -140,6 +143,9 @@ public final class CyberdeckGameTests {
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             MOUNTED_GUN_TARGETING = register(
                     "mounted_gun_targeting", CyberdeckGameTests::mountedGunTargeting);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            ROADSIDE_VEHICLE_FUEL = register(
+                    "roadside_vehicle_fuel", CyberdeckGameTests::roadsideVehicleFuel);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             CIVILIAN_NONCOMBAT = register(
                     "civilian_noncombat", CyberdeckGameTests::civilianNoncombat);
@@ -322,6 +328,29 @@ public final class CyberdeckGameTests {
         helper.assertTrue(
                 GunFiring.canHitTarget(shooter, externalTarget),
                 "mounted shooter could not hit an unrelated external target");
+        helper.succeed();
+    }
+
+    private static void roadsideVehicleFuel(GameTestHelper helper) {
+        var vehicle = vehicle_mod.BMW_M3_GTR.get().create(
+                helper.getLevel(), EntitySpawnReason.COMMAND);
+        helper.assertTrue(vehicle != null, "vehicle dependency could not create a registered car");
+        int capacity = vehicle.getFuelCapacity();
+        Set<Integer> observed = new HashSet<>();
+        for (long seed = 1; seed <= 24; seed++) {
+            int fuel = RoadsideVehicleSpawns.randomizedFuelLevel(
+                    capacity, RandomSource.create(seed));
+            helper.assertTrue(
+                    fuel >= Math.max(1, Math.round(capacity * 0.05F))
+                            && fuel <= Math.round(capacity * 0.95F),
+                    "roadside vehicle fuel escaped the configured 5%-95% range");
+            observed.add(fuel);
+        }
+        int selected = observed.iterator().next();
+        vehicle.setFuel(selected);
+        helper.assertTrue(
+                observed.size() >= 8 && vehicle.getFuel() == selected,
+                "roadside vehicles did not receive varied native fuel values");
         helper.succeed();
     }
 
@@ -2841,6 +2870,7 @@ public final class CyberdeckGameTests {
         registerInstance(event, "district_patrol_loadout", DISTRICT_PATROL_LOADOUT, data);
         registerInstance(event, "gunshot_radius", GUNSHOT_RADIUS, data);
         registerInstance(event, "mounted_gun_targeting", MOUNTED_GUN_TARGETING, data);
+        registerInstance(event, "roadside_vehicle_fuel", ROADSIDE_VEHICLE_FUEL, data);
         registerInstance(event, "civilian_noncombat", CIVILIAN_NONCOMBAT, data);
         registerInstance(event, "civilian_population", CIVILIAN_POPULATION, data);
         registerInstance(event, "city_actor_join_compatibility",
