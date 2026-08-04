@@ -22,7 +22,7 @@ from arnis_import import NbtReader  # noqa: E402
 
 
 FORMAT = "cyberdeck:large_ad_surfaces"
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
 MIN_WIDTH = 5
 MIN_HEIGHT = 3
 MAX_WIDTH = 16
@@ -133,6 +133,7 @@ class Rectangle:
     width: int
     height: int
     light_blocks: int
+    support_blocks: tuple[str, ...]
 
     @property
     def area(self) -> int:
@@ -272,7 +273,7 @@ def component_rectangles(
 
         eligible = {cell for cell in component if is_full_surface_block(cells[cell])}
         lights = {cell for cell in eligible if cells[cell] in LIGHT_BLOCKS}
-        rectangle = largest_rectangle(eligible, lights, facing, plane, config)
+        rectangle = largest_rectangle(eligible, lights, cells, facing, plane, config)
         if rectangle is not None:
             rectangles.append(rectangle)
 
@@ -282,6 +283,7 @@ def component_rectangles(
 def largest_rectangle(
     cells: set[tuple[int, int]],
     lights: set[tuple[int, int]],
+    cell_blocks: dict[tuple[int, int], str],
     facing: str,
     plane: int,
     config: SearchConfig,
@@ -336,8 +338,21 @@ def largest_rectangle(
                     min_y + bottom_row,
                     facing,
                 )
+                support_blocks = tuple(
+                    cell_blocks[(
+                        min_horizontal + left + column,
+                        min_y + bottom_row + support_row,
+                    )]
+                    for support_row in range(height)
+                    for column in range(width)
+                )
                 candidate = Rectangle(
-                    support, facing, width, height, lights_in_rectangle
+                    support,
+                    facing,
+                    width,
+                    height,
+                    lights_in_rectangle,
+                    support_blocks,
                 )
                 if best is None or candidate.score() > best.score():
                     best = candidate
@@ -434,6 +449,7 @@ def main() -> None:
             "height": rectangle.height,
             "area": rectangle.area,
             "light_blocks": rectangle.light_blocks,
+            "support_blocks": list(rectangle.support_blocks),
         }
         dimensions[f"{rectangle.width}x{rectangle.height}"] += 1
 

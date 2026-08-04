@@ -7,7 +7,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -39,7 +41,7 @@ public final class GeneratedAdSurfaceCatalog {
         try (InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
             JsonObject root = JsonParser.parseReader(reader).getAsJsonObject();
             if (!"cyberdeck:large_ad_surfaces".equals(root.get("format").getAsString())
-                    || root.get("version").getAsInt() != 1) {
+                    || root.get("version").getAsInt() != 2) {
                 throw new IllegalStateException("Unsupported generated ad surface catalog");
             }
             Map<String, Surface> surfaces = new LinkedHashMap<>();
@@ -50,8 +52,14 @@ public final class GeneratedAdSurfaceCatalog {
                 Direction facing = Direction.byName(value.get("facing").getAsString());
                 int width = value.get("width").getAsInt();
                 int height = value.get("height").getAsInt();
+                List<String> supportBlocks = new ArrayList<>();
+                value.getAsJsonArray("support_blocks").forEach(
+                        element -> supportBlocks.add(element.getAsString()));
                 if (facing == null || facing.getAxis().isVertical()
-                        || !LargeAdSurfaceValidator.validDimensions(width, height)) {
+                        || !LargeAdSurfaceValidator.validDimensions(width, height)
+                        || supportBlocks.size() != width * height
+                        || supportBlocks.stream().anyMatch(block ->
+                                block.isBlank() || !block.contains(":"))) {
                     throw new IllegalStateException(
                             "Invalid generated ad surface " + entry.getKey());
                 }
@@ -62,7 +70,8 @@ public final class GeneratedAdSurfaceCatalog {
                                 support.get(2).getAsInt()),
                         facing,
                         width,
-                        height));
+                        height,
+                        supportBlocks));
             }
             if (surfaces.size() != root.get("placement_count").getAsInt()) {
                 throw new IllegalStateException("Generated ad surface count is inconsistent");
@@ -73,6 +82,15 @@ public final class GeneratedAdSurfaceCatalog {
         }
     }
 
-    public record Surface(BlockPos support, Direction facing, int width, int height) {
+    public record Surface(
+            BlockPos support,
+            Direction facing,
+            int width,
+            int height,
+            List<String> supportBlocks) {
+        public Surface {
+            support = support.immutable();
+            supportBlocks = List.copyOf(supportBlocks);
+        }
     }
 }

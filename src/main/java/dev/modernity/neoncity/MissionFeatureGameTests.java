@@ -189,7 +189,11 @@ final class MissionFeatureGameTests {
                                                         Math.floorDiv(site.target().getZ(), 16))
                                                 .map(placement -> placement.patch().district()
                                                         == site.district())
-                                                .orElse(false);
+                                                .orElse(false)
+                                        && NeonCityGenerator.isFixedMainlineBuildingChunk(
+                                                new net.minecraft.world.level.ChunkPos(
+                                                        Math.floorDiv(site.target().getX(), 16),
+                                                        Math.floorDiv(site.target().getZ(), 16)));
                         })
                         && java.util.Optional.ofNullable(
                                         fixedSites.get("m05_kill_cyberpsycho"))
@@ -201,7 +205,13 @@ final class MissionFeatureGameTests {
                                         site.target().getX(), site.target().getZ()))
                                 .filter(site -> !NeonCityGenerator.isHighwayAt(
                                         fixedLayout, site.target().getX(), site.target().getZ()))
-                                .isPresent(),
+                                .filter(site -> NeonCityGenerator.isFixedMainlineBuildingChunk(
+                                        new net.minecraft.world.level.ChunkPos(
+                                                Math.floorDiv(site.target().getX(), 16),
+                                                Math.floorDiv(site.target().getZ(), 16))))
+                                .isPresent()
+                        && !NeonCityGenerator.isFixedMainlineBuildingChunk(
+                                new net.minecraft.world.level.ChunkPos(0, 0)),
                 "fixed mainline catalog lost an exact G/G/O/D building or public D encounter");
         MissionBuildingPlanner.Site fogMotherSite = fixedSites.get(
                 "m05_kill_cyberpsycho");
@@ -266,6 +276,12 @@ final class MissionFeatureGameTests {
                                         helper.getLevel(), "m01_deliver_datashards")
                                 .map(syntheticRecovery::equals).orElse(false),
                 "successfully committed recovery site was discarded during descriptor restore");
+        helper.assertTrue(NeonCityGenerator.isReservedMainlineBuildingChunk(
+                        helper.getLevel(),
+                        new net.minecraft.world.level.ChunkPos(
+                                Math.floorDiv(structuralRecovery.target().getX(), 16),
+                                Math.floorDiv(structuralRecovery.target().getZ(), 16))),
+                "animated ads did not respect a committed recovery mainline building");
         MainlineQuestData.get(helper.getLevel()).putSite(
                 "m01_deliver_datashards", fixedSites.get("m01_deliver_datashards"));
         MissionBuildingPlanner.Site kaitoBuilding = fixedSites.get("m01_deliver_datashards");
