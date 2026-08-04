@@ -32,6 +32,10 @@ sourceSets.main.resources {
 }
 
 tasks.named('processResources', ProcessResources).configure {
+    from('ads') {
+        include '*.mp4', 'catalog.json'
+        into 'assets/cyberdeck/ads/source'
+    }
     from('src/main/resources/data/neoncity/arnis/structures') {
         include '**/*.nbt'
         into 'data/neoncity/structure/arnis'

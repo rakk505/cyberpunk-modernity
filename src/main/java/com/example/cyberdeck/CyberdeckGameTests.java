@@ -1,6 +1,10 @@
 package com.example.cyberdeck;
 
 import com.mojang.authlib.GameProfile;
+import com.example.cyberdeck.advertising.AdClip;
+import com.example.cyberdeck.advertising.AdDisplayBlockEntity;
+import com.example.cyberdeck.advertising.AdvertisingContent;
+import com.example.cyberdeck.advertising.LargeAdSurfaceValidator;
 import com.example.cyberdeck.city.CityWorlds;
 import com.example.cyberdeck.city.CityActorJoinCompatibility;
 import com.example.cyberdeck.city.AmmoCacheBlock;
@@ -72,6 +76,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.function.Consumer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.Connection;
@@ -136,6 +141,9 @@ public final class CyberdeckGameTests {
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             WEAPON_SOUND_PROFILES = register(
                     "weapon_sound_profiles", CyberdeckGameTests::weaponSoundProfiles);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            LARGE_AD_SURFACE = register(
+                    "large_ad_surface", CyberdeckGameTests::largeAdSurface);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             MOUNTED_GUN_TARGETING = register(
                     "mounted_gun_targeting", CyberdeckGameTests::mountedGunTargeting);
@@ -678,6 +686,76 @@ public final class CyberdeckGameTests {
         helper.assertTrue(WeaponSounds.volume(GunType.SNIPER)
                         > WeaponSounds.volume(GunType.SMG),
                 "sniper reports must carry farther than automatic SMG shots");
+        helper.succeed();
+    }
+
+    private static void largeAdSurface(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        Direction facing = Direction.SOUTH;
+        BlockPos relativeAnchor = new BlockPos(2, 2, 2);
+        BlockPos anchor = helper.absolutePos(relativeAnchor);
+        List<BlockPos> targets = LargeAdSurfaceValidator.targets(anchor, facing);
+        for (BlockPos target : targets) {
+            level.setBlock(target.relative(facing.getOpposite()),
+                    Blocks.STONE.defaultBlockState(), 3);
+        }
+
+        helper.assertValueEqual(targets.size(), LargeAdSurfaceValidator.CELL_COUNT,
+                "large display validation must remain bounded to 32 cells");
+        helper.assertTrue(LargeAdSurfaceValidator.validate(level, anchor, facing).valid(),
+                "an unobstructed solid 8 x 4 wall must accept the large display");
+
+        BlockPos firstSupport = anchor.relative(facing.getOpposite());
+        level.setBlock(firstSupport, Blocks.GLASS.defaultBlockState(), 3);
+        helper.assertTrue(LargeAdSurfaceValidator.validate(level, anchor, facing).failure()
+                        == LargeAdSurfaceValidator.Failure.GLASS,
+                "large displays must explicitly reject glass support");
+        level.setBlock(firstSupport, Blocks.STONE.defaultBlockState(), 3);
+
+        BlockPos blockedTarget = targets.get(targets.size() - 1);
+        level.setBlock(blockedTarget, Blocks.STONE.defaultBlockState(), 3);
+        helper.assertTrue(LargeAdSurfaceValidator.validate(level, anchor, facing).failure()
+                        == LargeAdSurfaceValidator.Failure.BLOCKED,
+                "large displays must reject any occupied panel cell");
+        level.setBlock(blockedTarget, Blocks.AIR.defaultBlockState(), 3);
+
+        ServerPlayer player = makeSurvivalServerPlayerInLevel(helper);
+        ItemStack display = new ItemStack(AdvertisingContent.LARGE_AD_DISPLAY.get(), 2);
+        player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, display);
+        BlockPos clickedSupport = anchor.relative(facing.getOpposite());
+        var hit = new net.minecraft.world.phys.BlockHitResult(
+                Vec3.atCenterOf(clickedSupport), facing, clickedSupport, false);
+        var context = new net.minecraft.world.item.context.UseOnContext(
+                level, player, net.minecraft.world.InteractionHand.MAIN_HAND, display, hit);
+        helper.assertTrue(AdvertisingContent.LARGE_AD_DISPLAY.get().useOn(context).consumesAction(),
+                "the large display item must place on a validated wall");
+        helper.assertValueEqual(display.getCount(), 1,
+                "successful large display placement must consume one item");
+
+        int anchors = 0;
+        int panels = 0;
+        for (BlockPos target : targets) {
+            BlockState state = level.getBlockState(target);
+            if (state.is(AdvertisingContent.AD_DISPLAY_ANCHOR.get())) {
+                anchors++;
+            } else if (state.is(AdvertisingContent.AD_DISPLAY_PANEL.get())) {
+                panels++;
+            }
+            helper.assertValueEqual(state.getLightEmission(level, target), 15,
+                    "every large display cell must emit sea-lantern-level light");
+            helper.assertTrue(state.getDestroySpeed(level, target) < 0.0F,
+                    "every large display cell must be unbreakable");
+        }
+        helper.assertValueEqual(anchors, 1,
+                "a large display must create exactly one ticking anchor");
+        helper.assertValueEqual(panels, LargeAdSurfaceValidator.CELL_COUNT - 1,
+                "the remaining large display cells must be inert panels");
+        helper.assertTrue(level.getBlockEntity(anchor) instanceof AdDisplayBlockEntity,
+                "the rendering anchor must own the display block entity");
+        for (AdClip clip : AdClip.values()) {
+            helper.assertTrue(clip.durationTicks() >= 600 && clip.durationTicks() <= 900,
+                    "every advertising clip must last 30 to 45 seconds");
+        }
         helper.succeed();
     }
 
@@ -2828,6 +2906,7 @@ public final class CyberdeckGameTests {
         registerInstance(event, "cluster_plan", CLUSTER_PLAN, data);
         registerInstance(event, "district_patrol_loadout", DISTRICT_PATROL_LOADOUT, data);
         registerInstance(event, "gunshot_radius", GUNSHOT_RADIUS, data);
+        registerInstance(event, "weapon_sound_profiles", WEAPON_SOUND_PROFILES, data);
         registerInstance(event, "mounted_gun_targeting", MOUNTED_GUN_TARGETING, data);
         registerInstance(event, "civilian_noncombat", CIVILIAN_NONCOMBAT, data);
         registerInstance(event, "civilian_population", CIVILIAN_POPULATION, data);
@@ -2857,6 +2936,7 @@ public final class CyberdeckGameTests {
                 true,
                 8);
         registerInstance(event, "detection_line_of_sight", DETECTION_LINE_OF_SIGHT, arena);
+        registerInstance(event, "large_ad_surface", LARGE_AD_SURFACE, arena);
         registerInstance(event, "detection_crouch", DETECTION_CROUCH, arena);
         registerInstance(event, "detection_decay", DETECTION_DECAY, arena);
         registerInstance(event, "cyberpsycho_balance", CYBERPSYCHO_BALANCE, data);

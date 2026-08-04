@@ -129,6 +129,10 @@ final class DefenseGameTests {
     }
 
     static void canisterExplosion(GameTestHelper helper) {
+        helper.runAtTickTime(1, () -> canisterExplosionAfterSpawn(helper));
+    }
+
+    private static void canisterExplosionAfterSpawn(GameTestHelper helper) {
         BlockPos canister = new BlockPos(1, 1, 1);
         BlockPos protectedBlock = new BlockPos(1, 1, 3);
         helper.setBlock(canister, DefenseContent.EXPLOSIVE_CANISTER.get());

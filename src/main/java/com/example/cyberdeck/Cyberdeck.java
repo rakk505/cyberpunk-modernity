@@ -1,5 +1,6 @@
 package com.example.cyberdeck;
 
+import com.example.cyberdeck.advertising.AdvertisingContent;
 import com.example.cyberdeck.cyberware.CyberwareAttachments;
 import com.example.cyberdeck.cyberware.CyberwareItems;
 import com.example.cyberdeck.defense.DefenseContent;
@@ -63,6 +64,7 @@ public class Cyberdeck {
         WantedState.ATTACHMENT_TYPES.register(modEventBus);
         LifepathState.ATTACHMENT_TYPES.register(modEventBus);
         DefenseContent.register(modEventBus);
+        AdvertisingContent.register(modEventBus);
 
         // Guns, ammo, grenades, ballistic armor and their entities.
         WeaponItems.ITEMS.register(modEventBus);
@@ -88,6 +90,7 @@ public class Cyberdeck {
         modEventBus.addListener(CyberwareItems::addToTab);
         modEventBus.addListener(WeaponItems::addToTab);
         modEventBus.addListener(DefenseContent::addToTab);
+        modEventBus.addListener(AdvertisingContent::addToTab);
         modEventBus.addListener(DefenseContent::registerTests);
         modEventBus.addListener(Cyberdeck::registerEntityAttributes);
 

@@ -1,0 +1,9 @@
+{
+  "multipart": [
+    {
+      "apply": {
+        "model": "cyberdeck:block/ad_display_invisible"
+      }
+    }
+  ]
+}
