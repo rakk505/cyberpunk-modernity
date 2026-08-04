@@ -32,6 +32,7 @@ import net.neoforged.neoforge.event.RegisterGameTestsEvent;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.neoforge.event.entity.living.MobSpawnEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
+import net.neoforged.neoforge.event.entity.player.AttackEntityEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
@@ -207,6 +208,7 @@ public final class ProjectMoonCityModule {
                 AmbientGigService.recordPresence(player);
             }
             Set<UUID> activePlayers = new HashSet<>();
+            Set<District> maintainedQuestDistricts = new HashSet<>();
             for (net.minecraft.server.level.ServerPlayer player : overworld.players()) {
                 activePlayers.add(player.getUUID());
                 NeonCityGenerator.enqueueAround(player.getBlockX(), player.getBlockZ());
@@ -221,7 +223,9 @@ public final class ProjectMoonCityModule {
                 if (location.insideCity()
                         && sample.zone() != MegacityLayout.Zone.WILDERNESS) {
                     VendorService.ensureDistrictVendors(overworld, location.district());
-                    MainlineQuestService.maintainQuestNpcs(overworld, location.district());
+                    if (maintainedQuestDistricts.add(location.district())) {
+                        MainlineQuestService.maintainQuestNpcs(overworld, location.district());
+                    }
                 }
                 MissionService.tickPlayer(player, location);
                 AmbientGigService.tick(player);
@@ -304,6 +308,15 @@ public final class ProjectMoonCityModule {
         if (NeonCityGenerator.isInsideCity(
                 level, event.getEntity().getBlockX(), event.getEntity().getBlockZ())) {
             event.setCanceled(true);
+        }
+    }
+
+    @SubscribeEvent
+    public void onQuestNpcAttack(AttackEntityEvent event) {
+        if (!MainlineQuestService.isQuestNpc(event.getTarget())) return;
+        event.setCanceled(true);
+        if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
+            MissionService.interactStoryNpc(player, event.getTarget());
         }
     }
 

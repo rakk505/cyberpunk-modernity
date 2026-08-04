@@ -43,21 +43,54 @@ final class MainlineQuestService {
     /** Hydrates exact pre-analyzed descriptors without loading or generating their chunks. */
     static int restoreFixedWorldPlans(ServerLevel level) {
         MainlineQuestData data = MainlineQuestData.get(level);
+        List<MissionBuildingPlanner.Site> accepted = new ArrayList<>();
         for (StoryMissionCatalog.StoryMission mission : StoryMissionCatalog.definitions()) {
             MissionBuildingPlanner.Site existing = data.site(mission.id()).orElse(null);
-            if (validSite(mission, existing)) {
-                data.putSite(mission.id(), existing);
-                continue;
-            }
             MissionBuildingPlanner.Site fixed = MainlineQuestData.fixedSite(
                     mission.id()).orElse(null);
-            if (!validSite(mission, fixed) || data.conflicts(fixed, mission.id())) {
+            if (existing != null && fixed != null
+                    && existing.id().startsWith("mainline:" + mission.id() + ":")
+                    && !data.isCommittedRecovery(mission.id())
+                    && !MissionSiteData.get(level).isReservedSite(existing)) {
+                Cyberdeck.LOGGER.warn(
+                        "[Mainline] replacing synthetic recovery site {} with bundled descriptor {}",
+                        existing.id(), fixed.id());
+                existing = null;
+            }
+            if (existing != null && fixed != null && existing.id().equals(fixed.id())
+                    && existing.buildingId().equals(existing.id())) {
+                try {
+                    existing = MissionBuildingPlanner.withBuildingReservation(
+                            existing, fixed.buildingId(), fixed.buildingBounds());
+                } catch (IllegalArgumentException incompatibleLegacyPlan) {
+                    Cyberdeck.LOGGER.warn(
+                            "[Mainline] legacy descriptor for {} does not fit its bundled "
+                                    + "building envelope; restoring the bundled plan",
+                            mission.id());
+                    existing = null;
+                }
+            }
+            MissionBuildingPlanner.Site restored = existing;
+            if (validSite(mission, restored)
+                    && accepted.stream().noneMatch(site ->
+                            MainlineQuestData.buildingConflicts(site, restored))) {
+                data.putSite(
+                        mission.id(), restored,
+                        data.isCommittedRecovery(mission.id()));
+                accepted.add(restored);
+                continue;
+            }
+            data.removeSite(mission.id());
+            if (!validSite(mission, fixed)
+                    || accepted.stream().anyMatch(site ->
+                            MainlineQuestData.buildingConflicts(site, fixed))) {
                 Cyberdeck.LOGGER.warn(
                         "[Mainline] fixed descriptor missing, invalid, or conflicting for {}",
                         mission.id());
                 continue;
             }
             data.putSite(mission.id(), fixed);
+            accepted.add(fixed);
         }
         return validWorldPlanCount(level);
     }
@@ -144,9 +177,9 @@ final class MainlineQuestService {
             return Optional.empty();
         }
         selected = MissionBuildingPlanner.withoutMissionInteriorPlan(selected);
-        data.putSite(mission.id(), selected);
+        if (!recovery) data.putSite(mission.id(), selected);
         Cyberdeck.LOGGER.info(
-                "[Mainline] persisted {} {} site with {} floors at {} for {} in District {}",
+                "[Mainline] selected {} {} site with {} floors at {} for {} in District {}",
                 recovery ? "recovery" : "on-demand",
                 imported ? "Arnis" : "fallback",
                 selected.floorYs().size(), selected.id(), mission.id(),
@@ -204,9 +237,42 @@ final class MainlineQuestService {
         return MainlineQuestData.get(level).site(missionId);
     }
 
+    static Optional<MissionBuildingPlanner.Site> permanentInterior(
+            ServerLevel level, String missionId) {
+        return MainlineQuestData.get(level).permanentInterior(missionId);
+    }
+
+    /** Commits a recovered descriptor only after its complete deployment succeeds. */
+    static void commitWorldPlan(
+            ServerLevel level, String missionId, MissionBuildingPlanner.Site deployed) {
+        StoryMissionCatalog.StoryMission mission = StoryMissionCatalog.definition(missionId);
+        MissionBuildingPlanner.Site structural =
+                MissionBuildingPlanner.withoutMissionInteriorPlan(deployed);
+        MainlineQuestData data = MainlineQuestData.get(level);
+        if (validSite(mission, structural) && !data.conflicts(structural, missionId)) {
+            MissionBuildingPlanner.Site fixed = MainlineQuestData.fixedSite(missionId)
+                    .orElse(null);
+            boolean recovered = fixed == null
+                    || !fixed.id().equals(structural.id())
+                    || !fixed.buildingId().equals(structural.buildingId());
+            data.commitSite(missionId, structural, recovered, deployed);
+        }
+    }
+
     static boolean conflictsReservedSite(
             ServerLevel level, MissionBuildingPlanner.Site site, String exceptMissionId) {
         return MainlineQuestData.get(level).conflicts(site, exceptMissionId);
+    }
+
+    static boolean isReservedMainlineSite(
+            ServerLevel level, MissionBuildingPlanner.Site candidate) {
+        if (level == null || candidate == null) return false;
+        MainlineQuestData data = MainlineQuestData.get(level);
+        return StoryMissionCatalog.definitions().stream()
+                .map(mission -> data.site(mission.id()).orElse(null))
+                .filter(site -> site != null)
+                .anyMatch(site -> site.id().equals(candidate.id())
+                        && site.buildingId().equals(candidate.buildingId()));
     }
 
     static void begin(ServerLevel level, MissionService.ContractContext context, String missionId) {
@@ -374,9 +440,10 @@ final class MainlineQuestService {
                 ensureQuestNpc(level, node.characterId(), position);
             }
         }
+        retireStaleQuestNpcs(level, district, placed);
     }
 
-    private static boolean questNodeNeeded(
+    static boolean questNodeNeeded(
             ServerLevel level,
             StoryMissionCatalog.StoryMission mission,
             StoryMissionCatalog.StoryNode node) {
@@ -389,7 +456,9 @@ final class MainlineQuestService {
                             .map(active -> active.definitionId().equals(mission.id()))
                             .orElse(false)
                     && currentNode(level, context)
-                            .map(current -> current.id().equals(node.id())).orElse(false)) {
+                            .map(current -> current.id().equals(node.id())).orElse(false)
+                    && (node.type() != StoryMissionCatalog.NodeType.DELIVER
+                            || context.deployed())) {
                 return true;
             }
             Set<String> completed = MissionPlayerData.completedStory(player);
@@ -401,6 +470,20 @@ final class MainlineQuestService {
             }
         }
         return false;
+    }
+
+    private static void retireStaleQuestNpcs(
+            ServerLevel level, District district, Set<String> placed) {
+        ArrayList<CityNpc> removals = new ArrayList<>();
+        for (Entity entity : level.getAllEntities()) {
+            if (!(entity instanceof CityNpc npc) || !isQuestNpc(npc)
+                    || NeonCityGenerator.districtAt(npc.getBlockX(), npc.getBlockZ()) != district) {
+                continue;
+            }
+            String key = characterId(npc) + ":" + npc.getBlockX() + ":" + npc.getBlockZ();
+            if (!placed.contains(key)) removals.add(npc);
+        }
+        removals.forEach(Entity::discard);
     }
 
     static boolean isQuestNpc(Entity entity) {
@@ -457,8 +540,15 @@ final class MainlineQuestService {
         }
     }
 
-    private static void ensureQuestNpc(
+    static boolean ensureQuestNpc(
             ServerLevel level, String characterId, BlockPos position) {
+        if (level == null || position == null || !level.isLoaded(position)
+                || !level.getWorldBorder().isWithinBounds(position)
+                || !level.getBlockState(position.below()).blocksMotion()
+                || level.getBlockState(position).blocksMotion()
+                || level.getBlockState(position.above()).blocksMotion()) {
+            return false;
+        }
         AABB search = new AABB(position).inflate(NPC_SEARCH_RADIUS);
         CityNpc existing = level.getEntitiesOfClass(
                         CityNpc.class, search,
@@ -467,29 +557,63 @@ final class MainlineQuestService {
         StoryMissionCatalog.CharacterDefinition character = StoryMissionCatalog.character(characterId);
         if (existing != null) {
             protect(existing, character);
-            if (!existing.blockPosition().equals(position)) {
-                double oldX = existing.getX();
-                double oldY = existing.getY();
-                double oldZ = existing.getZ();
-                float oldYaw = existing.getYRot();
-                float oldPitch = existing.getXRot();
-                existing.snapTo(position.getX() + 0.5, position.getY(), position.getZ() + 0.5,
-                        oldYaw, oldPitch);
-                if (!level.noCollision(existing)) {
-                    existing.snapTo(oldX, oldY, oldZ, oldYaw, oldPitch);
-                }
-            }
-            return;
+            if (existing.blockPosition().equals(position)) return true;
+            existing.snapTo(position.getX() + 0.5, position.getY(), position.getZ() + 0.5,
+                    existing.getYRot(), existing.getXRot());
+            if (level.noCollision(existing)) return true;
+            // Never preserve an obsolete exterior copy when its new authored anchor is blocked.
+            existing.discard();
         }
         CityNpc npc = CityNpcEntities.CITY_NPC.get().create(level, EntitySpawnReason.EVENT);
-        if (npc == null) return;
+        if (npc == null) return false;
         npc.snapTo(position.getX() + 0.5, position.getY(), position.getZ() + 0.5,
                 level.getRandom().nextFloat() * 360.0F, 0.0F);
         npc.finalizeSpawn(level, level.getCurrentDifficultyAt(position),
                 EntitySpawnReason.EVENT, null);
         npc.getPersistentData().putString(NPC_CHARACTER, characterId);
         protect(npc, character);
-        if (!level.noCollision(npc) || !level.addFreshEntity(npc)) npc.discard();
+        if (!level.noCollision(npc) || !level.addFreshEntity(npc)) {
+            npc.discard();
+            return false;
+        }
+        return true;
+    }
+
+    static boolean ensureDeliveryNpc(ServerPlayer player) {
+        if (player == null || !(player.level() instanceof ServerLevel level)) return false;
+        MissionService.ActiveMission active = MissionService.activeMission(player).orElse(null);
+        MissionService.ContractContext context = MissionService.contractContext(player).orElse(null);
+        if (active == null || context == null
+                || context.kind() != MissionService.ContractKind.STORY_MISSION) {
+            return false;
+        }
+        StoryMissionCatalog.StoryMission mission = StoryMissionCatalog.definition(
+                active.definitionId());
+        StoryMissionCatalog.StoryNode node = currentNode(level, context).orElse(null);
+        if (node == null || node.type() != StoryMissionCatalog.NodeType.DELIVER
+                || node.characterId().isBlank()) {
+            return false;
+        }
+        return ensureQuestNpc(level, node.characterId(), nodePosition(level, mission, node));
+    }
+
+    static void removeDeliveryNpc(ServerPlayer player) {
+        if (player == null || !(player.level() instanceof ServerLevel level)) return;
+        MissionService.ActiveMission active = MissionService.activeMission(player).orElse(null);
+        MissionService.ContractContext context = MissionService.contractContext(player).orElse(null);
+        StoryMissionCatalog.StoryNode node = currentNode(level, context).orElse(null);
+        if (active == null || node == null || node.type() != StoryMissionCatalog.NodeType.DELIVER
+                || node.characterId().isBlank()) {
+            return;
+        }
+        StoryMissionCatalog.StoryMission mission = StoryMissionCatalog.definition(
+                active.definitionId());
+        BlockPos position = nodePosition(level, mission, node);
+        level.getEntitiesOfClass(
+                        CityNpc.class,
+                        new AABB(position).inflate(4.0),
+                        npc -> node.characterId().equals(characterId(npc)))
+                .forEach(Entity::discard);
     }
 
     private static void protect(
@@ -537,13 +661,40 @@ final class MainlineQuestService {
                     .filter(candidate -> candidate.type() == StoryMissionCatalog.NodeType.DELIVER
                             && candidate.characterId().equals(node.characterId()))
                     .findFirst().orElseThrow();
-            MissionBuildingPlanner.Site site = activeSiteForNode(
-                            level, deliveryHome.id(), deliveryNode.id())
-                    .or(() -> reservedSite(level, deliveryHome.id()))
-                    .orElse(null);
-            if (site != null) return floorPosition(site, deliveryNode.floor(), node.characterId());
+            Optional<MissionBuildingPlanner.Site> active = activeSiteForNode(
+                    level, deliveryHome.id(), deliveryNode.id());
+            Optional<MissionBuildingPlanner.Site> permanent = permanentInterior(
+                    level, deliveryHome.id());
+            MissionBuildingPlanner.Site site = active
+                    .or(() -> permanent)
+                    .or(() -> reservedSite(level, deliveryHome.id())).orElse(null);
+            if (site != null) {
+                if (active.isPresent() || permanent.isPresent()) {
+                    return floorPosition(
+                            level, site, deliveryNode.floor(), node.characterId());
+                }
+                if (siteChunksLoaded(level, site)) {
+                    return floorPosition(
+                            level, site, deliveryNode.floor(), node.characterId());
+                }
+                return MissionBuildingPlanner.navigationTarget(site);
+            }
         }
         return streetPosition(level, mission, node);
+    }
+
+    private static boolean siteChunksLoaded(
+            ServerLevel level, MissionBuildingPlanner.Site site) {
+        int minChunkX = Math.floorDiv(site.bounds().minX(), 16);
+        int maxChunkX = Math.floorDiv(site.bounds().maxX(), 16);
+        int minChunkZ = Math.floorDiv(site.bounds().minZ(), 16);
+        int maxChunkZ = Math.floorDiv(site.bounds().maxZ(), 16);
+        for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
+            for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
+                if (level.getChunkSource().getChunkNow(chunkX, chunkZ) == null) return false;
+            }
+        }
+        return true;
     }
 
     private static Optional<MissionBuildingPlanner.Site> activeSiteForNode(
@@ -555,7 +706,9 @@ final class MainlineQuestService {
                 .filter(player -> MissionService.contractContext(player)
                         .filter(context -> context.kind()
                                         == MissionService.ContractKind.STORY_MISSION
-                                && context.deployed()
+                                && (context.deployed()
+                                        || MissionService.isDeploymentInProgress(
+                                                context.instanceId()))
                                 && currentNode(level, context)
                                         .map(node -> node.id().equals(nodeId)).orElse(false))
                         .isPresent())
@@ -565,15 +718,26 @@ final class MainlineQuestService {
     }
 
     private static BlockPos floorPosition(
-            MissionBuildingPlanner.Site site, int requestedFloor, String salt) {
+            ServerLevel level,
+            MissionBuildingPlanner.Site site,
+            int requestedFloor,
+            String salt) {
         int index = Math.max(0, Math.min(site.floorYs().size() - 1, requestedFloor - 1));
         int y = site.floorYs().get(index);
         List<BlockPos> cells = site.missionCells(y).stream()
+                .filter(level::isLoaded)
+                .filter(position -> level.getBlockState(position.below()).blocksMotion()
+                        && !level.getBlockState(position).blocksMotion()
+                        && !level.getBlockState(position.above()).blocksMotion())
                 .filter(position -> !position.closerThan(site.target(), 3.0))
                 .filter(position -> site.decorations().stream().noneMatch(decoration ->
                         position.closerThan(decoration.position(), 2.0)))
                 .filter(position -> site.stairs().stream().noneMatch(stair ->
                         position.closerThan(stair.start().atY(y), 4.0)))
+                .filter(position -> site.patrolRoutes().stream()
+                        .filter(route -> route.floorY() == y)
+                        .flatMap(route -> route.waypoints().stream())
+                        .noneMatch(waypoint -> position.closerThan(waypoint, 3.0)))
                 .sorted(Comparator.comparingLong(position -> MegacityLayout.mix(
                         site.planSeed() ^ salt.hashCode(), position.getX(), position.getZ())))
                 .toList();

@@ -79,11 +79,31 @@ building descriptors: two distinct G Corp buildings, one five-floor O Corp build
 distinct D Corp buildings. New saves persist those exact descriptors at startup without loading,
 scanning, or rendering their chunks. Acceptance reuses the descriptor; deployment installs the
 selected interior only when the party approaches the active site, and restarts reuse the saved
-descriptor. The live atlas scanner and purpose-built tower generator remain emergency recovery
-paths if the bundled catalog or a modified story configuration is incompatible. Reservations
-compare complete building footprints with normal mission-site clearance and keep same-district
-missions in different buildings. Rejected candidates are never modified; accepted edits are
-snapshotted and restored transactionally.
+descriptor. Each descriptor retains both its selected mission floors and the complete segmented
+building identity, so separate floor windows in one tower still conflict. Components touching a
+scan boundary are rejected until a wider authoring scan closes the complete structure. The live
+atlas scanner and purpose-built tower generator remain emergency recovery paths if the bundled
+catalog or a modified story configuration is incompatible. Atlas-backed reservations compare exact
+building IDs and physical envelopes, while legacy descriptors retain normal mission-site clearance.
+Rejected candidates are never modified; accepted edits are snapshotted and restored
+transactionally.
+
+Interior dressing uses objective-specific floor programs: assassination sites progress through
+office/operations space to an executive floor, data sites culminate in operations space, delivery
+sites use lounge and storage roles, and cyberpsycho sites use storage/operations roles. Generated
+floors require one canonical role anchor before optional dressing, keep at most four furnishing
+anchors below 120 walkable cells or five on larger floors, and cap their occupied footprint.
+Partition bases scale from six on compact floors to twelve on the largest mission masks. Repair may
+remove unsafe optional props but cannot remove a floor's last role anchor. A reserved circulation
+spine and post-install traversal audit keep entrances, stairs, patrol routes, and objectives
+connected. Guards use a bounded whole-floor search, prefer four blocks of horizontal spacing, and
+retry around an occupied spawn cell before relaxing spacing or failing deployment.
+
+The bundled gig catalog contains 262 validated descriptors across all 35 districts. D was rescanned
+with full physical-building exclusions; conflicting G and O markers were removed while both
+districts remained above the five-site minimum. Administrator catalog compilation may inspect up to
+24 chunks from a district center, but player board refreshes remain read-only and never invoke the
+scanner.
 
 Game masters can inspect the compiler without changing the world:
 
@@ -99,9 +119,14 @@ label, including exact mission masks, entrance, stairs, patrol points, and objec
 The radius is bounded to zero through two chunks.
 
 Talk and delivery characters are persistent, invulnerable NPCs with a visible `!` name marker.
-Left-click advances only the currently ready node. Cargo is contract-tagged, party-counted, and can
-be reissued by its source NPC if lost. Combat targets stay invulnerable until their assassination or
-cyberpsycho node becomes current.
+Left-click or use advances only the currently ready node. Cargo is contract-tagged, party-counted,
+and can be reissued by its source NPC if lost. Combat targets stay invulnerable until their
+assassination or cyberpsycho node becomes current. A delivery character is not exposed at an
+exterior placeholder while its building is staged: deployment installs and validates access first,
+then Kaito appears on his authored level-two stall. Stale placeholder NPCs are retired when an
+anchor changes. Completed mainline interiors remain installed in their permanently reserved
+buildings, so Kaito's stall remains an accessible interior hub for the next mission; completed gig
+sites still restore normally after their cleanup gates pass.
 
 Save recovery is conservative: missing DAG progress restarts a valid active mainline at its opening
 node after deployed actors are cleaned up; a removed mission definition fails the stale contract so

@@ -14,12 +14,12 @@ content seed `50520260801`.
 | Districts | `35` |
 | Raw verified candidates | `286` |
 | Initial worker merge | `274` |
-| Final retained descriptors | `263` |
+| Final retained descriptors | `262` |
 | Required minimum per district | `5` |
 | Observed minimum per district | `6` |
 | Deficient districts | None |
 | Installed resource | `src/main/resources/data/neoncity/missions/gig_sites_50520260801.dat` |
-| Resource SHA-256 | `58aa062f403ba2cbd228c27413a4062444f6d1e158538a6986557086f093dfc6` |
+| Resource SHA-256 | `8a6bb85f3c0820c53b5b3ea81525c4953fce93ec3932a1fea4f1aa4314acccab` |
 
 All retained descriptors are structural markers. Furniture, cover, corridors,
 canisters, and turret slots are planned only after contract selection.
@@ -93,14 +93,15 @@ were pruned. No interior-only failure remains in the final artifact.
 Final counts by district:
 
 ```text
-A=6 B=8 C=8 D=6 E=8 F=8 G=8 H=7 I=8 J=8 K=8 L=7 M=7 N=6
-O=8 P=7 Q=6 R=8 S=8 T=8 U=8 V=8 W=8 X=8 Y=8 Z=8 AE=7 YI=8
+A=6 B=8 C=8 D=8 E=8 F=8 G=7 H=7 I=8 J=8 K=8 L=7 M=7 N=6
+O=6 P=7 Q=6 R=8 S=8 T=8 U=8 V=8 W=8 X=8 Y=8 Z=8 AE=7 YI=8
 WANG=8 XI=8 UI=6 UANG=8 POK=8 PAK=8 PON=6
 ```
 
-Final replacement shards were D=`6`, P=`7`, and X=`8`. The fresh bundled-world
-plan audit passed D `6/6`, P `7/7`, and X `8/8`, with Arnis scan counters
-remaining `0->0`. The other pruned districts passed their full retained sets:
+Final replacement shards were D=`8`, P=`7`, and X=`8`. The fresh bundled-world
+plan audit passed final D `8/8` plus the earlier P `7/7` and X `8/8`, with no
+additional atlas scan during the D audit; earlier audits retained scan counters
+at `0->0`. The other pruned districts passed their full retained sets:
 A `6/6`, H `7/7`, M `7/7`, N `6/6`, Q `6/6`, Ui `6/6`, and Pon `6/6`.
 
 Descriptors excluded after finalized-world DFS validation:
@@ -120,9 +121,30 @@ pon:-280:-170:975ce273bfadf1d1
 p:-85:97:d5734ce17601dd4d
 ```
 
+## Mainline Building-Envelope Refresh
+
+After the mainline catalog gained complete segmented-building identities, its larger physical
+envelopes invalidated seven legacy gig markers. D was rebuilt with a 24-chunk operator search and
+an adaptive radius-2/4/6/8 component scan. It retained eight atlas-backed buildings whose envelopes
+all close by radius 6. G retained
+seven sites and O retained six after pruning their conflicts:
+
+```text
+d:-196:-58:5c8608aa4415eaaf
+d:-196:-59:3185aa9993bf90e
+d:-197:-58:c3162591e8f6d50f
+d:-192:-59:fafb152b749ae3a6
+g:70:11:9de64d2fd400fcc
+o:-75:189:8f9a58f185c478bb
+o:-76:192:a120ef19320327ef
+```
+
+The strict one-file merge retained 262 globally unique descriptors, all districts remained within
+the required five-to-eight range, and no descriptor conflicts with a mainline building envelope.
+
 The final one-file export and merge retained all 35 districts exactly once and
 produced SHA-256
-`58aa062f403ba2cbd228c27413a4062444f6d1e158538a6986557086f093dfc6`.
+`8a6bb85f3c0820c53b5b3ea81525c4953fce93ec3932a1fea4f1aa4314acccab`.
 
 ## Merge Gates
 

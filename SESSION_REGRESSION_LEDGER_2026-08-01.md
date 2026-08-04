@@ -224,7 +224,7 @@ required.
 
 The recovered fixed-site catalog is packaged at
 `data/neoncity/missions/mainline_sites_50520260801.dat` with SHA-256
-`5f447bc0acc4e61c82b92557e99b2e51190cb1bd1be6008bc76c9586d5ab4fd5`.
+`255f43fee4a4317143ac9c45fcabb93fc9435c060abe6693c954e7dfa2f28718`.
 
 | Mission | District | Floors | Site ID | Bounds |
 |---|---:|---:|---|---|
@@ -236,7 +236,11 @@ The recovered fixed-site catalog is packaged at
 
 Each descriptor retains the complete structural plan: floor masks, a
 ground-level generated entrance, an upper-floor target, stairs, and patrol
-routes. Furnishings, corridors, cover, explosive canisters, and safe turret
+routes. Site schema version 3 also retains the scanner's physical Arnis building
+ID and full building envelope. The two G missions resolve to different buildings
+(`g:atlas:8460eeb8c1fb224b` and `g:atlas:9188fc4a183218f`), so Kaito's drop and
+Selene Voss's arcology cannot reserve or target the same structure. Furnishings,
+corridors, cover, explosive canisters, and safe turret
 placements are generated deterministically when the mission activates. Startup
 copies the structural descriptors into save data without loading their chunks
 or invoking the live atlas scanner. Repeated live deployment failure can replace
@@ -253,9 +257,9 @@ planned only when a contract activates.
 
 See [GIG_SITE_CATALOG_50520260801.md](GIG_SITE_CATALOG_50520260801.md) for the
 deterministic three-worker scan and merge report covering 274 verified sites
-across all 35 districts. Post-generation DFS validation retained 263 sites
-after rebuilding D, P, and X and pruning descriptors whose finalized facade
-geometry obstructed their entrance route.
+across all 35 districts. Post-generation and mainline-envelope validation now
+retains 262 sites after rebuilding D, P, and X and pruning descriptors whose
+finalized facade geometry or physical building conflicts made them unsuitable.
 
 - `ServerStartedEvent` hydrates the mainline and gig catalogs before players can
   drive district-board updates.
@@ -476,14 +480,14 @@ The following checks ran against the final merged source:
 | Modernity quick compile | Passed |
 | Modernity full Gradle build | Passed |
 | NeoForge GameTests | **73/73 passed** on the final v22 source, including real catalog-offer acceptance and selected-only chunk loading |
-| Fresh `neoncity:megacity` boot | Ready in 1.143s after Minecraft startup; five mainline sites and 263 gig markers restored with no atlas scan |
-| Clean restart | Minecraft ready in 0.396s; five saved sites, 263 gig markers, and 272 generated chunks restored with no rescan |
+| Fresh `neoncity:megacity` boot | Fixed descriptors hydrate without a startup atlas scan; current catalogs contain five mainline sites and 262 gig markers |
+| Clean restart | Saved fixed descriptors are reused without a rescan |
 | `/neoncity status` | `enabled=true`, 35 districts, 64 edges, 9 generated chunks, v22 fingerprint |
 | Packaged edge atlases | Nine districts x 512 NBTs = 4,608 tiles |
 | Fixed mainline catalog | Five exact G/G/O/D/D descriptors; restore left all five remote chunks unloaded |
-| Fixed gig catalog | 263 unique descriptors across all 35 districts; observed minimum six per district; no mainline overlap |
+| Fixed gig catalog | 262 unique descriptors across all 35 districts; observed minimum six per district; no mainline building-envelope conflict |
 | Read-only gig audits | C, G, and Æ each returned five board/map/journal offers with zero scans and zero candidate chunks loaded |
-| Live gig plan audits | Rebuilt D, P, and X passed `6/6`, `7/7`, and `8/8` with decorated DFS and scans `0->0` |
+| Live gig plan audits | Final closed-envelope D passed `8/8` decorated install/DFS/objective/restore checks without another scan; earlier P and X audits passed `7/7` and `8/8` |
 | Package inspection | 20,345 entries; both fixed-site NBT resources and compatible world-preset IDs present |
 | `git diff --check` | Passed |
 

@@ -14,8 +14,9 @@ import net.minecraft.server.level.ServerLevel;
 /** Compiles generated multi-chunk Arnis geometry into reusable mission-building candidates. */
 public final class ArnisBuildingAtlas {
     private static final int REGION_RADIUS_CHUNKS = 2;
-    private static final int MAX_REGION_ATTEMPTS = 24;
-    private static final int MAX_SEARCH_RADIUS_CHUNKS = 16;
+    private static final int MAX_CLOSED_REGION_RADIUS_CHUNKS = 8;
+    private static final int MAX_REGION_ATTEMPTS = 40;
+    private static final int MAX_SEARCH_RADIUS_CHUNKS = 24;
     private static final long REGION_SALT = 0x41524E4953424C44L;
     private static final Map<CacheKey, MissionBuildingPlanner.AtlasScan> CACHE =
             new LinkedHashMap<>();
@@ -75,7 +76,7 @@ public final class ArnisBuildingAtlas {
         return compileInternal(
                 level, district, origin, searchRadiusChunks, selectionSalt,
                 minimumFloors, maximumFloors, generateChunks,
-                0, site -> true, true);
+                0, site -> true, true, false);
     }
 
     private static Compilation compileInternal(
@@ -89,7 +90,8 @@ public final class ArnisBuildingAtlas {
             boolean generateChunks,
             int requestedSites,
             Predicate<MissionBuildingPlanner.Site> acceptanceFilter,
-            boolean cacheCompilation) {
+            boolean cacheCompilation,
+            boolean closeCenterBuildings) {
         if (level == null || district == null || origin == null) {
             throw new IllegalArgumentException("incomplete Arnis building compilation request");
         }
@@ -169,23 +171,35 @@ public final class ArnisBuildingAtlas {
                 continue;
             }
             attempts++;
-            if (generateChunks) {
-                NeonCityGenerator.generateNow(
-                        level, candidate.chunkX(), candidate.chunkZ(), REGION_RADIUS_CHUNKS);
-            }
-            CacheKey key = new CacheKey(
-                    NeonCityGenerator.contentSeed(), NeonCityGenerator.layout().seed(), district,
-                    candidate.chunkX(), candidate.chunkZ(), minimumFloors, maximumFloors);
-            MissionBuildingPlanner.AtlasScan scan = CACHE.get(key);
-            if (scan == null) {
-                scan = MissionBuildingPlanner.scanArnisRegion(
-                        level, district, candidate.chunkX(), candidate.chunkZ(),
-                        REGION_RADIUS_CHUNKS,
-                        compilationSeed ^ candidate.score(), minimumFloors, maximumFloors);
-                CACHE.put(key, scan);
+            int scanRadius = REGION_RADIUS_CHUNKS;
+            MissionBuildingPlanner.AtlasScan scan;
+            while (true) {
+                if (generateChunks) {
+                    NeonCityGenerator.generateNow(
+                            level, candidate.chunkX(), candidate.chunkZ(), scanRadius);
+                }
+                CacheKey key = new CacheKey(
+                        NeonCityGenerator.contentSeed(), NeonCityGenerator.layout().seed(), district,
+                        candidate.chunkX(), candidate.chunkZ(), scanRadius,
+                        minimumFloors, maximumFloors);
+                scan = CACHE.get(key);
+                if (scan == null) {
+                    scan = MissionBuildingPlanner.scanArnisRegion(
+                            level, district, candidate.chunkX(), candidate.chunkZ(), scanRadius,
+                            compilationSeed ^ candidate.score(), minimumFloors, maximumFloors);
+                    CACHE.put(key, scan);
+                }
+                if (!closeCenterBuildings
+                        || scanRadius >= MAX_CLOSED_REGION_RADIUS_CHUNKS
+                        || !centerBuildingIsBoundaryClipped(
+                                scan, candidate.chunkX(), candidate.chunkZ())) {
+                    break;
+                }
+                scanRadius += 2;
             }
             scans.add(scan);
             for (MissionBuildingPlanner.Site site : scan.sites()) {
+                if (sites.size() >= desiredSites) break;
                 MissionBuildingPlanner.BuildingLabel building = scan.buildings().stream()
                         .filter(label -> label.siteId().equals(site.id()))
                         .findFirst().orElse(null);
@@ -248,7 +262,21 @@ public final class ArnisBuildingAtlas {
         return compileInternal(
                 level, district, origin, searchRadiusChunks, selectionSalt,
                 minimumFloors, maximumFloors, true,
-                requestedSites, acceptanceFilter, false);
+                requestedSites, acceptanceFilter, false, true);
+    }
+
+    private static boolean centerBuildingIsBoundaryClipped(
+            MissionBuildingPlanner.AtlasScan scan, int centerChunkX, int centerChunkZ) {
+        int minX = centerChunkX << 4;
+        int maxX = minX + 15;
+        int minZ = centerChunkZ << 4;
+        int maxZ = minZ + 15;
+        return scan.buildings().stream().anyMatch(building ->
+                building.decision().equals("rejected: boundary-clipped structural volume")
+                        && building.bounds().minX() <= maxX
+                        && building.bounds().maxX() >= minX
+                        && building.bounds().minZ() <= maxZ
+                        && building.bounds().maxZ() >= minZ);
     }
 
     public static Optional<Compilation> latest(District district) {
@@ -311,6 +339,7 @@ public final class ArnisBuildingAtlas {
             District district,
             int centerChunkX,
             int centerChunkZ,
+            int scanRadius,
             int minimumFloors,
             int maximumFloors) {
     }

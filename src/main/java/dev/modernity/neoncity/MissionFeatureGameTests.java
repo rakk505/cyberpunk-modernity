@@ -19,6 +19,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.levelgen.structure.BoundingBox;
 
 /** Focused progression invariants kept separate from the four objective end-to-end tests. */
 final class MissionFeatureGameTests {
@@ -44,6 +45,16 @@ final class MissionFeatureGameTests {
                         && NavigationTrailService.sampleRoute(
                                 navigationRoute, 12.0, 0.0).isEmpty(),
                 "navigation particles are not evenly spaced and distance-bounded");
+        List<net.minecraft.core.BlockPos> guardCandidates = List.of(
+                new net.minecraft.core.BlockPos(0, 0, 0),
+                new net.minecraft.core.BlockPos(3, 0, 0),
+                new net.minecraft.core.BlockPos(6, 0, 0));
+        List<net.minecraft.core.BlockPos> guardSelection = MissionService.selectGuardPositions(
+                guardCandidates, 2, 1);
+        helper.assertTrue(guardSelection.size() == 2
+                        && guardSelection.contains(guardCandidates.getFirst())
+                        && guardSelection.contains(guardCandidates.getLast()),
+                "guard placement relaxed spacing before trying a valid whole-floor layout");
         MegacityLayout fixedLayout = NeonCityGenerator.fixedLayout();
         MegacityLayout recreatedFixedLayout = MegacityLayout.create(50_520_260_801L);
         helper.assertTrue(NeonCityGenerator.contentSeed() == 50_520_260_801L
@@ -70,6 +81,18 @@ final class MissionFeatureGameTests {
                 "m03_steal_weights", 5,
                 "m04_assassinate_fixer", 3,
                 "m05_kill_cyberpsycho", 3);
+        Map<String, String> expectedBuildingIds = Map.of(
+                "m01_deliver_datashards", "g:atlas:8460eeb8c1fb224b",
+                "m02_assassinate_g_exec", "g:atlas:9188fc4a183218f",
+                "m03_steal_weights", "o:atlas:afe7bc2905497aad",
+                "m04_assassinate_fixer", "d:atlas:66d1b11e13fd33de",
+                "m05_kill_cyberpsycho", "d:atlas:1118dd286b08b0c6");
+        Map<String, String> expectedBuildingBounds = Map.of(
+                "m01_deliver_datashards", "1097,72,196..1146,152,233",
+                "m02_assassinate_g_exec", "1097,72,150..1146,152,187",
+                "m03_steal_weights", "-1236,72,3077..-1172,140,3137",
+                "m04_assassinate_fixer", "-3169,72,-966..-3040,152,-939",
+                "m05_kill_cyberpsycho", "-3169,72,-918..-3040,152,-891");
         helper.assertTrue(fixedSites.keySet().equals(expectedSiteIds.keySet())
                         && fixedSites.entrySet().stream().allMatch(entry ->
                                 entry.getValue().id().equals(expectedSiteIds.get(entry.getKey()))
@@ -77,6 +100,10 @@ final class MissionFeatureGameTests {
                                                 == expectedSiteDistricts.get(entry.getKey())
                                         && entry.getValue().floorYs().size()
                                                 == expectedSiteFloors.get(entry.getKey())
+                                        && entry.getValue().buildingId().equals(
+                                                expectedBuildingIds.get(entry.getKey()))
+                                        && boundsKey(entry.getValue().buildingBounds()).equals(
+                                                expectedBuildingBounds.get(entry.getKey()))
                                         && fixedLayout.locateDistrict(
                                                         entry.getValue().target().getX(),
                                                         entry.getValue().target().getZ())
@@ -93,6 +120,13 @@ final class MissionFeatureGameTests {
                                                 == entry.getValue().floorYs().getFirst()
                                         && entry.getValue().target().getY()
                                                 == entry.getValue().floorYs().getLast()
+                                        && !entry.getValue().buildingId()
+                                                .equals(entry.getValue().id())
+                                        && entry.getValue().buildingId().contains(":atlas:")
+                                        && entry.getValue().floorMasks().stream()
+                                                .flatMap(mask -> mask.cells().stream())
+                                                .allMatch(cell -> contains(
+                                                        entry.getValue().buildingBounds(), cell))
                                         && entry.getValue().decorations().isEmpty()
                                         && ArnisPatchLibrary.select(
                                                         fixedLayout,
@@ -124,8 +158,108 @@ final class MissionFeatureGameTests {
                                         Math.floorDiv(site.target().getX(), 16),
                                         Math.floorDiv(site.target().getZ(), 16)) == null),
                 "fixed-site restore loaded remote chunks, scanned the atlas, or was not idempotent");
+        MissionBuildingPlanner.Site syntheticRecovery = MainlineBuildingGenerator.createSite(
+                District.G_CORP,
+                "m01_deliver_datashards",
+                new net.minecraft.core.BlockPos(
+                        30_000, NeonCityGenerator.CITY_GROUND_Y + 1, 30_000),
+                3,
+                77L);
+        MissionBuildingPlanner.Site structuralRecovery =
+                MissionBuildingPlanner.withoutMissionInteriorPlan(syntheticRecovery);
+        MainlineQuestData.get(helper.getLevel()).putSite(
+                "m01_deliver_datashards", syntheticRecovery);
+        helper.assertTrue(MainlineQuestService.restoreFixedWorldPlans(helper.getLevel()) == 5
+                        && MainlineQuestService.reservedSite(
+                                        helper.getLevel(), "m01_deliver_datashards")
+                                .map(fixedSites.get("m01_deliver_datashards")::equals)
+                                .orElse(false),
+                "synthetic recovery descriptor was not migrated back to the bundled Arnis site");
+        MainlineQuestService.commitWorldPlan(
+                helper.getLevel(), "m01_deliver_datashards", syntheticRecovery);
+        helper.assertTrue(MainlineQuestService.restoreFixedWorldPlans(helper.getLevel()) == 5
+                        && MainlineQuestData.get(helper.getLevel())
+                                .isCommittedRecovery("m01_deliver_datashards")
+                        && MainlineQuestService.reservedSite(
+                                        helper.getLevel(), "m01_deliver_datashards")
+                                .map(structuralRecovery::equals).orElse(false)
+                        && MainlineQuestService.permanentInterior(
+                                        helper.getLevel(), "m01_deliver_datashards")
+                                .map(syntheticRecovery::equals).orElse(false),
+                "successfully committed recovery site was discarded during descriptor restore");
+        MainlineQuestData.get(helper.getLevel()).putSite(
+                "m01_deliver_datashards", fixedSites.get("m01_deliver_datashards"));
+        MissionBuildingPlanner.Site kaitoBuilding = fixedSites.get("m01_deliver_datashards");
+        MissionBuildingPlanner.Site seleneBuilding = fixedSites.get("m02_assassinate_g_exec");
+        helper.assertTrue(!kaitoBuilding.buildingId().equals(seleneBuilding.buildingId())
+                        && !MainlineQuestData.buildingConflicts(kaitoBuilding, seleneBuilding),
+                "Kaito's drop building and Selene's arcology share a physical reservation");
+
+        StoryMissionCatalog.StoryMission gExecutive =
+                StoryMissionCatalog.definition("m02_assassinate_g_exec");
+        UUID locationProgressId = UUID.fromString(
+                "c0de0000-0000-0000-0000-000000000021");
+        MissionService.ContractContext locationContext = new MissionService.ContractContext(
+                MissionService.ContractKind.STORY_MISSION,
+                gExecutive.requiredStreetCred(),
+                locationProgressId,
+                new PartyService.ParticipantSnapshot(
+                        java.util.Optional.empty(), List.of(UUID.fromString(
+                                "c0de0000-0000-0000-0000-000000000022"))),
+                false,
+                false);
+        MissionCatalog.MissionDefinition gEncounter = gExecutive.encounter();
+        MissionService.ActiveMission unresolvedGExecutive = new MissionService.ActiveMission(
+                gEncounter.id(), gEncounter.type(), gEncounter.title(), gEncounter.briefing(),
+                gEncounter.objectiveText(), gExecutive.primaryDistrict(),
+                net.minecraft.core.BlockPos.ZERO, gEncounter.rewardMin(), "", "", 0, 0L);
+        MainlineQuestService.begin(helper.getLevel(), locationContext, gExecutive.id());
+        MissionService.ActiveMission talkToKaito = MainlineQuestService.retarget(
+                helper.getLevel(), unresolvedGExecutive, locationContext);
+        helper.assertTrue(MainlineQuestService.currentNode(helper.getLevel(), locationContext)
+                                .map(StoryMissionCatalog.StoryNode::id)
+                                .filter("m02_talk_kaito"::equals).isPresent()
+                        && talkToKaito.target().equals(
+                                MissionBuildingPlanner.navigationTarget(kaitoBuilding))
+                        && helper.getLevel().getChunkSource().getChunkNow(
+                                Math.floorDiv(talkToKaito.target().getX(), 16),
+                                Math.floorDiv(talkToKaito.target().getZ(), 16)) == null
+                        && !contains(seleneBuilding.buildingBounds(), talkToKaito.target()),
+                "Mission 2 navigation did not lead to Kaito's separate building entrance");
+        MainlineQuestData locationProgress = MainlineQuestData.get(helper.getLevel());
+        helper.assertTrue(locationProgress.completeNode(
+                                locationProgressId, "m02_talk_kaito")
+                        && locationProgress.completeNode(
+                                locationProgressId, "m02_infiltrate_arcology"),
+                "could not advance the G executive location fixture");
+        MissionService.ActiveMission assassinateSelene = MainlineQuestService.retarget(
+                helper.getLevel(), unresolvedGExecutive, locationContext);
+        helper.assertTrue(MainlineQuestService.currentNode(helper.getLevel(), locationContext)
+                                .map(StoryMissionCatalog.StoryNode::id)
+                                .filter("m02_assassinate_selene"::equals).isPresent()
+                        && assassinateSelene.target().equals(seleneBuilding.target())
+                        && seleneBuilding.missionCells(assassinateSelene.target().getY())
+                                .contains(assassinateSelene.target())
+                        && !contains(kaitoBuilding.buildingBounds(), assassinateSelene.target()),
+                "Selene did not resolve into her separate Mission 2 arcology");
+        MainlineQuestService.end(helper.getLevel(), locationProgressId);
         List<StoryMissionCatalog.StoryMission> definitions = StoryMissionCatalog.definitions();
         helper.assertTrue(definitions.size() == 5, "story catalog lost its five-mission mainline");
+        Map<String, List<String>> expectedFloorPrograms = Map.of(
+                "m01_deliver_datashards", List.of("LOBBY", "LOUNGE", "STORAGE"),
+                "m02_assassinate_g_exec",
+                        List.of("LOBBY", "OPEN_OFFICE", "OPERATIONS", "EXECUTIVE"),
+                "m03_steal_weights",
+                        List.of("OPERATIONS", "OPEN_OFFICE", "OPERATIONS", "STORAGE",
+                                "OPERATIONS"),
+                "m04_assassinate_fixer", List.of("STORAGE", "OPERATIONS", "STORAGE"),
+                "m05_kill_cyberpsycho", List.of("STORAGE", "STORAGE", "OPERATIONS"));
+        helper.assertTrue(definitions.stream().allMatch(mission ->
+                        MissionBuildingPlanner.floorProgram(
+                                mission.encounter().type(), mission.id(),
+                                mission.requestedFloors())
+                                .equals(expectedFloorPrograms.get(mission.id()))),
+                "authored mainline buildings lost their mission-specific floor programs");
         List<StoryMissionCatalog.StoryMission> roots = StoryMissionCatalog.available(Set.of(), 0);
         helper.assertTrue(roots.size() == 1
                         && roots.getFirst().id().equals("m01_deliver_datashards"),
@@ -190,7 +324,183 @@ final class MissionFeatureGameTests {
                 "mainline node progress was not atomic and idempotent");
         progress.removeProgress(progressId);
 
-        MissionBuildingPlanner.Site reserved = MainlineBuildingGenerator.createSite(
+        ServerPlayer stagedPlayer = makeUniquePlayer(helper, "staged_story_deployment");
+        StoryMissionCatalog.StoryMission deliveryStory =
+                StoryMissionCatalog.definition("m01_deliver_datashards");
+        MissionCatalog.MissionDefinition deliveryDefinition = deliveryStory.encounter();
+        UUID stagedInstance = UUID.randomUUID();
+        PartyService.ParticipantSnapshot stagedParticipants =
+                new PartyService.ParticipantSnapshot(
+                        java.util.Optional.empty(), List.of(stagedPlayer.getUUID()));
+        MissionService.ContractContext stagedContext = new MissionService.ContractContext(
+                MissionService.ContractKind.STORY_MISSION,
+                deliveryDefinition.streetCred(),
+                stagedInstance,
+                stagedParticipants,
+                false,
+                false);
+        net.minecraft.core.BlockPos stagedTarget = helper.absolutePos(
+                new net.minecraft.core.BlockPos(2, 3, 2));
+        MissionService.ActiveMission stagedMission = new MissionService.ActiveMission(
+                deliveryDefinition.id(), deliveryDefinition.type(), deliveryDefinition.title(),
+                deliveryDefinition.briefing(), deliveryDefinition.objectiveText(),
+                deliveryStory.primaryDistrict(), stagedTarget, deliveryDefinition.rewardMin(),
+                "", deliveryDefinition.cargoItem().toString(), deliveryDefinition.cargoCount(),
+                helper.getLevel().getGameTime());
+        MissionService.save(stagedPlayer, stagedMission);
+        MissionService.saveContext(stagedPlayer, stagedContext);
+        PartyService.registerContract(helper.getLevel(), stagedInstance, stagedParticipants);
+        MainlineQuestService.begin(helper.getLevel(), stagedContext, deliveryStory.id());
+        MainlineQuestData stagedProgress = MainlineQuestData.get(helper.getLevel());
+        helper.assertTrue(stagedProgress.completeNode(stagedInstance, "m01_talk_jerry")
+                        && stagedProgress.completeNode(stagedInstance, "m01_travel_highway"),
+                "could not stage the Kaito delivery node");
+        StoryMissionCatalog.StoryNode deliveryNode = deliveryStory.node("m01_deliver_kaito");
+        MissionJournalData.get(helper.getLevel()).accept(
+                stagedParticipants, stagedContext, stagedMission, stagedTarget,
+                helper.getLevel().getGameTime());
+        helper.assertTrue(!MainlineQuestService.questNodeNeeded(
+                                helper.getLevel(), deliveryStory, deliveryNode),
+                "Kaito was exposed outside before his building deployed");
+
+        net.minecraft.world.entity.Entity deployingActor =
+                net.minecraft.world.entity.EntityTypes.MARKER.create(
+                        helper.getLevel(), net.minecraft.world.entity.EntitySpawnReason.EVENT);
+        helper.assertTrue(deployingActor != null, "could not create deploying actor fixture");
+        deployingActor.getPersistentData().putBoolean("cyberdeck_mission_actor", true);
+        deployingActor.getPersistentData().putString(
+                "cyberdeck_mission_instance", stagedInstance.toString());
+        deployingActor.getPersistentData().putString("cyberdeck_mission_role", "guard");
+        deployingActor.snapTo(
+                stagedTarget.getX() + 0.5, stagedTarget.getY(), stagedTarget.getZ() + 0.5,
+                0.0F, 0.0F);
+        helper.assertTrue(MissionService.duringDeployment(
+                                stagedInstance,
+                                () -> helper.getLevel().addFreshEntity(deployingActor))
+                        && helper.getLevel().getEntity(deployingActor.getUUID()) != null,
+                "staged actor join was canceled during its deployment transaction");
+        deployingActor.discard();
+
+        net.minecraft.world.entity.Entity staleActor =
+                net.minecraft.world.entity.EntityTypes.MARKER.create(
+                        helper.getLevel(), net.minecraft.world.entity.EntitySpawnReason.EVENT);
+        helper.assertTrue(staleActor != null, "could not create suspended actor fixture");
+        staleActor.getPersistentData().putBoolean("cyberdeck_mission_actor", true);
+        staleActor.getPersistentData().putString(
+                "cyberdeck_mission_instance", stagedInstance.toString());
+        staleActor.getPersistentData().putString("cyberdeck_mission_role", "guard");
+        staleActor.snapTo(
+                stagedTarget.getX() + 1.5, stagedTarget.getY(), stagedTarget.getZ() + 0.5,
+                0.0F, 0.0F);
+        helper.assertTrue(!helper.getLevel().addFreshEntity(staleActor),
+                "actor join outside deployment bypassed suspended-contract cleanup");
+        net.minecraft.core.BlockPos testSiteXZ = helper.absolutePos(
+                new net.minecraft.core.BlockPos(24, 0, 24));
+        MissionBuildingPlanner.Site generatedKaitoSite = MainlineBuildingGenerator.createSite(
+                District.G_CORP,
+                "m01_deliver_datashards",
+                new net.minecraft.core.BlockPos(
+                        testSiteXZ.getX(), NeonCityGenerator.CITY_GROUND_Y + 1,
+                        testSiteXZ.getZ()),
+                3,
+                91L);
+        MissionBuildingPlanner.Site stagedKaitoSite = new MissionBuildingPlanner.Site(
+                "test:m01-delivery-e2e",
+                generatedKaitoSite.district(), generatedKaitoSite.bounds(),
+                generatedKaitoSite.floorYs(), generatedKaitoSite.target(),
+                generatedKaitoSite.entrance(), generatedKaitoSite.stairs(),
+                generatedKaitoSite.patrolRoutes(), generatedKaitoSite.decorations(),
+                generatedKaitoSite.floorMasks(), generatedKaitoSite.planSeed(),
+                "test:m01-delivery-building", generatedKaitoSite.buildingBounds());
+        MainlineBuildingGenerator.buildTower(
+                helper.getLevel(), stagedKaitoSite, District.G_CORP);
+        stagedProgress.putSite(deliveryStory.id(), stagedKaitoSite);
+        helper.assertTrue(MissionService.issueCargo(
+                                helper.getLevel(), stagedPlayer,
+                                deliveryDefinition, stagedMission) != null,
+                "Jerry's contract-tagged cargo could not be staged");
+        MissionService.ActiveMission deployedDelivery = MissionService.activate(
+                stagedPlayer, deliveryDefinition, stagedMission, stagedContext);
+        MissionBuildingPlanner.Site deployedSite = MissionService.site(stagedPlayer).orElse(null);
+        com.example.cyberdeck.npc.CityNpc kaito = deployedSite == null ? null
+                : helper.getLevel().getEntitiesOfClass(
+                                com.example.cyberdeck.npc.CityNpc.class,
+                                new net.minecraft.world.phys.AABB(
+                                        deployedSite.buildingBounds().minX(),
+                                        deployedSite.buildingBounds().minY(),
+                                        deployedSite.buildingBounds().minZ(),
+                                        deployedSite.buildingBounds().maxX() + 1.0,
+                                        deployedSite.buildingBounds().maxY() + 1.0,
+                                        deployedSite.buildingBounds().maxZ() + 1.0),
+                                npc -> "kaito_park".equals(
+                                        MainlineQuestService.characterId(npc)))
+                        .stream().findFirst().orElse(null);
+        helper.assertTrue(deployedDelivery != null
+                        && MissionService.contractContext(stagedPlayer)
+                                .map(MissionService.ContractContext::deployed).orElse(false)
+                        && MissionJournalData.get(helper.getLevel())
+                                .deploymentState(stagedInstance).orElse(false)
+                        && deployedSite != null
+                        && kaito != null
+                        && kaito.getBlockY() == deployedSite.floorYs().get(1)
+                        && deployedSite.missionCells(kaito.getBlockY())
+                                .contains(kaito.blockPosition())
+                        && contains(deployedSite.buildingBounds(), kaito.blockPosition()),
+                "m01 did not deploy its building, journal, guards, and floor-two Kaito atomically");
+        net.minecraft.world.phys.AABB deployedArea = new net.minecraft.world.phys.AABB(
+                deployedSite.bounds().minX(), deployedSite.bounds().minY(),
+                deployedSite.bounds().minZ(), deployedSite.bounds().maxX() + 1.0,
+                deployedSite.bounds().maxY() + 1.0, deployedSite.bounds().maxZ() + 1.0);
+        List<com.example.cyberdeck.faction.FactionEnemy> deliveryGuards =
+                MissionService.missionActors(
+                        helper.getLevel(), com.example.cyberdeck.faction.FactionEnemy.class,
+                        deployedArea, actor -> MissionService.isMissionActor(actor, stagedInstance));
+        helper.assertTrue(deployedSite.floorYs().stream()
+                                .map(floorY -> deliveryGuards.stream()
+                                        .filter(guard -> guard.getBlockY() == floorY).count())
+                                .toList().equals(List.of(3L, 2L, 2L)),
+                "m01 did not deploy its authored 3/2/2 guard distribution across all floors");
+        stagedPlayer.snapTo(
+                kaito.getX(), kaito.getY(), kaito.getZ(), kaito.getYRot(), kaito.getXRot());
+        helper.assertTrue(MissionService.interactStoryNpc(stagedPlayer, kaito)
+                        && MissionService.activeMission(stagedPlayer).isEmpty()
+                        && MissionPlayerData.completedStory(stagedPlayer)
+                                .contains(deliveryStory.id())
+                        && StoryMissionCatalog.available(
+                                        MissionPlayerData.completedStory(stagedPlayer), 0)
+                                .stream().map(StoryMissionCatalog.StoryMission::id)
+                                .toList().equals(List.of("m02_assassinate_g_exec")),
+                "Kaito handoff did not complete m01 and unlock m02");
+        MissionBuildingPlanner.BlockSnapshot changedInterior = MissionSiteData.get(
+                        helper.getLevel()).restoration(stagedInstance)
+                .flatMap(tag -> MissionBuildingPlanner.loadRestorationSnapshot(
+                        helper.getLevel(), tag))
+                .stream().flatMap(snapshot -> snapshot.blocks().stream())
+                .filter(block -> !helper.getLevel().getBlockState(block.position())
+                        .equals(block.state()))
+                .findFirst().orElseThrow();
+        net.minecraft.world.level.block.state.BlockState retainedInteriorState =
+                helper.getLevel().getBlockState(changedInterior.position());
+        MegacityLayout.Node cleanupDistrict = NeonCityGenerator.layout().node(District.A_CORP);
+        stagedPlayer.snapTo(
+                cleanupDistrict.x() + 0.5,
+                NeonCityGenerator.CITY_GROUND_Y + 1,
+                cleanupDistrict.z() + 0.5,
+                0.0F,
+                0.0F);
+        AmbientGigService.recordPresence(stagedPlayer);
+        MissionService.tickCompletedSites(helper.getLevel());
+        helper.assertTrue(!MissionSiteData.get(helper.getLevel()).hasReservation(stagedInstance)
+                        && !kaito.isRemoved()
+                        && helper.getLevel().getBlockState(changedInterior.position())
+                                .equals(retainedInteriorState)
+                        && !retainedInteriorState.equals(changedInterior.state()),
+                "completed mainline cleanup removed Kaito or restored his permanent building");
+        stagedProgress.removeSite(deliveryStory.id());
+        MainlineQuestService.restoreFixedWorldPlans(helper.getLevel());
+        disconnect(stagedPlayer);
+
+        MissionBuildingPlanner.Site reservedWindow = MainlineBuildingGenerator.createSite(
                 District.G_CORP, "reservation_test",
                 new net.minecraft.core.BlockPos(20_000, 73, 20_000), 3, 2001L);
         MissionBuildingPlanner.Site overlapping = MainlineBuildingGenerator.createSite(
@@ -199,11 +509,17 @@ final class MissionFeatureGameTests {
         MissionBuildingPlanner.Site separate = MainlineBuildingGenerator.createSite(
                 District.G_CORP, "separate_test",
                 new net.minecraft.core.BlockPos(20_080, 73, 20_080), 3, 2003L);
-        progress.putSite("__gametest_reservation", reserved);
+        MissionBuildingPlanner.Site reserved = MissionBuildingPlanner.withBuildingReservation(
+                reservedWindow, "test:shared-physical-building", reservedWindow.bounds());
+        MissionBuildingPlanner.Site sameBuildingSeparateWindow =
+                MissionBuildingPlanner.withBuildingReservation(
+                        separate, "test:shared-physical-building", separate.bounds());
+        progress.commitSite("__gametest_reservation", reserved, true, reserved);
         helper.assertTrue(progress.conflicts(overlapping, null)
+                        && progress.conflicts(sameBuildingSeparateWindow, null)
                         && !progress.conflicts(overlapping, "__gametest_reservation")
                         && !progress.conflicts(separate, null),
-                "permanent mainline reservation did not exclude overlapping gig sites");
+                "permanent mainline reservation did not exclude an overlapping or shared building");
         var ops = helper.getLevel().registryAccess().createSerializationContext(
                 com.mojang.serialization.JsonOps.INSTANCE);
         com.google.gson.JsonElement encodedPlans = MainlineQuestData.TYPE.codec()
@@ -216,9 +532,14 @@ final class MissionFeatureGameTests {
                         "mainline plans must decode: " + message)));
         helper.assertTrue(decodedPlans.site("__gametest_reservation")
                         .map(site -> site.id().equals(reserved.id())
-                                && site.planSeed() == reserved.planSeed())
+                                && site.planSeed() == reserved.planSeed()
+                                && site.buildingId().equals(reserved.buildingId())
+                                && site.buildingBounds().equals(reserved.buildingBounds())
+                                && decodedPlans.isCommittedRecovery("__gametest_reservation")
+                                && decodedPlans.permanentInterior("__gametest_reservation")
+                                        .map(reserved::equals).orElse(false))
                         .orElse(false),
-                "fixed mainline selection was not retained by saved data");
+                "fixed mainline selection or building identity was not retained by saved data");
 
         helper.assertTrue(rejected(storyRoot("a", List.of("missing"))),
                 "story parser accepted a dangling prerequisite");
@@ -684,7 +1005,8 @@ final class MissionFeatureGameTests {
                                                         && site.stairs().size()
                                                                 == site.floorYs().size() - 1
                                                         && mainline.stream().noneMatch(reserved ->
-                                                                footprintsOverlap(reserved, site))))
+                                                                MainlineQuestData.buildingConflicts(
+                                                                        reserved, site))))
                         && catalog.values().stream().flatMap(List::stream)
                                 .map(MissionBuildingPlanner.Site::id).distinct().count()
                                 == catalog.values().stream().mapToLong(List::size).sum(),
@@ -801,13 +1123,15 @@ final class MissionFeatureGameTests {
                 .toList();
     }
 
-    private static boolean footprintsOverlap(
-            MissionBuildingPlanner.Site first, MissionBuildingPlanner.Site second) {
-        int clearance = MissionSiteData.SITE_CLEARANCE;
-        return first.bounds().minX() <= second.bounds().maxX() + clearance
-                && first.bounds().maxX() + clearance >= second.bounds().minX()
-                && first.bounds().minZ() <= second.bounds().maxZ() + clearance
-                && first.bounds().maxZ() + clearance >= second.bounds().minZ();
+    private static String boundsKey(BoundingBox bounds) {
+        return bounds.minX() + "," + bounds.minY() + "," + bounds.minZ()
+                + ".." + bounds.maxX() + "," + bounds.maxY() + "," + bounds.maxZ();
+    }
+
+    private static boolean contains(BoundingBox bounds, net.minecraft.core.BlockPos position) {
+        return position.getX() >= bounds.minX() && position.getX() <= bounds.maxX()
+                && position.getY() >= bounds.minY() && position.getY() <= bounds.maxY()
+                && position.getZ() >= bounds.minZ() && position.getZ() <= bounds.maxZ();
     }
 
     private static boolean rejected(JsonObject root) {

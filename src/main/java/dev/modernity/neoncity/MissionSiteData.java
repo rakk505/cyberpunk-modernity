@@ -156,6 +156,17 @@ final class MissionSiteData extends SavedData {
                 .anyMatch(reservation -> reservation.instanceId().equals(instanceId));
     }
 
+    boolean isReservedSite(MissionBuildingPlanner.Site site) {
+        if (site == null) return false;
+        return reservations.values().stream()
+                .map(Reservation::sitePlan)
+                .filter(tag -> !tag.isEmpty())
+                .map(MissionBuildingPlanner.Site::load)
+                .flatMap(java.util.Optional::stream)
+                .anyMatch(reserved -> reserved.id().equals(site.id())
+                        && reserved.buildingId().equals(site.buildingId()));
+    }
+
     /** Records which online contract members have physically entered the target district. */
     void markEntered(UUID instanceId, List<UUID> playerIds) {
         if (instanceId == null || playerIds == null || playerIds.isEmpty()) return;
@@ -413,10 +424,20 @@ final class MissionSiteData extends SavedData {
                     || maxX == UNKNOWN || maxZ == UNKNOWN) {
                 return false;
             }
-            return minX <= site.bounds().maxX() + SITE_CLEARANCE
-                    && maxX + SITE_CLEARANCE >= site.bounds().minX()
-                    && minZ <= site.bounds().maxZ() + SITE_CLEARANCE
-                    && maxZ + SITE_CLEARANCE >= site.bounds().minZ();
+            MissionBuildingPlanner.Site reserved = MissionBuildingPlanner.Site.load(sitePlan)
+                    .orElse(null);
+            if (reserved != null) {
+                return MainlineQuestData.buildingConflicts(reserved, site);
+            }
+            net.minecraft.world.level.levelgen.structure.BoundingBox reservedBounds =
+                    new net.minecraft.world.level.levelgen.structure.BoundingBox(
+                            minX, 0, minZ, maxX, 0, maxZ);
+            return reservedBounds.minX() <= site.buildingBounds().maxX() + SITE_CLEARANCE
+                    && reservedBounds.maxX() + SITE_CLEARANCE
+                            >= site.buildingBounds().minX()
+                    && reservedBounds.minZ() <= site.buildingBounds().maxZ() + SITE_CLEARANCE
+                    && reservedBounds.maxZ() + SITE_CLEARANCE
+                            >= site.buildingBounds().minZ();
         }
     }
 }

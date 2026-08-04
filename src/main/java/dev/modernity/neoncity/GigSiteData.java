@@ -34,6 +34,7 @@ import net.minecraft.world.level.saveddata.SavedDataType;
 final class GigSiteData extends SavedData {
     static final int CANDIDATES_PER_DISTRICT = 8;
     static final int MIN_FIXED_SITES_PER_DISTRICT = 5;
+    private static final int CATALOG_SEARCH_RADIUS_CHUNKS = 24;
     static final int FORMAT_VERSION = 1;
     private static final long CATALOG_SALT = 0x4749475349544553L;
     private static final String FIXED_SITE_RESOURCE =
@@ -175,7 +176,7 @@ final class GigSiteData extends SavedData {
         Map<String, MissionBuildingPlanner.Site> verified = new LinkedHashMap<>();
         int[] rejected = new int[5];
         ArnisBuildingAtlas.Compilation compilation = ArnisBuildingAtlas.compileGigCatalog(
-                level, district, origin, 16, selectionSalt, 1, 5,
+                level, district, origin, CATALOG_SEARCH_RADIUS_CHUNKS, selectionSalt, 1, 5,
                 CANDIDATES_PER_DISTRICT, raw -> {
             if (raw.district() != district) {
                 rejected[0]++;
@@ -330,11 +331,7 @@ final class GigSiteData extends SavedData {
 
     private static boolean footprintsConflict(
             MissionBuildingPlanner.Site first, MissionBuildingPlanner.Site second) {
-        int clearance = MissionSiteData.SITE_CLEARANCE;
-        return first.bounds().minX() <= second.bounds().maxX() + clearance
-                && first.bounds().maxX() + clearance >= second.bounds().minX()
-                && first.bounds().minZ() <= second.bounds().maxZ() + clearance
-                && first.bounds().maxZ() + clearance >= second.bounds().minZ();
+        return MainlineQuestData.buildingConflicts(first, second);
     }
 
     static ArtifactResult exportShard(
