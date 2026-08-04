@@ -95,6 +95,7 @@ NON_FULL_NAMES = frozenset(
         "minecraft:lantern",
         "minecraft:lectern",
         "minecraft:lightning_rod",
+        "minecraft:rail",
         "minecraft:scaffolding",
         "minecraft:soul_campfire",
         "minecraft:soul_lantern",
