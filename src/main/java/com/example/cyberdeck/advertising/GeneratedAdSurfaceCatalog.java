@@ -18,6 +18,9 @@ import net.minecraft.core.Direction;
 
 /** Offline-generated index of maximal large-ad rectangles in Arnis structure tiles. */
 public final class GeneratedAdSurfaceCatalog {
+    public static final int MIN_GENERATED_WIDTH = 8;
+    public static final int MIN_GENERATED_HEIGHT = 4;
+
     private static final String RESOURCE =
             "/data/cyberdeck/advertising/large_ad_surfaces.json";
     private static final Map<String, Surface> SURFACES = load();
@@ -57,6 +60,7 @@ public final class GeneratedAdSurfaceCatalog {
                         element -> supportBlocks.add(element.getAsString()));
                 if (facing == null || facing.getAxis().isVertical()
                         || !LargeAdSurfaceValidator.validDimensions(width, height)
+                        || !validGeneratedDimensions(width, height)
                         || supportBlocks.size() != width * height
                         || supportBlocks.stream().anyMatch(block ->
                                 block.isBlank() || !block.contains(":"))) {
@@ -80,6 +84,10 @@ public final class GeneratedAdSurfaceCatalog {
         } catch (IOException exception) {
             throw new IllegalStateException("Could not read " + RESOURCE, exception);
         }
+    }
+
+    public static boolean validGeneratedDimensions(int width, int height) {
+        return width >= MIN_GENERATED_WIDTH && height >= MIN_GENERATED_HEIGHT;
     }
 
     public record Surface(

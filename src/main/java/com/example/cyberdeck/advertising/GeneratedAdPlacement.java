@@ -12,8 +12,6 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
 
 /** Applies precomputed facade rectangles after their Arnis tile finishes decorating. */
 public final class GeneratedAdPlacement {
-    private static final long DENSITY_MASK = 3L;
-
     public enum Result {
         PLACED,
         NOT_APPLICABLE,
@@ -50,15 +48,16 @@ public final class GeneratedAdPlacement {
             StructureTemplate template,
             int minY,
             boolean requireOriginalSupport) {
-        if ((placement.selectionHash() & DENSITY_MASK) != 0L) {
-            return Result.NOT_APPLICABLE;
-        }
         var surface = GeneratedAdSurfaceCatalog.surface(placement.patch().catalogId());
         if (surface.isEmpty()) {
             return Result.NOT_APPLICABLE;
         }
 
         GeneratedAdSurfaceCatalog.Surface selected = surface.get();
+        if (!GeneratedAdSurfaceCatalog.validGeneratedDimensions(
+                selected.width(), selected.height())) {
+            return Result.NOT_APPLICABLE;
+        }
         BlockPos desiredMin = new BlockPos(chunk.getMinBlockX(), minY, chunk.getMinBlockZ());
         BlockPos templateAnchor = template.getZeroPositionWithTransform(
                 desiredMin, placement.mirror(), placement.rotation());

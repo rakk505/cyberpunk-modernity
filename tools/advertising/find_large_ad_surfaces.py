@@ -23,8 +23,8 @@ from arnis_import import NbtReader  # noqa: E402
 
 FORMAT = "cyberdeck:large_ad_surfaces"
 FORMAT_VERSION = 2
-MIN_WIDTH = 5
-MIN_HEIGHT = 3
+MIN_WIDTH = 8
+MIN_HEIGHT = 4
 MAX_WIDTH = 16
 MAX_HEIGHT = 9
 

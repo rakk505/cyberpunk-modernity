@@ -6,7 +6,10 @@ import com.example.cyberdeck.advertising.AdDisplayBlockEntity;
 import com.example.cyberdeck.advertising.AdDisplayPlacement;
 import com.example.cyberdeck.advertising.AdvertisingContent;
 import com.example.cyberdeck.advertising.GeneratedAdSurfaceCatalog;
+import com.example.cyberdeck.advertising.FreestandingAdPlacement;
+import com.example.cyberdeck.advertising.FreestandingAdType;
 import com.example.cyberdeck.advertising.LargeAdSurfaceValidator;
+import com.example.cyberdeck.advertising.LogoAd;
 import com.example.cyberdeck.city.CityWorlds;
 import com.example.cyberdeck.city.CityActorJoinCompatibility;
 import com.example.cyberdeck.city.AmmoCacheBlock;
@@ -160,6 +163,10 @@ public final class CyberdeckGameTests {
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             LARGE_AD_SURFACE = register(
                     "large_ad_surface", CyberdeckGameTests::largeAdSurface);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            FREESTANDING_AD_STRUCTURES = register(
+                    "freestanding_ad_structures",
+                    CyberdeckGameTests::freestandingAdStructures);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             MOUNTED_GUN_TARGETING = register(
                     "mounted_gun_targeting", CyberdeckGameTests::mountedGunTargeting);
@@ -1019,6 +1026,10 @@ public final class CyberdeckGameTests {
         }
         helper.assertTrue(GeneratedAdSurfaceCatalog.size() > 0,
                 "the offline Arnis facade scan must expose generated ad placements");
+        helper.assertTrue(GeneratedAdSurfaceCatalog.validGeneratedDimensions(8, 4)
+                        && !GeneratedAdSurfaceCatalog.validGeneratedDimensions(7, 9)
+                        && !GeneratedAdSurfaceCatalog.validGeneratedDimensions(16, 3),
+                "generated building ads must remain at least 8 x 4 regardless of area");
 
         int generatedWidth = 12;
         int generatedHeight = 5;
@@ -1038,6 +1049,128 @@ public final class CyberdeckGameTests {
                         && generated.displayHeight() == generatedHeight,
                 "variable dimensions must be stored on the rendering anchor");
         helper.succeed();
+    }
+
+    private static void freestandingAdStructures(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos mediumOrigin = helper.absolutePos(new BlockPos(2, 2, 2));
+        prepareFreestandingFloor(
+                level, mediumOrigin, FreestandingAdType.MEDIUM, Direction.Axis.X);
+        List<BlockPos> mediumTargets = FreestandingAdPlacement.targets(
+                mediumOrigin, FreestandingAdType.MEDIUM, Direction.Axis.X);
+        helper.assertValueEqual(mediumTargets.size(), 2 * 6 * 8,
+                "medium ad must occupy an exact 2 x 6 x 8 prism");
+        helper.assertTrue(FreestandingAdPlacement.place(
+                        level, mediumOrigin, FreestandingAdType.MEDIUM, Direction.Axis.X),
+                "flat open ground must accept a medium street ad");
+        helper.assertTrue(FreestandingAdPlacement.place(
+                        level, mediumOrigin, FreestandingAdType.MEDIUM, Direction.Axis.X),
+                "replaying medium-ad generation must be idempotent");
+        helper.assertValueEqual(
+                FreestandingAdType.MEDIUM.displayFaces(Direction.Axis.X),
+                List.of(Direction.NORTH, Direction.SOUTH),
+                "medium ad must render only on its two opposite 6 x 8 faces");
+        helper.assertTrue(level.getBlockEntity(mediumOrigin)
+                        instanceof AdDisplayBlockEntity medium
+                        && medium.freestandingType().orElse(null) == FreestandingAdType.MEDIUM
+                        && medium.displayWidth() == 6
+                        && medium.displayHeight() == 8,
+                "one configured block entity must drive both medium faces");
+
+        int mediumControllers = 0;
+        int mediumFrames = 0;
+        for (BlockPos target : mediumTargets) {
+            BlockState state = level.getBlockState(target);
+            if (state.is(AdvertisingContent.FREESTANDING_AD_CONTROLLER.get())) {
+                mediumControllers++;
+            } else if (state.is(AdvertisingContent.FREESTANDING_AD_FRAME.get())) {
+                mediumFrames++;
+            }
+        }
+        helper.assertValueEqual(mediumControllers, 1,
+                "medium ad must contain exactly one playback controller");
+        helper.assertValueEqual(mediumFrames, mediumTargets.size() - 1,
+                "all other medium-ad cells must be solid frame blocks");
+
+        BlockPos smallOrigin = helper.absolutePos(new BlockPos(12, 2, 2));
+        prepareFreestandingFloor(
+                level, smallOrigin, FreestandingAdType.SMALL, Direction.Axis.Z);
+        List<BlockPos> smallTargets = FreestandingAdPlacement.targets(
+                smallOrigin, FreestandingAdType.SMALL, Direction.Axis.Z);
+        helper.assertValueEqual(smallTargets.size(), 2 * 2 * 4,
+                "small ad must occupy an exact 2 x 2 x 4 prism");
+        helper.assertTrue(FreestandingAdPlacement.place(
+                        level, smallOrigin, FreestandingAdType.SMALL, Direction.Axis.Z),
+                "flat open ground must accept a small street ad");
+        helper.assertValueEqual(
+                FreestandingAdType.SMALL.displayFaces(Direction.Axis.Z),
+                List.of(Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST),
+                "small ad must render its 2 x 4 card on all four faces");
+        helper.assertValueEqual(
+                List.of(LogoAd.values()).stream().map(LogoAd::id).toList(),
+                List.of("meta", "closedai", "misanthropic"),
+                "small-ad campaign must contain only the three requested logos");
+        helper.assertTrue(!FreestandingAdType.SMALL.audioEnabled(),
+                "small logo cards must remain silent");
+        helper.assertTrue(level.getBlockEntity(smallOrigin)
+                        instanceof AdDisplayBlockEntity small
+                        && small.freestandingType().orElse(null) == FreestandingAdType.SMALL,
+                "one configured block entity must drive all four small faces");
+        AdDisplayBlockEntity small = (AdDisplayBlockEntity) level.getBlockEntity(smallOrigin);
+        LogoAd firstLogo = small.currentLogo();
+        for (int tick = 0; tick < AdDisplayBlockEntity.LOGO_DURATION_TICKS; tick++) {
+            AdDisplayBlockEntity.clientTick(
+                    level, smallOrigin, level.getBlockState(smallOrigin), small);
+        }
+        helper.assertValueEqual(
+                small.currentLogo(),
+                LogoAd.values()[(firstLogo.ordinal() + 1) % LogoAd.values().length],
+                "small ads must cycle through the logo campaign in order");
+
+        for (LogoAd logo : LogoAd.values()) {
+            String resource = "/assets/cyberdeck/textures/ad_logos/" + logo.id() + ".png";
+            try (java.io.InputStream stream = AdvertisingContent.class.getResourceAsStream(
+                    resource)) {
+                helper.assertTrue(stream != null
+                                && java.util.Arrays.equals(
+                                        stream.readNBytes(8),
+                                        new byte[] {-119, 80, 78, 71, 13, 10, 26, 10}),
+                        "small-ad logo must be a packaged PNG: " + resource);
+            } catch (java.io.IOException exception) {
+                helper.fail("could not read small-ad logo " + resource + ": "
+                        + exception.getMessage());
+            }
+        }
+
+        BlockPos blockedOrigin = helper.absolutePos(new BlockPos(20, 2, 2));
+        prepareFreestandingFloor(
+                level, blockedOrigin, FreestandingAdType.SMALL, Direction.Axis.X);
+        BlockPos blocker = blockedOrigin.offset(1, 3, 1);
+        level.setBlock(blocker, Blocks.STONE.defaultBlockState(), Block.UPDATE_ALL);
+        helper.assertTrue(!FreestandingAdPlacement.place(
+                        level, blockedOrigin, FreestandingAdType.SMALL, Direction.Axis.X),
+                "an occupied prism must reject a freestanding ad");
+        for (BlockPos target : FreestandingAdPlacement.targets(
+                blockedOrigin, FreestandingAdType.SMALL, Direction.Axis.X)) {
+            helper.assertTrue(target.equals(blocker)
+                            ? level.getBlockState(target).is(Blocks.STONE)
+                            : level.getBlockState(target).isAir(),
+                    "rejected placement must not partially mutate its prism");
+        }
+        helper.succeed();
+    }
+
+    private static void prepareFreestandingFloor(
+            ServerLevel level,
+            BlockPos origin,
+            FreestandingAdType type,
+            Direction.Axis longAxis) {
+        for (int z = 0; z < type.sizeZ(longAxis); z++) {
+            for (int x = 0; x < type.sizeX(longAxis); x++) {
+                level.setBlock(origin.offset(x, -1, z),
+                        Blocks.STONE.defaultBlockState(), Block.UPDATE_ALL);
+            }
+        }
     }
 
     private static void minimapRotationGeometry(GameTestHelper helper) {
@@ -3231,6 +3364,8 @@ public final class CyberdeckGameTests {
                 8);
         registerInstance(event, "detection_line_of_sight", DETECTION_LINE_OF_SIGHT, arena);
         registerInstance(event, "large_ad_surface", LARGE_AD_SURFACE, arena);
+        registerInstance(event, "freestanding_ad_structures",
+                FREESTANDING_AD_STRUCTURES, arena);
         registerInstance(event, "detection_crouch", DETECTION_CROUCH, arena);
         registerInstance(event, "detection_decay", DETECTION_DECAY, arena);
         registerInstance(event, "cyberpsycho_balance", CYBERPSYCHO_BALANCE, data);
