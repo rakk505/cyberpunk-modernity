@@ -13,6 +13,7 @@ import net.minecraft.world.level.block.BarrelBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity;
+import net.minecraft.world.level.levelgen.structure.BoundingBox;
 
 /** Focused regression tests registered by {@link ProjectMoonCityModule}. */
 final class UrbanSystemsGameTests {
@@ -62,6 +63,62 @@ final class UrbanSystemsGameTests {
                                 DistrictAtmosphere.WINTER_CYCLE_TICKS)
                                 == DistrictAtmosphere.WinterWeather.GENTLE,
                 "shared winter weather no longer cycles deterministically");
+        helper.succeed();
+    }
+
+    static void arnisEmbeddedLighting(GameTestHelper helper) {
+        BlockPos oakLight = helper.absolutePos(new BlockPos(3, 2, 3));
+        BlockPos coveredLight = helper.absolutePos(new BlockPos(8, 2, 3));
+        BlockPos unsupportedLight = helper.absolutePos(new BlockPos(3, 2, 8));
+        BlockPos maskedPosition = helper.absolutePos(new BlockPos(8, 2, 8));
+        BlockPos edgeLight = helper.absolutePos(new BlockPos(12, 2, 12));
+        var level = helper.getLevel();
+
+        level.setBlock(oakLight, Blocks.GLOWSTONE.defaultBlockState(), Block.UPDATE_ALL);
+        level.setBlock(oakLight.north(), Blocks.OAK_PLANKS.defaultBlockState(), Block.UPDATE_ALL);
+        level.setBlock(oakLight.south(), Blocks.OAK_PLANKS.defaultBlockState(), Block.UPDATE_ALL);
+        level.setBlock(oakLight.east(), Blocks.STONE_BRICKS.defaultBlockState(), Block.UPDATE_ALL);
+        level.setBlock(coveredLight, Blocks.GLOWSTONE.defaultBlockState(), Block.UPDATE_ALL);
+        level.setBlock(coveredLight.west(), Blocks.OAK_PLANKS.defaultBlockState(), Block.UPDATE_ALL);
+        level.setBlock(coveredLight.above(), Blocks.STONE.defaultBlockState(), Block.UPDATE_ALL);
+        level.setBlock(unsupportedLight, Blocks.GLOWSTONE.defaultBlockState(), Block.UPDATE_ALL);
+        level.setBlock(unsupportedLight.north(), Blocks.GLASS.defaultBlockState(), Block.UPDATE_ALL);
+        level.setBlock(maskedPosition, Blocks.GLOWSTONE.defaultBlockState(), Block.UPDATE_ALL);
+        level.setBlock(edgeLight, Blocks.GLOWSTONE.defaultBlockState(), Block.UPDATE_ALL);
+        level.setBlock(edgeLight.east(), Blocks.OAK_PLANKS.defaultBlockState(), Block.UPDATE_ALL);
+
+        List<BlockPos> candidates = List.of(oakLight, coveredLight, unsupportedLight, edgeLight);
+        BoundingBox testBounds = new BoundingBox(
+                oakLight.getX() - 4,
+                oakLight.getY() - 1,
+                oakLight.getZ() - 4,
+                maskedPosition.getX() + 4,
+                maskedPosition.getY() + 2,
+                maskedPosition.getZ() + 4);
+        helper.assertTrue(
+                ArnisEmbeddedLighting.finish(
+                        level, candidates, testBounds, Block.UPDATE_ALL) == 4,
+                "Arnis lighting pass did not restrict itself to placed glowstone");
+
+        var oakState = level.getBlockState(oakLight);
+        helper.assertTrue(
+                oakState.is(ArnisLightingBlocks.CAMOUFLAGED_SEA_LANTERN.get())
+                        && oakState.getValue(CamouflagedSeaLanternBlock.SURFACE)
+                                == CamouflagedSeaLanternBlock.SurfaceFinish.OAK_PLANKS
+                        && oakState.getLightEmission() == 15,
+                "exposed glowstone did not become an oak-topped sea lantern");
+        helper.assertTrue(
+                level.getBlockState(coveredLight).is(Blocks.SEA_LANTERN),
+                "covered glowstone did not become a vanilla sea lantern");
+        helper.assertTrue(
+                level.getBlockState(unsupportedLight).is(Blocks.SEA_LANTERN),
+                "unsupported transparent neighbours did not use the safe sea-lantern fallback");
+        helper.assertTrue(
+                level.getBlockState(edgeLight).is(Blocks.SEA_LANTERN),
+                "Arnis floor selection read a material outside its source tile");
+        helper.assertTrue(
+                level.getBlockState(maskedPosition).is(Blocks.GLOWSTONE),
+                "lighting pass modified a glowstone candidate removed by the Arnis column mask");
         helper.succeed();
     }
 

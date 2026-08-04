@@ -137,6 +137,9 @@ public final class ProjectMoonCityModule {
             URBAN_SUPPLY_CRATES = register(
                     "urban_supply_crates", UrbanSystemsGameTests::urbanSupplyCrates);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            ARNIS_EMBEDDED_LIGHTING = register(
+                    "arnis_embedded_lighting", UrbanSystemsGameTests::arnisEmbeddedLighting);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             BUILDING_INSPECTION = register(
                     "building_inspection", BuildingInspectionGameTests::commandAndOverlayPlan);
 

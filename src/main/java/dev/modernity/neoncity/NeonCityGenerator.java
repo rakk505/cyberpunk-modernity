@@ -1070,9 +1070,10 @@ public final class NeonCityGenerator {
         BoundingBox destinationBounds = new BoundingBox(
                 minX, minY, minZ,
                 chunk.getMaxBlockX(), minY + patch.sizeY() - 1, chunk.getMaxBlockZ());
+        ArnisColumnMaskProcessor columnMask = new ArnisColumnMaskProcessor(
+                minX, minZ, samples, placement.patch().district());
         StructurePlaceSettings settings = arnisPlaceSettings(placement, destinationBounds)
-                .addProcessor(new ArnisColumnMaskProcessor(
-                        minX, minZ, samples, placement.patch().district()));
+                .addProcessor(columnMask);
         BoundingBox transformedBounds = template.getBoundingBox(settings, anchor);
         if (!sameBounds(destinationBounds, transformedBounds)) {
             LOGGER.error("[NeonCity] transformed Arnis template {} escaped chunk {}: expected {}, got {}",
@@ -1085,6 +1086,9 @@ public final class NeonCityGenerator {
         if (!placed) {
             LOGGER.error("[NeonCity] Arnis template {} refused placement into {}",
                     patch.templateId(), chunk);
+        } else {
+            ArnisEmbeddedLighting.finish(
+                    level, columnMask.retainedGlowstone(), destinationBounds, PLACE_FLAGS);
         }
         return placed;
     }
@@ -1105,6 +1109,7 @@ public final class NeonCityGenerator {
         private final int minX;
         private final int minZ;
         private final boolean[] retained = new boolean[16 * 16];
+        private final List<BlockPos> retainedGlowstone = new ArrayList<>();
 
         private ArnisColumnMaskProcessor(
                 int minX,
@@ -1140,7 +1145,17 @@ public final class NeonCityGenerator {
             if (localX < 0 || localX >= 16 || localZ < 0 || localZ >= 16) {
                 return null;
             }
-            return retained[localZ * 16 + localX] ? processedBlockInfo : null;
+            if (!retained[localZ * 16 + localX]) {
+                return null;
+            }
+            if (processedBlockInfo.state().is(Blocks.GLOWSTONE)) {
+                retainedGlowstone.add(worldPosition.immutable());
+            }
+            return processedBlockInfo;
+        }
+
+        private List<BlockPos> retainedGlowstone() {
+            return retainedGlowstone;
         }
     }
 

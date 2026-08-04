@@ -960,6 +960,36 @@ branch.
   and hash-matched the sandbox artifact at
   `06374c92c37753406a43f1ad994feb2dd05565d4e19d07c1e57e75f98896ae5e`.
 
+### Immersive Arnis Sea-Lantern Floors
+
+- Added `tools/arnis/rewrite_embedded_lighting.py`, a dependency-free audit/apply/check command
+  for deterministic Arnis NBT lighting migration.
+- New Arnis imports normalize glowstone before writing their structure palettes.
+- Covered glowstone becomes a vanilla sea lantern.
+- Exposed glowstone becomes a generated-only camouflaged sea lantern whose top texture is selected
+  by deterministic majority vote across same-height cardinal floor neighbours.
+- Added ten static top finishes: blackstone, gray concrete, light-gray concrete, mud bricks, nether
+  bricks, oak planks, polished andesite, smooth stone, stone bricks, and white concrete.
+- Slab, stair, cracked, and chiseled members of those material families vote for their matching
+  full-block finish.
+- Unsupported, transparent, or neighbourless contexts safely fall back to a vanilla sea lantern.
+- Added baked blockstate/model assets that reuse vanilla textures; no copied texture PNGs, dynamic
+  models, block entities, render callbacks, or ticking blocks were introduced.
+- Existing checked-in Arnis tiles use a bounded first-generation placement pass so the feature is
+  active without committing 10,858 rewritten binary NBT files. The district column-mask processor
+  records only retained imported glowstone positions, which are then replaced once.
+- A complete read-only archive audit found 1,300,095 glowstone blocks: 33,332 covered, 1,265,868
+  camouflaged, and 895 safe fallbacks. The ten top finishes cover 99.93% of exposed lights.
+- The optional `--apply` migration updates structure bytes, catalog SHA-256 values, compressed byte
+  counts, palette sizes, catalog validation, and the bound open-park audit.
+- Added GameTests for covered, exposed, unsupported, light-level, material-selection, and
+  masked-column behavior.
+- Full build passed; all 76 required GameTests passed; clean day and night client captures verified
+  seamless top textures and retained light emission for all ten finishes.
+- The generation pass has no recurring multiplayer cost after a chunk is first built. Only newly
+  generated or previously ungenerated chunks are updated; existing generated chunks retain their
+  glowstone unless changed separately with a world-edit or admin process.
+
 ## Multiplayer And Private Two-Player Review Summary
 
 - Scanner mode is per-player and synchronized from server-owned attachments.
@@ -1020,6 +1050,8 @@ branch.
 - District atmosphere density: merged-current-main build passed; all 75 GameTests passed; D, T,
   and neutral control captures verified the intended visual separation; the merged JAR was
   installed and hash-matched.
+- Immersive Arnis lighting: full build and all 76 GameTests passed; a complete 17,920-tile dry-run
+  migration audit passed; real day/night client captures verified all ten floor finishes.
 - Each completed implementation commit was pushed to
   its named remote feature branch.
 - The final packaged JAR was installed in the local Minecraft `mods` directory and hash-matched to
