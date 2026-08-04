@@ -32,6 +32,7 @@ public final class RoadsideVehicleSpawns {
     static final int SPAWN_BATCH = 2;
     static final int MAX_LOADED_VEHICLES = 24;
     static final int MOTORBIKE_PERCENT = 35;
+    static final int TRAFFIC_PERCENT = 60;
     static final int MIN_FUEL_PERCENT = 5;
     static final int MAX_FUEL_PERCENT = 95;
 
@@ -55,6 +56,11 @@ public final class RoadsideVehicleSpawns {
     public static void onVehicleClaimed(EntityMountEvent event) {
         if (event.isMounting()
                 && event.getEntityBeingMounted() instanceof FuelPoweredVehicleEntity vehicle) {
+            Entity rider = event.getEntityMounting();
+            if (CityTrafficService.isManagedPair(vehicle, rider)) return;
+            if (vehicle.level() instanceof ServerLevel level) {
+                CityTrafficService.releaseForControl(level, vehicle);
+            }
             vehicle.getPersistentData().putBoolean(MANAGED_KEY, false);
         }
     }
@@ -103,7 +109,10 @@ public final class RoadsideVehicleSpawns {
         int attempts = 0;
         while (spawned < wanted && attempts++ < MAX_PLACEMENT_ATTEMPTS) {
             boolean motorbike = random.nextInt(100) < MOTORBIKE_PERCENT;
-            ParkingSite site = findParkingSite(level, player, random, motorbike);
+            boolean traffic = random.nextInt(100) < TRAFFIC_PERCENT;
+            ParkingSite site = traffic
+                    ? findTrafficSite(level, player, random, motorbike)
+                    : findParkingSite(level, player, random, motorbike);
             if (site == null || !hasVehicleSeparation(vehicles, site.position())) continue;
 
             EntityType<? extends FuelPoweredVehicleEntity> type = randomType(random, motorbike);
@@ -127,6 +136,9 @@ public final class RoadsideVehicleSpawns {
             VehicleQuickhackService.markCompatibleCar(vehicle);
             if (level.addFreshEntity(vehicle)) {
                 vehicles.add(vehicle);
+                if (traffic) {
+                    CityTrafficService.assignDriver(level, vehicle, random);
+                }
                 spawned++;
             } else {
                 vehicle.discard();
@@ -138,6 +150,43 @@ public final class RoadsideVehicleSpawns {
                     spawned,
                     player.getScoreboardName());
         }
+    }
+
+    private static ParkingSite findTrafficSite(
+            ServerLevel level,
+            ServerPlayer player,
+            RandomSource random,
+            boolean motorbike) {
+        double angle = random.nextDouble() * Math.PI * 2.0;
+        int radius = MIN_SPAWN_RADIUS
+                + random.nextInt(MAX_SPAWN_RADIUS - MIN_SPAWN_RADIUS + 1);
+        int x = (int) Math.floor(player.getX() + Math.cos(angle) * radius);
+        int z = (int) Math.floor(player.getZ() + Math.sin(angle) * radius);
+        NeonCityGenerator.UrbanSample sample = NeonCityGenerator.sample(x, z);
+        if (!isTrafficRoad(sample.roadClass())) return null;
+
+        boolean alongX = trafficRoadScore(x, z, true)
+                > trafficRoadScore(x, z, false);
+        Direction heading = alongX
+                ? (random.nextBoolean() ? Direction.EAST : Direction.WEST)
+                : (random.nextBoolean() ? Direction.SOUTH : Direction.NORTH);
+        BlockPos probe = new BlockPos(x, sample.groundY() + 1, z);
+        if (!level.hasChunkAt(probe)) return null;
+        int surfaceY = level.getHeight(
+                Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+        if (Math.abs(surfaceY - (sample.groundY() + 1)) > 2) return null;
+        BlockPos position = new BlockPos(x, surfaceY, z);
+        if (!level.getBlockState(position.below()).isSolid()
+                || !level.isEmptyBlock(position)) {
+            return null;
+        }
+        float yaw = switch (heading) {
+            case WEST -> 90.0F;
+            case NORTH -> 180.0F;
+            case EAST -> 270.0F;
+            default -> 0.0F;
+        };
+        return new ParkingSite(position, yaw);
     }
 
     private static ParkingSite findParkingSite(
@@ -207,11 +256,28 @@ public final class RoadsideVehicleSpawns {
         return score;
     }
 
+    private static int trafficRoadScore(int x, int z, boolean alongX) {
+        int score = 0;
+        for (int offset : new int[] {-8, -4, 4, 8}) {
+            int sampleX = alongX ? x + offset : x;
+            int sampleZ = alongX ? z : z + offset;
+            if (isTrafficRoad(NeonCityGenerator.sample(sampleX, sampleZ).roadClass())) score++;
+        }
+        return score;
+    }
+
     static boolean isParkableRoad(
             NeonCityGenerator.RoadClass roadClass, boolean motorbike) {
         return roadClass == NeonCityGenerator.RoadClass.LOCAL_STREET
                 || roadClass == NeonCityGenerator.RoadClass.DISTRICT_BOULEVARD
                 || (motorbike && roadClass == NeonCityGenerator.RoadClass.SERVICE_ALLEY);
+    }
+
+    static boolean isTrafficRoad(NeonCityGenerator.RoadClass roadClass) {
+        return roadClass == NeonCityGenerator.RoadClass.LOCAL_STREET
+                || roadClass == NeonCityGenerator.RoadClass.DISTRICT_BOULEVARD
+                || roadClass == NeonCityGenerator.RoadClass.INTERDISTRICT_ROAD
+                || roadClass == NeonCityGenerator.RoadClass.BRIDGE;
     }
 
     public static int randomizedFuelLevel(int capacity, RandomSource random) {
@@ -254,13 +320,15 @@ public final class RoadsideVehicleSpawns {
             ServerLevel level, List<FuelPoweredVehicleEntity> vehicles) {
         for (FuelPoweredVehicleEntity vehicle : vehicles) {
             if (!vehicle.getPersistentData().getBooleanOr(MANAGED_KEY, false)) continue;
-            if (!vehicle.getPassengers().isEmpty()) {
+            if (!vehicle.getPassengers().isEmpty()
+                    && !CityTrafficService.hasTrafficDriver(vehicle)) {
                 vehicle.getPersistentData().putBoolean(MANAGED_KEY, false);
                 continue;
             }
             if (vehicle.tickCount >= RETIRE_AFTER_TICKS
                     && nearestPlayerDistanceSqr(vehicle, level.players())
                             > RETIRE_DISTANCE * RETIRE_DISTANCE) {
+                CityTrafficService.retire(vehicle);
                 vehicle.discard();
             }
         }

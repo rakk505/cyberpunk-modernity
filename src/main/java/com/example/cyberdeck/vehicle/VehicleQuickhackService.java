@@ -2,6 +2,9 @@ package com.example.cyberdeck.vehicle;
 
 import com.example.cyberdeck.Cyberdeck;
 import com.example.cyberdeck.defense.ExplosiveCanisterBlock;
+import com.modernity.vehicle_mod.api.RemoteControllableVehicle;
+import com.modernity.vehicle_mod.api.RemoteVehicleInput;
+import com.modernity.vehicle_mod.api.VehicleApi;
 
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
@@ -87,6 +90,7 @@ public final class VehicleQuickhackService {
         }
         SPEEDING_CARS.remove(event.getEntity().getUUID());
         REMOTE_INPUTS.remove(event.getEntity().getUUID());
+        VehicleApi.find(event.getEntity()).ifPresent(RemoteControllableVehicle::clearRemoteInput);
     }
 
     @SubscribeEvent
@@ -99,7 +103,8 @@ public final class VehicleQuickhackService {
     public static boolean isCar(@Nullable Entity entity) {
         return entity != null
                 && !entity.isRemoved()
-                && (entity instanceof QuickhackCar
+                && (VehicleApi.find(entity).isPresent()
+                        || entity instanceof QuickhackCar
                         || entity.getType().builtInRegistryHolder().is(QUICKHACK_CARS)
                         || entity.getData(
                                 VehicleQuickhackAttachments.COMPATIBLE_CAR.get()));
@@ -144,21 +149,32 @@ public final class VehicleQuickhackService {
         if (!valid(level, car)) {
             return false;
         }
-        REMOTE_INPUTS.put(car.getUUID(), new RemoteInput(
-                Mth.clamp(throttle, -1.0F, 1.0F),
-                Mth.clamp(turn, -1.0F, 1.0F), braking));
+        float safeThrottle = Mth.clamp(throttle, -1.0F, 1.0F);
+        float safeTurn = Mth.clamp(turn, -1.0F, 1.0F);
+        RemoteControllableVehicle controller = VehicleApi.find(car).orElse(null);
+        if (controller != null) {
+            CityTrafficService.releaseForControl(level, car);
+            REMOTE_INPUTS.remove(car.getUUID());
+            return controller.applyRemoteInput(
+                    new RemoteVehicleInput(safeThrottle, safeTurn, braking));
+        }
+        REMOTE_INPUTS.put(car.getUUID(), new RemoteInput(safeThrottle, safeTurn, braking));
         return true;
     }
 
     public static void clearRemoteInput(Entity car) {
         if (car != null) {
             REMOTE_INPUTS.remove(car.getUUID());
+            VehicleApi.find(car).ifPresent(RemoteControllableVehicle::clearRemoteInput);
         }
     }
 
     private static boolean applyRemoteState(
             ServerLevel level, Entity car, RemoteInput input) {
         if (!valid(level, car)) {
+            return false;
+        }
+        if (VehicleApi.find(car).isPresent()) {
             return false;
         }
         if (input.braking()) {

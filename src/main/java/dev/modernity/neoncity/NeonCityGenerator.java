@@ -15,6 +15,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
 import net.minecraft.core.Vec3i;
@@ -77,6 +78,7 @@ public final class NeonCityGenerator {
     public static final int MIN_TRAVEL_LOOKAHEAD_BLOCKS = 96;
     public static final int MAX_TRAVEL_LOOKAHEAD_BLOCKS = 512;
     public static final int MAX_FOREGROUND_CHUNKS_PER_TICK = 3;
+    static final int MAX_LIGHT_REFRESHES_PER_TICK = 8;
     public static final long FOREGROUND_GENERATION_BUDGET_NANOS = 25_000_000L;
     static final double MAX_POSITION_FALLBACK_SPEED = 8.0;
 
@@ -117,6 +119,9 @@ public final class NeonCityGenerator {
     private static final Map<ParkSiteKey, ParkSitePlan> PARK_SITE_PLANS =
             new ConcurrentHashMap<>();
     private static final Map<UUID, TravelMotion> TRAVEL_MOTIONS = new HashMap<>();
+    private static final Set<Long> PENDING_LIGHT_REFRESHES = ConcurrentHashMap.newKeySet();
+    private static final ConcurrentLinkedQueue<Long> READY_LIGHT_REFRESHES =
+            new ConcurrentLinkedQueue<>();
     private static long lastActiveTravelGameTime = Long.MIN_VALUE;
     private static MegacityLayout layout = MegacityLayout.create(FIXED_CITY_SEED);
     private static boolean layoutInitialized;
@@ -263,6 +268,8 @@ public final class NeonCityGenerator {
         BRIDGE_PROFILES.clear();
         PARK_SITE_PLANS.clear();
         TRAVEL_MOTIONS.clear();
+        PENDING_LIGHT_REFRESHES.clear();
+        READY_LIGHT_REFRESHES.clear();
         lastActiveTravelGameTime = Long.MIN_VALUE;
         CityChunkPlanner.reset();
         ArnisPatchLibrary.clearSelectionCache();
@@ -540,6 +547,7 @@ public final class NeonCityGenerator {
 
     /** Generate a bounded batch of already-loaded chunks while the current tick has headroom. */
     public static boolean tick(ServerLevel level) {
+        drainCompletedLightRefreshes(level);
         if (!enabled || savedData == null) return false;
         scheduleChunkPlanning(level);
         long startedNanos = System.nanoTime();
@@ -916,7 +924,7 @@ public final class NeonCityGenerator {
                 UrbanCrateGeneration.decorateChunk(level, chunk, samples);
             }
             if (trace != null) trace.phase(CityGenerationTrace.Phase.CLIENT_REFRESH);
-            refreshTrackingClients(level, chunk);
+            scheduleTrackingClientRefresh(level, chunk);
             succeeded = true;
             return true;
         } catch (RuntimeException exception) {
@@ -1677,6 +1685,38 @@ public final class NeonCityGenerator {
                 CityGenerationTrace.blockChanged();
             }
         }
+    }
+
+    private static void scheduleTrackingClientRefresh(ServerLevel level, ChunkPos chunk) {
+        if (!hasTrackingClient(level, chunk)) return;
+        long key = chunk.pack();
+        if (!PENDING_LIGHT_REFRESHES.add(key)) return;
+        level.getChunkSource().getLightEngine()
+                .waitForPendingTasks(chunk.x(), chunk.z())
+                .whenComplete((ignored, failure) -> {
+                    if (failure != null) {
+                        PENDING_LIGHT_REFRESHES.remove(key);
+                        LOGGER.warn("[NeonCity] light refresh failed for chunk {}", chunk, failure);
+                    } else if (PENDING_LIGHT_REFRESHES.contains(key)) {
+                        READY_LIGHT_REFRESHES.add(key);
+                    }
+                });
+    }
+
+    private static void drainCompletedLightRefreshes(ServerLevel level) {
+        Long key;
+        int remaining = MAX_LIGHT_REFRESHES_PER_TICK;
+        while (remaining-- > 0 && (key = READY_LIGHT_REFRESHES.poll()) != null) {
+            PENDING_LIGHT_REFRESHES.remove(key);
+            refreshTrackingClients(level, ChunkPos.unpack(key));
+        }
+    }
+
+    private static boolean hasTrackingClient(ServerLevel level, ChunkPos chunk) {
+        for (ServerPlayer player : level.players()) {
+            if (player.getChunkTrackingView().contains(chunk.x(), chunk.z(), false)) return true;
+        }
+        return false;
     }
 
     private static void refreshTrackingClients(ServerLevel level, ChunkPos chunk) {

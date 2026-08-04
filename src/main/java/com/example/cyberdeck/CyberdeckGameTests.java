@@ -68,6 +68,9 @@ import com.example.cyberdeck.weapon.AmmoType;
 import com.example.cyberdeck.weapon.CyberdeckDamageTypes;
 import com.example.cyberdeck.weapon.WeaponItems;
 import com.example.cyberdeck.vehicle.RoadsideVehicleSpawns;
+import com.example.cyberdeck.vehicle.CityTrafficService;
+import com.example.cyberdeck.vehicle.VehicleQuickhackService;
+import com.modernity.vehicle_mod.api.VehicleApi;
 import com.modernity.vehicle_mod.vehicle_mod;
 import dev.modernity.neoncity.MegacityLayout;
 import dev.modernity.neoncity.District;
@@ -153,6 +156,9 @@ public final class CyberdeckGameTests {
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             ROADSIDE_VEHICLE_FUEL = register(
                     "roadside_vehicle_fuel", CyberdeckGameTests::roadsideVehicleFuel);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            TRAFFIC_DRIVER_HANDOFF = register(
+                    "traffic_driver_handoff", CyberdeckGameTests::trafficDriverHandoff);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             CIVILIAN_NONCOMBAT = register(
                     "civilian_noncombat", CyberdeckGameTests::civilianNoncombat);
@@ -358,6 +364,52 @@ public final class CyberdeckGameTests {
         helper.assertTrue(
                 observed.size() >= 8 && vehicle.getFuel() == selected,
                 "roadside vehicles did not receive varied native fuel values");
+        helper.assertTrue(
+                VehicleApi.find(vehicle).isPresent()
+                        && VehicleQuickhackService.applyRemoteInput(
+                                helper.getLevel(), vehicle, 0.75F, -0.4F, false)
+                        && vehicle.isRemoteControlActive()
+                        && vehicle.remoteState().remoteControlActive(),
+                "Cyberpunk did not activate the vehicle mod's native remote controller");
+        VehicleQuickhackService.clearRemoteInput(vehicle);
+        helper.assertTrue(
+                !vehicle.isRemoteControlActive(),
+                "Cyberpunk did not release the vehicle mod's native remote controller");
+        helper.succeed();
+    }
+
+    private static void trafficDriverHandoff(GameTestHelper helper) {
+        var vehicle = vehicle_mod.BMW_M3_GTR.get().create(
+                helper.getLevel(), EntitySpawnReason.COMMAND);
+        helper.assertTrue(vehicle != null, "traffic test could not create a registered car");
+        BlockPos position = helper.absolutePos(new BlockPos(2, 2, 2));
+        vehicle.snapTo(position.getX() + 0.5, position.getY(), position.getZ() + 0.5,
+                0.0F, 0.0F);
+        helper.assertTrue(helper.getLevel().addFreshEntity(vehicle),
+                "traffic test could not add its car");
+        helper.assertTrue(
+                CityTrafficService.assignDriver(
+                        helper.getLevel(), vehicle, RandomSource.create(20260804L)),
+                "Cyberpunk could not assign a driver through the traffic API");
+        Entity driver = vehicle.getPassengers().stream()
+                .filter(CityTrafficService::isTrafficDriver)
+                .findFirst()
+                .orElse(null);
+        helper.assertTrue(driver instanceof CityNpc
+                        && CityTrafficService.isTrafficDriver(driver)
+                        && CityTrafficService.hasTrafficDriver(vehicle),
+                "traffic driver was not mounted and tracked");
+        helper.assertTrue(
+                VehicleQuickhackService.applyRemoteInput(
+                        helper.getLevel(), vehicle, 0.5F, 0.0F, false),
+                "remote takeover did not release the traffic controller");
+        helper.assertTrue(
+                !CityTrafficService.hasTrafficDriver(vehicle)
+                        && driver instanceof CityNpc npc
+                        && npc.isPopulationManaged(),
+                "released traffic driver did not return to the pedestrian population");
+        vehicle.discard();
+        driver.discard();
         helper.succeed();
     }
 
@@ -3049,6 +3101,7 @@ public final class CyberdeckGameTests {
         registerInstance(event, "gunshot_radius", GUNSHOT_RADIUS, data);
         registerInstance(event, "mounted_gun_targeting", MOUNTED_GUN_TARGETING, data);
         registerInstance(event, "roadside_vehicle_fuel", ROADSIDE_VEHICLE_FUEL, data);
+        registerInstance(event, "traffic_driver_handoff", TRAFFIC_DRIVER_HANDOFF, data);
         registerInstance(event, "civilian_noncombat", CIVILIAN_NONCOMBAT, data);
         registerInstance(event, "civilian_population", CIVILIAN_POPULATION, data);
         registerInstance(event, "city_actor_join_compatibility",

@@ -3,6 +3,7 @@ package com.example.cyberdeck.npc;
 import com.example.cyberdeck.Cyberdeck;
 import com.example.cyberdeck.city.CityWorlds;
 import com.example.cyberdeck.trauma.TraumaTeamEvents;
+import com.example.cyberdeck.vehicle.CityTrafficService;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -61,7 +62,9 @@ public final class CityNpcSpawns {
     private void replenish(ServerLevel level, ServerPlayer player, List<CityNpc> managed,
                            Map<Long, Integer> cellCounts) {
         AABB area = player.getBoundingBox().inflate(NEARBY_RADIUS);
-        List<CityNpc> nearby = level.getEntitiesOfClass(CityNpc.class, area, CityNpc::isAlive);
+        List<CityNpc> nearby = level.getEntitiesOfClass(
+                CityNpc.class, area,
+                npc -> npc.isAlive() && !CityTrafficService.isTrafficDriver(npc));
         if (nearby.size() >= TARGET_NEARBY) {
             return;
         }
@@ -196,7 +199,9 @@ public final class CityNpcSpawns {
 
     public static boolean hasSpawnSeparation(ServerLevel level, BlockPos position) {
         AABB area = new AABB(position).inflate(MIN_SEPARATION, 3.0, MIN_SEPARATION);
-        return level.getEntitiesOfClass(CityNpc.class, area, CityNpc::isAlive).isEmpty();
+        return level.getEntitiesOfClass(
+                CityNpc.class, area,
+                npc -> npc.isAlive() && !CityTrafficService.isTrafficDriver(npc)).isEmpty();
     }
 
     public static int skinVariant(BlockPos position, int memberIndex) {
