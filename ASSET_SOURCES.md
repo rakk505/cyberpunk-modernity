@@ -1,5 +1,14 @@
 # Asset provenance
 
+## Freestanding advertising logos
+
+`src/main/resources/assets/cyberdeck/textures/ad_logos/meta.png`, `closedai.png`, and
+`misanthropic.png` are original parody brand cards drawn from scratch by
+`tools/generate_ad_logos.py`. They contain no copied logo pixels or third-party artwork. The
+deterministic standard-library-only generator remains checked in so every pixel can be reproduced
+and audited. The separate `ad_logos` directory is intentionally outside the video-ad processor's
+replaceable `textures/ads` output tree.
+
 ## Tactical corporate patrol skins
 
 `src/main/resources/assets/cyberdeck/textures/entity/faction_enemy/tactical_0.png` through

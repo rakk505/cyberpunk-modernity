@@ -1,6 +1,7 @@
 package dev.modernity.neoncity;
 
 import com.example.cyberdeck.CyberdeckItems;
+import com.example.cyberdeck.advertising.FreestandingAdType;
 import com.example.cyberdeck.economy.Emmies;
 import com.example.cyberdeck.defense.DefenseContent;
 import com.example.cyberdeck.defense.KangTaoTurret;
@@ -969,6 +970,89 @@ public final class ExampleGameTests {
                 "district edge layers were not materially widened: old=" + legacyBorders
                         + ", new=" + widenedBorders);
         helper.succeed();
+    }
+
+    public static void districtAdGeneration(GameTestHelper helper) {
+        MegacityLayout layout = NeonCityGenerator.fixedLayout();
+        int planned = 0;
+        for (District district : District.values()) {
+            DistrictAdGeneration.DistrictPlan first =
+                    DistrictAdGeneration.plan(layout, district);
+            DistrictAdGeneration.DistrictPlan repeated =
+                    DistrictAdGeneration.plan(layout, district);
+            helper.assertValueEqual(repeated, first,
+                    "district ad plan changed between identical calls for " + district);
+
+            DistrictAdGeneration.Candidate medium = first.medium().orElse(null);
+            DistrictAdGeneration.Candidate small = first.small().orElse(null);
+            helper.assertTrue(medium != null && small != null,
+                    "district central chunk lacked both ad structures: " + district);
+            if (medium == null || small == null) {
+                continue;
+            }
+            planned += 2;
+            assertDistrictAdCandidate(helper, layout, medium, first.ownerChunk());
+            assertDistrictAdCandidate(helper, layout, small, first.ownerChunk());
+            helper.assertTrue(!horizontalBoundsOverlap(
+                            medium.bounds(), small.bounds(),
+                            DistrictAdGeneration.STRUCTURE_CLEARANCE),
+                    "medium and small canonical sites overlap in " + district);
+            helper.assertTrue(
+                    DistrictAdGeneration.candidates(
+                            layout, district, FreestandingAdType.MEDIUM).size() <= 330
+                            && DistrictAdGeneration.candidates(
+                                    layout, district, FreestandingAdType.SMALL).size() <= 225,
+                    "district ad scan exceeded its one-chunk candidate bound in " + district);
+        }
+        helper.assertValueEqual(planned, District.values().length * 2,
+                "every district must plan one medium and one small ad when open space exists");
+        helper.succeed();
+    }
+
+    private static void assertDistrictAdCandidate(
+            GameTestHelper helper,
+            MegacityLayout layout,
+            DistrictAdGeneration.Candidate candidate,
+            ChunkPos ownerChunk) {
+        FreestandingAdType type = candidate.type();
+        BoundingBox bounds = candidate.bounds();
+        helper.assertValueEqual(candidate.ownerChunk(), ownerChunk,
+                "district ad escaped its canonical owner chunk");
+        helper.assertTrue(bounds.minX() >= ownerChunk.getMinBlockX()
+                        && bounds.maxX() <= ownerChunk.getMaxBlockX()
+                        && bounds.minZ() >= ownerChunk.getMinBlockZ()
+                        && bounds.maxZ() <= ownerChunk.getMaxBlockZ(),
+                "district ad prism crosses a chunk border: " + candidate);
+        helper.assertValueEqual(bounds.getYSpan(), type.height(),
+                "district ad height disagrees with its structure contract");
+        helper.assertValueEqual(bounds.getXSpan(), type.sizeX(candidate.longAxis()),
+                "district ad X span disagrees with its structure contract");
+        helper.assertValueEqual(bounds.getZSpan(), type.sizeZ(candidate.longAxis()),
+                "district ad Z span disagrees with its structure contract");
+        helper.assertValueEqual(
+                type.displayFaces(candidate.longAxis()).size(),
+                type == FreestandingAdType.MEDIUM ? 2 : 4,
+                "district ad has the wrong rendered face count");
+
+        for (int z = bounds.minZ(); z <= bounds.maxZ(); z++) {
+            for (int x = bounds.minX(); x <= bounds.maxX(); x++) {
+                NeonCityGenerator.UrbanSample sample =
+                        NeonCityGenerator.topologySample(layout, x, z);
+                helper.assertTrue(sample.district() == candidate.district()
+                                && DistrictAdGeneration.isOpenGround(sample)
+                                && sample.groundY() + 1 == candidate.origin().getY(),
+                        "district ad footprint is not flat same-district open ground at "
+                                + x + "," + z);
+            }
+        }
+    }
+
+    private static boolean horizontalBoundsOverlap(
+            BoundingBox first, BoundingBox second, int clearance) {
+        return first.minX() <= second.maxX() + clearance
+                && first.maxX() + clearance >= second.minX()
+                && first.minZ() <= second.maxZ() + clearance
+                && first.maxZ() + clearance >= second.minZ();
     }
 
     private static void collectDistrictZones(
@@ -5122,6 +5206,12 @@ public final class ExampleGameTests {
                         && deferredBannerLedger.isAdDecorated(decoratedChunk)
                         && !deferredBannerLedger.markAdDecorated(decoratedChunk),
                 "animated-ad migration ledger accepted an unstamped chunk or lost idempotence");
+        helper.assertTrue(
+                !deferredBannerLedger.isFreestandingAdDecorated(decoratedChunk)
+                        && deferredBannerLedger.markFreestandingAdDecorated(decoratedChunk)
+                        && deferredBannerLedger.isFreestandingAdDecorated(decoratedChunk)
+                        && !deferredBannerLedger.markFreestandingAdDecorated(decoratedChunk),
+                "freestanding-ad migration ledger lost its independent idempotent state");
 
         BlockPos bannerSupport = new BlockPos(
                 chunk.getMinBlockX() + 8, minY + 20, chunk.getMinBlockZ() + 8);

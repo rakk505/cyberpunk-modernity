@@ -4,6 +4,7 @@ import com.example.cyberdeck.Cyberdeck;
 import com.example.cyberdeck.advertising.AdClip;
 import com.example.cyberdeck.advertising.AdDisplayBlock;
 import com.example.cyberdeck.advertising.AdDisplayBlockEntity;
+import com.example.cyberdeck.advertising.FreestandingAdType;
 import com.example.cyberdeck.advertising.LargeAdSurfaceValidator;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
@@ -22,7 +23,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
 
-/** Full-bright sprite-sheet renderer for the validated 8x4 display surface. */
+/** Full-bright renderer for wall displays and synchronized multi-face street ads. */
 public final class AdDisplayRenderer
         implements BlockEntityRenderer<AdDisplayBlockEntity, AdDisplayRenderState> {
     private static final Identifier FRAME_TEXTURE = Identifier.fromNamespaceAndPath(
@@ -30,6 +31,8 @@ public final class AdDisplayRenderer
     private static final int FULL_BRIGHT = 15_728_880;
     private static final float FRAME_DEPTH = 0.435F;
     private static final float VIDEO_DEPTH = 0.455F;
+    private static final float STREET_FRAME_OUTSET = 0.01F;
+    private static final float STREET_VIDEO_OUTSET = 0.025F;
     private static final float BORDER = 0.10F;
     private static final float VIDEO_ASPECT = 16.0F / 9.0F;
 
@@ -50,9 +53,26 @@ public final class AdDisplayRenderer
             ModelFeatureRenderer.@Nullable CrumblingOverlay breakProgress) {
         BlockEntityRenderer.super.extractRenderState(
                 blockEntity, state, partialTicks, cameraPosition, breakProgress);
-        state.facing = blockEntity.getBlockState().getValue(AdDisplayBlock.FACING);
+        state.renderable = blockEntity.hasConfiguredLayout(blockEntity.getBlockState());
+        if (!state.renderable) {
+            return;
+        }
+        state.freestandingType = blockEntity.freestandingType().orElse(null);
+        state.longAxis = blockEntity.longAxis();
+        if (state.freestandingType == null) {
+            state.facing = blockEntity.getBlockState().getValue(AdDisplayBlock.FACING);
+        }
         state.width = blockEntity.displayWidth();
         state.height = blockEntity.displayHeight();
+
+        if (blockEntity.usesLogoAds()) {
+            state.texture = blockEntity.currentLogo().texture();
+            state.u0 = 0.0F;
+            state.v0 = 0.0F;
+            state.u1 = 1.0F;
+            state.v1 = 1.0F;
+            return;
+        }
 
         AdClip clip = blockEntity.currentClip();
         int frame = clip.frameAt(blockEntity.playbackTicks() + partialTicks);
@@ -72,27 +92,88 @@ public final class AdDisplayRenderer
             PoseStack poseStack,
             SubmitNodeCollector submitNodeCollector,
             CameraRenderState camera) {
+        if (!state.renderable) {
+            return;
+        }
+        if (state.freestandingType != null) {
+            submitFreestanding(state, poseStack, submitNodeCollector);
+            return;
+        }
+
         Direction facing = state.facing;
         Direction right = LargeAdSurfaceValidator.rightOf(facing);
         float originX = 0.5F - right.getStepX() * 0.5F - facing.getStepX() * FRAME_DEPTH;
         float originZ = 0.5F - right.getStepZ() * 0.5F - facing.getStepZ() * FRAME_DEPTH;
 
-        submitQuad(poseStack, submitNodeCollector, FRAME_TEXTURE, facing, right,
-                originX, 0.0F, originZ,
-                state.width, state.height,
+        submitSurface(state, poseStack, submitNodeCollector, facing,
+                originX, originZ, state.width, state.height,
+                VIDEO_DEPTH - FRAME_DEPTH, false);
+    }
+
+    private static void submitFreestanding(
+            AdDisplayRenderState state,
+            PoseStack poseStack,
+            SubmitNodeCollector collector) {
+        FreestandingAdType type = state.freestandingType;
+        int sizeX = type.sizeX(state.longAxis);
+        int sizeZ = type.sizeZ(state.longAxis);
+        for (Direction facing : type.displayFaces(state.longAxis)) {
+            float originX;
+            float originZ;
+            switch (facing) {
+                case NORTH -> {
+                    originX = sizeX;
+                    originZ = -STREET_FRAME_OUTSET;
+                }
+                case SOUTH -> {
+                    originX = 0.0F;
+                    originZ = sizeZ + STREET_FRAME_OUTSET;
+                }
+                case EAST -> {
+                    originX = sizeX + STREET_FRAME_OUTSET;
+                    originZ = sizeZ;
+                }
+                case WEST -> {
+                    originX = -STREET_FRAME_OUTSET;
+                    originZ = 0.0F;
+                }
+                default -> throw new IllegalStateException("Vertical advertising face");
+            }
+            submitSurface(state, poseStack, collector, facing,
+                    originX, originZ, type.faceLength(), type.height(),
+                    STREET_VIDEO_OUTSET, true);
+        }
+    }
+
+    private static void submitSurface(
+            AdDisplayRenderState state,
+            PoseStack poseStack,
+            SubmitNodeCollector collector,
+            Direction facing,
+            float originX,
+            float originZ,
+            float width,
+            float height,
+            float videoOutset,
+            boolean fillFace) {
+        Direction right = LargeAdSurfaceValidator.rightOf(facing);
+        submitQuad(poseStack, collector, FRAME_TEXTURE, facing, right,
+                originX, 0.0F, originZ, width, height,
                 0.0F, 0.0F, 1.0F, 1.0F);
 
-        float availableWidth = state.width - BORDER * 2.0F;
-        float availableHeight = state.height - BORDER * 2.0F;
-        float videoWidth = Math.min(availableWidth, availableHeight * VIDEO_ASPECT);
-        float videoHeight = videoWidth / VIDEO_ASPECT;
-        float horizontalInset = (state.width - videoWidth) * 0.5F;
-        float verticalInset = (state.height - videoHeight) * 0.5F;
+        float availableWidth = width - BORDER * 2.0F;
+        float availableHeight = height - BORDER * 2.0F;
+        float videoWidth = fillFace
+                ? availableWidth
+                : Math.min(availableWidth, availableHeight * VIDEO_ASPECT);
+        float videoHeight = fillFace ? availableHeight : videoWidth / VIDEO_ASPECT;
+        float horizontalInset = (width - videoWidth) * 0.5F;
+        float verticalInset = (height - videoHeight) * 0.5F;
         float videoOriginX = originX + right.getStepX() * horizontalInset
-                + facing.getStepX() * (VIDEO_DEPTH - FRAME_DEPTH);
+                + facing.getStepX() * videoOutset;
         float videoOriginZ = originZ + right.getStepZ() * horizontalInset
-                + facing.getStepZ() * (VIDEO_DEPTH - FRAME_DEPTH);
-        submitQuad(poseStack, submitNodeCollector, state.texture, facing, right,
+                + facing.getStepZ() * videoOutset;
+        submitQuad(poseStack, collector, state.texture, facing, right,
                 videoOriginX, verticalInset, videoOriginZ,
                 videoWidth, videoHeight,
                 state.u0, state.v0, state.u1, state.v1);
@@ -168,6 +249,19 @@ public final class AdDisplayRenderer
     @Override
     public AABB getRenderBoundingBox(AdDisplayBlockEntity blockEntity) {
         BlockPos anchor = blockEntity.getBlockPos();
+        if (!blockEntity.hasConfiguredLayout(blockEntity.getBlockState())) {
+            return new AABB(anchor);
+        }
+        FreestandingAdType type = blockEntity.freestandingType().orElse(null);
+        if (type != null) {
+            return new AABB(
+                    anchor.getX() - 0.1,
+                    anchor.getY(),
+                    anchor.getZ() - 0.1,
+                    anchor.getX() + type.sizeX(blockEntity.longAxis()) + 0.1,
+                    anchor.getY() + type.height(),
+                    anchor.getZ() + type.sizeZ(blockEntity.longAxis()) + 0.1);
+        }
         Direction right = LargeAdSurfaceValidator.rightOf(
                 blockEntity.getBlockState().getValue(AdDisplayBlock.FACING));
         BlockPos far = anchor.relative(right, blockEntity.displayWidth() - 1)

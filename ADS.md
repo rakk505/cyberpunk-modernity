@@ -1,8 +1,14 @@
 # Animated Advertising Displays
 
-The current feature intentionally supports only large displays. Small and medium variants are
-deferred. Manual placement uses an `8x4` panel. Generated Arnis facades use an offline catalog of
-the largest eligible rectangle (5-16 blocks wide and 3-9 blocks high) in each source tile.
+Advertising comes in three deliberately separate forms. Manual wall placement uses an `8x4`
+panel. Generated Arnis facades use every cataloged building site and remain huge: the offline scan
+accepts only the largest eligible rectangle at least 8 blocks wide and 4 blocks high (up to 16x9).
+It never attaches the small street format to a building.
+
+Every district's central generation chunk also searches for open, flat space for two solid
+freestanding structures. Medium ads are exactly `2x6x8` and show the animated clip across both
+`6x8` faces. Small ads are exactly `2x2x4`, show a synchronized card on all four `2x4` faces, and
+silently rotate only between the original Meta, ClosedAI, and MisAnthropic parody cards.
 
 `tools/advertising/find_large_ad_surfaces.py` reads the audited structure NBTs, finds exposed solid
 wall components, prefers rectangles containing sea lanterns, glowstone, or another full light
@@ -22,6 +28,7 @@ excluded from the distributable JAR.
 ```bash
 python3 tools/create_demo_ads.py --ffmpeg /path/to/ffmpeg
 python3 tools/process_ads.py --ffmpeg /path/to/ffmpeg
+python3 tools/generate_ad_logos.py
 python3 tools/advertising/find_large_ad_surfaces.py
 ```
 

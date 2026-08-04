@@ -607,7 +607,8 @@ public final class NeonCityGenerator {
         long key = chunk.pack();
         if (!GENERATED.contains(key)
                 || savedData == null
-                || savedData.isAdDecorated(key)
+                || (savedData.isAdDecorated(key)
+                        && savedData.isFreestandingAdDecorated(key))
                 || AD_BACKFILL_QUEUED.contains(key)
                 || AD_BACKFILL_FAILED.contains(key)
                 || AD_BACKFILL_PENDING.size() >= MAX_PENDING_AD_BACKFILLS
@@ -625,47 +626,65 @@ public final class NeonCityGenerator {
             AD_BACKFILL_QUEUED.remove(key);
             if (!GENERATED.contains(key)
                     || savedData == null
-                    || savedData.isAdDecorated(key)) {
+                    || (savedData.isAdDecorated(key)
+                            && savedData.isFreestandingAdDecorated(key))) {
                 continue;
             }
             if (level.getChunkSource().getChunkNow(chunk.x(), chunk.z()) == null) {
                 continue;
             }
 
-            boolean completed = false;
+            boolean facadeCompleted = savedData.isAdDecorated(key);
+            boolean freestandingCompleted = savedData.isFreestandingAdDecorated(key);
             try {
-                Optional<ArnisPatchLibrary.Placement> selected = usableArnisPlacement(
-                        chunk.x(), chunk.z());
-                if (selected.isPresent()
-                        && !isReservedMainlineBuildingChunk(level, chunk)) {
-                    ArnisPatchLibrary.Placement placement = selected.get();
-                    StructureTemplate template = level.getStructureManager()
-                            .get(placement.patch().templateId()).orElse(null);
-                    if (template == null) {
-                        LOGGER.warn("[NeonCity] cannot backfill ad; missing Arnis template {}",
-                                placement.patch().templateId());
-                    } else if (!templateMatchesCatalog(template, placement.patch())) {
-                        LOGGER.warn("[NeonCity] cannot backfill ad; Arnis template {} changed size",
-                                placement.patch().templateId());
+                if (!facadeCompleted) {
+                    Optional<ArnisPatchLibrary.Placement> selected = usableArnisPlacement(
+                            chunk.x(), chunk.z());
+                    if (selected.isPresent()
+                            && !isReservedMainlineBuildingChunk(level, chunk)) {
+                        ArnisPatchLibrary.Placement placement = selected.get();
+                        StructureTemplate template = level.getStructureManager()
+                                .get(placement.patch().templateId()).orElse(null);
+                        if (template == null) {
+                            LOGGER.warn(
+                                    "[NeonCity] cannot backfill ad; missing Arnis template {}",
+                                    placement.patch().templateId());
+                        } else if (!templateMatchesCatalog(template, placement.patch())) {
+                            LOGGER.warn(
+                                    "[NeonCity] cannot backfill ad; Arnis template {} changed size",
+                                    placement.patch().templateId());
+                        } else {
+                            GeneratedAdPlacement.Result result =
+                                    GeneratedAdPlacement.backfillForArnisTile(
+                                            level,
+                                            chunk,
+                                            placement,
+                                            template,
+                                            CITY_GROUND_Y
+                                                    - placement.patch().surfaceOffset());
+                            facadeCompleted =
+                                    result != GeneratedAdPlacement.Result.RETRYABLE_FAILURE;
+                        }
                     } else {
-                        GeneratedAdPlacement.Result result =
-                                GeneratedAdPlacement.backfillForArnisTile(
-                                        level,
-                                        chunk,
-                                        placement,
-                                        template,
-                                        CITY_GROUND_Y - placement.patch().surfaceOffset());
-                        completed = result != GeneratedAdPlacement.Result.RETRYABLE_FAILURE;
+                        facadeCompleted = true;
                     }
-                } else {
-                    completed = true;
+                }
+                if (!freestandingCompleted) {
+                    // A blocked canonical site is a completed migration: player edits win and
+                    // should not be probed again on every visit.
+                    DistrictAdGeneration.decorateChunk(level, chunk);
+                    freestandingCompleted = true;
                 }
             } catch (RuntimeException exception) {
                 LOGGER.error("[NeonCity] failed animated-ad backfill for {}", chunk, exception);
             }
-            if (completed) {
+            if (facadeCompleted) {
                 savedData.markAdDecorated(key);
-            } else {
+            }
+            if (freestandingCompleted) {
+                savedData.markFreestandingAdDecorated(key);
+            }
+            if (!facadeCompleted || !freestandingCompleted) {
                 AD_BACKFILL_FAILED.add(key);
             }
             return true;
@@ -886,6 +905,7 @@ public final class NeonCityGenerator {
         CityChunkPlanner.cancel(key);
         savedData.markGenerated(key, GENERATOR_FINGERPRINT);
         savedData.markAdDecorated(key);
+        savedData.markFreestandingAdDecorated(key);
     }
 
     static ChunkBuildPlan planChunk(ChunkPos chunk) {
@@ -1032,6 +1052,7 @@ public final class NeonCityGenerator {
                         patchTemplate,
                         CITY_GROUND_Y - placement.patch().surfaceOffset());
             }
+            DistrictAdGeneration.decorateChunk(level, chunk);
             if (trace != null) trace.phase(CityGenerationTrace.Phase.CLIENT_REFRESH);
             scheduleTrackingClientRefresh(level, chunk);
             succeeded = true;
