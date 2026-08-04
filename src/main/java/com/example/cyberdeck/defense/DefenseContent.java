@@ -67,6 +67,13 @@ public final class DefenseContent {
             TEST_FUNCTIONS.register("turret_arc", () -> DefenseGameTests::turretArc);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> TURRET_DESTRUCTION_TEST =
             TEST_FUNCTIONS.register("turret_destruction", () -> DefenseGameTests::turretDestruction);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> TURRET_QUICKHACKS_TEST =
+            TEST_FUNCTIONS.register("turret_quickhacks", () -> DefenseGameTests::turretQuickhacks);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> VEHICLE_QUICKHACKS_TEST =
+            TEST_FUNCTIONS.register("vehicle_quickhacks", () -> DefenseGameTests::vehicleQuickhacks);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> TURRET_QUEUE_REVALIDATION_TEST =
+            TEST_FUNCTIONS.register(
+                    "turret_queue_revalidation", () -> DefenseGameTests::turretQueueRevalidation);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> CANISTER_EXPLOSION_TEST =
             TEST_FUNCTIONS.register("canister_explosion", () -> DefenseGameTests::canisterExplosion);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> CANISTER_CHAIN_REACTION_TEST =
@@ -115,6 +122,15 @@ public final class DefenseContent {
         event.registerTest(
                 Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "turret_destruction"),
                 new FunctionGameTestInstance(TURRET_DESTRUCTION_TEST.getKey(), data));
+        event.registerTest(
+                Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "turret_quickhacks"),
+                new FunctionGameTestInstance(TURRET_QUICKHACKS_TEST.getKey(), data));
+        event.registerTest(
+                Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "vehicle_quickhacks"),
+                new FunctionGameTestInstance(VEHICLE_QUICKHACKS_TEST.getKey(), data));
+        event.registerTest(
+                Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "turret_queue_revalidation"),
+                new FunctionGameTestInstance(TURRET_QUEUE_REVALIDATION_TEST.getKey(), data));
         event.registerTest(
                 Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "canister_explosion"),
                 new FunctionGameTestInstance(CANISTER_EXPLOSION_TEST.getKey(), data));

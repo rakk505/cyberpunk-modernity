@@ -24,6 +24,9 @@ grenades, cyberware, faction soldiers, and a procedurally generated neon city.
 - **Cyberware** — 121 wiki-sourced implant families across all ten body systems, represented by
   1,025 distinct Tier 1 through Tier 5++ variants. The ripperdoc screen selects a physical socket,
   implant family, and exact tier while showing that tier's capacity, armor, and source effect text.
+- **Entity quickhacks** — scanned cars expose Take Control, Speed, Brake, and Detonate; Kang Tao
+  turrets expose Take Control, Detonate, and Deactivate with security levels gated against the
+  installed cyberdeck tier.
 - **Project Moon Megacity** — a finite, irregular 35-district city with separate Nest and Backstreets
   zones, an exact 12-district circular perimeter, district roads/bridges/rail, and 70 coherent 16x16
   Arnis
@@ -104,6 +107,14 @@ Mission configuration and authoring commands are documented in [MISSIONS.md](MIS
 - Sprint forward and tap `C` to slide.
 - Both moves have short server-enforced recovery windows. Gun handling, recoil, and reload
   animation continue while moving.
+
+## Vehicle quickhack integration
+
+This repository does not ship a car entity. A vehicle provider can opt in an entity type through
+the `cyberdeck:quickhack_cars` entity-type tag, mark an individual entity with
+`VehicleQuickhackService.markCompatibleCar`, or implement `QuickhackCar`. The interface supplies
+native throttle, steering, braking, destruction, and camera-anchor hooks; tagged entities use the
+generic server-authoritative movement fallback.
 
 ## Running in a dev environment
 

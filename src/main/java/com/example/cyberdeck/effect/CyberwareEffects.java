@@ -8,6 +8,7 @@ import com.example.cyberdeck.cyberware.BodySlot;
 import com.example.cyberdeck.defense.KangTaoTurret;
 import com.example.cyberdeck.ram.RamAttachments;
 import com.example.cyberdeck.skill.Skill;
+import com.example.cyberdeck.skill.DeviceQuickhack;
 import com.example.cyberdeck.weapon.GunItem;
 
 import net.minecraft.network.chat.Component;
@@ -46,8 +47,15 @@ public final class CyberwareEffects {
     }
 
     public static double sumValue(ServerPlayer player, String key) {
+        return sumValue(data(player), key);
+    }
+
+    public static double sumValue(CyberwareData data, String key) {
         double result = 0.0;
-        for (Cyberware cyberware : data(player).allInstalled()) {
+        if (data == null) {
+            return result;
+        }
+        for (Cyberware cyberware : data.allInstalled()) {
             result += cyberware.value(key);
         }
         return result;
@@ -59,19 +67,54 @@ public final class CyberwareEffects {
     }
 
     public static int quickhackRamCost(ServerPlayer player, Skill skill) {
-        double reduction = sumValue(player, "quickhack_ram_cost_reduction_percent") / 100.0;
-        if (skill == Skill.CYBERPSYCHOSIS && hasFlag(player, "blackwall_gateway")) {
-            reduction += 0.50;
-        }
-        return Math.max(0, (int) Math.ceil(skill.ramCost() * (1.0 - Math.min(0.75, reduction))));
+        return quickhackRamCost(data(player), skill);
+    }
+
+    public static int quickhackRamCost(CyberwareData data, Skill skill) {
+        double extraReduction = skill == Skill.CYBERPSYCHOSIS
+                && data != null && data.findFlag("blackwall_gateway") != null ? 0.50 : 0.0;
+        return quickhackRamCost(data, skill.ramCost(), extraReduction);
+    }
+
+    public static int quickhackRamCost(ServerPlayer player, DeviceQuickhack quickhack) {
+        return quickhackRamCost(data(player), quickhack);
+    }
+
+    public static int quickhackRamCost(CyberwareData data, DeviceQuickhack quickhack) {
+        return quickhackRamCost(data, quickhack.ramCost(), 0.0);
+    }
+
+    private static int quickhackRamCost(
+            CyberwareData data, int baseCost, double extraReduction) {
+        double reduction = sumValue(data, "quickhack_ram_cost_reduction_percent") / 100.0
+                + extraReduction;
+        return Math.max(0, (int) Math.ceil(baseCost * (1.0 - Math.min(0.75, reduction))));
     }
 
     public static int quickhackUploadTicks(ServerPlayer player, Skill skill) {
-        if (skill.uploadTicks() <= 0) {
+        return quickhackUploadTicks(data(player), skill);
+    }
+
+    public static int quickhackUploadTicks(CyberwareData data, Skill skill) {
+        int baseTicks = skill.uploadTicks();
+        if (baseTicks <= 0) {
             return 0;
         }
-        double speed = Math.max(0.0, sumValue(player, "quickhack_upload_speed_percent")) / 100.0;
-        return Math.max(1, (int) Math.round(skill.uploadTicks() / (1.0 + speed)));
+        double speed = Math.max(0.0, sumValue(data, "quickhack_upload_speed_percent")) / 100.0;
+        return Math.max(1, (int) Math.round(baseTicks / (1.0 + speed)));
+    }
+
+    public static int quickhackUploadTicks(ServerPlayer player, DeviceQuickhack quickhack) {
+        return quickhackUploadTicks(data(player), quickhack);
+    }
+
+    public static int quickhackUploadTicks(CyberwareData data, DeviceQuickhack quickhack) {
+        int baseTicks = quickhack.uploadTicks();
+        if (baseTicks <= 0) {
+            return 0;
+        }
+        double speed = Math.max(0.0, sumValue(data, "quickhack_upload_speed_percent")) / 100.0;
+        return Math.max(1, (int) Math.round(baseTicks / (1.0 + speed)));
     }
 
     public static double quickhackDamageMultiplier(ServerPlayer player, Skill skill) {

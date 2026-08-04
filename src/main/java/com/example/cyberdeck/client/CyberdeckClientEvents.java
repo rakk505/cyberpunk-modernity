@@ -21,7 +21,7 @@ import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.resources.Identifier;
-import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.player.Input;
 import net.neoforged.api.distmarker.Dist;
@@ -32,6 +32,7 @@ import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.InputEvent;
 import net.neoforged.neoforge.client.event.MovementInputUpdateEvent;
 import net.neoforged.neoforge.client.event.RenderGuiLayerEvent;
+import net.neoforged.neoforge.client.event.RenderHandEvent;
 import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
 import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 import org.lwjgl.glfw.GLFW;
@@ -55,6 +56,29 @@ public final class CyberdeckClientEvents {
         Minecraft mc = Minecraft.getInstance();
         migrateNavigationBinding(mc);
         QuickhackScannerClient.tick(mc);
+        if (EntityControlClient.isActive()) {
+            while (CyberdeckClient.QUEUE_QUICKHACK_KEY.consumeClick()) {
+                // Do not leak a queued scanner action into the tick after remote control exits.
+            }
+            while (CyberdeckClient.PREVIOUS_QUICKHACK_KEY.consumeClick()) {
+                // Device controls replace scanner selection while the remote link is active.
+            }
+            while (CyberdeckClient.NEXT_QUICKHACK_KEY.consumeClick()) {
+                // Device controls replace scanner selection while the remote link is active.
+            }
+            while (mc.options.keyDrop.consumeClick()) {
+                // The unattended player body cannot drop items during remote control.
+            }
+            while (mc.options.keySwapOffhand.consumeClick()) {
+                // The remote-control action layer owns the normal offhand key.
+            }
+            for (KeyMapping hotbarKey : mc.options.keyHotbarSlots) {
+                while (hotbarKey.consumeClick()) {
+                    // Keep the physical player's selected item stable while controlling a device.
+                }
+            }
+            return;
+        }
         if (!mc.options.keyUse.isDown()) {
             quickhackUseLatched = false;
         }
@@ -109,10 +133,21 @@ public final class CyberdeckClientEvents {
         Minecraft mc = Minecraft.getInstance();
         CityMapNavigationClient.tick(mc);
         if (mc.player == null) {
+            EntityControlClient.clear();
             QuickhackScannerClient.reset();
             return;
         }
         HealingConsumableClient.migrateLegacyUseBinding(mc);
+
+        if (EntityControlClient.isActive()) {
+            while (CyberdeckClient.TOGGLE_KEY.consumeClick()) {
+                EntityControlClient.requestExit();
+            }
+            EntityControlClient.tick(mc);
+            cancelChargedJump();
+            resetJumpTracking();
+            return;
+        }
 
         while (CyberdeckClient.OPEN_CITY_MAP_KEY.consumeClick()) {
             if (mc.gui.screen() == null) {
@@ -289,6 +324,12 @@ public final class CyberdeckClientEvents {
         }
         var input = event.getInput();
         Input presses = input.keyPresses;
+        if (EntityControlClient.isActive()) {
+            cancelChargedJump();
+            input.keyPresses = new Input(false, false, false, false,
+                    false, false, false);
+            return;
+        }
         boolean installed = CyberwareAttachments.get(player).findFlag("charged_jump") != null;
         boolean validContext = installed
                 && player.isAlive()
@@ -342,6 +383,16 @@ public final class CyberdeckClientEvents {
     // RMB is a second queue control and can be cancelled cleanly by NeoForge.
     @SubscribeEvent
     public static void onUseInput(InputEvent.InteractionKeyMappingTriggered event) {
+        if (EntityControlClient.isActive()) {
+            if (event.isAttack()) {
+                EntityControlClient.requestFire();
+            }
+            if (event.isAttack() || event.isUseItem() || event.isPickBlock()) {
+                event.setCanceled(true);
+                event.setSwingHand(false);
+            }
+            return;
+        }
         if (!event.isUseItem()) {
             return;
         }
@@ -383,6 +434,13 @@ public final class CyberdeckClientEvents {
         }
     }
 
+    @SubscribeEvent
+    public static void onRenderHand(RenderHandEvent event) {
+        if (EntityControlClient.isActive()) {
+            event.setCanceled(true);
+        }
+    }
+
     private static boolean isScannerSuppressedLayer(Identifier layer) {
         return layer.equals(Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "city_minimap"))
                 || layer.equals(Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "mission_tracker"))
@@ -398,6 +456,7 @@ public final class CyberdeckClientEvents {
     public static void onLogout(ClientPlayerNetworkEvent.LoggingOut event) {
         quickhackUseLatched = false;
         chargedJumpHeld = false;
+        EntityControlClient.clear();
         QuickhackScannerClient.reset();
         QuickhackUploadClient.set(com.example.cyberdeck.network.QuickhackUploadPacket.NONE);
         HealingConsumableClient.reset();
@@ -410,7 +469,7 @@ public final class CyberdeckClientEvents {
         if (!QuickhackScannerClient.isQuickhacking()) {
             return false;
         }
-        LivingEntity target = QuickhackScannerClient.actionTarget(minecraft.level);
+        Entity target = QuickhackScannerClient.actionTarget(minecraft.level);
         if (target == null) {
             return false;
         }

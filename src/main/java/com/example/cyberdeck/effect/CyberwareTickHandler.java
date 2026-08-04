@@ -87,6 +87,7 @@ public final class CyberwareTickHandler {
         if (event.getEntity() instanceof ServerPlayer player) {
             com.example.cyberdeck.CyberdeckState.recover(player);
             com.example.cyberdeck.skill.QuickhackUploads.cancel(player);
+            com.example.cyberdeck.control.RemoteEntityControl.end(player);
             DoubleJumpGuard.forget(player.getUUID());
             ChargedJump.forget(player.getUUID());
             ReactiveCyberware.forget(player.getUUID());
@@ -100,6 +101,8 @@ public final class CyberwareTickHandler {
             // Restore the real hotbar before player data is saved and release queued reservations.
             com.example.cyberdeck.CyberdeckState.deactivate(player);
             com.example.cyberdeck.skill.QuickhackUploads.forget(player.getUUID());
+            com.example.cyberdeck.control.RemoteEntityControl.end(player);
+            com.example.cyberdeck.control.RemoteEntityControl.forget(player.getUUID());
             SandevistanMechanics.deactivateForSessionBoundary(player);
             ActiveAbilities.forget(player.getUUID());
             DoubleJumpGuard.forget(player.getUUID());
@@ -115,6 +118,7 @@ public final class CyberwareTickHandler {
     public void onRespawn(PlayerEvent.PlayerRespawnEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
             com.example.cyberdeck.skill.QuickhackUploads.cancel(player);
+            com.example.cyberdeck.control.RemoteEntityControl.end(player);
             com.example.cyberdeck.CyberdeckState.recover(player);
             DoubleJumpGuard.forget(player.getUUID());
             ChargedJump.forget(player.getUUID());
@@ -129,6 +133,7 @@ public final class CyberwareTickHandler {
     @SubscribeEvent
     public void onServerStopping(net.neoforged.neoforge.event.server.ServerStoppingEvent event) {
         com.example.cyberdeck.skill.QuickhackUploads.clearAll();
+        com.example.cyberdeck.control.RemoteEntityControl.clearAll();
         DoubleJumpGuard.clearAll();
         ChargedJump.clearAll();
         ReactiveCyberware.clearAll();
