@@ -4,6 +4,7 @@ import com.example.cyberdeck.network.SetCityWaypointPacket;
 import com.example.cyberdeck.trauma.TraumaTeamEvents;
 import com.example.cyberdeck.lifepath.LifepathService;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
+import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import dev.modernity.neoncity.CityMapService;
 import net.minecraft.commands.CommandSourceStack;
@@ -45,7 +46,28 @@ public final class CyberdeckCommands {
                         .then(Commands.literal("toggle")
                                 .executes(context -> toggle(context.getSource()))))
                 .then(Commands.literal("lifepath")
-                        .executes(context -> openLifepath(context.getSource())))
+                        .executes(context -> openLifepath(context.getSource()))
+                        .then(Commands.literal("select")
+                                .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                                .then(Commands.argument("target", EntityArgument.player())
+                                        .then(Commands.argument(
+                                                        "lifepath",
+                                                        StringArgumentType.word())
+                                                .suggests((context, builder) ->
+                                                        net.minecraft.commands.SharedSuggestionProvider
+                                                                .suggest(
+                                                                        new String[] {
+                                                                                "netrunner",
+                                                                                "brawler",
+                                                                                "merc"
+                                                                        },
+                                                                        builder))
+                                                .executes(context -> selectLifepath(
+                                                        context.getSource(),
+                                                        EntityArgument.getPlayer(
+                                                                context, "target"),
+                                                        StringArgumentType.getString(
+                                                                context, "lifepath")))))))
                 .then(Commands.literal("trauma")
                         .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                         .executes(context -> dispatchTrauma(
@@ -68,6 +90,20 @@ public final class CyberdeckCommands {
 
     private static int openLifepath(CommandSourceStack source) throws CommandSyntaxException {
         return LifepathService.openSelection(source.getPlayerOrException()) ? 1 : 0;
+    }
+
+    private static int selectLifepath(
+            CommandSourceStack source, ServerPlayer target, String lifepath) {
+        if (!LifepathService.select(target, lifepath)) {
+            source.sendFailure(Component.literal(
+                    "Could not select lifepath '" + lifepath + "' for "
+                            + target.getScoreboardName()));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal(
+                "Selected lifepath '" + lifepath + "' for "
+                        + target.getScoreboardName()), true);
+        return 1;
     }
 
     private static int openMap(CommandSourceStack source, int x, int z)

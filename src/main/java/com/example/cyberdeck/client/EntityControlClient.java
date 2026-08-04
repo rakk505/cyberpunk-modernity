@@ -13,6 +13,7 @@ import com.modernity.vehicle_mod.api.VehicleCameraPose;
 
 import net.minecraft.client.CameraType;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
@@ -28,12 +29,15 @@ import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 import org.jspecify.annotations.Nullable;
 
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /** Owns the client camera and input sampling for a server-authorized device control session. */
 @EventBusSubscriber(modid = Cyberdeck.MODID, value = Dist.CLIENT)
 public final class EntityControlClient {
     private static final int TARGET_GRACE_TICKS = 20;
     private static final int SERVER_TIMEOUT_TICKS = 60;
+    private static final AtomicInteger NEXT_CAMERA_ENTITY_ID =
+            new AtomicInteger(Integer.MIN_VALUE);
 
     private static boolean active;
     private static long token;
@@ -243,14 +247,19 @@ public final class EntityControlClient {
         if (pose == null) return false;
 
         Marker camera = vehicleCamera;
-        if (camera == null || camera.level() != minecraft.level) {
+        if (camera == null || camera.level() != minecraft.level || camera.isRemoved()
+                || minecraft.level.getEntity(camera.getId()) != camera) {
+            removeVehicleCamera();
             camera = EntityTypes.MARKER.create(minecraft.level, EntitySpawnReason.EVENT);
             if (camera == null) return false;
-            vehicleCamera = camera;
             camera.snapTo(
                     pose.position().x, pose.position().y, pose.position().z,
                     pose.yaw(), pose.pitch());
             camera.setOldPosAndRot();
+            camera.setId(nextCameraEntityId(minecraft.level));
+            minecraft.level.addEntity(camera);
+            if (minecraft.level.getEntity(camera.getId()) != camera) return false;
+            vehicleCamera = camera;
         } else {
             camera.setOldPosAndRot();
             camera.setPos(pose.position());
@@ -261,6 +270,24 @@ public final class EntityControlClient {
         minecraft.setCameraEntity(camera);
         minecraft.options.setCameraType(CameraType.FIRST_PERSON);
         return true;
+    }
+
+    private static int nextCameraEntityId(ClientLevel level) {
+        int candidate;
+        do {
+            candidate = NEXT_CAMERA_ENTITY_ID.getAndIncrement();
+        } while (level.getEntity(candidate) != null);
+        return candidate;
+    }
+
+    private static void removeVehicleCamera() {
+        Marker camera = vehicleCamera;
+        vehicleCamera = null;
+        if (camera == null) return;
+        if (camera.level() instanceof ClientLevel level
+                && level.getEntity(camera.getId()) == camera) {
+            level.removeEntity(camera.getId(), Entity.RemovalReason.DISCARDED);
+        }
     }
 
     private static void sendExit() {
@@ -284,6 +311,7 @@ public final class EntityControlClient {
         if (previousCameraType != null) {
             minecraft.options.setCameraType(previousCameraType);
         }
+        removeVehicleCamera();
         active = false;
         token = 0L;
         targetId = -1;
@@ -293,7 +321,6 @@ public final class EntityControlClient {
         fireRequested = false;
         exitRequested = false;
         aimInitialized = false;
-        vehicleCamera = null;
         vehicleCameraPose = null;
         previousCameraType = null;
         previousCameraEntity = null;

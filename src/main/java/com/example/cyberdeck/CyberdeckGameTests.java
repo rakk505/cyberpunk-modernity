@@ -94,6 +94,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
+import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
@@ -372,17 +373,68 @@ public final class CyberdeckGameTests {
     }
 
     private static void trafficDriverHandoff(GameTestHelper helper) {
+        helper.assertTrue(
+                RoadsideVehicleSpawns.isMovingTrafficRoad(
+                        NeonCityGenerator.RoadClass.INTERDISTRICT_ROAD)
+                        && RoadsideVehicleSpawns.isMovingTrafficRoad(
+                                NeonCityGenerator.RoadClass.BRIDGE)
+                        && RoadsideVehicleSpawns.isMovingTrafficRoad(
+                                NeonCityGenerator.RoadClass.ELEVATED_RAIL)
+                        && !RoadsideVehicleSpawns.isMovingTrafficRoad(
+                                NeonCityGenerator.RoadClass.LOCAL_STREET)
+                        && !RoadsideVehicleSpawns.isMovingTrafficRoad(
+                                NeonCityGenerator.RoadClass.DISTRICT_BOULEVARD),
+                "moving traffic policy did not remain highway-only");
+        helper.assertTrue(RoadsideVehicleSpawns.drivingLeadForSpeed(0.0) == 48.0
+                        && RoadsideVehicleSpawns.drivingLeadForSpeed(0.5) == 96.0
+                        && RoadsideVehicleSpawns.drivingLeadForSpeed(10.0) == 144.0,
+                "driving traffic lookahead did not scale and clamp with vehicle speed");
+        MegacityLayout.Edge road = NeonCityGenerator.layout().groundEdges().stream()
+                .filter(edge -> !edge.hasElevatedLayer())
+                .findFirst()
+                .orElse(NeonCityGenerator.layout().groundEdges().getFirst());
+        double edgeLength = Math.max(1.0, Math.hypot(
+                road.second().x() - road.first().x(),
+                road.second().z() - road.first().z()));
+        double progress = Mth.clamp(1.0 - 42.0 / edgeLength, 0.75, 0.995);
+        MegacityLayout.CurvePoint center = MegacityLayout.curvePoint(road, progress);
+        double tangentLength = Math.max(1.0, Math.hypot(center.tangentX(), center.tangentZ()));
+        double tangentX = center.tangentX() / tangentLength;
+        double tangentZ = center.tangentZ() / tangentLength;
+        int roadX = Mth.floor(center.x() + tangentZ * 4.5);
+        int roadZ = Mth.floor(center.z() - tangentX * 4.5);
+        float roadYaw = (float) Math.toDegrees(Math.atan2(-tangentX, tangentZ));
+        int roadY = NeonCityGenerator.sample(roadX, roadZ).groundY() + 1;
+        ServerLevel level = helper.getLevel();
+        for (int chunkX = (roadX >> 4) - 2; chunkX <= (roadX >> 4) + 2; chunkX++) {
+            for (int chunkZ = (roadZ >> 4) - 2; chunkZ <= (roadZ >> 4) + 2; chunkZ++) {
+                level.getChunk(chunkX, chunkZ);
+            }
+        }
+        for (int chunkX = (road.second().x() >> 4) - 2;
+                chunkX <= (road.second().x() >> 4) + 2; chunkX++) {
+            for (int chunkZ = (road.second().z() >> 4) - 2;
+                    chunkZ <= (road.second().z() >> 4) + 2; chunkZ++) {
+                level.getChunk(chunkX, chunkZ);
+            }
+        }
+        for (int x = roadX - 5; x <= roadX + 5; x++) {
+            for (int z = roadZ - 5; z <= roadZ + 5; z++) {
+                level.setBlock(new BlockPos(x, roadY - 1, z),
+                        Blocks.STONE.defaultBlockState(), Block.UPDATE_ALL);
+            }
+        }
         var vehicle = vehicle_mod.BMW_M3_GTR.get().create(
-                helper.getLevel(), EntitySpawnReason.COMMAND);
+                level, EntitySpawnReason.COMMAND);
         helper.assertTrue(vehicle != null, "traffic test could not create a registered car");
-        BlockPos position = helper.absolutePos(new BlockPos(2, 2, 2));
+        BlockPos position = new BlockPos(roadX, roadY, roadZ);
         vehicle.snapTo(position.getX() + 0.5, position.getY(), position.getZ() + 0.5,
-                0.0F, 0.0F);
-        helper.assertTrue(helper.getLevel().addFreshEntity(vehicle),
+                roadYaw, 0.0F);
+        helper.assertTrue(level.addFreshEntity(vehicle),
                 "traffic test could not add its car");
         helper.assertTrue(
                 CityTrafficService.assignDriver(
-                        helper.getLevel(), vehicle, RandomSource.create(20260804L)),
+                        level, vehicle, RandomSource.create(20260804L)),
                 "Cyberpunk could not assign a driver through the traffic API");
         Entity driver = vehicle.getPassengers().stream()
                 .filter(CityTrafficService::isTrafficDriver)
@@ -392,9 +444,18 @@ public final class CyberdeckGameTests {
                         && CityTrafficService.isTrafficDriver(driver)
                         && CityTrafficService.hasTrafficDriver(vehicle),
                 "traffic driver was not mounted and tracked");
+        helper.assertTrue(CityTrafficService.plannedNodeCount(vehicle) >= 2,
+                "city road did not compile a multi-node directed traffic route");
+        helper.assertTrue(CityTrafficService.plannedRouteStaysOnHighway(vehicle),
+                "highway traffic route escaped onto a local road");
+        helper.assertTrue(CityTrafficService.plannedRouteIncludesHighwayJunction(vehicle),
+                "highway traffic route skipped the stamped district junction");
+        helper.assertTrue(CityTrafficService.plannedUniqueNodeCount(vehicle)
+                        == CityTrafficService.plannedNodeCount(vehicle),
+                "highway traffic route repeated a node inside its lookahead");
         helper.assertTrue(
                 VehicleQuickhackService.applyRemoteInput(
-                        helper.getLevel(), vehicle, 0.5F, 0.0F, false),
+                        level, vehicle, 0.5F, 0.0F, false),
                 "remote takeover did not release the traffic controller");
         helper.assertTrue(
                 !CityTrafficService.hasTrafficDriver(vehicle)

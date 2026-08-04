@@ -45,6 +45,7 @@ public final class NeonCityCommand {
                                 .executes(context -> status(context.getSource())))
                         .then(traceCommands())
                         .then(pregenCommands())
+                        .then(roadCommands())
                         .then(Commands.literal("locate")
                                 .then(Commands.argument("x", IntegerArgumentType.integer())
                                         .then(Commands.argument("z", IntegerArgumentType.integer())
@@ -249,6 +250,59 @@ public final class NeonCityCommand {
                         .executes(context -> stopTrace(context.getSource())))
                 .then(Commands.literal("export")
                         .executes(context -> exportTrace(context.getSource())));
+    }
+
+    private static LiteralArgumentBuilder<CommandSourceStack> roadCommands() {
+        return Commands.literal("roads")
+                .executes(context -> roadOverlayStatus(context.getSource()))
+                .then(Commands.literal("on")
+                        .executes(context -> enableRoadOverlay(
+                                context.getSource(), RoadDebugOverlayService.DEFAULT_RADIUS))
+                        .then(Commands.argument("radius", IntegerArgumentType.integer(
+                                        RoadDebugOverlayService.MIN_RADIUS,
+                                        RoadDebugOverlayService.MAX_RADIUS))
+                                .executes(context -> enableRoadOverlay(
+                                        context.getSource(),
+                                        IntegerArgumentType.getInteger(context, "radius")))))
+                .then(Commands.literal("off")
+                        .executes(context -> disableRoadOverlay(context.getSource())))
+                .then(Commands.literal("status")
+                        .executes(context -> roadOverlayStatus(context.getSource())));
+    }
+
+    private static int enableRoadOverlay(CommandSourceStack source, int radius)
+            throws CommandSyntaxException {
+        if (!NeonCityGenerator.isMegacityWorld(source.getLevel())) {
+            source.sendFailure(Component.literal(
+                    "Road debugging is only available in a Project Moon Megacity world."));
+            return 0;
+        }
+        ServerPlayer player = source.getPlayerOrException();
+        RoadDebugOverlayService.enable(player, radius);
+        source.sendSuccess(() -> Component.literal(String.format(
+                "Road overlay enabled (%d blocks). Green=local, cyan=boulevard, "
+                        + "yellow=highway, orange=bridge, magenta=rail, red=highway buffer, "
+                        + "white=plaza, gray=alley.",
+                radius)), false);
+        return 1;
+    }
+
+    private static int disableRoadOverlay(CommandSourceStack source)
+            throws CommandSyntaxException {
+        boolean disabled = RoadDebugOverlayService.disable(source.getPlayerOrException());
+        source.sendSuccess(() -> Component.literal(disabled
+                ? "Road overlay disabled."
+                : "Road overlay was not enabled."), false);
+        return disabled ? 1 : 0;
+    }
+
+    private static int roadOverlayStatus(CommandSourceStack source)
+            throws CommandSyntaxException {
+        int radius = RoadDebugOverlayService.radius(source.getPlayerOrException());
+        source.sendSuccess(() -> Component.literal(radius > 0
+                ? "Road overlay enabled with radius " + radius + "."
+                : "Road overlay disabled. Use /neoncity roads on [radius]."), false);
+        return radius;
     }
 
     private static int status(CommandSourceStack source) {
