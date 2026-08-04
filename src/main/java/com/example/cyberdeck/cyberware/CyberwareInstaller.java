@@ -219,6 +219,9 @@ public final class CyberwareInstaller {
 
     /** Replacing/removing the active deck must restore the hotbar and cancel queued uploads now. */
     private static void reconcileScannerAccess(ServerPlayer player, CyberwareData data) {
+        if (!CyberwareEffects.canQuickhack(data)) {
+            com.example.cyberdeck.control.RemoteEntityControl.end(player);
+        }
         if (CyberdeckState.hasQuickhackSession(player) && !CyberwareEffects.canQuickhack(data)) {
             CyberdeckState.deactivate(player);
             com.example.cyberdeck.skill.QuickhackUploads.cancel(player);

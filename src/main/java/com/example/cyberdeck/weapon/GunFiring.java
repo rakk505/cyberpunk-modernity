@@ -276,10 +276,11 @@ public final class GunFiring {
                 || entity.isSpectator()) {
             return false;
         }
-        if (shooter instanceof KangTaoTurret) {
+        if (shooter instanceof KangTaoTurret turret) {
             String missionInstance = shooter.getPersistentData()
                     .getString(MISSION_INSTANCE_TAG).orElse("");
-            if (!missionInstance.isBlank()
+            if (!turret.isRemotelyControlled()
+                    && !missionInstance.isBlank()
                     && missionInstance.equals(living.getPersistentData()
                             .getString(MISSION_INSTANCE_TAG).orElse(""))) {
                 return false;
@@ -287,7 +288,8 @@ public final class GunFiring {
             if (living instanceof CityNpc || living instanceof KangTaoTurret) {
                 return false;
             }
-            if (living instanceof FactionEnemy guard
+            if (!turret.isRemotelyControlled()
+                    && living instanceof FactionEnemy guard
                     && guard.getFaction() == Faction.KANG_TAO) {
                 return false;
             }

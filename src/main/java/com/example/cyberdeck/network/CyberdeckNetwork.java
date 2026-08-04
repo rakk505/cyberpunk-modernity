@@ -10,7 +10,7 @@ public final class CyberdeckNetwork {
     }
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        PayloadRegistrar registrar = event.registrar(Cyberdeck.MODID).versioned("14");
+        PayloadRegistrar registrar = event.registrar(Cyberdeck.MODID).versioned("15");
         registrar.playToServer(
                 ToggleInterfacePacket.TYPE,
                 ToggleInterfacePacket.STREAM_CODEC,
@@ -19,6 +19,10 @@ public final class CyberdeckNetwork {
                 ActivateSkillPacket.TYPE,
                 ActivateSkillPacket.STREAM_CODEC,
                 ActivateSkillPacket::handle);
+        registrar.playToServer(
+                EntityControlInputPacket.TYPE,
+                EntityControlInputPacket.STREAM_CODEC,
+                EntityControlInputPacket::handle);
         registrar.playToServer(
                 CyberwareActionPacket.TYPE,
                 CyberwareActionPacket.STREAM_CODEC,
@@ -51,6 +55,10 @@ public final class CyberdeckNetwork {
                 QuickhackUploadPacket.TYPE,
                 QuickhackUploadPacket.STREAM_CODEC,
                 QuickhackUploadPacket::handle);
+        registrar.playToClient(
+                EntityControlStatePacket.TYPE,
+                EntityControlStatePacket.STREAM_CODEC,
+                EntityControlStatePacket::handle);
         registrar.playToClient(
                 OpenQuicktimeStationPacket.TYPE,
                 OpenQuicktimeStationPacket.STREAM_CODEC,

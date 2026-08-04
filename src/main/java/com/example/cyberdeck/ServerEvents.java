@@ -42,11 +42,14 @@ public final class ServerEvents {
         // Smart Link target acquisition is independent of the cyberdeck operating system/interface.
         com.example.cyberdeck.weapon.SmartTargeting.tick(player, level);
 
+        com.example.cyberdeck.control.RemoteEntityControl.tick(player);
+
         // Capability removal closes either interface immediately; a removed deck also releases RAM.
         if (CyberdeckState.hasQuickhackSession(player)
                 && !CyberdeckState.hasInstalledCyberdeck(player)) {
             CyberdeckState.deactivate(player);
             com.example.cyberdeck.skill.QuickhackUploads.cancel(player);
+            com.example.cyberdeck.control.RemoteEntityControl.end(player);
             return;
         }
         if (CyberdeckState.hasScanOnlySession(player)
@@ -114,7 +117,8 @@ public final class ServerEvents {
     }
 
     private static boolean isTargetable(LivingEntity entity) {
-        return entity.isAlive() && (entity instanceof Enemy || entity instanceof CityNpc);
+        return entity.isAlive() && (entity instanceof Enemy || entity instanceof CityNpc
+                || entity instanceof com.example.cyberdeck.defense.KangTaoTurret);
     }
 
     /** No hostile AI, vanilla or modded, may select a city civilian as an attack target. */

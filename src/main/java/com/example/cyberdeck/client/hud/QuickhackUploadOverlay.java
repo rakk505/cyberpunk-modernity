@@ -3,6 +3,7 @@ package com.example.cyberdeck.client.hud;
 import com.example.cyberdeck.client.QuickhackScannerClient;
 import com.example.cyberdeck.client.QuickhackUploadClient;
 import com.example.cyberdeck.network.QuickhackUploadPacket;
+import com.example.cyberdeck.skill.DeviceQuickhack;
 import com.example.cyberdeck.skill.Skill;
 
 import net.minecraft.client.DeltaTracker;
@@ -11,7 +12,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.gui.GuiLayer;
 import org.jspecify.annotations.Nullable;
@@ -43,12 +44,16 @@ public final class QuickhackUploadOverlay implements GuiLayer {
         double gameTime = minecraft.level.getGameTime() + partialTick;
         for (QuickhackUploadPacket.TargetUpload upload : QuickhackUploadClient.uploads()) {
             Skill skill = Skill.fromSlot(upload.activeSkillOrdinal());
+            DeviceQuickhack deviceQuickhack = DeviceQuickhack.fromWireId(
+                    upload.activeSkillOrdinal());
             Entity entity = minecraft.level.getEntity(upload.targetId());
-            if (skill == null || !(entity instanceof LivingEntity target) || !target.isAlive()) {
+            ItemStack icon = skill != null ? skill.stack()
+                    : deviceQuickhack != null ? deviceQuickhack.stack() : ItemStack.EMPTY;
+            if (icon.isEmpty() || entity == null || !entity.isAlive() || entity.isRemoved()) {
                 continue;
             }
 
-            ScreenPoint point = projectAboveTarget(minecraft, target, partialTick,
+            ScreenPoint point = projectAboveTarget(minecraft, entity, partialTick,
                     graphics.guiWidth(), graphics.guiHeight());
             if (point == null) {
                 continue;
@@ -59,14 +64,14 @@ public final class QuickhackUploadOverlay implements GuiLayer {
                     Math.max(4, graphics.guiWidth() - SIZE - 4));
             int y = Mth.clamp(Math.round(point.y()) - SIZE - 5, 4,
                     Math.max(4, graphics.guiHeight() - SIZE - 4));
-            drawMarker(graphics, skill, x, y, progress, minecraft.level.getGameTime());
+            drawMarker(graphics, icon, x, y, progress, minecraft.level.getGameTime());
         }
     }
 
-    private static void drawMarker(GuiGraphicsExtractor graphics, Skill skill, int x, int y,
+    private static void drawMarker(GuiGraphicsExtractor graphics, ItemStack icon, int x, int y,
         float progress, long gameTime) {
         fillCutRect(graphics, x, y, SIZE, SIZE, BACKGROUND);
-        graphics.item(skill.stack(), x + 4, y + 4);
+        graphics.item(icon, x + 4, y + 4);
 
         int innerX = x + 3;
         int innerY = y + 3;
@@ -87,7 +92,7 @@ public final class QuickhackUploadOverlay implements GuiLayer {
     }
 
     private static @Nullable ScreenPoint projectAboveTarget(Minecraft minecraft,
-                                                             LivingEntity target,
+                                                             Entity target,
                                                              float partialTick,
                                                              int screenWidth,
                                                              int screenHeight) {

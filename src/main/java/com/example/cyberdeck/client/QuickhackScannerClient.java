@@ -1,13 +1,15 @@
 package com.example.cyberdeck.client;
 
 import com.example.cyberdeck.QuickhackAttachments;
-import com.example.cyberdeck.npc.CityNpc;
+import com.example.cyberdeck.skill.DeviceQuickhack;
+import com.example.cyberdeck.skill.QuickhackTargets;
 import com.example.cyberdeck.skill.Skill;
 import com.example.cyberdeck.skill.QuickhackUploads;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
@@ -24,7 +26,6 @@ public final class QuickhackScannerClient {
     /** Long-range scanner reach, capped at the practical ten-chunk entity tracking radius. */
     public static final double TARGET_RANGE = QuickhackUploads.MAX_TARGET_RANGE;
     private static final int FIRST_SKILL = 0;
-    private static final int SKILL_COUNT = Skill.STANDBY.ordinal();
     private static final int TARGET_CONFIRM_TICKS = 4;
     private static final int TARGET_RELEASE_TICKS = 3;
 
@@ -49,6 +50,7 @@ public final class QuickhackScannerClient {
         boolean nextActive = player != null
                 && level != null
                 && minecraft.gui.screen() == null
+                && !EntityControlClient.isActive()
                 && QuickhackAttachments.isScannerActive(player);
 
         if (level != lastLevel) {
@@ -81,8 +83,16 @@ public final class QuickhackScannerClient {
         return selectedSkill;
     }
 
-    public static Skill selectedSkill() {
-        return Skill.fromSlot(selectedSkill);
+    public static @Nullable Skill selectedSkill() {
+        Entity current = target(Minecraft.getInstance().level);
+        return current instanceof Enemy ? Skill.fromSlot(selectedSkill) : null;
+    }
+
+    /** Device action at the selected menu slot, or {@code null} for combat and intel targets. */
+    public static @Nullable DeviceQuickhack selectedDeviceQuickhack(
+            @Nullable ClientLevel level) {
+        Entity current = target(level);
+        return current == null ? null : DeviceQuickhack.fromSlot(current, selectedSkill);
     }
 
     public static int targetId() {
@@ -93,34 +103,37 @@ public final class QuickhackScannerClient {
         return directTargetId;
     }
 
-    public static @Nullable LivingEntity target(@Nullable ClientLevel level) {
+    public static @Nullable Entity target(@Nullable ClientLevel level) {
         if (level == null || targetId < 0) {
             return null;
         }
-        return level.getEntity(targetId) instanceof LivingEntity living && living.isAlive()
-                ? living
-                : null;
+        Entity entity = level.getEntity(targetId);
+        return QuickhackTargets.isScannable(entity) ? entity : null;
     }
 
     /** The entity directly under the reticle right now; stale display locks cannot queue hacks. */
-    public static @Nullable LivingEntity actionTarget(@Nullable ClientLevel level) {
+    public static @Nullable Entity actionTarget(@Nullable ClientLevel level) {
         if (!isQuickhacking() || level == null || directTargetId < 0
                 || directTargetId != targetId) {
             return null;
         }
-        return level.getEntity(directTargetId) instanceof LivingEntity living
-                && living instanceof Enemy
-                && living.isAlive()
-                ? living
-                : null;
+        Entity entity = level.getEntity(directTargetId);
+        return QuickhackTargets.isActionable(entity) ? entity : null;
     }
 
-    /** Wraps over the seven executable presets and repairs vanilla's number-key hotbar selection. */
+    /** Wraps over the current target's actions and repairs vanilla's hotbar selection. */
     public static void cycle(Player player, int direction) {
         if (!isQuickhacking() || targetId < 0 || direction == 0) {
             return;
         }
-        selectedSkill = Math.floorMod(selectedSkill + Integer.signum(direction), SKILL_COUNT);
+        Entity current = player.level().getEntity(targetId);
+        int actionCount = current == null ? 0 : QuickhackTargets.actionCount(current);
+        if (actionCount <= 0) {
+            selectedSkill = FIRST_SKILL;
+            return;
+        }
+        selectedSkill = Math.floorMod(
+                selectedSkill + Integer.signum(direction), actionCount);
         player.getInventory().setSelectedSlot(selectedSkill);
     }
 
@@ -139,10 +152,11 @@ public final class QuickhackScannerClient {
      * Requires a brief, deliberate hold before exposing target actions and tolerates tiny aim
      * jitter.
      */
-    private static void updateTargetLock(@Nullable LivingEntity directTarget) {
+    private static void updateTargetLock(@Nullable Entity directTarget) {
         directTargetId = directTarget == null ? -1 : directTarget.getId();
 
         if (directTargetId == targetId && targetId >= 0) {
+            clampSelection(directTarget);
             candidateTargetId = -1;
             candidateTicks = 0;
             missedTargetTicks = 0;
@@ -154,15 +168,17 @@ public final class QuickhackScannerClient {
             candidateTicks = 0;
             if (targetId >= 0 && ++missedTargetTicks >= TARGET_RELEASE_TICKS) {
                 targetId = -1;
+                selectedSkill = FIRST_SKILL;
                 missedTargetTicks = 0;
             }
             return;
         }
 
-        // Moving directly onto a different enemy drops the old details instead of showing stale
+        // Moving directly onto a different target drops the old details instead of showing stale
         // intelligence while the new target earns a lock.
         if (targetId >= 0) {
             targetId = -1;
+            selectedSkill = FIRST_SKILL;
         }
         missedTargetTicks = 0;
         if (candidateTargetId != directTargetId) {
@@ -172,13 +188,21 @@ public final class QuickhackScannerClient {
         }
         if (++candidateTicks >= TARGET_CONFIRM_TICKS) {
             targetId = candidateTargetId;
+            selectedSkill = FIRST_SKILL;
             candidateTargetId = -1;
             candidateTicks = 0;
         }
     }
 
+    private static void clampSelection(Entity target) {
+        int actionCount = QuickhackTargets.actionCount(target);
+        selectedSkill = actionCount <= 0
+                ? FIRST_SKILL
+                : Mth.clamp(selectedSkill, FIRST_SKILL, actionCount - 1);
+    }
+
     /** Block-clipped crosshair ray; the server independently validates the resulting target. */
-    private static @Nullable LivingEntity findTarget(Player player) {
+    private static @Nullable Entity findTarget(Player player) {
         Vec3 eye = player.getEyePosition(1.0F);
         Vec3 look = player.getViewVector(1.0F).normalize();
         Vec3 reachEnd = eye.add(look.scale(TARGET_RANGE));
@@ -196,13 +220,10 @@ public final class QuickhackScannerClient {
                 eye,
                 lineEnd,
                 search,
-                entity -> entity instanceof LivingEntity living
-                        && living != player
-                        && (living instanceof Enemy || living instanceof CityNpc)
-                        && living.isAlive()
-                        && !living.isSpectator()
-                        && living.isPickable(),
+                entity -> entity != player
+                        && !entity.isSpectator()
+                        && QuickhackTargets.isScannable(entity),
                 reach * reach);
-        return hit != null && hit.getEntity() instanceof LivingEntity living ? living : null;
+        return hit == null ? null : hit.getEntity();
     }
 }

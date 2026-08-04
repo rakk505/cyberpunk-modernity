@@ -31,10 +31,13 @@ import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.renderer.entity.ThrownItemRenderer;
 import net.minecraft.client.renderer.entity.NoopRenderer;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
+import net.minecraft.client.renderer.entity.EntityRenderer;
+import net.minecraft.client.renderer.entity.state.EntityRenderState;
 import net.minecraft.client.renderer.entity.player.AvatarRenderer;
 import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.PlayerModelType;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
@@ -267,6 +270,15 @@ public final class CyberdeckClient {
 
     /** Adds the scanner's orange silhouette to only the entity under the reticle. */
     private void registerRenderStateModifiers(RegisterRenderStateModifiersEvent event) {
+        event.registerEntityModifier(
+                new TypeToken<EntityRenderer<Entity, EntityRenderState>>() {},
+                (entity, state) -> {
+                    if (com.example.cyberdeck.skill.QuickhackTargets.isDevice(entity)
+                            && QuickhackScannerClient.isActive()
+                            && entity.getId() == QuickhackScannerClient.directTargetId()) {
+                        state.outlineColor = 0xFFFF653C;
+                    }
+                });
         event.registerEntityModifier(
                 new TypeToken<LivingEntityRenderer<LivingEntity, LivingEntityRenderState, ?>>() {},
                 (entity, state) -> {
