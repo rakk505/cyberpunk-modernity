@@ -1,0 +1,8437 @@
+{
+  "constraints": {
+    "boundary_faces": "excluded",
+    "max_height": 9,
+    "max_width": 16,
+    "min_height": 3,
+    "min_width": 5,
+    "prefers_full_light_blocks": true,
+    "reject_glass_in_rectangle": true,
+    "target_air": "horizontal_boundary_connected"
+  },
+  "diagnostics": {
+    "dimension_counts": {
+      "10x4": 2,
+      "10x5": 9,
+      "10x6": 2,
+      "10x7": 2,
+      "11x3": 2,
+      "11x4": 2,
+      "11x5": 6,
+      "11x6": 1,
+      "11x7": 1,
+      "12x3": 3,
+      "12x4": 4,
+      "12x5": 1,
+      "12x7": 2,
+      "13x4": 1,
+      "13x6": 1,
+      "14x9": 1,
+      "15x4": 2,
+      "15x5": 3,
+      "16x3": 5,
+      "16x4": 14,
+      "5x3": 162,
+      "5x4": 76,
+      "5x5": 63,
+      "5x6": 6,
+      "5x7": 1,
+      "5x8": 4,
+      "5x9": 12,
+      "6x3": 42,
+      "6x4": 41,
+      "6x5": 41,
+      "6x6": 12,
+      "6x7": 3,
+      "7x3": 40,
+      "7x4": 28,
+      "7x5": 5,
+      "7x6": 2,
+      "7x7": 4,
+      "7x8": 1,
+      "8x3": 4,
+      "8x4": 31,
+      "8x5": 9,
+      "8x6": 5,
+      "8x9": 1,
+      "9x3": 6,
+      "9x4": 22,
+      "9x5": 10,
+      "9x6": 2
+    },
+    "glass_cells_excluded": 7667671,
+    "interior_faces_excluded": 913700,
+    "templates_with_light_palette": 11937
+  },
+  "format": "cyberdeck:large_ad_surfaces",
+  "placement_count": 697,
+  "placements": {
+    "a/backstreets_2_11": {
+      "area": 28,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        12,
+        1,
+        13
+      ],
+      "width": 7
+    },
+    "a/backstreets_2_12": {
+      "area": 28,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        10,
+        1,
+        12
+      ],
+      "width": 7
+    },
+    "a/nest_10_6": {
+      "area": 24,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        12,
+        236,
+        5
+      ],
+      "width": 6
+    },
+    "a/nest_10_8": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        11,
+        236,
+        6
+      ],
+      "width": 5
+    },
+    "a/nest_11_8": {
+      "area": 24,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        1,
+        236,
+        7
+      ],
+      "width": 6
+    },
+    "a/nest_12_6": {
+      "area": 24,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        9,
+        236,
+        5
+      ],
+      "width": 6
+    },
+    "a/nest_12_8": {
+      "area": 24,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        14,
+        236,
+        7
+      ],
+      "width": 6
+    },
+    "a/nest_5_0": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        11,
+        4,
+        7
+      ],
+      "width": 5
+    },
+    "a/nest_5_1": {
+      "area": 36,
+      "facing": "west",
+      "height": 6,
+      "light_blocks": 0,
+      "support": [
+        9,
+        1,
+        1
+      ],
+      "width": 6
+    },
+    "a/nest_6_0": {
+      "area": 30,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        7,
+        4,
+        14
+      ],
+      "width": 6
+    },
+    "a/nest_6_1": {
+      "area": 45,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        6,
+        4,
+        0
+      ],
+      "width": 9
+    },
+    "a/nest_7_0": {
+      "area": 20,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        6,
+        3,
+        9
+      ],
+      "width": 5
+    },
+    "a/nest_7_1": {
+      "area": 45,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        0,
+        2,
+        9
+      ],
+      "width": 9
+    },
+    "a/nest_7_2": {
+      "area": 21,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        1,
+        4,
+        2
+      ],
+      "width": 7
+    },
+    "ae/backstreets_0_2": {
+      "area": 20,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        14,
+        1,
+        11
+      ],
+      "width": 5
+    },
+    "ae/backstreets_0_3": {
+      "area": 24,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        13,
+        1,
+        3
+      ],
+      "width": 6
+    },
+    "ae/backstreets_10_10": {
+      "area": 30,
+      "facing": "north",
+      "height": 6,
+      "light_blocks": 0,
+      "support": [
+        4,
+        41,
+        14
+      ],
+      "width": 5
+    },
+    "ae/backstreets_10_11": {
+      "area": 30,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        0,
+        42,
+        13
+      ],
+      "width": 6
+    },
+    "ae/backstreets_10_12": {
+      "area": 24,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        8,
+        1,
+        10
+      ],
+      "width": 6
+    },
+    "ae/backstreets_10_13": {
+      "area": 25,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        5,
+        39,
+        6
+      ],
+      "width": 5
+    },
+    "ae/backstreets_10_14": {
+      "area": 32,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        14,
+        1,
+        13
+      ],
+      "width": 8
+    },
+    "ae/backstreets_11_13": {
+      "area": 20,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        2,
+        1,
+        4
+      ],
+      "width": 5
+    },
+    "ae/backstreets_11_14": {
+      "area": 70,
+      "facing": "north",
+      "height": 7,
+      "light_blocks": 0,
+      "support": [
+        14,
+        26,
+        3
+      ],
+      "width": 10
+    },
+    "ae/backstreets_11_15": {
+      "area": 20,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        0,
+        31,
+        3
+      ],
+      "width": 5
+    },
+    "ae/backstreets_12_14": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        9,
+        23,
+        2
+      ],
+      "width": 5
+    },
+    "ae/backstreets_13_0": {
+      "area": 18,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        3,
+        19,
+        7
+      ],
+      "width": 6
+    },
+    "ae/backstreets_13_14": {
+      "area": 70,
+      "facing": "north",
+      "height": 7,
+      "light_blocks": 0,
+      "support": [
+        9,
+        22,
+        1
+      ],
+      "width": 10
+    },
+    "ae/backstreets_13_15": {
+      "area": 32,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        11,
+        1,
+        8
+      ],
+      "width": 8
+    },
+    "ae/backstreets_14_11": {
+      "area": 15,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        14,
+        22,
+        4
+      ],
+      "width": 5
+    },
+    "ae/backstreets_14_13": {
+      "area": 30,
+      "facing": "north",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        15,
+        26,
+        15
+      ],
+      "width": 6
+    },
+    "ae/backstreets_14_14": {
+      "area": 60,
+      "facing": "east",
+      "height": 6,
+      "light_blocks": 0,
+      "support": [
+        10,
+        33,
+        9
+      ],
+      "width": 10
+    },
+    "ae/backstreets_14_15": {
+      "area": 55,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        10,
+        34,
+        10
+      ],
+      "width": 11
+    },
+    "ae/backstreets_15_10": {
+      "area": 36,
+      "facing": "north",
+      "height": 6,
+      "light_blocks": 0,
+      "support": [
+        11,
+        16,
+        7
+      ],
+      "width": 6
+    },
+    "ae/backstreets_15_11": {
+      "area": 36,
+      "facing": "south",
+      "height": 6,
+      "light_blocks": 0,
+      "support": [
+        6,
+        17,
+        7
+      ],
+      "width": 6
+    },
+    "ae/backstreets_15_12": {
+      "area": 32,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        5,
+        1,
+        15
+      ],
+      "width": 8
+    },
+    "ae/backstreets_15_13": {
+      "area": 21,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        3,
+        16,
+        0
+      ],
+      "width": 7
+    },
+    "ae/backstreets_1_3": {
+      "area": 28,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        3,
+        1,
+        13
+      ],
+      "width": 7
+    },
+    "ae/backstreets_2_9": {
+      "area": 28,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        6,
+        19,
+        9
+      ],
+      "width": 7
+    },
+    "ae/backstreets_4_7": {
+      "area": 24,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        0,
+        1,
+        0
+      ],
+      "width": 8
+    },
+    "ae/backstreets_8_13": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        11,
+        39,
+        8
+      ],
+      "width": 5
+    },
+    "ae/backstreets_8_14": {
+      "area": 15,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        13,
+        1,
+        11
+      ],
+      "width": 5
+    },
+    "ae/backstreets_8_4": {
+      "area": 30,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        1,
+        23,
+        4
+      ],
+      "width": 6
+    },
+    "ae/backstreets_9_10": {
+      "area": 20,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        15,
+        39,
+        14
+      ],
+      "width": 5
+    },
+    "ae/backstreets_9_12": {
+      "area": 40,
+      "facing": "east",
+      "height": 8,
+      "light_blocks": 0,
+      "support": [
+        12,
+        46,
+        15
+      ],
+      "width": 5
+    },
+    "ae/backstreets_9_13": {
+      "area": 56,
+      "facing": "east",
+      "height": 8,
+      "light_blocks": 0,
+      "support": [
+        12,
+        46,
+        6
+      ],
+      "width": 7
+    },
+    "ae/backstreets_9_14": {
+      "area": 36,
+      "facing": "north",
+      "height": 6,
+      "light_blocks": 0,
+      "support": [
+        7,
+        30,
+        6
+      ],
+      "width": 6
+    },
+    "ae/backstreets_9_15": {
+      "area": 36,
+      "facing": "south",
+      "height": 6,
+      "light_blocks": 0,
+      "support": [
+        10,
+        30,
+        4
+      ],
+      "width": 6
+    },
+    "c/backstreets_0_0": {
+      "area": 32,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        9,
+        21,
+        3
+      ],
+      "width": 8
+    },
+    "c/backstreets_10_0": {
+      "area": 21,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        8,
+        10,
+        1
+      ],
+      "width": 7
+    },
+    "c/backstreets_10_14": {
+      "area": 28,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        14,
+        6,
+        9
+      ],
+      "width": 7
+    },
+    "c/backstreets_10_15": {
+      "area": 20,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        14,
+        6,
+        0
+      ],
+      "width": 5
+    },
+    "c/backstreets_10_3": {
+      "area": 20,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        10,
+        14,
+        11
+      ],
+      "width": 5
+    },
+    "c/backstreets_10_4": {
+      "area": 30,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        10,
+        14,
+        0
+      ],
+      "width": 6
+    },
+    "c/backstreets_10_5": {
+      "area": 28,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        10,
+        6,
+        0
+      ],
+      "width": 7
+    },
+    "c/backstreets_10_8": {
+      "area": 21,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        12,
+        10,
+        2
+      ],
+      "width": 7
+    },
+    "c/backstreets_11_10": {
+      "area": 36,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        0,
+        6,
+        7
+      ],
+      "width": 9
+    },
+    "c/backstreets_11_4": {
+      "area": 24,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        10,
+        6,
+        15
+      ],
+      "width": 6
+    },
+    "c/backstreets_11_5": {
+      "area": 28,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        10,
+        6,
+        6
+      ],
+      "width": 7
+    },
+    "c/backstreets_12_10": {
+      "area": 18,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        6,
+        7,
+        6
+      ],
+      "width": 6
+    },
+    "c/backstreets_12_6": {
+      "area": 36,
+      "facing": "north",
+      "height": 6,
+      "light_blocks": 0,
+      "support": [
+        11,
+        1,
+        9
+      ],
+      "width": 6
+    },
+    "c/backstreets_12_7": {
+      "area": 15,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        9,
+        8,
+        4
+      ],
+      "width": 5
+    },
+    "c/backstreets_12_8": {
+      "area": 21,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        9,
+        10,
+        7
+      ],
+      "width": 7
+    },
+    "c/backstreets_13_10": {
+      "area": 78,
+      "facing": "south",
+      "height": 6,
+      "light_blocks": 0,
+      "support": [
+        3,
+        6,
+        6
+      ],
+      "width": 13
+    },
+    "c/backstreets_13_8": {
+      "area": 42,
+      "facing": "north",
+      "height": 6,
+      "light_blocks": 0,
+      "support": [
+        15,
+        7,
+        10
+      ],
+      "width": 7
+    },
+    "c/backstreets_14_10": {
+      "area": 32,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        0,
+        6,
+        6
+      ],
+      "width": 8
+    },
+    "c/backstreets_14_8": {
+      "area": 32,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        7,
+        6,
+        10
+      ],
+      "width": 8
+    },
+    "c/backstreets_2_0": {
+      "area": 28,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        8,
+        21,
+        9
+      ],
+      "width": 7
+    },
+    "c/backstreets_4_0": {
+      "area": 32,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        6,
+        10,
+        9
+      ],
+      "width": 8
+    },
+    "c/backstreets_5_8": {
+      "area": 49,
+      "facing": "west",
+      "height": 7,
+      "light_blocks": 0,
+      "support": [
+        12,
+        1,
+        4
+      ],
+      "width": 7
+    },
+    "c/backstreets_6_8": {
+      "area": 30,
+      "facing": "north",
+      "height": 6,
+      "light_blocks": 0,
+      "support": [
+        5,
+        1,
+        4
+      ],
+      "width": 5
+    },
+    "c/backstreets_7_3": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        8,
+        7,
+        11
+      ],
+      "width": 5
+    },
+    "c/backstreets_7_4": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        9,
+        7,
+        4
+      ],
+      "width": 5
+    },
+    "c/backstreets_7_5": {
+      "area": 20,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        11,
+        6,
+        9
+      ],
+      "width": 5
+    },
+    "c/backstreets_9_0": {
+      "area": 24,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        5,
+        18,
+        7
+      ],
+      "width": 6
+    },
+    "c/backstreets_9_4": {
+      "area": 32,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        7,
+        6,
+        7
+      ],
+      "width": 8
+    },
+    "c/backstreets_9_5": {
+      "area": 28,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        7,
+        6,
+        6
+      ],
+      "width": 7
+    },
+    "c/nest_0_2": {
+      "area": 45,
+      "facing": "north",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        11,
+        10,
+        14
+      ],
+      "width": 9
+    },
+    "c/nest_0_4": {
+      "area": 50,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        3,
+        10,
+        12
+      ],
+      "width": 10
+    },
+    "c/nest_0_5": {
+      "area": 50,
+      "facing": "north",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        12,
+        10,
+        14
+      ],
+      "width": 10
+    },
+    "c/nest_0_7": {
+      "area": 21,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        5,
+        14,
+        2
+      ],
+      "width": 7
+    },
+    "c/nest_0_9": {
+      "area": 21,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        1,
+        18,
+        12
+      ],
+      "width": 7
+    },
+    "c/nest_11_11": {
+      "area": 32,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        0,
+        18,
+        15
+      ],
+      "width": 8
+    },
+    "c/nest_12_10": {
+      "area": 20,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        15,
+        14,
+        9
+      ],
+      "width": 5
+    },
+    "c/nest_12_12": {
+      "area": 40,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        5,
+        15,
+        5
+      ],
+      "width": 10
+    },
+    "c/nest_13_10": {
+      "area": 25,
+      "facing": "north",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        4,
+        1,
+        9
+      ],
+      "width": 5
+    },
+    "c/nest_1_7": {
+      "area": 21,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        0,
+        10,
+        9
+      ],
+      "width": 7
+    },
+    "c/nest_4_12": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        3,
+        22,
+        11
+      ],
+      "width": 5
+    },
+    "c/nest_6_11": {
+      "area": 60,
+      "facing": "east",
+      "height": 6,
+      "light_blocks": 0,
+      "support": [
+        0,
+        14,
+        9
+      ],
+      "width": 10
+    },
+    "c/nest_7_6": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        1,
+        6,
+        6
+      ],
+      "width": 5
+    },
+    "c/nest_7_7": {
+      "area": 49,
+      "facing": "north",
+      "height": 7,
+      "light_blocks": 0,
+      "support": [
+        12,
+        26,
+        10
+      ],
+      "width": 7
+    },
+    "c/nest_7_9": {
+      "area": 21,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        2,
+        18,
+        1
+      ],
+      "width": 7
+    },
+    "c/nest_8_11": {
+      "area": 84,
+      "facing": "west",
+      "height": 7,
+      "light_blocks": 0,
+      "support": [
+        13,
+        18,
+        0
+      ],
+      "width": 12
+    },
+    "c/nest_8_5": {
+      "area": 28,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        8,
+        18,
+        11
+      ],
+      "width": 7
+    },
+    "c/nest_8_6": {
+      "area": 28,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        3,
+        18,
+        11
+      ],
+      "width": 7
+    },
+    "c/nest_8_7": {
+      "area": 18,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        10,
+        6,
+        0
+      ],
+      "width": 6
+    },
+    "c/nest_8_9": {
+      "area": 45,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        5,
+        14,
+        8
+      ],
+      "width": 9
+    },
+    "c/nest_9_15": {
+      "area": 21,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        9,
+        31,
+        6
+      ],
+      "width": 7
+    },
+    "d/backstreets_10_13": {
+      "area": 28,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        15,
+        16,
+        5
+      ],
+      "width": 7
+    },
+    "d/backstreets_11_13": {
+      "area": 60,
+      "facing": "north",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        11,
+        16,
+        5
+      ],
+      "width": 12
+    },
+    "d/backstreets_1_5": {
+      "area": 24,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        11,
+        1,
+        10
+      ],
+      "width": 6
+    },
+    "d/backstreets_1_6": {
+      "area": 20,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        11,
+        1,
+        0
+      ],
+      "width": 5
+    },
+    "d/backstreets_2_5": {
+      "area": 24,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        1,
+        1,
+        15
+      ],
+      "width": 6
+    },
+    "d/backstreets_8_5": {
+      "area": 45,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        4,
+        6,
+        7
+      ],
+      "width": 9
+    },
+    "d/backstreets_8_6": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        4,
+        6,
+        0
+      ],
+      "width": 5
+    },
+    "d/backstreets_9_13": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        4,
+        10,
+        6
+      ],
+      "width": 5
+    },
+    "d/backstreets_9_5": {
+      "area": 45,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        6,
+        6,
+        15
+      ],
+      "width": 9
+    },
+    "d/backstreets_9_6": {
+      "area": 15,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        6,
+        6,
+        4
+      ],
+      "width": 5
+    },
+    "d/nest_0_14": {
+      "area": 45,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        4,
+        6,
+        7
+      ],
+      "width": 9
+    },
+    "d/nest_0_15": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        4,
+        6,
+        0
+      ],
+      "width": 5
+    },
+    "d/nest_14_10": {
+      "area": 30,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        7,
+        10,
+        0
+      ],
+      "width": 6
+    },
+    "d/nest_14_11": {
+      "area": 36,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        7,
+        1,
+        11
+      ],
+      "width": 12
+    },
+    "d/nest_1_14": {
+      "area": 45,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        6,
+        6,
+        15
+      ],
+      "width": 9
+    },
+    "d/nest_1_15": {
+      "area": 15,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        6,
+        6,
+        4
+      ],
+      "width": 5
+    },
+    "e/backstreets_0_11": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        14,
+        13,
+        5
+      ],
+      "width": 5
+    },
+    "e/backstreets_0_13": {
+      "area": 25,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        14,
+        1,
+        15
+      ],
+      "width": 5
+    },
+    "e/backstreets_0_6": {
+      "area": 25,
+      "facing": "north",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        5,
+        1,
+        6
+      ],
+      "width": 5
+    },
+    "e/backstreets_1_9": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        3,
+        10,
+        0
+      ],
+      "width": 5
+    },
+    "e/backstreets_2_5": {
+      "area": 15,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        0,
+        10,
+        6
+      ],
+      "width": 5
+    },
+    "e/backstreets_3_0": {
+      "area": 25,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        10,
+        1,
+        1
+      ],
+      "width": 5
+    },
+    "e/backstreets_3_5": {
+      "area": 30,
+      "facing": "north",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        15,
+        1,
+        10
+      ],
+      "width": 6
+    },
+    "e/backstreets_4_6": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        10,
+        12,
+        11
+      ],
+      "width": 5
+    },
+    "e/backstreets_5_6": {
+      "area": 25,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        9,
+        1,
+        13
+      ],
+      "width": 5
+    },
+    "e/backstreets_6_15": {
+      "area": 18,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        8,
+        26,
+        10
+      ],
+      "width": 6
+    },
+    "e/backstreets_6_5": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        10,
+        10,
+        4
+      ],
+      "width": 5
+    },
+    "e/backstreets_9_0": {
+      "area": 15,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        10,
+        10,
+        8
+      ],
+      "width": 5
+    },
+    "e/nest_0_0": {
+      "area": 24,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        15,
+        1,
+        6
+      ],
+      "width": 6
+    },
+    "e/nest_0_2": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        8,
+        13,
+        3
+      ],
+      "width": 5
+    },
+    "e/nest_0_8": {
+      "area": 25,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        8,
+        1,
+        9
+      ],
+      "width": 5
+    },
+    "e/nest_11_14": {
+      "area": 21,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        8,
+        41,
+        2
+      ],
+      "width": 7
+    },
+    "e/nest_11_3": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        8,
+        10,
+        3
+      ],
+      "width": 5
+    },
+    "e/nest_14_1": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        11,
+        10,
+        13
+      ],
+      "width": 5
+    },
+    "e/nest_14_7": {
+      "area": 20,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        11,
+        10,
+        3
+      ],
+      "width": 5
+    },
+    "e/nest_15_1": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        11,
+        14,
+        15
+      ],
+      "width": 5
+    },
+    "e/nest_15_2": {
+      "area": 25,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        8,
+        15,
+        13
+      ],
+      "width": 5
+    },
+    "e/nest_15_3": {
+      "area": 30,
+      "facing": "north",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        12,
+        15,
+        15
+      ],
+      "width": 6
+    },
+    "e/nest_15_4": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        0,
+        14,
+        10
+      ],
+      "width": 5
+    },
+    "e/nest_15_5": {
+      "area": 24,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        6,
+        12,
+        12
+      ],
+      "width": 6
+    },
+    "e/nest_1_0": {
+      "area": 20,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        3,
+        1,
+        14
+      ],
+      "width": 5
+    },
+    "e/nest_2_1": {
+      "area": 30,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        5,
+        1,
+        1
+      ],
+      "width": 6
+    },
+    "e/nest_2_9": {
+      "area": 15,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        10,
+        10,
+        8
+      ],
+      "width": 5
+    },
+    "e/nest_3_0": {
+      "area": 15,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        12,
+        10,
+        15
+      ],
+      "width": 5
+    },
+    "e/nest_3_3": {
+      "area": 15,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        7,
+        10,
+        4
+      ],
+      "width": 5
+    },
+    "e/nest_4_3": {
+      "area": 20,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        2,
+        10,
+        7
+      ],
+      "width": 5
+    },
+    "e/nest_4_5": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        3,
+        10,
+        11
+      ],
+      "width": 5
+    },
+    "e/nest_5_5": {
+      "area": 25,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        9,
+        1,
+        14
+      ],
+      "width": 5
+    },
+    "e/nest_7_6": {
+      "area": 25,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        9,
+        1,
+        2
+      ],
+      "width": 5
+    },
+    "e/nest_8_3": {
+      "area": 24,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        8,
+        10,
+        5
+      ],
+      "width": 6
+    },
+    "e/nest_9_1": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        4,
+        10,
+        1
+      ],
+      "width": 5
+    },
+    "f/backstreets_0_2": {
+      "area": 28,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        12,
+        10,
+        13
+      ],
+      "width": 7
+    },
+    "f/backstreets_0_3": {
+      "area": 15,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        13,
+        10,
+        15
+      ],
+      "width": 5
+    },
+    "f/backstreets_0_4": {
+      "area": 36,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        13,
+        10,
+        14
+      ],
+      "width": 9
+    },
+    "f/backstreets_0_5": {
+      "area": 40,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        14,
+        10,
+        12
+      ],
+      "width": 8
+    },
+    "f/backstreets_1_11": {
+      "area": 40,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        2,
+        10,
+        7
+      ],
+      "width": 8
+    },
+    "f/backstreets_3_10": {
+      "area": 36,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        4,
+        10,
+        0
+      ],
+      "width": 9
+    },
+    "f/backstreets_3_11": {
+      "area": 25,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        4,
+        10,
+        0
+      ],
+      "width": 5
+    },
+    "f/backstreets_3_12": {
+      "area": 36,
+      "facing": "west",
+      "height": 6,
+      "light_blocks": 0,
+      "support": [
+        5,
+        10,
+        0
+      ],
+      "width": 6
+    },
+    "f/backstreets_3_8": {
+      "area": 24,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        3,
+        10,
+        4
+      ],
+      "width": 6
+    },
+    "f/backstreets_3_9": {
+      "area": 40,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        3,
+        10,
+        1
+      ],
+      "width": 8
+    },
+    "f/backstreets_4_10": {
+      "area": 36,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        7,
+        10,
+        8
+      ],
+      "width": 9
+    },
+    "f/backstreets_5_10": {
+      "area": 18,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        1,
+        11,
+        9
+      ],
+      "width": 6
+    },
+    "f/backstreets_5_11": {
+      "area": 20,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        6,
+        10,
+        4
+      ],
+      "width": 5
+    },
+    "f/backstreets_5_12": {
+      "area": 30,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        11,
+        10,
+        5
+      ],
+      "width": 6
+    },
+    "f/backstreets_5_14": {
+      "area": 75,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        10,
+        14,
+        14
+      ],
+      "width": 15
+    },
+    "f/backstreets_5_9": {
+      "area": 36,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        7,
+        10,
+        8
+      ],
+      "width": 9
+    },
+    "f/backstreets_6_10": {
+      "area": 35,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        2,
+        10,
+        0
+      ],
+      "width": 7
+    },
+    "f/backstreets_6_11": {
+      "area": 36,
+      "facing": "west",
+      "height": 6,
+      "light_blocks": 0,
+      "support": [
+        1,
+        10,
+        0
+      ],
+      "width": 6
+    },
+    "f/backstreets_6_12": {
+      "area": 21,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        4,
+        17,
+        7
+      ],
+      "width": 7
+    },
+    "f/backstreets_6_13": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        2,
+        10,
+        0
+      ],
+      "width": 5
+    },
+    "f/backstreets_6_8": {
+      "area": 30,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        1,
+        21,
+        10
+      ],
+      "width": 6
+    },
+    "f/backstreets_6_9": {
+      "area": 20,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        1,
+        18,
+        0
+      ],
+      "width": 5
+    },
+    "f/backstreets_8_10": {
+      "area": 30,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        6,
+        10,
+        5
+      ],
+      "width": 6
+    },
+    "f/backstreets_8_11": {
+      "area": 30,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        7,
+        10,
+        5
+      ],
+      "width": 6
+    },
+    "f/backstreets_8_12": {
+      "area": 15,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        7,
+        10,
+        15
+      ],
+      "width": 5
+    },
+    "f/backstreets_8_13": {
+      "area": 15,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        7,
+        10,
+        4
+      ],
+      "width": 5
+    },
+    "f/backstreets_8_8": {
+      "area": 24,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        5,
+        18,
+        13
+      ],
+      "width": 6
+    },
+    "f/nest_3_5": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        0,
+        28,
+        7
+      ],
+      "width": 5
+    },
+    "g/backstreets_0_14": {
+      "area": 36,
+      "facing": "west",
+      "height": 6,
+      "light_blocks": 0,
+      "support": [
+        12,
+        10,
+        10
+      ],
+      "width": 6
+    },
+    "g/backstreets_0_15": {
+      "area": 28,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        14,
+        10,
+        8
+      ],
+      "width": 7
+    },
+    "g/backstreets_15_15": {
+      "area": 50,
+      "facing": "north",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        15,
+        10,
+        14
+      ],
+      "width": 10
+    },
+    "g/backstreets_1_5": {
+      "area": 25,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        3,
+        10,
+        4
+      ],
+      "width": 5
+    },
+    "g/backstreets_2_13": {
+      "area": 25,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        6,
+        10,
+        15
+      ],
+      "width": 5
+    },
+    "g/backstreets_2_14": {
+      "area": 27,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        1,
+        10,
+        15
+      ],
+      "width": 9
+    },
+    "g/backstreets_2_15": {
+      "area": 28,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        0,
+        10,
+        14
+      ],
+      "width": 7
+    },
+    "g/backstreets_3_15": {
+      "area": 32,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        4,
+        10,
+        7
+      ],
+      "width": 8
+    },
+    "g/backstreets_4_15": {
+      "area": 35,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        7,
+        10,
+        14
+      ],
+      "width": 7
+    },
+    "h/backstreets_13_4": {
+      "area": 24,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        11,
+        1,
+        4
+      ],
+      "width": 6
+    },
+    "h/nest_4_7": {
+      "area": 45,
+      "facing": "west",
+      "height": 9,
+      "light_blocks": 0,
+      "support": [
+        14,
+        1,
+        7
+      ],
+      "width": 5
+    },
+    "i/backstreets_0_0": {
+      "area": 24,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        12,
+        11,
+        9
+      ],
+      "width": 8
+    },
+    "i/backstreets_0_9": {
+      "area": 24,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        12,
+        10,
+        6
+      ],
+      "width": 6
+    },
+    "i/backstreets_10_4": {
+      "area": 28,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        13,
+        11,
+        15
+      ],
+      "width": 7
+    },
+    "i/backstreets_11_4": {
+      "area": 20,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        1,
+        10,
+        10
+      ],
+      "width": 5
+    },
+    "i/backstreets_11_6": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        8,
+        10,
+        3
+      ],
+      "width": 5
+    },
+    "i/backstreets_14_10": {
+      "area": 15,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        0,
+        29,
+        15
+      ],
+      "width": 5
+    },
+    "i/backstreets_14_11": {
+      "area": 18,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        6,
+        25,
+        7
+      ],
+      "width": 6
+    },
+    "i/backstreets_15_7": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        15,
+        10,
+        1
+      ],
+      "width": 5
+    },
+    "i/backstreets_1_1": {
+      "area": 15,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        13,
+        13,
+        13
+      ],
+      "width": 5
+    },
+    "i/backstreets_1_11": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        10,
+        10,
+        3
+      ],
+      "width": 5
+    },
+    "i/backstreets_1_12": {
+      "area": 24,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        7,
+        19,
+        14
+      ],
+      "width": 6
+    },
+    "i/backstreets_1_13": {
+      "area": 32,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        0,
+        16,
+        10
+      ],
+      "width": 8
+    },
+    "i/backstreets_1_5": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        11,
+        11,
+        8
+      ],
+      "width": 5
+    },
+    "i/backstreets_1_6": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        12,
+        11,
+        0
+      ],
+      "width": 5
+    },
+    "i/backstreets_1_7": {
+      "area": 75,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        0,
+        10,
+        15
+      ],
+      "width": 15
+    },
+    "i/backstreets_2_1": {
+      "area": 20,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        1,
+        11,
+        11
+      ],
+      "width": 5
+    },
+    "i/backstreets_2_12": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        12,
+        18,
+        3
+      ],
+      "width": 5
+    },
+    "i/backstreets_2_13": {
+      "area": 30,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        10,
+        19,
+        9
+      ],
+      "width": 6
+    },
+    "i/backstreets_2_14": {
+      "area": 20,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        4,
+        18,
+        0
+      ],
+      "width": 5
+    },
+    "i/backstreets_2_2": {
+      "area": 48,
+      "facing": "south",
+      "height": 6,
+      "light_blocks": 0,
+      "support": [
+        7,
+        10,
+        12
+      ],
+      "width": 8
+    },
+    "i/backstreets_3_0": {
+      "area": 40,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        5,
+        10,
+        10
+      ],
+      "width": 8
+    },
+    "i/backstreets_3_11": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        14,
+        16,
+        12
+      ],
+      "width": 5
+    },
+    "i/backstreets_3_13": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        0,
+        16,
+        9
+      ],
+      "width": 5
+    },
+    "i/backstreets_3_14": {
+      "area": 50,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        5,
+        18,
+        10
+      ],
+      "width": 10
+    },
+    "i/backstreets_4_11": {
+      "area": 25,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        9,
+        22,
+        1
+      ],
+      "width": 5
+    },
+    "i/backstreets_4_12": {
+      "area": 18,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        15,
+        19,
+        7
+      ],
+      "width": 6
+    },
+    "i/backstreets_4_13": {
+      "area": 45,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        2,
+        16,
+        8
+      ],
+      "width": 9
+    },
+    "i/backstreets_4_5": {
+      "area": 18,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        8,
+        14,
+        1
+      ],
+      "width": 6
+    },
+    "i/backstreets_5_12": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        4,
+        16,
+        7
+      ],
+      "width": 5
+    },
+    "i/backstreets_5_13": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        2,
+        16,
+        7
+      ],
+      "width": 5
+    },
+    "i/backstreets_7_10": {
+      "area": 15,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        3,
+        19,
+        5
+      ],
+      "width": 5
+    },
+    "i/backstreets_9_6": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        7,
+        10,
+        6
+      ],
+      "width": 5
+    },
+    "i/nest_0_0": {
+      "area": 20,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        10,
+        12,
+        2
+      ],
+      "width": 5
+    },
+    "i/nest_0_1": {
+      "area": 48,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        2,
+        10,
+        0
+      ],
+      "width": 12
+    },
+    "i/nest_0_14": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        8,
+        24,
+        14
+      ],
+      "width": 5
+    },
+    "i/nest_10_0": {
+      "area": 18,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        9,
+        16,
+        9
+      ],
+      "width": 6
+    },
+    "i/nest_10_1": {
+      "area": 20,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        10,
+        16,
+        2
+      ],
+      "width": 5
+    },
+    "i/nest_10_12": {
+      "area": 24,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        7,
+        22,
+        12
+      ],
+      "width": 6
+    },
+    "i/nest_10_3": {
+      "area": 25,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        15,
+        16,
+        11
+      ],
+      "width": 5
+    },
+    "i/nest_10_4": {
+      "area": 30,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        15,
+        16,
+        0
+      ],
+      "width": 6
+    },
+    "i/nest_10_6": {
+      "area": 32,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        6,
+        19,
+        14
+      ],
+      "width": 8
+    },
+    "i/nest_11_12": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        12,
+        10,
+        10
+      ],
+      "width": 5
+    },
+    "i/nest_11_13": {
+      "area": 25,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        14,
+        1,
+        10
+      ],
+      "width": 5
+    },
+    "i/nest_11_5": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        10,
+        13,
+        3
+      ],
+      "width": 5
+    },
+    "i/nest_11_6": {
+      "area": 32,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        12,
+        24,
+        7
+      ],
+      "width": 8
+    },
+    "i/nest_12_7": {
+      "area": 24,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        12,
+        10,
+        6
+      ],
+      "width": 6
+    },
+    "i/nest_13_10": {
+      "area": 24,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        7,
+        19,
+        14
+      ],
+      "width": 6
+    },
+    "i/nest_13_11": {
+      "area": 32,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        0,
+        16,
+        10
+      ],
+      "width": 8
+    },
+    "i/nest_13_3": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        11,
+        11,
+        8
+      ],
+      "width": 5
+    },
+    "i/nest_13_4": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        12,
+        11,
+        0
+      ],
+      "width": 5
+    },
+    "i/nest_13_5": {
+      "area": 75,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        0,
+        10,
+        15
+      ],
+      "width": 15
+    },
+    "i/nest_13_9": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        10,
+        10,
+        3
+      ],
+      "width": 5
+    },
+    "i/nest_14_0": {
+      "area": 48,
+      "facing": "south",
+      "height": 6,
+      "light_blocks": 0,
+      "support": [
+        7,
+        10,
+        12
+      ],
+      "width": 8
+    },
+    "i/nest_14_10": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        12,
+        18,
+        3
+      ],
+      "width": 5
+    },
+    "i/nest_14_11": {
+      "area": 30,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        10,
+        19,
+        9
+      ],
+      "width": 6
+    },
+    "i/nest_14_12": {
+      "area": 20,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        4,
+        18,
+        0
+      ],
+      "width": 5
+    },
+    "i/nest_14_14": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        11,
+        13,
+        2
+      ],
+      "width": 5
+    },
+    "i/nest_15_11": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        0,
+        16,
+        9
+      ],
+      "width": 5
+    },
+    "i/nest_15_12": {
+      "area": 50,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        5,
+        18,
+        10
+      ],
+      "width": 10
+    },
+    "i/nest_15_14": {
+      "area": 20,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        0,
+        10,
+        2
+      ],
+      "width": 5
+    },
+    "i/nest_15_15": {
+      "area": 25,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        5,
+        1,
+        10
+      ],
+      "width": 5
+    },
+    "i/nest_15_9": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        14,
+        16,
+        12
+      ],
+      "width": 5
+    },
+    "i/nest_1_0": {
+      "area": 20,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        15,
+        19,
+        3
+      ],
+      "width": 5
+    },
+    "i/nest_1_1": {
+      "area": 55,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        5,
+        16,
+        2
+      ],
+      "width": 11
+    },
+    "i/nest_1_11": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        14,
+        10,
+        15
+      ],
+      "width": 5
+    },
+    "i/nest_1_14": {
+      "area": 18,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        12,
+        10,
+        3
+      ],
+      "width": 6
+    },
+    "i/nest_1_4": {
+      "area": 24,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        0,
+        10,
+        0
+      ],
+      "width": 6
+    },
+    "i/nest_2_0": {
+      "area": 24,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        5,
+        16,
+        3
+      ],
+      "width": 6
+    },
+    "i/nest_2_1": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        11,
+        16,
+        3
+      ],
+      "width": 5
+    },
+    "i/nest_2_11": {
+      "area": 21,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        8,
+        10,
+        14
+      ],
+      "width": 7
+    },
+    "i/nest_2_12": {
+      "area": 30,
+      "facing": "south",
+      "height": 6,
+      "light_blocks": 0,
+      "support": [
+        0,
+        12,
+        11
+      ],
+      "width": 5
+    },
+    "i/nest_2_13": {
+      "area": 25,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        9,
+        1,
+        0
+      ],
+      "width": 5
+    },
+    "i/nest_2_15": {
+      "area": 55,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        0,
+        10,
+        14
+      ],
+      "width": 11
+    },
+    "i/nest_2_5": {
+      "area": 48,
+      "facing": "west",
+      "height": 6,
+      "light_blocks": 0,
+      "support": [
+        3,
+        26,
+        8
+      ],
+      "width": 8
+    },
+    "i/nest_2_6": {
+      "area": 49,
+      "facing": "north",
+      "height": 7,
+      "light_blocks": 0,
+      "support": [
+        9,
+        32,
+        1
+      ],
+      "width": 7
+    },
+    "i/nest_2_7": {
+      "area": 15,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        7,
+        10,
+        4
+      ],
+      "width": 5
+    },
+    "i/nest_3_1": {
+      "area": 30,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        0,
+        16,
+        3
+      ],
+      "width": 6
+    },
+    "i/nest_3_3": {
+      "area": 18,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        8,
+        14,
+        0
+      ],
+      "width": 6
+    },
+    "i/nest_3_6": {
+      "area": 48,
+      "facing": "south",
+      "height": 6,
+      "light_blocks": 0,
+      "support": [
+        3,
+        33,
+        3
+      ],
+      "width": 8
+    },
+    "i/nest_3_8": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        11,
+        11,
+        8
+      ],
+      "width": 5
+    },
+    "i/nest_4_1": {
+      "area": 30,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        0,
+        16,
+        3
+      ],
+      "width": 6
+    },
+    "i/nest_4_11": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        1,
+        11,
+        0
+      ],
+      "width": 5
+    },
+    "i/nest_4_3": {
+      "area": 20,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        9,
+        12,
+        8
+      ],
+      "width": 5
+    },
+    "i/nest_4_4": {
+      "area": 15,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        6,
+        14,
+        13
+      ],
+      "width": 5
+    },
+    "i/nest_4_5": {
+      "area": 28,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        9,
+        10,
+        2
+      ],
+      "width": 7
+    },
+    "i/nest_5_1": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        15,
+        10,
+        6
+      ],
+      "width": 5
+    },
+    "i/nest_5_4": {
+      "area": 20,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        5,
+        14,
+        2
+      ],
+      "width": 5
+    },
+    "i/nest_5_5": {
+      "area": 55,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        0,
+        10,
+        2
+      ],
+      "width": 11
+    },
+    "i/nest_6_1": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        8,
+        11,
+        7
+      ],
+      "width": 5
+    },
+    "i/nest_6_5": {
+      "area": 21,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        2,
+        11,
+        1
+      ],
+      "width": 7
+    },
+    "i/nest_6_6": {
+      "area": 20,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        11,
+        14,
+        15
+      ],
+      "width": 5
+    },
+    "i/nest_6_7": {
+      "area": 30,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        12,
+        1,
+        9
+      ],
+      "width": 6
+    },
+    "i/nest_7_1": {
+      "area": 21,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        6,
+        11,
+        8
+      ],
+      "width": 7
+    },
+    "i/nest_7_15": {
+      "area": 18,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        10,
+        20,
+        0
+      ],
+      "width": 6
+    },
+    "i/nest_7_5": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        0,
+        11,
+        0
+      ],
+      "width": 5
+    },
+    "i/nest_8_0": {
+      "area": 18,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        3,
+        10,
+        1
+      ],
+      "width": 6
+    },
+    "i/nest_8_1": {
+      "area": 18,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        3,
+        10,
+        0
+      ],
+      "width": 6
+    },
+    "i/nest_8_11": {
+      "area": 21,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        10,
+        26,
+        15
+      ],
+      "width": 7
+    },
+    "i/nest_8_12": {
+      "area": 32,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        3,
+        22,
+        8
+      ],
+      "width": 8
+    },
+    "i/nest_8_5": {
+      "area": 33,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        2,
+        30,
+        12
+      ],
+      "width": 11
+    },
+    "i/nest_8_6": {
+      "area": 36,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        5,
+        30,
+        2
+      ],
+      "width": 9
+    },
+    "i/nest_9_11": {
+      "area": 45,
+      "facing": "north",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        10,
+        26,
+        14
+      ],
+      "width": 9
+    },
+    "i/nest_9_12": {
+      "area": 36,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        7,
+        1,
+        15
+      ],
+      "width": 9
+    },
+    "i/nest_9_13": {
+      "area": 20,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        3,
+        1,
+        4
+      ],
+      "width": 5
+    },
+    "j/nest_13_7": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        12,
+        45,
+        6
+      ],
+      "width": 5
+    },
+    "j/nest_14_6": {
+      "area": 20,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        11,
+        45,
+        14
+      ],
+      "width": 5
+    },
+    "j/nest_14_8": {
+      "area": 18,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        4,
+        45,
+        3
+      ],
+      "width": 6
+    },
+    "j/nest_15_7": {
+      "area": 18,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        2,
+        45,
+        11
+      ],
+      "width": 6
+    },
+    "k/backstreets_0_14": {
+      "area": 21,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        8,
+        11,
+        2
+      ],
+      "width": 7
+    },
+    "k/backstreets_14_12": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        11,
+        22,
+        6
+      ],
+      "width": 5
+    },
+    "k/backstreets_1_14": {
+      "area": 18,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        8,
+        11,
+        2
+      ],
+      "width": 6
+    },
+    "k/backstreets_6_7": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        3,
+        10,
+        8
+      ],
+      "width": 5
+    },
+    "k/backstreets_6_8": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        2,
+        10,
+        0
+      ],
+      "width": 5
+    },
+    "k/backstreets_7_9": {
+      "area": 21,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        8,
+        30,
+        2
+      ],
+      "width": 7
+    },
+    "k/backstreets_8_9": {
+      "area": 48,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        14,
+        30,
+        1
+      ],
+      "width": 12
+    },
+    "k/backstreets_9_9": {
+      "area": 21,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        2,
+        30,
+        5
+      ],
+      "width": 7
+    },
+    "k/nest_15_13": {
+      "area": 24,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        7,
+        14,
+        1
+      ],
+      "width": 6
+    },
+    "k/nest_1_15": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        11,
+        22,
+        6
+      ],
+      "width": 5
+    },
+    "k/nest_4_14": {
+      "area": 24,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        10,
+        22,
+        7
+      ],
+      "width": 8
+    },
+    "k/nest_4_15": {
+      "area": 15,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        8,
+        22,
+        9
+      ],
+      "width": 5
+    },
+    "k/nest_5_12": {
+      "area": 21,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        15,
+        5,
+        13
+      ],
+      "width": 7
+    },
+    "k/nest_6_11": {
+      "area": 25,
+      "facing": "north",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        15,
+        26,
+        3
+      ],
+      "width": 5
+    },
+    "k/nest_6_12": {
+      "area": 30,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        0,
+        30,
+        4
+      ],
+      "width": 6
+    },
+    "m/nest_11_6": {
+      "area": 18,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        4,
+        1,
+        8
+      ],
+      "width": 6
+    },
+    "m/nest_12_7": {
+      "area": 20,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        0,
+        1,
+        8
+      ],
+      "width": 5
+    },
+    "m/nest_13_10": {
+      "area": 30,
+      "facing": "west",
+      "height": 6,
+      "light_blocks": 0,
+      "support": [
+        3,
+        1,
+        0
+      ],
+      "width": 5
+    },
+    "m/nest_13_11": {
+      "area": 36,
+      "facing": "west",
+      "height": 6,
+      "light_blocks": 0,
+      "support": [
+        9,
+        1,
+        3
+      ],
+      "width": 6
+    },
+    "m/nest_15_8": {
+      "area": 30,
+      "facing": "east",
+      "height": 6,
+      "light_blocks": 0,
+      "support": [
+        3,
+        1,
+        8
+      ],
+      "width": 5
+    },
+    "n/backstreets_11_15": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        11,
+        18,
+        2
+      ],
+      "width": 5
+    },
+    "n/backstreets_12_0": {
+      "area": 15,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        10,
+        15,
+        10
+      ],
+      "width": 5
+    },
+    "n/backstreets_12_1": {
+      "area": 25,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        5,
+        1,
+        0
+      ],
+      "width": 5
+    },
+    "n/backstreets_13_11": {
+      "area": 35,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        13,
+        30,
+        0
+      ],
+      "width": 7
+    },
+    "n/backstreets_13_8": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        13,
+        16,
+        11
+      ],
+      "width": 5
+    },
+    "n/backstreets_13_9": {
+      "area": 25,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        13,
+        16,
+        0
+      ],
+      "width": 5
+    },
+    "n/backstreets_14_1": {
+      "area": 25,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        11,
+        1,
+        4
+      ],
+      "width": 5
+    },
+    "n/backstreets_15_10": {
+      "area": 20,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        9,
+        22,
+        13
+      ],
+      "width": 5
+    },
+    "n/backstreets_15_7": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        11,
+        30,
+        9
+      ],
+      "width": 5
+    },
+    "n/backstreets_15_9": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        4,
+        18,
+        0
+      ],
+      "width": 5
+    },
+    "n/backstreets_1_12": {
+      "area": 54,
+      "facing": "south",
+      "height": 6,
+      "light_blocks": 0,
+      "support": [
+        7,
+        35,
+        10
+      ],
+      "width": 9
+    },
+    "n/backstreets_4_0": {
+      "area": 21,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        14,
+        35,
+        10
+      ],
+      "width": 7
+    },
+    "n/backstreets_8_9": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        10,
+        13,
+        4
+      ],
+      "width": 5
+    },
+    "n/nest_0_15": {
+      "area": 45,
+      "facing": "south",
+      "height": 9,
+      "light_blocks": 0,
+      "support": [
+        11,
+        27,
+        3
+      ],
+      "width": 5
+    },
+    "n/nest_11_0": {
+      "area": 18,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        8,
+        53,
+        7
+      ],
+      "width": 6
+    },
+    "n/nest_12_1": {
+      "area": 72,
+      "facing": "south",
+      "height": 9,
+      "light_blocks": 0,
+      "support": [
+        5,
+        52,
+        7
+      ],
+      "width": 8
+    },
+    "n/nest_13_0": {
+      "area": 24,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        8,
+        53,
+        14
+      ],
+      "width": 8
+    },
+    "n/nest_14_14": {
+      "area": 54,
+      "facing": "south",
+      "height": 6,
+      "light_blocks": 0,
+      "support": [
+        7,
+        35,
+        10
+      ],
+      "width": 9
+    },
+    "n/nest_2_6": {
+      "area": 32,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        8,
+        27,
+        7
+      ],
+      "width": 8
+    },
+    "n/nest_3_14": {
+      "area": 21,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        4,
+        31,
+        8
+      ],
+      "width": 7
+    },
+    "n/nest_3_2": {
+      "area": 25,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        12,
+        1,
+        10
+      ],
+      "width": 5
+    },
+    "n/nest_3_5": {
+      "area": 25,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        6,
+        26,
+        12
+      ],
+      "width": 5
+    },
+    "n/nest_4_14": {
+      "area": 30,
+      "facing": "west",
+      "height": 6,
+      "light_blocks": 0,
+      "support": [
+        2,
+        29,
+        0
+      ],
+      "width": 5
+    },
+    "n/nest_4_4": {
+      "area": 25,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        8,
+        30,
+        10
+      ],
+      "width": 5
+    },
+    "o/backstreets_14_9": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        11,
+        28,
+        13
+      ],
+      "width": 5
+    },
+    "o/backstreets_15_7": {
+      "area": 32,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        8,
+        27,
+        7
+      ],
+      "width": 8
+    },
+    "o/backstreets_2_1": {
+      "area": 15,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        3,
+        29,
+        15
+      ],
+      "width": 5
+    },
+    "o/backstreets_3_8": {
+      "area": 48,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        6,
+        68,
+        15
+      ],
+      "width": 16
+    },
+    "o/nest_0_10": {
+      "area": 25,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        9,
+        25,
+        15
+      ],
+      "width": 5
+    },
+    "o/nest_0_12": {
+      "area": 20,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        6,
+        28,
+        6
+      ],
+      "width": 5
+    },
+    "o/nest_11_0": {
+      "area": 48,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        6,
+        68,
+        15
+      ],
+      "width": 16
+    },
+    "o/nest_12_14": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        8,
+        13,
+        13
+      ],
+      "width": 5
+    },
+    "o/nest_13_12": {
+      "area": 25,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        11,
+        32,
+        11
+      ],
+      "width": 5
+    },
+    "o/nest_13_15": {
+      "area": 20,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        15,
+        30,
+        1
+      ],
+      "width": 5
+    },
+    "o/nest_6_10": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        13,
+        26,
+        9
+      ],
+      "width": 5
+    },
+    "o/nest_6_15": {
+      "area": 24,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        3,
+        10,
+        8
+      ],
+      "width": 6
+    },
+    "o/nest_7_11": {
+      "area": 32,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        0,
+        34,
+        1
+      ],
+      "width": 8
+    },
+    "o/nest_7_15": {
+      "area": 40,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        7,
+        11,
+        13
+      ],
+      "width": 8
+    },
+    "o/nest_8_10": {
+      "area": 15,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        2,
+        29,
+        15
+      ],
+      "width": 5
+    },
+    "o/nest_8_15": {
+      "area": 32,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        7,
+        11,
+        7
+      ],
+      "width": 8
+    },
+    "pak/backstreets_0_0": {
+      "area": 55,
+      "facing": "north",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        15,
+        11,
+        12
+      ],
+      "width": 11
+    },
+    "pak/backstreets_0_1": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        3,
+        10,
+        3
+      ],
+      "width": 5
+    },
+    "pak/backstreets_0_5": {
+      "area": 20,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        1,
+        12,
+        7
+      ],
+      "width": 5
+    },
+    "pak/backstreets_11_2": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        8,
+        10,
+        3
+      ],
+      "width": 5
+    },
+    "pak/backstreets_12_1": {
+      "area": 18,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        3,
+        10,
+        2
+      ],
+      "width": 6
+    },
+    "pak/backstreets_4_0": {
+      "area": 18,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        7,
+        10,
+        12
+      ],
+      "width": 6
+    },
+    "pak/nest_8_10": {
+      "area": 20,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        15,
+        10,
+        6
+      ],
+      "width": 5
+    },
+    "pon/backstreets_12_15": {
+      "area": 18,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        13,
+        14,
+        4
+      ],
+      "width": 6
+    },
+    "pon/backstreets_2_10": {
+      "area": 24,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        3,
+        1,
+        8
+      ],
+      "width": 6
+    },
+    "pon/backstreets_2_2": {
+      "area": 84,
+      "facing": "east",
+      "height": 7,
+      "light_blocks": 0,
+      "support": [
+        5,
+        1,
+        15
+      ],
+      "width": 12
+    },
+    "pon/backstreets_3_2": {
+      "area": 42,
+      "facing": "south",
+      "height": 7,
+      "light_blocks": 0,
+      "support": [
+        0,
+        1,
+        11
+      ],
+      "width": 6
+    },
+    "pon/backstreets_3_3": {
+      "area": 77,
+      "facing": "east",
+      "height": 7,
+      "light_blocks": 0,
+      "support": [
+        0,
+        1,
+        15
+      ],
+      "width": 11
+    },
+    "pon/backstreets_3_4": {
+      "area": 35,
+      "facing": "east",
+      "height": 7,
+      "light_blocks": 0,
+      "support": [
+        0,
+        1,
+        4
+      ],
+      "width": 5
+    },
+    "pon/backstreets_4_2": {
+      "area": 42,
+      "facing": "south",
+      "height": 7,
+      "light_blocks": 0,
+      "support": [
+        5,
+        1,
+        13
+      ],
+      "width": 6
+    },
+    "pon/backstreets_4_3": {
+      "area": 42,
+      "facing": "south",
+      "height": 7,
+      "light_blocks": 0,
+      "support": [
+        5,
+        1,
+        5
+      ],
+      "width": 6
+    },
+    "pon/backstreets_5_7": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        11,
+        19,
+        9
+      ],
+      "width": 5
+    },
+    "pon/backstreets_5_8": {
+      "area": 18,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        5,
+        10,
+        5
+      ],
+      "width": 6
+    },
+    "pon/backstreets_6_10": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        9,
+        10,
+        0
+      ],
+      "width": 5
+    },
+    "pon/backstreets_6_8": {
+      "area": 20,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        11,
+        16,
+        7
+      ],
+      "width": 5
+    },
+    "pon/backstreets_7_8": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        0,
+        16,
+        7
+      ],
+      "width": 5
+    },
+    "pon/backstreets_9_12": {
+      "area": 20,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        8,
+        1,
+        12
+      ],
+      "width": 5
+    },
+    "pon/nest_0_15": {
+      "area": 20,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        8,
+        26,
+        14
+      ],
+      "width": 5
+    },
+    "pon/nest_10_13": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        5,
+        19,
+        11
+      ],
+      "width": 5
+    },
+    "pon/nest_11_12": {
+      "area": 20,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        8,
+        26,
+        12
+      ],
+      "width": 5
+    },
+    "pon/nest_12_13": {
+      "area": 40,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        5,
+        31,
+        3
+      ],
+      "width": 8
+    },
+    "pon/nest_12_14": {
+      "area": 15,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        9,
+        32,
+        15
+      ],
+      "width": 5
+    },
+    "pon/nest_14_8": {
+      "area": 25,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        10,
+        18,
+        14
+      ],
+      "width": 5
+    },
+    "pon/nest_15_6": {
+      "area": 20,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        7,
+        16,
+        1
+      ],
+      "width": 5
+    },
+    "pon/nest_15_7": {
+      "area": 30,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        6,
+        16,
+        0
+      ],
+      "width": 6
+    },
+    "pon/nest_3_7": {
+      "area": 15,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        13,
+        3,
+        9
+      ],
+      "width": 5
+    },
+    "pon/nest_4_1": {
+      "area": 25,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        0,
+        16,
+        12
+      ],
+      "width": 5
+    },
+    "pon/nest_5_10": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        8,
+        21,
+        7
+      ],
+      "width": 5
+    },
+    "pon/nest_5_15": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        8,
+        16,
+        6
+      ],
+      "width": 5
+    },
+    "pon/nest_5_9": {
+      "area": 20,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        6,
+        19,
+        4
+      ],
+      "width": 5
+    },
+    "pon/nest_6_12": {
+      "area": 24,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        10,
+        16,
+        8
+      ],
+      "width": 6
+    },
+    "pon/nest_6_13": {
+      "area": 25,
+      "facing": "north",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        9,
+        19,
+        9
+      ],
+      "width": 5
+    },
+    "pon/nest_6_14": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        4,
+        16,
+        10
+      ],
+      "width": 5
+    },
+    "pon/nest_6_15": {
+      "area": 20,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        10,
+        22,
+        11
+      ],
+      "width": 5
+    },
+    "pon/nest_7_14": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        7,
+        16,
+        13
+      ],
+      "width": 5
+    },
+    "pon/nest_7_2": {
+      "area": 24,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        3,
+        22,
+        0
+      ],
+      "width": 6
+    },
+    "pon/nest_8_2": {
+      "area": 25,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        11,
+        16,
+        1
+      ],
+      "width": 5
+    },
+    "pon/nest_9_0": {
+      "area": 25,
+      "facing": "north",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        4,
+        20,
+        7
+      ],
+      "width": 5
+    },
+    "pon/nest_9_10": {
+      "area": 15,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        4,
+        19,
+        13
+      ],
+      "width": 5
+    },
+    "pon/nest_9_2": {
+      "area": 40,
+      "facing": "south",
+      "height": 8,
+      "light_blocks": 0,
+      "support": [
+        0,
+        16,
+        1
+      ],
+      "width": 5
+    },
+    "q/backstreets_4_14": {
+      "area": 36,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        9,
+        10,
+        11
+      ],
+      "width": 9
+    },
+    "r/backstreets_0_0": {
+      "area": 32,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        10,
+        10,
+        2
+      ],
+      "width": 8
+    },
+    "r/backstreets_0_11": {
+      "area": 18,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        9,
+        16,
+        6
+      ],
+      "width": 6
+    },
+    "r/backstreets_0_12": {
+      "area": 21,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        3,
+        16,
+        6
+      ],
+      "width": 7
+    },
+    "r/backstreets_0_2": {
+      "area": 36,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        4,
+        10,
+        6
+      ],
+      "width": 9
+    },
+    "r/backstreets_0_3": {
+      "area": 21,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        1,
+        30,
+        10
+      ],
+      "width": 7
+    },
+    "r/backstreets_10_8": {
+      "area": 25,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        4,
+        7,
+        9
+      ],
+      "width": 5
+    },
+    "r/backstreets_13_7": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        15,
+        14,
+        4
+      ],
+      "width": 5
+    },
+    "r/backstreets_13_9": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        11,
+        14,
+        1
+      ],
+      "width": 5
+    },
+    "r/backstreets_14_11": {
+      "area": 20,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        9,
+        15,
+        13
+      ],
+      "width": 5
+    },
+    "r/backstreets_14_2": {
+      "area": 18,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        14,
+        18,
+        4
+      ],
+      "width": 6
+    },
+    "r/backstreets_14_3": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        10,
+        18,
+        8
+      ],
+      "width": 5
+    },
+    "r/backstreets_14_5": {
+      "area": 20,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        15,
+        22,
+        8
+      ],
+      "width": 5
+    },
+    "r/backstreets_14_6": {
+      "area": 20,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        11,
+        22,
+        8
+      ],
+      "width": 5
+    },
+    "r/backstreets_14_7": {
+      "area": 30,
+      "facing": "north",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        5,
+        14,
+        4
+      ],
+      "width": 6
+    },
+    "r/backstreets_14_9": {
+      "area": 30,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        0,
+        14,
+        1
+      ],
+      "width": 6
+    },
+    "r/backstreets_15_0": {
+      "area": 20,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        13,
+        11,
+        11
+      ],
+      "width": 5
+    },
+    "r/backstreets_15_1": {
+      "area": 21,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        12,
+        10,
+        3
+      ],
+      "width": 7
+    },
+    "r/backstreets_15_12": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        3,
+        13,
+        11
+      ],
+      "width": 5
+    },
+    "r/backstreets_15_2": {
+      "area": 36,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        10,
+        10,
+        4
+      ],
+      "width": 9
+    },
+    "r/backstreets_15_3": {
+      "area": 36,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        2,
+        10,
+        8
+      ],
+      "width": 9
+    },
+    "r/backstreets_15_5": {
+      "area": 24,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        14,
+        22,
+        7
+      ],
+      "width": 6
+    },
+    "r/backstreets_15_6": {
+      "area": 24,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        9,
+        22,
+        7
+      ],
+      "width": 6
+    },
+    "r/backstreets_1_10": {
+      "area": 21,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        9,
+        10,
+        8
+      ],
+      "width": 7
+    },
+    "r/backstreets_1_9": {
+      "area": 15,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        1,
+        3,
+        12
+      ],
+      "width": 5
+    },
+    "r/backstreets_2_13": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        12,
+        10,
+        8
+      ],
+      "width": 5
+    },
+    "r/backstreets_2_14": {
+      "area": 25,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        11,
+        11,
+        4
+      ],
+      "width": 5
+    },
+    "r/backstreets_2_2": {
+      "area": 45,
+      "facing": "north",
+      "height": 9,
+      "light_blocks": 0,
+      "support": [
+        14,
+        1,
+        13
+      ],
+      "width": 5
+    },
+    "r/backstreets_2_3": {
+      "area": 45,
+      "facing": "south",
+      "height": 9,
+      "light_blocks": 0,
+      "support": [
+        11,
+        1,
+        14
+      ],
+      "width": 5
+    },
+    "r/backstreets_3_13": {
+      "area": 28,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        15,
+        10,
+        11
+      ],
+      "width": 7
+    },
+    "r/backstreets_3_14": {
+      "area": 20,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        0,
+        10,
+        4
+      ],
+      "width": 5
+    },
+    "r/backstreets_3_5": {
+      "area": 18,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        15,
+        30,
+        13
+      ],
+      "width": 6
+    },
+    "r/backstreets_3_6": {
+      "area": 18,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        4,
+        30,
+        13
+      ],
+      "width": 6
+    },
+    "r/backstreets_4_13": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        4,
+        10,
+        11
+      ],
+      "width": 5
+    },
+    "r/backstreets_4_2": {
+      "area": 21,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        4,
+        10,
+        3
+      ],
+      "width": 7
+    },
+    "r/backstreets_4_6": {
+      "area": 25,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        7,
+        1,
+        6
+      ],
+      "width": 5
+    },
+    "r/backstreets_5_11": {
+      "area": 18,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        6,
+        17,
+        3
+      ],
+      "width": 6
+    },
+    "r/backstreets_5_12": {
+      "area": 18,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        1,
+        17,
+        0
+      ],
+      "width": 6
+    },
+    "r/backstreets_5_13": {
+      "area": 21,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        13,
+        10,
+        5
+      ],
+      "width": 7
+    },
+    "r/backstreets_5_3": {
+      "area": 36,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        4,
+        25,
+        0
+      ],
+      "width": 9
+    },
+    "r/backstreets_6_3": {
+      "area": 20,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        7,
+        22,
+        10
+      ],
+      "width": 5
+    },
+    "r/backstreets_6_5": {
+      "area": 18,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        7,
+        26,
+        12
+      ],
+      "width": 6
+    },
+    "r/backstreets_6_6": {
+      "area": 18,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        2,
+        26,
+        11
+      ],
+      "width": 6
+    },
+    "r/backstreets_7_0": {
+      "area": 25,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        1,
+        1,
+        1
+      ],
+      "width": 5
+    },
+    "r/backstreets_7_10": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        11,
+        10,
+        11
+      ],
+      "width": 5
+    },
+    "r/backstreets_7_13": {
+      "area": 21,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        13,
+        4,
+        4
+      ],
+      "width": 7
+    },
+    "r/backstreets_7_2": {
+      "area": 25,
+      "facing": "north",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        9,
+        1,
+        9
+      ],
+      "width": 5
+    },
+    "r/backstreets_7_3": {
+      "area": 24,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        13,
+        26,
+        10
+      ],
+      "width": 6
+    },
+    "r/backstreets_7_7": {
+      "area": 21,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        13,
+        18,
+        13
+      ],
+      "width": 7
+    },
+    "r/backstreets_7_9": {
+      "area": 18,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        1,
+        10,
+        6
+      ],
+      "width": 6
+    },
+    "r/backstreets_8_1": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        7,
+        10,
+        12
+      ],
+      "width": 5
+    },
+    "r/backstreets_9_0": {
+      "area": 30,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        6,
+        1,
+        1
+      ],
+      "width": 6
+    },
+    "r/backstreets_9_1": {
+      "area": 28,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        9,
+        10,
+        14
+      ],
+      "width": 7
+    },
+    "r/nest_0_0": {
+      "area": 20,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        15,
+        22,
+        8
+      ],
+      "width": 5
+    },
+    "r/nest_0_1": {
+      "area": 20,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        11,
+        22,
+        8
+      ],
+      "width": 5
+    },
+    "r/nest_0_2": {
+      "area": 30,
+      "facing": "north",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        5,
+        14,
+        4
+      ],
+      "width": 6
+    },
+    "r/nest_0_4": {
+      "area": 30,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        0,
+        14,
+        1
+      ],
+      "width": 6
+    },
+    "r/nest_0_6": {
+      "area": 20,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        9,
+        15,
+        13
+      ],
+      "width": 5
+    },
+    "r/nest_10_0": {
+      "area": 24,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        11,
+        22,
+        7
+      ],
+      "width": 6
+    },
+    "r/nest_10_1": {
+      "area": 21,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        5,
+        22,
+        8
+      ],
+      "width": 7
+    },
+    "r/nest_10_5": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        4,
+        10,
+        11
+      ],
+      "width": 5
+    },
+    "r/nest_10_8": {
+      "area": 24,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        0,
+        10,
+        14
+      ],
+      "width": 6
+    },
+    "r/nest_10_9": {
+      "area": 18,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        6,
+        10,
+        8
+      ],
+      "width": 6
+    },
+    "r/nest_11_0": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        9,
+        22,
+        7
+      ],
+      "width": 5
+    },
+    "r/nest_11_1": {
+      "area": 45,
+      "facing": "south",
+      "height": 9,
+      "light_blocks": 0,
+      "support": [
+        8,
+        1,
+        8
+      ],
+      "width": 5
+    },
+    "r/nest_12_0": {
+      "area": 50,
+      "facing": "north",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        14,
+        18,
+        8
+      ],
+      "width": 10
+    },
+    "r/nest_12_1": {
+      "area": 32,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        8,
+        18,
+        9
+      ],
+      "width": 8
+    },
+    "r/nest_12_4": {
+      "area": 18,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        3,
+        11,
+        10
+      ],
+      "width": 6
+    },
+    "r/nest_12_5": {
+      "area": 30,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        1,
+        10,
+        5
+      ],
+      "width": 6
+    },
+    "r/nest_14_0": {
+      "area": 20,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        4,
+        2,
+        7
+      ],
+      "width": 5
+    },
+    "r/nest_14_11": {
+      "area": 24,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        10,
+        18,
+        3
+      ],
+      "width": 6
+    },
+    "r/nest_14_2": {
+      "area": 18,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        8,
+        16,
+        5
+      ],
+      "width": 6
+    },
+    "r/nest_14_3": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        9,
+        18,
+        10
+      ],
+      "width": 5
+    },
+    "r/nest_14_4": {
+      "area": 18,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        1,
+        10,
+        12
+      ],
+      "width": 6
+    },
+    "r/nest_14_5": {
+      "area": 15,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        2,
+        10,
+        4
+      ],
+      "width": 5
+    },
+    "r/nest_14_9": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        10,
+        17,
+        11
+      ],
+      "width": 5
+    },
+    "r/nest_15_0": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        12,
+        18,
+        8
+      ],
+      "width": 5
+    },
+    "r/nest_15_1": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        8,
+        18,
+        7
+      ],
+      "width": 5
+    },
+    "r/nest_15_10": {
+      "area": 40,
+      "facing": "east",
+      "height": 8,
+      "light_blocks": 0,
+      "support": [
+        10,
+        1,
+        7
+      ],
+      "width": 5
+    },
+    "r/nest_15_11": {
+      "area": 24,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        10,
+        18,
+        8
+      ],
+      "width": 6
+    },
+    "r/nest_15_2": {
+      "area": 15,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        6,
+        16,
+        9
+      ],
+      "width": 5
+    },
+    "r/nest_15_3": {
+      "area": 18,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        7,
+        18,
+        14
+      ],
+      "width": 6
+    },
+    "r/nest_15_4": {
+      "area": 20,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        4,
+        12,
+        15
+      ],
+      "width": 5
+    },
+    "r/nest_15_6": {
+      "area": 28,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        1,
+        12,
+        13
+      ],
+      "width": 7
+    },
+    "r/nest_15_7": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        13,
+        18,
+        3
+      ],
+      "width": 5
+    },
+    "r/nest_15_8": {
+      "area": 36,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        14,
+        18,
+        15
+      ],
+      "width": 9
+    },
+    "r/nest_15_9": {
+      "area": 25,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        10,
+        17,
+        15
+      ],
+      "width": 5
+    },
+    "r/nest_1_0": {
+      "area": 24,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        14,
+        22,
+        7
+      ],
+      "width": 6
+    },
+    "r/nest_1_1": {
+      "area": 24,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        9,
+        22,
+        7
+      ],
+      "width": 6
+    },
+    "r/nest_1_11": {
+      "area": 45,
+      "facing": "south",
+      "height": 9,
+      "light_blocks": 0,
+      "support": [
+        6,
+        1,
+        6
+      ],
+      "width": 5
+    },
+    "r/nest_1_7": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        3,
+        13,
+        11
+      ],
+      "width": 5
+    },
+    "r/nest_2_10": {
+      "area": 27,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        0,
+        5,
+        9
+      ],
+      "width": 9
+    },
+    "r/nest_2_5": {
+      "area": 25,
+      "facing": "north",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        10,
+        1,
+        15
+      ],
+      "width": 5
+    },
+    "r/nest_2_7": {
+      "area": 20,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        11,
+        17,
+        10
+      ],
+      "width": 5
+    },
+    "r/nest_2_9": {
+      "area": 27,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        8,
+        5,
+        8
+      ],
+      "width": 9
+    },
+    "r/nest_3_11": {
+      "area": 15,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        14,
+        10,
+        5
+      ],
+      "width": 5
+    },
+    "r/nest_3_3": {
+      "area": 40,
+      "facing": "east",
+      "height": 8,
+      "light_blocks": 0,
+      "support": [
+        9,
+        1,
+        4
+      ],
+      "width": 5
+    },
+    "r/nest_3_4": {
+      "area": 45,
+      "facing": "east",
+      "height": 9,
+      "light_blocks": 0,
+      "support": [
+        9,
+        1,
+        8
+      ],
+      "width": 5
+    },
+    "r/nest_3_9": {
+      "area": 25,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        5,
+        1,
+        2
+      ],
+      "width": 5
+    },
+    "r/nest_4_10": {
+      "area": 30,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        4,
+        1,
+        1
+      ],
+      "width": 6
+    },
+    "r/nest_4_15": {
+      "area": 21,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        8,
+        12,
+        7
+      ],
+      "width": 7
+    },
+    "r/nest_5_14": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        9,
+        10,
+        10
+      ],
+      "width": 5
+    },
+    "r/nest_7_0": {
+      "area": 21,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        9,
+        22,
+        8
+      ],
+      "width": 7
+    },
+    "r/nest_7_1": {
+      "area": 21,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        3,
+        22,
+        7
+      ],
+      "width": 7
+    },
+    "r/nest_7_2": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        9,
+        10,
+        3
+      ],
+      "width": 5
+    },
+    "r/nest_7_5": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        11,
+        28,
+        8
+      ],
+      "width": 5
+    },
+    "r/nest_7_7": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        14,
+        10,
+        15
+      ],
+      "width": 5
+    },
+    "r/nest_8_0": {
+      "area": 21,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        10,
+        26,
+        7
+      ],
+      "width": 7
+    },
+    "r/nest_8_10": {
+      "area": 21,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        3,
+        10,
+        7
+      ],
+      "width": 7
+    },
+    "r/nest_8_5": {
+      "area": 20,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        5,
+        10,
+        7
+      ],
+      "width": 5
+    },
+    "r/nest_8_7": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        1,
+        17,
+        8
+      ],
+      "width": 5
+    },
+    "r/nest_9_10": {
+      "area": 45,
+      "facing": "west",
+      "height": 9,
+      "light_blocks": 0,
+      "support": [
+        10,
+        1,
+        0
+      ],
+      "width": 5
+    },
+    "r/nest_9_4": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        12,
+        14,
+        13
+      ],
+      "width": 5
+    },
+    "r/nest_9_8": {
+      "area": 20,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        11,
+        10,
+        14
+      ],
+      "width": 5
+    },
+    "r/nest_9_9": {
+      "area": 18,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        5,
+        10,
+        14
+      ],
+      "width": 6
+    },
+    "t/backstreets_11_7": {
+      "area": 25,
+      "facing": "north",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        8,
+        1,
+        8
+      ],
+      "width": 5
+    },
+    "t/backstreets_12_14": {
+      "area": 28,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        14,
+        16,
+        8
+      ],
+      "width": 7
+    },
+    "t/backstreets_14_10": {
+      "area": 66,
+      "facing": "south",
+      "height": 6,
+      "light_blocks": 0,
+      "support": [
+        3,
+        26,
+        8
+      ],
+      "width": 11
+    },
+    "t/backstreets_15_14": {
+      "area": 28,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        8,
+        1,
+        8
+      ],
+      "width": 7
+    },
+    "t/backstreets_15_15": {
+      "area": 32,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        8,
+        1,
+        8
+      ],
+      "width": 8
+    },
+    "uang/nest_12_3": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        11,
+        16,
+        5
+      ],
+      "width": 5
+    },
+    "uang/nest_12_6": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        0,
+        19,
+        7
+      ],
+      "width": 5
+    },
+    "uang/nest_2_0": {
+      "area": 20,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        10,
+        16,
+        11
+      ],
+      "width": 5
+    },
+    "uang/nest_3_10": {
+      "area": 25,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        14,
+        1,
+        8
+      ],
+      "width": 5
+    },
+    "uang/nest_3_11": {
+      "area": 15,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        13,
+        16,
+        9
+      ],
+      "width": 5
+    },
+    "uang/nest_4_2": {
+      "area": 21,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        6,
+        16,
+        6
+      ],
+      "width": 7
+    },
+    "uang/nest_5_4": {
+      "area": 20,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        11,
+        16,
+        5
+      ],
+      "width": 5
+    },
+    "uang/nest_6_4": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        14,
+        12,
+        9
+      ],
+      "width": 5
+    },
+    "uang/nest_6_8": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        5,
+        11,
+        3
+      ],
+      "width": 5
+    },
+    "uang/nest_7_0": {
+      "area": 18,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        2,
+        16,
+        10
+      ],
+      "width": 6
+    },
+    "uang/nest_7_1": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        1,
+        16,
+        3
+      ],
+      "width": 5
+    },
+    "uang/nest_7_3": {
+      "area": 40,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        5,
+        16,
+        12
+      ],
+      "width": 8
+    },
+    "uang/nest_8_4": {
+      "area": 25,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        14,
+        16,
+        4
+      ],
+      "width": 5
+    },
+    "uang/nest_8_5": {
+      "area": 20,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        13,
+        10,
+        4
+      ],
+      "width": 5
+    },
+    "uang/nest_8_6": {
+      "area": 48,
+      "facing": "east",
+      "height": 6,
+      "light_blocks": 0,
+      "support": [
+        12,
+        16,
+        8
+      ],
+      "width": 8
+    },
+    "uang/nest_9_0": {
+      "area": 27,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        1,
+        16,
+        15
+      ],
+      "width": 9
+    },
+    "ui/backstreets_0_6": {
+      "area": 32,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        5,
+        18,
+        13
+      ],
+      "width": 8
+    },
+    "ui/backstreets_0_8": {
+      "area": 32,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        6,
+        18,
+        15
+      ],
+      "width": 8
+    },
+    "ui/backstreets_10_6": {
+      "area": 36,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        3,
+        18,
+        0
+      ],
+      "width": 9
+    },
+    "ui/backstreets_12_8": {
+      "area": 36,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        10,
+        18,
+        9
+      ],
+      "width": 9
+    },
+    "ui/backstreets_13_6": {
+      "area": 36,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        4,
+        18,
+        3
+      ],
+      "width": 9
+    },
+    "ui/backstreets_13_7": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        5,
+        18,
+        11
+      ],
+      "width": 5
+    },
+    "ui/backstreets_13_8": {
+      "area": 20,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        5,
+        18,
+        0
+      ],
+      "width": 5
+    },
+    "ui/backstreets_14_3": {
+      "area": 32,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        3,
+        18,
+        7
+      ],
+      "width": 8
+    },
+    "ui/backstreets_15_0": {
+      "area": 40,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        6,
+        6,
+        0
+      ],
+      "width": 8
+    },
+    "ui/backstreets_1_10": {
+      "area": 25,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        9,
+        18,
+        15
+      ],
+      "width": 5
+    },
+    "ui/backstreets_2_10": {
+      "area": 30,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        6,
+        18,
+        10
+      ],
+      "width": 6
+    },
+    "ui/backstreets_3_6": {
+      "area": 30,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        6,
+        18,
+        15
+      ],
+      "width": 6
+    },
+    "ui/backstreets_4_12": {
+      "area": 32,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        13,
+        18,
+        7
+      ],
+      "width": 8
+    },
+    "ui/backstreets_4_6": {
+      "area": 32,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        1,
+        18,
+        4
+      ],
+      "width": 8
+    },
+    "ui/backstreets_5_10": {
+      "area": 28,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        10,
+        18,
+        8
+      ],
+      "width": 7
+    },
+    "ui/backstreets_5_12": {
+      "area": 28,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        11,
+        18,
+        0
+      ],
+      "width": 7
+    },
+    "ui/backstreets_5_15": {
+      "area": 32,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        13,
+        18,
+        3
+      ],
+      "width": 8
+    },
+    "ui/backstreets_6_0": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        7,
+        86,
+        0
+      ],
+      "width": 5
+    },
+    "ui/backstreets_6_3": {
+      "area": 35,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        7,
+        18,
+        0
+      ],
+      "width": 7
+    },
+    "ui/backstreets_7_6": {
+      "area": 36,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        3,
+        18,
+        6
+      ],
+      "width": 9
+    },
+    "ui/backstreets_9_10": {
+      "area": 32,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        2,
+        18,
+        13
+      ],
+      "width": 8
+    },
+    "ui/backstreets_9_12": {
+      "area": 25,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        3,
+        18,
+        4
+      ],
+      "width": 5
+    },
+    "ui/backstreets_9_13": {
+      "area": 28,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        4,
+        18,
+        12
+      ],
+      "width": 7
+    },
+    "ui/backstreets_9_3": {
+      "area": 25,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        14,
+        18,
+        4
+      ],
+      "width": 5
+    },
+    "ui/backstreets_9_8": {
+      "area": 30,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        9,
+        18,
+        5
+      ],
+      "width": 6
+    },
+    "ui/nest_10_0": {
+      "area": 48,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 5,
+      "support": [
+        15,
+        1,
+        13
+      ],
+      "width": 16
+    },
+    "ui/nest_11_0": {
+      "area": 27,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 3,
+      "support": [
+        7,
+        1,
+        10
+      ],
+      "width": 9
+    },
+    "ui/nest_12_0": {
+      "area": 36,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 4,
+      "support": [
+        8,
+        1,
+        13
+      ],
+      "width": 12
+    },
+    "ui/nest_7_0": {
+      "area": 27,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 1,
+      "support": [
+        13,
+        1,
+        0
+      ],
+      "width": 9
+    },
+    "ui/nest_8_3": {
+      "area": 28,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        9,
+        1,
+        4
+      ],
+      "width": 7
+    },
+    "ui/nest_9_0": {
+      "area": 33,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        5,
+        1,
+        8
+      ],
+      "width": 11
+    },
+    "ui/nest_9_1": {
+      "area": 32,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        8,
+        1,
+        12
+      ],
+      "width": 8
+    },
+    "ui/nest_9_2": {
+      "area": 48,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        7,
+        1,
+        11
+      ],
+      "width": 12
+    },
+    "ui/nest_9_3": {
+      "area": 24,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        0,
+        1,
+        4
+      ],
+      "width": 6
+    },
+    "v/backstreets_10_15": {
+      "area": 25,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        0,
+        10,
+        0
+      ],
+      "width": 5
+    },
+    "v/backstreets_10_3": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        7,
+        18,
+        4
+      ],
+      "width": 5
+    },
+    "v/backstreets_2_5": {
+      "area": 25,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        11,
+        10,
+        14
+      ],
+      "width": 5
+    },
+    "v/backstreets_3_5": {
+      "area": 20,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        0,
+        10,
+        14
+      ],
+      "width": 5
+    },
+    "v/backstreets_4_4": {
+      "area": 36,
+      "facing": "north",
+      "height": 6,
+      "light_blocks": 0,
+      "support": [
+        15,
+        10,
+        2
+      ],
+      "width": 6
+    },
+    "v/backstreets_4_6": {
+      "area": 20,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        11,
+        10,
+        0
+      ],
+      "width": 5
+    },
+    "v/backstreets_5_13": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        15,
+        14,
+        14
+      ],
+      "width": 5
+    },
+    "v/backstreets_6_1": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        6,
+        10,
+        6
+      ],
+      "width": 5
+    },
+    "v/backstreets_6_7": {
+      "area": 20,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        11,
+        10,
+        0
+      ],
+      "width": 5
+    },
+    "v/backstreets_8_4": {
+      "area": 36,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        5,
+        10,
+        15
+      ],
+      "width": 9
+    },
+    "v/backstreets_8_5": {
+      "area": 24,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        5,
+        10,
+        5
+      ],
+      "width": 6
+    },
+    "v/backstreets_9_13": {
+      "area": 24,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        1,
+        10,
+        8
+      ],
+      "width": 6
+    },
+    "v/backstreets_9_15": {
+      "area": 18,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        5,
+        10,
+        0
+      ],
+      "width": 6
+    },
+    "v/backstreets_9_2": {
+      "area": 25,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        11,
+        1,
+        7
+      ],
+      "width": 5
+    },
+    "v/nest_10_14": {
+      "area": 30,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        9,
+        1,
+        10
+      ],
+      "width": 6
+    },
+    "v/nest_10_9": {
+      "area": 20,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        3,
+        10,
+        4
+      ],
+      "width": 5
+    },
+    "v/nest_11_0": {
+      "area": 24,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        2,
+        10,
+        0
+      ],
+      "width": 6
+    },
+    "v/nest_11_1": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        12,
+        11,
+        1
+      ],
+      "width": 5
+    },
+    "v/nest_11_15": {
+      "area": 20,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        3,
+        22,
+        11
+      ],
+      "width": 5
+    },
+    "v/nest_11_4": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        9,
+        10,
+        7
+      ],
+      "width": 5
+    },
+    "v/nest_11_8": {
+      "area": 36,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        12,
+        10,
+        11
+      ],
+      "width": 9
+    },
+    "v/nest_12_1": {
+      "area": 25,
+      "facing": "north",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        5,
+        1,
+        2
+      ],
+      "width": 5
+    },
+    "v/nest_12_2": {
+      "area": 28,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        6,
+        10,
+        1
+      ],
+      "width": 7
+    },
+    "v/nest_13_11": {
+      "area": 21,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        6,
+        10,
+        13
+      ],
+      "width": 7
+    },
+    "v/nest_13_14": {
+      "area": 15,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        9,
+        10,
+        4
+      ],
+      "width": 5
+    },
+    "v/nest_13_15": {
+      "area": 15,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        9,
+        10,
+        4
+      ],
+      "width": 5
+    },
+    "v/nest_13_4": {
+      "area": 15,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        5,
+        10,
+        10
+      ],
+      "width": 5
+    },
+    "v/nest_13_5": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        13,
+        12,
+        8
+      ],
+      "width": 5
+    },
+    "v/nest_13_6": {
+      "area": 20,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        0,
+        10,
+        11
+      ],
+      "width": 5
+    },
+    "v/nest_1_7": {
+      "area": 21,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        15,
+        15,
+        4
+      ],
+      "width": 7
+    },
+    "v/nest_5_4": {
+      "area": 45,
+      "facing": "north",
+      "height": 9,
+      "light_blocks": 0,
+      "support": [
+        4,
+        1,
+        2
+      ],
+      "width": 5
+    },
+    "v/nest_6_0": {
+      "area": 25,
+      "facing": "north",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        6,
+        1,
+        2
+      ],
+      "width": 5
+    },
+    "v/nest_6_4": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        4,
+        22,
+        2
+      ],
+      "width": 5
+    },
+    "v/nest_6_7": {
+      "area": 20,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        7,
+        10,
+        2
+      ],
+      "width": 5
+    },
+    "v/nest_7_12": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        6,
+        10,
+        11
+      ],
+      "width": 5
+    },
+    "v/nest_7_14": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        12,
+        21,
+        11
+      ],
+      "width": 5
+    },
+    "v/nest_7_3": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        8,
+        26,
+        14
+      ],
+      "width": 5
+    },
+    "v/nest_7_5": {
+      "area": 20,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        11,
+        13,
+        1
+      ],
+      "width": 5
+    },
+    "v/nest_8_0": {
+      "area": 21,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        0,
+        10,
+        7
+      ],
+      "width": 7
+    },
+    "v/nest_8_5": {
+      "area": 20,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        9,
+        10,
+        9
+      ],
+      "width": 5
+    },
+    "v/nest_9_13": {
+      "area": 18,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        9,
+        10,
+        11
+      ],
+      "width": 6
+    },
+    "v/nest_9_7": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        4,
+        10,
+        2
+      ],
+      "width": 5
+    },
+    "w/backstreets_11_0": {
+      "area": 36,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        4,
+        1,
+        15
+      ],
+      "width": 9
+    },
+    "w/backstreets_11_1": {
+      "area": 64,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        4,
+        1,
+        15
+      ],
+      "width": 16
+    },
+    "w/backstreets_11_10": {
+      "area": 64,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        2,
+        1,
+        0
+      ],
+      "width": 16
+    },
+    "w/backstreets_11_11": {
+      "area": 36,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        2,
+        1,
+        0
+      ],
+      "width": 9
+    },
+    "w/backstreets_11_2": {
+      "area": 64,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        4,
+        1,
+        15
+      ],
+      "width": 16
+    },
+    "w/backstreets_11_3": {
+      "area": 48,
+      "facing": "east",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        0,
+        1,
+        15
+      ],
+      "width": 16
+    },
+    "w/backstreets_11_4": {
+      "area": 52,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        1,
+        1,
+        3
+      ],
+      "width": 13
+    },
+    "w/backstreets_11_5": {
+      "area": 64,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        1,
+        1,
+        0
+      ],
+      "width": 16
+    },
+    "w/backstreets_11_6": {
+      "area": 64,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        1,
+        1,
+        0
+      ],
+      "width": 16
+    },
+    "w/backstreets_11_7": {
+      "area": 48,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        5,
+        1,
+        0
+      ],
+      "width": 16
+    },
+    "w/backstreets_11_8": {
+      "area": 64,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        1,
+        1,
+        0
+      ],
+      "width": 16
+    },
+    "w/backstreets_11_9": {
+      "area": 48,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        1,
+        1,
+        0
+      ],
+      "width": 12
+    },
+    "w/nest_0_0": {
+      "area": 44,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        8,
+        1,
+        15
+      ],
+      "width": 11
+    },
+    "w/nest_0_1": {
+      "area": 64,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        4,
+        1,
+        0
+      ],
+      "width": 16
+    },
+    "w/nest_0_10": {
+      "area": 64,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        10,
+        1,
+        15
+      ],
+      "width": 16
+    },
+    "w/nest_0_11": {
+      "area": 28,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        6,
+        1,
+        0
+      ],
+      "width": 7
+    },
+    "w/nest_0_2": {
+      "area": 60,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        9,
+        1,
+        15
+      ],
+      "width": 15
+    },
+    "w/nest_0_3": {
+      "area": 64,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        9,
+        1,
+        15
+      ],
+      "width": 16
+    },
+    "w/nest_0_4": {
+      "area": 64,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        5,
+        1,
+        0
+      ],
+      "width": 16
+    },
+    "w/nest_0_5": {
+      "area": 60,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        5,
+        1,
+        0
+      ],
+      "width": 15
+    },
+    "w/nest_0_6": {
+      "area": 64,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        6,
+        1,
+        0
+      ],
+      "width": 16
+    },
+    "w/nest_0_7": {
+      "area": 64,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        6,
+        1,
+        0
+      ],
+      "width": 16
+    },
+    "w/nest_0_8": {
+      "area": 64,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        6,
+        1,
+        0
+      ],
+      "width": 16
+    },
+    "w/nest_0_9": {
+      "area": 64,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        6,
+        1,
+        0
+      ],
+      "width": 16
+    },
+    "x/backstreets_12_2": {
+      "area": 18,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        14,
+        10,
+        2
+      ],
+      "width": 6
+    },
+    "x/backstreets_15_5": {
+      "area": 25,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        0,
+        1,
+        1
+      ],
+      "width": 5
+    },
+    "x/backstreets_1_10": {
+      "area": 20,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        12,
+        10,
+        10
+      ],
+      "width": 5
+    },
+    "x/backstreets_1_5": {
+      "area": 20,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        2,
+        12,
+        2
+      ],
+      "width": 5
+    },
+    "x/backstreets_3_3": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        4,
+        10,
+        3
+      ],
+      "width": 5
+    },
+    "x/backstreets_3_5": {
+      "area": 25,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        8,
+        1,
+        4
+      ],
+      "width": 5
+    },
+    "x/backstreets_4_2": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        7,
+        10,
+        3
+      ],
+      "width": 5
+    },
+    "x/backstreets_7_0": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        14,
+        12,
+        8
+      ],
+      "width": 5
+    },
+    "x/backstreets_7_4": {
+      "area": 20,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        9,
+        12,
+        1
+      ],
+      "width": 5
+    },
+    "x/backstreets_8_2": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        6,
+        10,
+        10
+      ],
+      "width": 5
+    },
+    "x/nest_10_11": {
+      "area": 49,
+      "facing": "north",
+      "height": 7,
+      "light_blocks": 0,
+      "support": [
+        15,
+        10,
+        12
+      ],
+      "width": 7
+    },
+    "x/nest_10_15": {
+      "area": 30,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        8,
+        1,
+        9
+      ],
+      "width": 6
+    },
+    "x/nest_11_1": {
+      "area": 30,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        1,
+        1,
+        6
+      ],
+      "width": 6
+    },
+    "x/nest_11_8": {
+      "area": 20,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        15,
+        10,
+        11
+      ],
+      "width": 5
+    },
+    "x/nest_12_11": {
+      "area": 45,
+      "facing": "south",
+      "height": 9,
+      "light_blocks": 0,
+      "support": [
+        7,
+        1,
+        0
+      ],
+      "width": 5
+    },
+    "x/nest_12_8": {
+      "area": 30,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        3,
+        1,
+        7
+      ],
+      "width": 6
+    },
+    "x/nest_13_10": {
+      "area": 30,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        15,
+        1,
+        3
+      ],
+      "width": 6
+    },
+    "x/nest_13_11": {
+      "area": 20,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        15,
+        10,
+        13
+      ],
+      "width": 5
+    },
+    "x/nest_13_15": {
+      "area": 25,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        8,
+        1,
+        4
+      ],
+      "width": 5
+    },
+    "x/nest_13_3": {
+      "area": 25,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        2,
+        1,
+        9
+      ],
+      "width": 5
+    },
+    "x/nest_14_14": {
+      "area": 30,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        11,
+        1,
+        8
+      ],
+      "width": 6
+    },
+    "x/nest_15_1": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        12,
+        14,
+        7
+      ],
+      "width": 5
+    },
+    "x/nest_15_11": {
+      "area": 40,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        4,
+        10,
+        1
+      ],
+      "width": 10
+    },
+    "x/nest_15_2": {
+      "area": 25,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        7,
+        1,
+        12
+      ],
+      "width": 5
+    },
+    "x/nest_1_8": {
+      "area": 25,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        0,
+        1,
+        1
+      ],
+      "width": 5
+    },
+    "x/nest_2_15": {
+      "area": 30,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        4,
+        1,
+        11
+      ],
+      "width": 6
+    },
+    "x/nest_4_2": {
+      "area": 25,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        13,
+        1,
+        0
+      ],
+      "width": 5
+    },
+    "x/nest_5_2": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        9,
+        12,
+        10
+      ],
+      "width": 5
+    },
+    "x/nest_6_11": {
+      "area": 30,
+      "facing": "north",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        5,
+        1,
+        9
+      ],
+      "width": 6
+    },
+    "x/nest_6_15": {
+      "area": 25,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        9,
+        1,
+        14
+      ],
+      "width": 5
+    },
+    "x/nest_6_6": {
+      "area": 25,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        14,
+        1,
+        9
+      ],
+      "width": 5
+    },
+    "x/nest_8_0": {
+      "area": 25,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        1,
+        1,
+        7
+      ],
+      "width": 5
+    },
+    "x/nest_8_14": {
+      "area": 25,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        13,
+        1,
+        10
+      ],
+      "width": 5
+    },
+    "x/nest_8_2": {
+      "area": 30,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        5,
+        1,
+        6
+      ],
+      "width": 6
+    },
+    "x/nest_9_14": {
+      "area": 45,
+      "facing": "west",
+      "height": 9,
+      "light_blocks": 0,
+      "support": [
+        7,
+        1,
+        9
+      ],
+      "width": 5
+    },
+    "y/backstreets_14_0": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        7,
+        30,
+        1
+      ],
+      "width": 5
+    },
+    "y/backstreets_15_12": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        8,
+        50,
+        0
+      ],
+      "width": 5
+    },
+    "y/nest_10_1": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        8,
+        50,
+        0
+      ],
+      "width": 5
+    },
+    "y/nest_11_5": {
+      "area": 44,
+      "facing": "north",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        15,
+        1,
+        1
+      ],
+      "width": 11
+    },
+    "y/nest_12_2": {
+      "area": 20,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        5,
+        1,
+        5
+      ],
+      "width": 5
+    },
+    "y/nest_12_5": {
+      "area": 32,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        5,
+        1,
+        4
+      ],
+      "width": 8
+    },
+    "y/nest_4_12": {
+      "area": 40,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        11,
+        35,
+        10
+      ],
+      "width": 8
+    },
+    "yi/backstreets_6_4": {
+      "area": 15,
+      "facing": "north",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        11,
+        14,
+        11
+      ],
+      "width": 5
+    },
+    "yi/nest_8_14": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        5,
+        1,
+        0
+      ],
+      "width": 5
+    },
+    "z/backstreets_0_1": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        15,
+        6,
+        0
+      ],
+      "width": 5
+    },
+    "z/backstreets_1_4": {
+      "area": 25,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        6,
+        1,
+        6
+      ],
+      "width": 5
+    },
+    "z/nest_0_13": {
+      "area": 36,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        15,
+        4,
+        0
+      ],
+      "width": 12
+    },
+    "z/nest_12_10": {
+      "area": 20,
+      "facing": "west",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        14,
+        9,
+        8
+      ],
+      "width": 5
+    },
+    "z/nest_13_10": {
+      "area": 20,
+      "facing": "east",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        5,
+        9,
+        12
+      ],
+      "width": 5
+    },
+    "z/nest_15_2": {
+      "area": 15,
+      "facing": "west",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        15,
+        6,
+        0
+      ],
+      "width": 5
+    },
+    "z/nest_1_12": {
+      "area": 50,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        5,
+        1,
+        14
+      ],
+      "width": 10
+    },
+    "z/nest_1_13": {
+      "area": 50,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        1,
+        1,
+        15
+      ],
+      "width": 10
+    },
+    "z/nest_1_14": {
+      "area": 42,
+      "facing": "south",
+      "height": 6,
+      "light_blocks": 0,
+      "support": [
+        0,
+        1,
+        8
+      ],
+      "width": 7
+    },
+    "z/nest_2_12": {
+      "area": 35,
+      "facing": "south",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        5,
+        1,
+        3
+      ],
+      "width": 7
+    },
+    "z/nest_2_13": {
+      "area": 55,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        0,
+        1,
+        15
+      ],
+      "width": 11
+    },
+    "z/nest_2_14": {
+      "area": 30,
+      "facing": "west",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        1,
+        1,
+        1
+      ],
+      "width": 6
+    },
+    "z/nest_2_15": {
+      "area": 36,
+      "facing": "south",
+      "height": 6,
+      "light_blocks": 0,
+      "support": [
+        1,
+        1,
+        0
+      ],
+      "width": 6
+    },
+    "z/nest_3_13": {
+      "area": 50,
+      "facing": "east",
+      "height": 5,
+      "light_blocks": 0,
+      "support": [
+        14,
+        1,
+        14
+      ],
+      "width": 10
+    },
+    "z/nest_4_14": {
+      "area": 36,
+      "facing": "south",
+      "height": 4,
+      "light_blocks": 0,
+      "support": [
+        7,
+        47,
+        14
+      ],
+      "width": 9
+    },
+    "z/nest_5_13": {
+      "area": 126,
+      "facing": "east",
+      "height": 9,
+      "light_blocks": 0,
+      "support": [
+        11,
+        46,
+        15
+      ],
+      "width": 14
+    },
+    "z/nest_5_14": {
+      "area": 45,
+      "facing": "east",
+      "height": 9,
+      "light_blocks": 0,
+      "support": [
+        10,
+        46,
+        6
+      ],
+      "width": 5
+    },
+    "z/nest_8_4": {
+      "area": 15,
+      "facing": "south",
+      "height": 3,
+      "light_blocks": 0,
+      "support": [
+        9,
+        24,
+        6
+      ],
+      "width": 5
+    }
+  },
+  "source_catalog_sha256": "a89e9c213c701bdaf6c8c849e79414f50627c23c06f62a06d386629d403a975d",
+  "template_count": 17920,
+  "version": 1
+}

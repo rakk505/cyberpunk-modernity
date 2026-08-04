@@ -1,6 +1,8 @@
 package com.example.cyberdeck.client;
 
 import com.example.cyberdeck.Cyberdeck;
+import com.example.cyberdeck.advertising.AdvertisingContent;
+import com.example.cyberdeck.client.advertising.AdDisplayRenderer;
 import com.example.cyberdeck.client.hud.AmmoHudOverlay;
 import com.example.cyberdeck.client.hud.HealingHudOverlay;
 import com.example.cyberdeck.client.hud.CityMinimapOverlay;
@@ -218,6 +220,8 @@ public final class CyberdeckClient {
     }
 
     private void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
+        event.registerBlockEntityRenderer(
+                AdvertisingContent.AD_DISPLAY_ENTITY.get(), AdDisplayRenderer::new);
         // Faction soldiers render as Steve-skinned humanoids; their identity shows through their
         // faction armor.
         event.registerEntityRenderer(FactionEntities.FACTION_ENEMY.get(), FactionEnemyRenderer::new);

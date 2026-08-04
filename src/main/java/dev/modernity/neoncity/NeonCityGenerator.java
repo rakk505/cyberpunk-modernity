@@ -1,5 +1,6 @@
 package dev.modernity.neoncity;
 
+import com.example.cyberdeck.advertising.GeneratedAdPlacement;
 import com.example.cyberdeck.city.CityLootGeneration;
 import com.mojang.logging.LogUtils;
 import com.mojang.serialization.MapCodec;
@@ -922,6 +923,15 @@ public final class NeonCityGenerator {
             if (!placedLoot) {
                 if (trace != null) trace.phase(CityGenerationTrace.Phase.URBAN_CRATES);
                 UrbanCrateGeneration.decorateChunk(level, chunk, samples);
+            }
+            if (patchTemplate != null && patchPlacement.isPresent()) {
+                ArnisPatchLibrary.Placement placement = patchPlacement.get();
+                GeneratedAdPlacement.placeForArnisTile(
+                        level,
+                        chunk,
+                        placement,
+                        patchTemplate,
+                        CITY_GROUND_Y - placement.patch().surfaceOffset());
             }
             if (trace != null) trace.phase(CityGenerationTrace.Phase.CLIENT_REFRESH);
             scheduleTrackingClientRefresh(level, chunk);
