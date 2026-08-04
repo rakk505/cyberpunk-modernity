@@ -47,31 +47,41 @@
       { "name": "cyberdeck:weapons/sniper_3", "attenuation_distance": 160 }
     ]
   },
-  "ad.neon_skyline": {
-    "subtitle": "subtitles.cyberdeck.ad.neon_skyline",
+  "ad.meta_logo": {
+    "subtitle": "subtitles.cyberdeck.ad.meta_logo",
     "sounds": [
       {
-        "name": "cyberdeck:ads/neon_skyline",
+        "name": "cyberdeck:ads/meta_logo",
         "stream": true,
         "attenuation_distance": 64
       }
     ]
   },
-  "ad.chrome_cola": {
-    "subtitle": "subtitles.cyberdeck.ad.chrome_cola",
+  "ad.meta_glasses": {
+    "subtitle": "subtitles.cyberdeck.ad.meta_glasses",
     "sounds": [
       {
-        "name": "cyberdeck:ads/chrome_cola",
+        "name": "cyberdeck:ads/meta_glasses",
         "stream": true,
         "attenuation_distance": 64
       }
     ]
   },
-  "ad.orbital_air": {
-    "subtitle": "subtitles.cyberdeck.ad.orbital_air",
+  "ad.meta_ai": {
+    "subtitle": "subtitles.cyberdeck.ad.meta_ai",
     "sounds": [
       {
-        "name": "cyberdeck:ads/orbital_air",
+        "name": "cyberdeck:ads/meta_ai",
+        "stream": true,
+        "attenuation_distance": 64
+      }
+    ]
+  },
+  "ad.meta_future": {
+    "subtitle": "subtitles.cyberdeck.ad.meta_future",
+    "sounds": [
+      {
+        "name": "cyberdeck:ads/meta_future",
         "stream": true,
         "attenuation_distance": 64
       }

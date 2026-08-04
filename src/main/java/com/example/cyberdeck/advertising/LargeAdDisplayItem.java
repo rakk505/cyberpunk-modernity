@@ -1,6 +1,5 @@
 package com.example.cyberdeck.advertising;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import net.minecraft.advancements.triggers.CriteriaTriggers;
@@ -15,7 +14,6 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.gameevent.GameEvent;
 
@@ -49,22 +47,12 @@ public final class LargeAdDisplayItem extends Item {
             return InteractionResult.SUCCESS;
         }
 
-        List<BlockState> previousStates = new ArrayList<>(targets.size());
-        for (BlockPos target : targets) {
-            previousStates.add(level.getBlockState(target));
-        }
-
         BlockState anchorState = AdvertisingContent.AD_DISPLAY_ANCHOR.get()
                 .defaultBlockState().setValue(AdDisplayBlock.FACING, facing);
-        BlockState panelState = AdvertisingContent.AD_DISPLAY_PANEL.get()
-                .defaultBlockState().setValue(AdPanelBlock.FACING, facing);
-        for (int index = 0; index < targets.size(); index++) {
-            BlockState newState = index == 0 ? anchorState : panelState;
-            if (!level.setBlock(targets.get(index), newState, Block.UPDATE_ALL)) {
-                rollback(level, targets, previousStates, index);
-                showFailure(player, level, "message.cyberdeck.ad_display.failed");
-                return InteractionResult.FAIL;
-            }
+        if (!AdDisplayPlacement.place(level, anchor, facing,
+                LargeAdSurfaceValidator.WIDTH, LargeAdSurfaceValidator.HEIGHT)) {
+            showFailure(player, level, "message.cyberdeck.ad_display.failed");
+            return InteractionResult.FAIL;
         }
 
         if (player instanceof ServerPlayer serverPlayer) {
@@ -75,13 +63,6 @@ public final class LargeAdDisplayItem extends Item {
         level.gameEvent(GameEvent.BLOCK_PLACE, anchor, GameEvent.Context.of(player, anchorState));
         stack.consume(1, player);
         return InteractionResult.SUCCESS;
-    }
-
-    private static void rollback(
-            Level level, List<BlockPos> targets, List<BlockState> states, int lastPlaced) {
-        for (int index = 0; index <= lastPlaced; index++) {
-            level.setBlock(targets.get(index), states.get(index), Block.UPDATE_ALL);
-        }
     }
 
     private static void showFailure(Player player, Level level, String translationKey) {

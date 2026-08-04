@@ -1,19 +1,40 @@
 {
   "clips": [
     {
-      "id": "neon_skyline",
-      "file": "neon_skyline.mp4",
-      "duration_seconds": 30
+      "id": "meta_logo",
+      "file": "meta_logo.mp4",
+      "duration_seconds": 30,
+      "source_duration_seconds": 5,
+      "source_title": "Meta Logo Animation",
+      "source_url": "https://youtu.be/7XrmfVIBweU",
+      "edit": "looped to 30 seconds"
     },
     {
-      "id": "chrome_cola",
-      "file": "chrome_cola.mp4",
-      "duration_seconds": 36
+      "id": "meta_glasses",
+      "file": "meta_glasses.mp4",
+      "duration_seconds": 30,
+      "source_duration_seconds": 30,
+      "source_title": "Meta Glasses Commercial #2 (2026)",
+      "source_url": "https://youtu.be/Fpu1uAZPwF8",
+      "edit": "trimmed to 30 seconds"
     },
     {
-      "id": "orbital_air",
-      "file": "orbital_air.mp4",
-      "duration_seconds": 42
+      "id": "meta_ai",
+      "file": "meta_ai.mp4",
+      "duration_seconds": 45,
+      "source_duration_seconds": 60,
+      "source_title": "Your personal AI. The new Meta AI app.",
+      "source_url": "https://youtu.be/2l_2k5KrXmo",
+      "edit": "trimmed to 45 seconds"
+    },
+    {
+      "id": "meta_future",
+      "file": "meta_future.mp4",
+      "duration_seconds": 45,
+      "source_duration_seconds": 60,
+      "source_title": "The future is for everyone.",
+      "source_url": "https://youtu.be/JlRgRmAqoAc",
+      "edit": "trimmed to 45 seconds"
     }
   ]
 }

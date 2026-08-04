@@ -15,15 +15,15 @@ from pathlib import Path
 
 
 FPS = 8
-FRAME_WIDTH = 160
-FRAME_HEIGHT = 90
+FRAME_WIDTH = 192
+FRAME_HEIGHT = 108
 SHEET_COLUMNS = 4
 SHEET_ROWS = 4
 FRAMES_PER_SHEET = SHEET_COLUMNS * SHEET_ROWS
 MIN_DURATION = 30
 MAX_DURATION = 45
-MAX_TOTAL_FRAMES = 1_000
-MAX_TOTAL_SHEETS = 64
+MAX_TOTAL_FRAMES = 1_200
+MAX_TOTAL_SHEETS = 80
 VALID_ID = re.compile(r"^[a-z0-9_]+$")
 
 
@@ -32,13 +32,7 @@ def run(command: list[str], input_bytes: bytes | None = None) -> None:
 
 
 def write_frame_texture(path: Path, ffmpeg: str) -> None:
-    pixels = bytearray()
-    for y in range(16):
-        for x in range(16):
-            border = x < 2 or x > 13 or y < 2 or y > 13
-            corner = (x < 4 or x > 11) and (y < 4 or y > 11)
-            color = (15, 229, 210) if corner else ((18, 25, 34) if border else (5, 7, 10))
-            pixels.extend(color)
+    pixels = bytes((5, 7, 10)) * 16 * 16
     path.parent.mkdir(parents=True, exist_ok=True)
     run([
         ffmpeg, "-y", "-hide_banner", "-loglevel", "error",

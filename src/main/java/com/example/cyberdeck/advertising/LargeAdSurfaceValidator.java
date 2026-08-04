@@ -14,6 +14,10 @@ import net.minecraft.world.level.block.state.BlockState;
 
 /** Bounded placement validation for one large 8x4 advertising surface. */
 public final class LargeAdSurfaceValidator {
+    public static final int MIN_WIDTH = 5;
+    public static final int MIN_HEIGHT = 3;
+    public static final int MAX_WIDTH = 16;
+    public static final int MAX_HEIGHT = 9;
     public static final int WIDTH = 8;
     public static final int HEIGHT = 4;
     public static final int CELL_COUNT = WIDTH * HEIGHT;
@@ -22,11 +26,19 @@ public final class LargeAdSurfaceValidator {
     }
 
     public static Result validate(Level level, BlockPos anchor, Direction facing) {
+        return validate(level, anchor, facing, WIDTH, HEIGHT);
+    }
+
+    public static Result validate(
+            Level level, BlockPos anchor, Direction facing, int width, int height) {
         if (facing.getAxis().isVertical()) {
             return Result.failure(Failure.VERTICAL_FACE, anchor);
         }
+        if (!validDimensions(width, height)) {
+            return Result.failure(Failure.INVALID_SIZE, anchor);
+        }
 
-        for (BlockPos target : targets(anchor, facing)) {
+        for (BlockPos target : targets(anchor, facing, width, height)) {
             if (!level.isInWorldBounds(target)
                     || !level.getWorldBorder().isWithinBounds(target)) {
                 return Result.failure(Failure.OUT_OF_BOUNDS, target);
@@ -48,14 +60,29 @@ public final class LargeAdSurfaceValidator {
     }
 
     public static List<BlockPos> targets(BlockPos anchor, Direction facing) {
+        return targets(anchor, facing, WIDTH, HEIGHT);
+    }
+
+    public static List<BlockPos> targets(
+            BlockPos anchor, Direction facing, int width, int height) {
+        if (!validDimensions(width, height)) {
+            throw new IllegalArgumentException(
+                    "Large ad dimensions must be between " + MIN_WIDTH + "x" + MIN_HEIGHT
+                            + " and " + MAX_WIDTH + "x" + MAX_HEIGHT);
+        }
         Direction right = rightOf(facing);
-        List<BlockPos> targets = new ArrayList<>(CELL_COUNT);
-        for (int row = 0; row < HEIGHT; row++) {
-            for (int column = 0; column < WIDTH; column++) {
+        List<BlockPos> targets = new ArrayList<>(width * height);
+        for (int row = 0; row < height; row++) {
+            for (int column = 0; column < width; column++) {
                 targets.add(anchor.relative(right, column).above(row).immutable());
             }
         }
         return List.copyOf(targets);
+    }
+
+    public static boolean validDimensions(int width, int height) {
+        return width >= MIN_WIDTH && width <= MAX_WIDTH
+                && height >= MIN_HEIGHT && height <= MAX_HEIGHT;
     }
 
     public static Direction rightOf(Direction facing) {
@@ -76,6 +103,7 @@ public final class LargeAdSurfaceValidator {
     public enum Failure {
         NONE(""),
         VERTICAL_FACE("message.cyberdeck.ad_display.vertical_face"),
+        INVALID_SIZE("message.cyberdeck.ad_display.invalid_size"),
         OUT_OF_BOUNDS("message.cyberdeck.ad_display.out_of_bounds"),
         BLOCKED("message.cyberdeck.ad_display.blocked"),
         GLASS("message.cyberdeck.ad_display.glass"),

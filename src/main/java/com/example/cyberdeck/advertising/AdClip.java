@@ -8,9 +8,10 @@ import net.minecraft.resources.Identifier;
 
 /** Preprocessed MP4 clips available to large advertising displays. */
 public enum AdClip {
-    NEON_SKYLINE("neon_skyline", 30, 8),
-    CHROME_COLA("chrome_cola", 36, 8),
-    ORBITAL_AIR("orbital_air", 42, 8);
+    META_LOGO("meta_logo", 30, 8),
+    META_GLASSES("meta_glasses", 30, 8),
+    META_AI("meta_ai", 45, 8),
+    META_FUTURE("meta_future", 45, 8);
 
     public static final int SHEET_COLUMNS = 4;
     public static final int SHEET_ROWS = 4;

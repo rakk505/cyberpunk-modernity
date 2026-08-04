@@ -51,6 +51,8 @@ public final class AdDisplayRenderer
         BlockEntityRenderer.super.extractRenderState(
                 blockEntity, state, partialTicks, cameraPosition, breakProgress);
         state.facing = blockEntity.getBlockState().getValue(AdDisplayBlock.FACING);
+        state.width = blockEntity.displayWidth();
+        state.height = blockEntity.displayHeight();
 
         AdClip clip = blockEntity.currentClip();
         int frame = clip.frameAt(blockEntity.playbackTicks() + partialTicks);
@@ -77,18 +79,21 @@ public final class AdDisplayRenderer
 
         submitQuad(poseStack, submitNodeCollector, FRAME_TEXTURE, facing, right,
                 originX, 0.0F, originZ,
-                LargeAdSurfaceValidator.WIDTH, LargeAdSurfaceValidator.HEIGHT,
+                state.width, state.height,
                 0.0F, 0.0F, 1.0F, 1.0F);
 
-        float videoHeight = LargeAdSurfaceValidator.HEIGHT - BORDER * 2.0F;
-        float videoWidth = videoHeight * VIDEO_ASPECT;
-        float horizontalInset = (LargeAdSurfaceValidator.WIDTH - videoWidth) * 0.5F;
+        float availableWidth = state.width - BORDER * 2.0F;
+        float availableHeight = state.height - BORDER * 2.0F;
+        float videoWidth = Math.min(availableWidth, availableHeight * VIDEO_ASPECT);
+        float videoHeight = videoWidth / VIDEO_ASPECT;
+        float horizontalInset = (state.width - videoWidth) * 0.5F;
+        float verticalInset = (state.height - videoHeight) * 0.5F;
         float videoOriginX = originX + right.getStepX() * horizontalInset
                 + facing.getStepX() * (VIDEO_DEPTH - FRAME_DEPTH);
         float videoOriginZ = originZ + right.getStepZ() * horizontalInset
                 + facing.getStepZ() * (VIDEO_DEPTH - FRAME_DEPTH);
         submitQuad(poseStack, submitNodeCollector, state.texture, facing, right,
-                videoOriginX, BORDER, videoOriginZ,
+                videoOriginX, verticalInset, videoOriginZ,
                 videoWidth, videoHeight,
                 state.u0, state.v0, state.u1, state.v1);
     }
@@ -110,7 +115,7 @@ public final class AdDisplayRenderer
             float v1) {
         collector.submitCustomGeometry(
                 poseStack,
-                RenderTypes.entityTranslucentEmissive(texture),
+                RenderTypes.entitySolid(texture),
                 (pose, buffer) -> addQuad(pose, buffer, facing, right,
                         x, y, z, width, height, u0, v0, u1, v1));
     }
@@ -165,14 +170,14 @@ public final class AdDisplayRenderer
         BlockPos anchor = blockEntity.getBlockPos();
         Direction right = LargeAdSurfaceValidator.rightOf(
                 blockEntity.getBlockState().getValue(AdDisplayBlock.FACING));
-        BlockPos far = anchor.relative(right, LargeAdSurfaceValidator.WIDTH - 1)
-                .above(LargeAdSurfaceValidator.HEIGHT - 1);
+        BlockPos far = anchor.relative(right, blockEntity.displayWidth() - 1)
+                .above(blockEntity.displayHeight() - 1);
         return new AABB(
                 Math.min(anchor.getX(), far.getX()),
                 anchor.getY(),
                 Math.min(anchor.getZ(), far.getZ()),
                 Math.max(anchor.getX(), far.getX()) + 1.0,
-                anchor.getY() + LargeAdSurfaceValidator.HEIGHT,
+                anchor.getY() + blockEntity.displayHeight(),
                 Math.max(anchor.getZ(), far.getZ()) + 1.0);
     }
 }

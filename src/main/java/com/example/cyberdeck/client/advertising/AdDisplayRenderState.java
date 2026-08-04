@@ -15,4 +15,6 @@ public final class AdDisplayRenderState extends BlockEntityRenderState {
     public float v0;
     public float u1 = 1.0F;
     public float v1 = 1.0F;
+    public int width = 8;
+    public int height = 4;
 }

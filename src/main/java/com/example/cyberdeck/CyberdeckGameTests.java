@@ -3,7 +3,9 @@ package com.example.cyberdeck;
 import com.mojang.authlib.GameProfile;
 import com.example.cyberdeck.advertising.AdClip;
 import com.example.cyberdeck.advertising.AdDisplayBlockEntity;
+import com.example.cyberdeck.advertising.AdDisplayPlacement;
 import com.example.cyberdeck.advertising.AdvertisingContent;
+import com.example.cyberdeck.advertising.GeneratedAdSurfaceCatalog;
 import com.example.cyberdeck.advertising.LargeAdSurfaceValidator;
 import com.example.cyberdeck.city.CityWorlds;
 import com.example.cyberdeck.city.CityActorJoinCompatibility;
@@ -756,6 +758,26 @@ public final class CyberdeckGameTests {
             helper.assertTrue(clip.durationTicks() >= 600 && clip.durationTicks() <= 900,
                     "every advertising clip must last 30 to 45 seconds");
         }
+        helper.assertTrue(GeneratedAdSurfaceCatalog.size() > 0,
+                "the offline Arnis facade scan must expose generated ad placements");
+
+        int generatedWidth = 12;
+        int generatedHeight = 5;
+        BlockPos generatedAnchor = helper.absolutePos(new BlockPos(2, 8, 2));
+        List<BlockPos> generatedTargets = LargeAdSurfaceValidator.targets(
+                generatedAnchor, facing, generatedWidth, generatedHeight);
+        for (BlockPos target : generatedTargets) {
+            level.setBlock(target.relative(facing.getOpposite()),
+                    Blocks.STONE.defaultBlockState(), 3);
+        }
+        helper.assertTrue(AdDisplayPlacement.place(
+                        level, generatedAnchor, facing, generatedWidth, generatedHeight),
+                "catalog-driven placement must support variable large rectangles");
+        helper.assertTrue(level.getBlockEntity(generatedAnchor)
+                        instanceof AdDisplayBlockEntity generated
+                        && generated.displayWidth() == generatedWidth
+                        && generated.displayHeight() == generatedHeight,
+                "variable dimensions must be stored on the rendering anchor");
         helper.succeed();
     }
 
