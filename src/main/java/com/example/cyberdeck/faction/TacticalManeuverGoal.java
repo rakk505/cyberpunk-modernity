@@ -101,6 +101,7 @@ public final class TacticalManeuverGoal extends Goal {
         return soldier.isTriggered()
                 && !soldier.isWeaponGlitching()
                 && !soldier.isGunReloading()
+                && soldier.canUseConventionalCombat()
                 && isValidTarget(soldier.getTarget());
     }
 

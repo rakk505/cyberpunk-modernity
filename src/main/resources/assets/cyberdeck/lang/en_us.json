@@ -165,6 +165,9 @@
   "message.cyberdeck.quickhack_duplicate": "%s is already queued on this target",
   "message.cyberdeck.quickhack_target_mismatch": "Finish or cancel the current target's queue first",
   "message.cyberdeck.quickhack_invalid_target": "Invalid quickhack target",
+  "message.cyberdeck.hostile_quickhack.cripple_movement": "HOSTILE QUICKHACK // CRIPPLE MOVEMENT",
+  "message.cyberdeck.hostile_quickhack.weapon_glitch": "HOSTILE QUICKHACK // WEAPON GLITCH",
+  "message.cyberdeck.hostile_quickhack.blind": "HOSTILE QUICKHACK // BLIND",
 
   "tooltip.cyberdeck.slot": "Slot: %s",
     "tooltip.cyberdeck.capacity": "Cyberware Capacity: %s",
@@ -241,6 +244,8 @@
 
   "entity.cyberdeck.faction_enemy": "Corporate Soldier",
   "entity.cyberdeck.faction_enemy.district": "%s Corp. Soldier",
+  "entity.cyberdeck.faction_enemy.netrunner": "%s Corp. Netrunner",
+  "entity.cyberdeck.r_corp_paramilitary": "R Corp Paramilitary",
   "entity.cyberdeck.trauma_team_responder": "Trauma Team Responder",
   "entity.cyberdeck.cyberpsycho": "Cyberpsycho",
   "entity.cyberdeck.city_npc": "City Civilian",

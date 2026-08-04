@@ -2,6 +2,55 @@
 
 Generated: 2026-08-03
 
+## Enemy Netrunners And R Corp Addendum (2026-08-04)
+
+- Branch: `enemy-netrunners`, based on `a196e91e4f46e24bf5d6c6a95d94a81779a7e084`.
+- Added R Corp as a separate synchronized enemy archetype, avoiding changes to the shared legacy
+  faction enum, branded armor registration, merchant catalog, and turret allegiance rules.
+- Added exact R Corp patrol rosters: Assault/Sapper/Netrunner for three-person squads and three
+  Assault/Sapper/Netrunner for five-person squads. Four-person reinforcement drops use two
+  Assault/Sapper/Netrunner and retain R Corp identity.
+- Weighted R Corp patrols heavily toward eastern and southern district coordinates, with a smaller
+  center-city chance and rare north/west appearances. Existing public-space placement, highway
+  exclusion, patrol caps, and exact three/five-person cluster sizes remain intact.
+- Added Assault Saratoga SMGs, Sapper Unity sidearms plus two incendiary grenades, and Netrunner
+  Yukimura smart guns. Every R Corp member keeps the existing hidden ballistic stats and visible
+  black Bulletproof Vest.
+- Added eight original, deterministic orange/gray R Corp tactical skins with diverse headgear,
+  faces, cloth shades, plate layouts, and optics. The generator and asset provenance are checked in.
+- Added generic corporate netrunners with exactly one randomly assigned hostile quickhack:
+  Cripple Movement, Weapon Glitch, or Blind. R Corp netrunners always receive Blind.
+- Added a server-authoritative 60-tick hostile upload, 100-tick effect, 300-tick per-netrunner
+  cooldown, and per-player reservation covering upload plus effect lifetime. Different players can
+  be targeted concurrently, but two netrunners cannot stack uploads on one player.
+- Added death, logout, respawn, dimension-change, source-removal, and server-stop cleanup. Active
+  target entity IDs are never persisted across reloads; archetype, role, assigned hack, skin, and
+  cooldown are persisted.
+- Added cover-first netrunner movement using same-floor, obstruction-tested, reachable paths. Cover
+  searches are throttled, existing cover is held, and guns/melee/grenades are disabled until the
+  quickhack enters cooldown.
+- Added the five-second Blind and Cripple effects plus a five-second Weapon Glitch. Weapon Glitch
+  now blocks hitscan fire, charged shots, manual/automatic reloads, and projectile firing without
+  consuming ammunition.
+- Added an always-on-top red upload trace and red netrunner outline visible without scanner mode.
+  Scanner target data now reports R Corp and netrunner identity correctly.
+- Added friendly-fire grouping for R Corp bullets and incendiary ally/self-distance safeguards.
+- Added `enemy_netrunner_contracts` regression coverage for regional weights, 3/5/4 role plans,
+  exact loadouts, armor/name/skin contracts, hostile hack selection, effect/cooldown timing,
+  combat-priority gating, multiplayer reservations, and hitscan Weapon Glitch ammunition safety.
+- Verification: full Gradle build passed; all 76 required NeoForge GameTests passed; dedicated server
+  boot passed; managed-client load/connect passed.
+- Visual evidence:
+  - Eight R Corp variants and weapons: SHA-256
+    `4b3bba4f5e44df6533818921568dbf2bafe85b3eba348eb4c45e716072a0f68b`.
+  - Hostile netrunner red outline/trace without scanner mode: SHA-256
+    `05ca90f2baf4332f15610448f0a284a374ee82980752ab22ebff66ed924a1e9d`.
+- Installed verified JAR: `cyberdeck-1.5.0.jar`, SHA-256
+  `79f7ae0c79846b57e0067eec72609fc4a3ab4e7a1c4efa30f38d4c2059b54aaa`.
+- Multiplayer review note: hostile Blind/Cripple deliberately does not overwrite an already-active
+  vanilla effect of the same type. The hostile slot and cooldown are still consumed, preserving
+  unrelated potion/cyberware effect chains.
+
 ## Branch And Repository State
 
 - Current working branch: `codex/district-patrol-enemies`

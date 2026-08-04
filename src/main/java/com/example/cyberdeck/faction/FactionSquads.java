@@ -35,6 +35,7 @@ public final class FactionSquads {
     private static final int GRENADE_SPAWN_CHANCE = 2;    // 1-in-2 for grenade factions
     private static final int MIN_GRENADES = 1;
     private static final int MAX_GRENADES = 2;
+    private static final int GENERIC_NETRUNNER_CHANCE = 6;
 
     private FactionSquads() {
     }
@@ -47,9 +48,15 @@ public final class FactionSquads {
     /** Applies a loadout with an explicitly planned skin, used for duplicate-free patrol squads. */
     public static void equip(
             FactionEnemy enemy, Faction faction, RandomSource rng, int skinVariant) {
+        enemy.setArchetype(EnemyArchetype.CORPORATE);
+        enemy.setCombatRole(EnemyCombatRole.STANDARD);
+        enemy.setEnemyQuickhack(EnemyQuickhack.NONE);
         enemy.setFaction(faction);
         enemy.assignDistrictFromPosition();
         enemy.setSkinVariant(skinVariant);
+        enemy.setGrenadeCount(0);
+        enemy.setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+        enemy.setItemSlot(EquipmentSlot.OFFHAND, ItemStack.EMPTY);
 
         // Primary weapon: a cyberpunk gun, or (Arasaka only) a melee sword.
         List<GunType> guns = faction.weapons();
@@ -80,6 +87,94 @@ public final class FactionSquads {
         // Ballistics: heavier tier is rarer, but both tiers render only the common black vest.
         String tier = rng.nextInt(3) == 0 ? "heavy" : "light";
         equipBallisticTier(enemy, tier);
+
+        if (!(enemy instanceof CyberpsychoEntity)
+                && rng.nextInt(GENERIC_NETRUNNER_CHANCE) == 0) {
+            configureGenericNetrunner(enemy, faction, rng);
+        }
+    }
+
+    private static void configureGenericNetrunner(
+            FactionEnemy enemy, Faction faction, RandomSource rng) {
+        if (!(enemy.getMainHandItem().getItem() instanceof com.example.cyberdeck.weapon.GunItem)) {
+            List<GunType> guns = faction.weapons();
+            GunType gun = guns.get(rng.nextInt(guns.size()));
+            enemy.setItemSlot(EquipmentSlot.MAINHAND,
+                    new ItemStack(WeaponItems.gun(gun).get()));
+        }
+        enemy.setGrenadeCount(0);
+        enemy.setCombatRole(EnemyCombatRole.NETRUNNER);
+        enemy.setEnemyQuickhack(EnemyQuickhack.randomHostile(rng));
+        enemy.setEnemyQuickhackCooldownEndTick(
+                enemy.level().getGameTime() + 40L + rng.nextInt(61));
+    }
+
+    /** Applies one of the three exact R Corp paramilitary role kits. */
+    public static void equipRCorp(
+            FactionEnemy enemy, EnemyCombatRole role, RandomSource rng, int skinVariant) {
+        if (role == EnemyCombatRole.STANDARD) {
+            role = EnemyCombatRole.ASSAULT;
+        }
+        enemy.setArchetype(EnemyArchetype.R_CORP);
+        // The legacy faction remains an internal combat value only; R Corp has its own ally checks.
+        enemy.setFaction(Faction.ARASAKA);
+        enemy.assignDistrictFromPosition();
+        enemy.setSkinVariant(skinVariant);
+        enemy.setCombatRole(role);
+        enemy.setEnemyQuickhack(EnemyQuickhack.NONE);
+        enemy.setGrenadeCount(0);
+        enemy.setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+        enemy.setItemSlot(EquipmentSlot.OFFHAND, ItemStack.EMPTY);
+
+        switch (role) {
+            case ASSAULT -> {
+                enemy.setItemSlot(EquipmentSlot.MAINHAND,
+                        new ItemStack(WeaponItems.gun(GunType.SARATOGA).get()));
+                enemy.setItemSlot(EquipmentSlot.OFFHAND,
+                        new ItemStack(WeaponItems.gun(GunType.UNITY).get()));
+            }
+            case SAPPER -> {
+                enemy.setItemSlot(EquipmentSlot.MAINHAND,
+                        new ItemStack(WeaponItems.gun(GunType.UNITY).get()));
+                enemy.setGrenadeType(GrenadeType.INCENDIARY);
+                enemy.setGrenadeCount(2);
+            }
+            case NETRUNNER -> {
+                enemy.setItemSlot(EquipmentSlot.MAINHAND,
+                        new ItemStack(WeaponItems.gun(GunType.YUKIMURA).get()));
+                enemy.setEnemyQuickhack(EnemyQuickhack.BLIND);
+                enemy.setEnemyQuickhackCooldownEndTick(
+                        enemy.level().getGameTime() + 40L + rng.nextInt(61));
+            }
+            case STANDARD -> throw new IllegalStateException("standard R Corp role was normalized");
+        }
+        enemy.setDropChance(EquipmentSlot.MAINHAND, 0.15F);
+        if (!enemy.getOffhandItem().isEmpty()) {
+            enemy.setDropChance(EquipmentSlot.OFFHAND, 0.12F);
+        }
+        equipBallisticTier(enemy, rng.nextInt(3) == 0 ? "heavy" : "light");
+    }
+
+    /** Exact role composition for an authored three/five-member R Corp patrol. */
+    public static List<EnemyCombatRole> rCorpRolePlan(int size) {
+        return switch (size) {
+            case 3 -> List.of(
+                    EnemyCombatRole.ASSAULT,
+                    EnemyCombatRole.SAPPER,
+                    EnemyCombatRole.NETRUNNER);
+            case 5 -> List.of(
+                    EnemyCombatRole.ASSAULT,
+                    EnemyCombatRole.ASSAULT,
+                    EnemyCombatRole.ASSAULT,
+                    EnemyCombatRole.SAPPER,
+                    EnemyCombatRole.NETRUNNER);
+            case REINFORCEMENT_COUNT -> List.of(
+                    EnemyCombatRole.ASSAULT,
+                    EnemyCombatRole.ASSAULT,
+                    EnemyCombatRole.SAPPER,
+                    EnemyCombatRole.NETRUNNER);
+            default -> throw new IllegalArgumentException("unsupported R Corp squad size: " + size);
+        };
     }
 
     /** Returns a deterministic shuffled subset, guaranteeing no repeated skin inside one squad. */
@@ -266,7 +361,12 @@ public final class FactionSquads {
             reinforcement.setAmbientPatrol(leader.isAmbientPatrol());
             reinforcement.setReinforcementRollResolved(true);
             reinforcement.setReinforcementDeployment(true);
-            equip(reinforcement, leader.getFaction(), rng, waveSkins.get(i));
+            if (leader.isRCorp()) {
+                equipRCorp(reinforcement,
+                        rCorpRolePlan(REINFORCEMENT_COUNT).get(i), rng, waveSkins.get(i));
+            } else {
+                equip(reinforcement, leader.getFaction(), rng, waveSkins.get(i));
+            }
             reinforcement.setDistrict(leader.getDistrict());
             MissionService.inheritGuardActor(leader, reinforcement);
             // Arrive already hostile so the drop is an immediate threat.

@@ -84,6 +84,8 @@ public final class CyberwareTickHandler {
         if (event.getEntity() instanceof ServerPlayer player) {
             com.example.cyberdeck.CyberdeckState.recover(player);
             com.example.cyberdeck.skill.QuickhackUploads.cancel(player);
+            com.example.cyberdeck.faction.HostileQuickhackState.clearPlayer(player);
+            com.example.cyberdeck.WeaponGlitchData.clear(player);
             DoubleJumpGuard.forget(player.getUUID());
         }
     }
@@ -94,6 +96,8 @@ public final class CyberwareTickHandler {
             // Restore the real hotbar before player data is saved and release queued reservations.
             com.example.cyberdeck.CyberdeckState.deactivate(player);
             com.example.cyberdeck.skill.QuickhackUploads.forget(player.getUUID());
+            com.example.cyberdeck.faction.HostileQuickhackState.clearPlayer(player);
+            com.example.cyberdeck.WeaponGlitchData.clear(player);
             SandevistanMechanics.deactivateForSessionBoundary(player);
             ActiveAbilities.forget(player.getUUID());
             DoubleJumpGuard.forget(player.getUUID());
@@ -106,6 +110,8 @@ public final class CyberwareTickHandler {
     public void onRespawn(PlayerEvent.PlayerRespawnEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
             com.example.cyberdeck.skill.QuickhackUploads.cancel(player);
+            com.example.cyberdeck.faction.HostileQuickhackState.clearPlayer(player);
+            com.example.cyberdeck.WeaponGlitchData.clear(player);
             com.example.cyberdeck.CyberdeckState.recover(player);
             DoubleJumpGuard.forget(player.getUUID());
             // copyOnDeath keeps the data; make sure passives are re-applied to the new entity.
@@ -115,8 +121,21 @@ public final class CyberwareTickHandler {
     }
 
     @SubscribeEvent
+    public void onChangedDimension(PlayerEvent.PlayerChangedDimensionEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            com.example.cyberdeck.faction.HostileQuickhackState.clearPlayer(player);
+            com.example.cyberdeck.WeaponGlitchData.clear(player);
+        }
+    }
+
+    @SubscribeEvent
     public void onServerStopping(net.neoforged.neoforge.event.server.ServerStoppingEvent event) {
         com.example.cyberdeck.skill.QuickhackUploads.clearAll();
+        for (ServerPlayer player : event.getServer().getPlayerList().getPlayers()) {
+            com.example.cyberdeck.faction.HostileQuickhackState.clearPlayer(player);
+            com.example.cyberdeck.WeaponGlitchData.clear(player);
+        }
+        com.example.cyberdeck.faction.HostileQuickhackState.clearAll();
         DoubleJumpGuard.clearAll();
     }
 

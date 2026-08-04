@@ -262,7 +262,11 @@ public final class CyberdeckClient {
         event.registerEntityModifier(
                 new TypeToken<LivingEntityRenderer<LivingEntity, LivingEntityRenderState, ?>>() {},
                 (entity, state) -> {
-                    if (QuickhackScannerClient.isActive()
+                    if (entity instanceof com.example.cyberdeck.faction.FactionEnemy enemy
+                            && enemy.isEnemyQuickhackUploading()) {
+                        state.outlineColor = 0xFFFF2020;
+                        state.hasRedOverlay = true;
+                    } else if (QuickhackScannerClient.isActive()
                             && entity.getId() == QuickhackScannerClient.directTargetId()) {
                         state.outlineColor = 0xFFFF653C;
                         state.hasRedOverlay = true;

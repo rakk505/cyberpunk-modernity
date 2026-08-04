@@ -38,6 +38,8 @@ public final class ServerEvents {
             return;
         }
 
+        com.example.cyberdeck.faction.HostileQuickhackState.tick(player);
+
         // Complete a gun reload once its timer elapses (and cancel it if the gun is put away).
         tickReload(player, level);
 
@@ -96,6 +98,10 @@ public final class ServerEvents {
         com.example.cyberdeck.weapon.ReloadState state =
                 com.example.cyberdeck.weapon.ReloadState.get(player);
         if (!state.active()) {
+            return;
+        }
+        if (WeaponGlitchData.isGlitched(player)) {
+            com.example.cyberdeck.weapon.ReloadState.clear(player);
             return;
         }
         net.minecraft.world.item.ItemStack held = player.getMainHandItem();
