@@ -126,18 +126,23 @@ final class DefenseGameTests {
         BlockPos protectedBlock = new BlockPos(1, 1, 3);
         helper.setBlock(protectedBlock, Blocks.STONE);
         var victim = helper.spawn(EntityTypes.ZOMBIE, new BlockPos(2, 1, 1));
-        float healthBeforeExplosion = victim.getHealth();
-        KangTaoTurret turret = helper.spawn(
-                DefenseContent.KANG_TAO_TURRET.get(), new BlockPos(1, 1, 1));
-        turret.hurtServer(helper.getLevel(), turret.damageSources().generic(), 1000.0F);
+        victim.setNoAi(true);
 
-        helper.assertTrue(turret.isDestroyed(),
-                "lethal damage must synchronize the blackened wreck state");
-        helper.assertTrue(victim.getHealth() < healthBeforeExplosion,
-                "turret destruction must deal real explosion damage to nearby entities");
-        helper.assertBlockPresent(Blocks.STONE, protectedBlock);
-        victim.discard();
-        helper.succeed();
+        // Let the victim enter the level's entity index before the synchronous explosion query.
+        helper.runAfterDelay(1, () -> {
+            float healthBeforeExplosion = victim.getHealth();
+            KangTaoTurret turret = helper.spawn(
+                    DefenseContent.KANG_TAO_TURRET.get(), new BlockPos(1, 1, 1));
+            turret.hurtServer(helper.getLevel(), turret.damageSources().generic(), 1000.0F);
+
+            helper.assertTrue(turret.isDestroyed(),
+                    "lethal damage must synchronize the blackened wreck state");
+            helper.assertTrue(victim.getHealth() < healthBeforeExplosion,
+                    "turret destruction must deal real explosion damage to nearby entities");
+            helper.assertBlockPresent(Blocks.STONE, protectedBlock);
+            victim.discard();
+            helper.succeed();
+        });
     }
 
     static void turretQuickhacks(GameTestHelper helper) {
@@ -293,17 +298,20 @@ final class DefenseGameTests {
         helper.setBlock(canister, DefenseContent.EXPLOSIVE_CANISTER.get());
         helper.setBlock(protectedBlock, Blocks.STONE);
         var victim = helper.spawn(EntityTypes.ZOMBIE, new BlockPos(2, 1, 1));
-        float healthBeforeExplosion = victim.getHealth();
+        victim.setNoAi(true);
 
-        boolean detonated = ExplosiveCanisterBlock.detonate(
-                helper.getLevel(), helper.absolutePos(canister), null);
-        helper.assertTrue(detonated, "a placed canister must detonate");
-        helper.assertBlockNotPresent(DefenseContent.EXPLOSIVE_CANISTER.get(), canister);
-        helper.assertTrue(victim.getHealth() < healthBeforeExplosion,
-                "canister detonation must deal real explosion damage to nearby entities");
-        helper.assertBlockPresent(Blocks.STONE, protectedBlock);
-        victim.discard();
-        helper.succeed();
+        helper.runAfterDelay(1, () -> {
+            float healthBeforeExplosion = victim.getHealth();
+            boolean detonated = ExplosiveCanisterBlock.detonate(
+                    helper.getLevel(), helper.absolutePos(canister), null);
+            helper.assertTrue(detonated, "a placed canister must detonate");
+            helper.assertBlockNotPresent(DefenseContent.EXPLOSIVE_CANISTER.get(), canister);
+            helper.assertTrue(victim.getHealth() < healthBeforeExplosion,
+                    "canister detonation must deal real explosion damage to nearby entities");
+            helper.assertBlockPresent(Blocks.STONE, protectedBlock);
+            victim.discard();
+            helper.succeed();
+        });
     }
 
     static void canisterChainReaction(GameTestHelper helper) {
@@ -318,24 +326,27 @@ final class DefenseGameTests {
         helper.setBlock(isolated, DefenseContent.EXPLOSIVE_CANISTER.get());
         helper.setBlock(protectedBlock, Blocks.STONE);
         var victim = helper.spawn(EntityTypes.ZOMBIE, new BlockPos(2, 1, 1));
-        float healthBeforeExplosion = victim.getHealth();
+        victim.setNoAi(true);
 
-        int detonated = ExplosiveCanisterBlock.detonateChain(
-                helper.getLevel(), helper.absolutePos(root), null);
-        helper.assertTrue(detonated == 3,
-                "a canister chain must detonate each connected canister exactly once");
-        helper.assertBlockNotPresent(DefenseContent.EXPLOSIVE_CANISTER.get(), root);
-        helper.assertBlockNotPresent(DefenseContent.EXPLOSIVE_CANISTER.get(), link);
-        helper.assertBlockNotPresent(DefenseContent.EXPLOSIVE_CANISTER.get(), transitive);
-        helper.assertBlockPresent(DefenseContent.EXPLOSIVE_CANISTER.get(), isolated);
-        helper.assertBlockPresent(Blocks.STONE, protectedBlock);
-        helper.assertTrue(victim.getHealth() < healthBeforeExplosion,
-                "a chained canister detonation must deal real explosion damage");
-        helper.assertFalse(ExplosiveCanisterBlock.detonate(
-                        helper.getLevel(), helper.absolutePos(root), null),
-                "a consumed chain root must not detonate twice");
-        victim.discard();
-        helper.succeed();
+        helper.runAfterDelay(1, () -> {
+            float healthBeforeExplosion = victim.getHealth();
+            int detonated = ExplosiveCanisterBlock.detonateChain(
+                    helper.getLevel(), helper.absolutePos(root), null);
+            helper.assertTrue(detonated == 3,
+                    "a canister chain must detonate each connected canister exactly once");
+            helper.assertBlockNotPresent(DefenseContent.EXPLOSIVE_CANISTER.get(), root);
+            helper.assertBlockNotPresent(DefenseContent.EXPLOSIVE_CANISTER.get(), link);
+            helper.assertBlockNotPresent(DefenseContent.EXPLOSIVE_CANISTER.get(), transitive);
+            helper.assertBlockPresent(DefenseContent.EXPLOSIVE_CANISTER.get(), isolated);
+            helper.assertBlockPresent(Blocks.STONE, protectedBlock);
+            helper.assertTrue(victim.getHealth() < healthBeforeExplosion,
+                    "a chained canister detonation must deal real explosion damage");
+            helper.assertFalse(ExplosiveCanisterBlock.detonate(
+                            helper.getLevel(), helper.absolutePos(root), null),
+                    "a consumed chain root must not detonate twice");
+            victim.discard();
+            helper.succeed();
+        });
     }
 
     static void turretPlacement(GameTestHelper helper) {
