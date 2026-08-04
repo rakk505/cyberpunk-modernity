@@ -155,8 +155,11 @@ public final class RemoteEntityControl {
         player.setYHeadRot(session.bodyYaw);
         player.setYBodyRot(session.bodyYaw);
         if (session.kind == DeviceKind.CAR && player.level() instanceof ServerLevel level) {
-            VehicleQuickhackService.applyRemoteInput(level, target, session.forward,
-                    session.turn, session.braking);
+            if (!VehicleQuickhackService.applyRemoteInput(
+                    level, target, session.forward, session.turn, session.braking)) {
+                end(player);
+                return;
+            }
         }
         if (now - session.lastSyncTick >= SYNC_INTERVAL_TICKS) {
             session.lastSyncTick = now;

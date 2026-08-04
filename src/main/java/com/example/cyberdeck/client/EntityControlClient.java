@@ -1,23 +1,36 @@
 package com.example.cyberdeck.client;
 
+import com.example.cyberdeck.Cyberdeck;
 import com.example.cyberdeck.network.EntityControlInputPacket;
 import com.example.cyberdeck.network.EntityControlStatePacket;
 import com.example.cyberdeck.skill.DeviceQuickhack.DeviceKind;
 import com.example.cyberdeck.defense.KangTaoTurret;
 import com.example.cyberdeck.vehicle.QuickhackCar;
+import com.modernity.vehicle_mod.api.RemoteControllableVehicle;
+import com.modernity.vehicle_mod.api.VehicleApi;
+import com.modernity.vehicle_mod.api.VehicleCameraMode;
+import com.modernity.vehicle_mod.api.VehicleCameraPose;
 
 import net.minecraft.client.CameraType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Marker;
 import net.minecraft.world.entity.player.Player;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.ViewportEvent;
 import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 import org.jspecify.annotations.Nullable;
 
 import java.util.UUID;
 
 /** Owns the client camera and input sampling for a server-authorized device control session. */
+@EventBusSubscriber(modid = Cyberdeck.MODID, value = Dist.CLIENT)
 public final class EntityControlClient {
     private static final int TARGET_GRACE_TICKS = 20;
     private static final int SERVER_TIMEOUT_TICKS = 60;
@@ -40,6 +53,8 @@ public final class EntityControlClient {
     private static float bodyPitch;
     private static @Nullable CameraType previousCameraType;
     private static @Nullable Entity previousCameraEntity;
+    private static @Nullable Marker vehicleCamera;
+    private static @Nullable VehicleCameraPose vehicleCameraPose;
     private static @Nullable Object sessionLevel;
 
     private EntityControlClient() {
@@ -134,18 +149,24 @@ public final class EntityControlClient {
             return;
         }
         missingTargetTicks = 0;
-        Entity cameraTarget = target;
-        if (target instanceof QuickhackCar adapter) {
-            Entity anchor = adapter.quickhackCameraAnchor();
-            if (anchor != null && anchor.level() == minecraft.level && !anchor.isRemoved()) {
-                cameraTarget = anchor;
+        if (kind == DeviceKind.CAR && updateNativeVehicleCamera(minecraft, target)) {
+            // The API pose is already the final chase-camera position, so render it as a
+            // first-person marker rather than applying vanilla's second third-person offset.
+        } else {
+            Entity cameraTarget = target;
+            if (target instanceof QuickhackCar adapter) {
+                Entity anchor = adapter.quickhackCameraAnchor();
+                if (anchor != null && anchor.level() == minecraft.level && !anchor.isRemoved()) {
+                    cameraTarget = anchor;
+                }
             }
+            vehicleCameraPose = null;
+            minecraft.setCameraEntity(cameraTarget);
+            minecraft.options.setCameraType(
+                    kind == DeviceKind.CAR
+                            ? CameraType.THIRD_PERSON_BACK
+                            : CameraType.FIRST_PERSON);
         }
-        minecraft.setCameraEntity(cameraTarget);
-        minecraft.options.setCameraType(
-                kind == DeviceKind.CAR
-                        ? CameraType.THIRD_PERSON_BACK
-                        : CameraType.FIRST_PERSON);
 
         if (kind == DeviceKind.TURRET) {
             updateTurretAim(player, target);
@@ -168,6 +189,14 @@ public final class EntityControlClient {
         ClientPacketDistributor.sendToServer(new EntityControlInputPacket(
                 token, sequence++, forward, turn, aimYaw, aimPitch, buttons));
         fireRequested = false;
+    }
+
+    @SubscribeEvent
+    public static void onCameraAngles(ViewportEvent.ComputeCameraAngles event) {
+        if (!active || kind != DeviceKind.CAR || vehicleCameraPose == null) return;
+        event.setYaw(vehicleCameraPose.yaw());
+        event.setPitch(vehicleCameraPose.pitch());
+        event.setRoll(vehicleCameraPose.roll());
     }
 
     public static void clear() {
@@ -205,6 +234,35 @@ public final class EntityControlClient {
                 && entity.isAlive() && !entity.isRemoved() ? entity : null;
     }
 
+    private static boolean updateNativeVehicleCamera(Minecraft minecraft, Entity target) {
+        if (minecraft.level == null) return false;
+        RemoteControllableVehicle controller = VehicleApi.find(target).orElse(null);
+        if (controller == null) return false;
+        VehicleCameraPose pose = controller.remoteCameraPose(
+                1.0F, VehicleCameraMode.THIRD_PERSON_BACK);
+        if (pose == null) return false;
+
+        Marker camera = vehicleCamera;
+        if (camera == null || camera.level() != minecraft.level) {
+            camera = EntityTypes.MARKER.create(minecraft.level, EntitySpawnReason.EVENT);
+            if (camera == null) return false;
+            vehicleCamera = camera;
+            camera.snapTo(
+                    pose.position().x, pose.position().y, pose.position().z,
+                    pose.yaw(), pose.pitch());
+            camera.setOldPosAndRot();
+        } else {
+            camera.setOldPosAndRot();
+            camera.setPos(pose.position());
+            camera.setYRot(pose.yaw());
+            camera.setXRot(pose.pitch());
+        }
+        vehicleCameraPose = pose;
+        minecraft.setCameraEntity(camera);
+        minecraft.options.setCameraType(CameraType.FIRST_PERSON);
+        return true;
+    }
+
     private static void sendExit() {
         if (active) {
             ClientPacketDistributor.sendToServer(new EntityControlInputPacket(
@@ -235,6 +293,8 @@ public final class EntityControlClient {
         fireRequested = false;
         exitRequested = false;
         aimInitialized = false;
+        vehicleCamera = null;
+        vehicleCameraPose = null;
         previousCameraType = null;
         previousCameraEntity = null;
         sessionLevel = null;
