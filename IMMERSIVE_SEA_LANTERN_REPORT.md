@@ -1,8 +1,14 @@
 # Immersive Arnis Sea-Lantern Lighting Report
 
-Date: 2026-08-04  
-Feature branch: `immersive-sea-lanterns`  
+Date: 2026-08-04
+
+Feature branch: `immersive-sea-lanterns`
+
 Implementation commit: `4482e8dd` (`feat: add immersive Arnis floor lighting`)
+
+Focused report commit: `27e34942` (`docs: report immersive Arnis lighting`)
+
+Current-main integration merge: `6b9ae44b`
 
 ## Requested Behavior
 
@@ -179,15 +185,40 @@ generation; it does not edit an existing save.
 ## Verification
 
 - Full Gradle build: passed.
-- NeoForge GameTests: all 76 required tests passed.
+- Pre-integration NeoForge GameTests: all 76 required tests passed.
+- Post-current-main NeoForge GameTests: all 81 required tests passed.
 - Covered, exposed, unsupported, light-level, material-majority, masked-column ownership, and
   tile-edge isolation cases are covered.
 - Full 17,920-template read-only migration audit: passed.
-- Managed Minecraft client load/connect: passed.
+- Pre-integration managed Minecraft client load/connect: passed.
 - Day capture verified all ten top textures blend with their floor pads.
 - Night capture verified the same ten states retain light emission.
-- Installed JAR SHA-256:
-  `3462b383798677c302e8429c1bcb7e237ef93a776a0f99e3b95120d679dfed22`.
+- Post-integration managed Minecraft client load/connect: passed after installing current main's
+  mandatory local `vehicle_mod` runtime in the isolated verification client.
+- Post-integration night capture verified all ten camouflaged surfaces render and retain light
+  emission. Capture SHA-256:
+  `b429d3c8211976faa2f3abd1b6827d80e1ef4360e0a674be2a6b943013159d2c`.
+- The integrated dedicated server booted successfully with both Cyberdeck and `vehicle_mod` loaded.
+- Final integrated JAR SHA-256:
+  `126a6350aad026bad0c749ac1969e4071a7cea90c822733a914b549740099f8d`.
+- Required `vehicle_mod` JAR SHA-256:
+  `289e9469cc5e2111d671e37a9ba224d31d1dcdab6fc02ec607faa5d4ffe33b58`.
+
+## Current-Main Merge Resolution
+
+Current `origin/main` was merged into the feature before publication to main. Three overlapping
+combat files required additive resolution:
+
+- Player death/logout/respawn/server-stop cleanup retains hostile netrunner state cleanup,
+  Weapon Glitch cleanup, and current main's remote-entity-control cleanup.
+- Gun use and charged shots retain both hostile Weapon Glitch rejection and current main's
+  cyberware-based ranged-weapon lockout.
+- Reload completion retains hostile Weapon Glitch cancellation and current main's Microgenerator
+  arming behavior.
+- Hitscan filtering retains R Corp/faction ally protection and current main's remotely controlled
+  Kang Tao turret override.
+
+The complete 81-test suite passed after these resolutions.
 
 ## Files Added
 
