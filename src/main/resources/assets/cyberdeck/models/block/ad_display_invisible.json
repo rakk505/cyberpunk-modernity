@@ -1,0 +1,6 @@
+{
+  "ambientocclusion": false,
+  "textures": {
+    "particle": "cyberdeck:item/large_ad_display"
+  }
+}
