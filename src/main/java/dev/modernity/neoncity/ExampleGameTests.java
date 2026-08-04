@@ -1753,6 +1753,12 @@ public final class ExampleGameTests {
                                 WeaponItems.gun(psychoDefinition.cyberpsychoGun()).get())
                         && MissionService.isMissionActor(psycho),
                 "cyberpsycho lost configured health, cyberware, firearm, grenades, or mission tag");
+        helper.assertTrue(MissionService.missionActors(
+                                helper.getLevel(), FactionEnemy.class,
+                                new AABB(origin).inflate(32.0),
+                                MissionService::isMissionActor)
+                        .size() == 1,
+                "cyberpsycho encounter spawned an obsolete guard or floor wave");
         int emeralds = inventoryCount(player, Items.EMERALD);
         MissionService.onEntityDeath(new LivingDeathEvent(
                 psycho, helper.getLevel().damageSources().playerAttack(player)));

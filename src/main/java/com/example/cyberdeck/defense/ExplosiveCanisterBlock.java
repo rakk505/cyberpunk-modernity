@@ -1,6 +1,9 @@
 package com.example.cyberdeck.defense;
 
+import java.util.ArrayDeque;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import com.mojang.serialization.MapCodec;
 import it.unimi.dsi.fastutil.ints.IntList;
@@ -69,11 +72,68 @@ public final class ExplosiveCanisterBlock extends Block {
 
     public static boolean detonate(
             ServerLevel level, BlockPos pos, @Nullable Entity source) {
-        if (!level.getBlockState(pos).is(DefenseContent.EXPLOSIVE_CANISTER.get())) {
-            return false;
+        return detonateChain(level, pos, source) > 0;
+    }
+
+    static int detonateChain(
+            ServerLevel level, BlockPos pos, @Nullable Entity source) {
+        BlockPos first = pos.immutable();
+        if (!level.getBlockState(first).is(DefenseContent.EXPLOSIVE_CANISTER.get())) {
+            return 0;
         }
 
-        level.removeBlock(pos, false);
+        ArrayDeque<BlockPos> pending = new ArrayDeque<>();
+        Set<BlockPos> queued = new HashSet<>();
+        pending.addLast(first);
+        queued.add(first);
+
+        int detonated = 0;
+        while (!pending.isEmpty()) {
+            BlockPos current = pending.removeFirst();
+            if (!level.getBlockState(current).is(DefenseContent.EXPLOSIVE_CANISTER.get())
+                    || !level.removeBlock(current, false)) {
+                continue;
+            }
+
+            enqueueNearbyCanisters(level, current, pending, queued);
+            explodeRemovedCanister(level, current, source);
+            detonated++;
+        }
+        return detonated;
+    }
+
+    private static void enqueueNearbyCanisters(
+            ServerLevel level,
+            BlockPos origin,
+            ArrayDeque<BlockPos> pending,
+            Set<BlockPos> queued) {
+        int range = (int) Math.ceil(EXPLOSION_RADIUS);
+        double rangeSquared = EXPLOSION_RADIUS * EXPLOSION_RADIUS;
+        for (int dx = -range; dx <= range; dx++) {
+            for (int dy = -range; dy <= range; dy++) {
+                for (int dz = -range; dz <= range; dz++) {
+                    int distanceSquared = dx * dx + dy * dy + dz * dz;
+                    if (distanceSquared == 0 || distanceSquared > rangeSquared) {
+                        continue;
+                    }
+                    BlockPos candidate = origin.offset(dx, dy, dz);
+                    if (!level.isInWorldBounds(candidate)
+                            || !level.hasChunkAt(candidate)
+                            || !level.getBlockState(candidate)
+                                    .is(DefenseContent.EXPLOSIVE_CANISTER.get())) {
+                        continue;
+                    }
+                    candidate = candidate.immutable();
+                    if (queued.add(candidate)) {
+                        pending.addLast(candidate);
+                    }
+                }
+            }
+        }
+    }
+
+    private static void explodeRemovedCanister(
+            ServerLevel level, BlockPos pos, @Nullable Entity source) {
         double x = pos.getX() + 0.5;
         double y = pos.getY() + 0.6;
         double z = pos.getZ() + 0.5;
@@ -87,7 +147,6 @@ public final class ExplosiveCanisterBlock extends Block {
                 x, y, z, 24, 0.5, 0.6, 0.5, 0.1);
         spawnColoredFirework(level, source, x, y, z);
         level.explode(source, x, y, z, EXPLOSION_RADIUS, Level.ExplosionInteraction.NONE);
-        return true;
     }
 
     private static void spawnColoredFirework(

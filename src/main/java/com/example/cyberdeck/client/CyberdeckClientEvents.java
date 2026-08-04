@@ -85,10 +85,20 @@ public final class CyberdeckClientEvents {
     private static void migrateNavigationBinding(Minecraft minecraft) {
         if (navigationBindingMigrationChecked) return;
         navigationBindingMigrationChecked = true;
+        boolean changed = false;
         if ("key.keyboard.t".equals(CyberdeckClient.SANDEVISTAN_KEY.saveString())
                 && "key.keyboard.t".equals(CyberdeckClient.NAVIGATION_TRAIL_KEY.saveString())) {
             CyberdeckClient.SANDEVISTAN_KEY.setKey(
                     InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_B));
+            changed = true;
+        }
+        if ("key.keyboard.t".equals(CyberdeckClient.NAVIGATION_TRAIL_KEY.saveString())
+                && "key.keyboard.t".equals(minecraft.options.keyChat.saveString())) {
+            minecraft.options.keyChat.setKey(
+                    InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_ENTER));
+            changed = true;
+        }
+        if (changed) {
             KeyMapping.resetMapping();
             minecraft.options.save();
         }

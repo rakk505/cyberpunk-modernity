@@ -354,19 +354,38 @@ public final class MissionService {
         UUID availabilityProbe = UUID.nameUUIDFromBytes(
                 ("cyberdeck:configured-gig:" + playerId).getBytes(
                         java.nio.charset.StandardCharsets.UTF_8));
-        MissionBuildingPlanner.Site selectedSite = GigSiteData.get(level)
-                .candidates(targetDistrict).stream()
-                .filter(site -> !MainlineQuestService.conflictsReservedSite(level, site, null))
-                .filter(site -> !MissionSiteData.get(level).isReservedByOther(
-                        siteReservationKey(site), site, availabilityProbe))
-                .min(java.util.Comparator
-                        .comparingLong((MissionBuildingPlanner.Site site) -> MegacityLayout.mix(
-                                hash, site.target().getX(), site.target().getZ()))
-                        .thenComparing(MissionBuildingPlanner.Site::id))
-                .orElse(null);
+        MissionBuildingPlanner.Site selectedSite;
+        if (definition.type() == MissionCatalog.MissionType.NEUTRALIZE_CYBERPSYCHO) {
+            selectedSite = null;
+            List<MissionBuildingPlanner.Site> excluded = MainlineQuestData.get(level).sites();
+            for (int attempt = 0; attempt < 16 && selectedSite == null; attempt++) {
+                MissionBuildingPlanner.Site candidate = PublicEncounterPlanner.plan(
+                                layout, targetDistrict,
+                                MegacityLayout.mix(hash, attempt, targetDistrict.ordinal()),
+                                definition.id() + ":configured:" + playerId, excluded)
+                        .orElse(null);
+                if (candidate != null
+                        && !MainlineQuestService.conflictsReservedSite(level, candidate, null)
+                        && !MissionSiteData.get(level).isReservedByOther(
+                                siteReservationKey(candidate), candidate, availabilityProbe)) {
+                    selectedSite = candidate;
+                }
+            }
+        } else {
+            selectedSite = GigSiteData.get(level)
+                    .candidates(targetDistrict).stream()
+                    .filter(site -> !MainlineQuestService.conflictsReservedSite(level, site, null))
+                    .filter(site -> !MissionSiteData.get(level).isReservedByOther(
+                            siteReservationKey(site), site, availabilityProbe))
+                    .min(java.util.Comparator
+                            .comparingLong((MissionBuildingPlanner.Site site) -> MegacityLayout.mix(
+                                    hash, site.target().getX(), site.target().getZ()))
+                            .thenComparing(MissionBuildingPlanner.Site::id))
+                    .orElse(null);
+        }
         if (selectedSite == null) {
             player.sendSystemMessage(Component.literal(
-                            "No pre-analyzed gig site is currently available in "
+                            "No suitable gig site is currently available in "
                                     + targetDistrict.label() + ".")
                     .withStyle(ChatFormatting.YELLOW));
             return false;
@@ -583,20 +602,35 @@ public final class MissionService {
         }
         UUID instanceId = UUID.randomUUID();
         if (selectedSite != null) {
-            selectedSite = MissionBuildingPlanner.repairStructuralFloorMasks(
-                    level, selectedSite);
+            boolean publicCyberpsycho = definition.type()
+                            == MissionCatalog.MissionType.NEUTRALIZE_CYBERPSYCHO
+                    && PublicEncounterPlanner.isPublicSite(selectedSite);
+            if (!publicCyberpsycho) {
+                selectedSite = MissionBuildingPlanner.repairStructuralFloorMasks(
+                        level, selectedSite);
+            }
             boolean usable = selectedSite != null && selectedSite.district()
                             == District.values()[offer.targetDistrictOrdinal()]
-                    && !MainlineQuestService.conflictsReservedSite(level, selectedSite, null)
-                    && MissionBuildingPlanner.preflightSiteGeometry(level, selectedSite);
-            if (usable) {
-                MissionBuildingPlanner.Site preview =
-                        MissionBuildingPlanner.withMissionInteriorPlan(
-                                level, selectedSite,
-                                missionInteriorSalt(instanceId, definition.id()),
-                                definition.type(), definition.id());
-                usable = MissionBuildingPlanner.hasExplosiveCanisterPlan(preview)
-                        && MissionBuildingPlanner.preflightInteriorPlan(level, preview);
+                    && !MainlineQuestService.conflictsReservedSite(level, selectedSite, null);
+            if (usable && publicCyberpsycho) {
+                BlockPos navigation = MissionBuildingPlanner.navigationTarget(selectedSite);
+                usable = PublicEncounterPlanner.isPublicTarget(
+                                NeonCityGenerator.layout(), selectedSite.district(),
+                                selectedSite.target().getX(), selectedSite.target().getZ())
+                        && PublicEncounterPlanner.isPublicTarget(
+                                NeonCityGenerator.layout(), selectedSite.district(),
+                                navigation.getX(), navigation.getZ());
+            } else if (usable) {
+                usable = MissionBuildingPlanner.preflightSiteGeometry(level, selectedSite);
+                if (usable) {
+                    MissionBuildingPlanner.Site preview =
+                            MissionBuildingPlanner.withMissionInteriorPlan(
+                                    level, selectedSite,
+                                    missionInteriorSalt(instanceId, definition.id()),
+                                    definition.type(), definition.id());
+                    usable = MissionBuildingPlanner.hasExplosiveCanisterPlan(preview)
+                            && MissionBuildingPlanner.preflightInteriorPlan(level, preview);
+                }
             }
             if (!usable || !MissionSiteData.get(level).reserve(
                     siteReservationKey(selectedSite), selectedSite, instanceId)) {
@@ -609,7 +643,9 @@ public final class MissionService {
         BlockPos target = selectedSite == null
                 ? new BlockPos(
                         offer.targetX(), NeonCityGenerator.CITY_GROUND_Y + 1, offer.targetZ())
-                : MissionBuildingPlanner.navigationTarget(selectedSite);
+                : PublicEncounterPlanner.isPublicSite(selectedSite)
+                        ? selectedSite.target()
+                        : MissionBuildingPlanner.navigationTarget(selectedSite);
         ActiveMission active = new ActiveMission(
                 definition.id(), definition.type(), definition.title(), definition.briefing(),
                 definition.objectiveText(), District.values()[offer.targetDistrictOrdinal()],
@@ -832,7 +868,7 @@ public final class MissionService {
             if (activated == null) {
                 scheduleDeploymentRetry(level, context);
                 player.sendSystemMessage(Component.literal(
-                                "Objective setup delayed; the reserved building remains assigned.")
+                                "Objective setup delayed; the reserved mission area remains assigned.")
                         .withStyle(ChatFormatting.YELLOW), true);
                 syncIfChanged(player, mission);
                 return;
@@ -999,6 +1035,9 @@ public final class MissionService {
             ActiveMission mission,
             ContractContext context) {
         ServerLevel level = (ServerLevel) owner.level();
+        if (definition.type() == MissionCatalog.MissionType.NEUTRALIZE_CYBERPSYCHO) {
+            return activatePublicCyberpsycho(level, owner, definition, mission, context);
+        }
         MissionSiteData siteData = MissionSiteData.get(level);
         long interiorSalt = context.kind() == ContractKind.STORY_MISSION
                 ? mainlineInteriorSalt(definition.id())
@@ -1175,6 +1214,86 @@ public final class MissionService {
                     MissionBuildingPlanner.navigationTarget(candidate), level.getGameTime());
             if (context.kind() == ContractKind.STORY_MISSION) {
                 MainlineQuestService.commitWorldPlan(level, definition.id(), candidate);
+            }
+            syncParticipants(level, deployed);
+            return spawned;
+        }
+        return null;
+    }
+
+    private static ActiveMission activatePublicCyberpsycho(
+            ServerLevel level,
+            ServerPlayer owner,
+            MissionCatalog.MissionDefinition definition,
+            ActiveMission mission,
+            ContractContext context) {
+        MissionSiteData sites = MissionSiteData.get(level);
+        MissionBuildingPlanner.Site initial = context.kind() == ContractKind.STORY_MISSION
+                ? MainlineQuestService.ensureWorldPlan(level, definition.id()).orElse(null)
+                : site(owner).orElse(null);
+        ArrayList<MissionBuildingPlanner.Site> excluded = new ArrayList<>(
+                MainlineQuestData.get(level).sites());
+        long seed = context.instanceId().getMostSignificantBits()
+                ^ Long.rotateLeft(context.instanceId().getLeastSignificantBits(), 19)
+                ^ definition.id().hashCode();
+        String previousReservation = initial == null ? "" : siteReservationKey(initial);
+        for (int attempt = 0; attempt < 4; attempt++) {
+            MissionBuildingPlanner.Site planned = attempt == 0
+                            && PublicEncounterPlanner.isPublicSite(initial)
+                    ? initial
+                    : PublicEncounterPlanner.plan(
+                                    NeonCityGenerator.layout(), mission.targetDistrict(),
+                                    MegacityLayout.mix(seed, attempt, mission.targetDistrict().ordinal()),
+                                    definition.id() + ":" + context.instanceId(), excluded)
+                            .orElse(null);
+            if (planned == null) continue;
+            MissionBuildingPlanner.Site resolved = PublicEncounterPlanner.resolve(level, planned)
+                    .orElse(null);
+            excluded.add(planned);
+            if (resolved == null
+                    || MainlineQuestService.conflictsReservedSite(
+                            level, resolved,
+                            context.kind() == ContractKind.STORY_MISSION
+                                    ? definition.id() : null)) {
+                continue;
+            }
+            String reservation = siteReservationKey(resolved);
+            if (!sites.reserve(reservation, resolved, context.instanceId())) continue;
+            if (!previousReservation.isBlank() && !previousReservation.equals(reservation)) {
+                sites.releaseIfOwned(previousReservation, context.instanceId());
+            }
+            previousReservation = reservation;
+
+            ActiveMission prepared = new ActiveMission(
+                    mission.definitionId(), mission.type(), mission.title(), mission.briefing(),
+                    mission.objective(), mission.targetDistrict(), resolved.target(),
+                    mission.reward(), "", mission.cargoItem(), mission.cargoCount(),
+                    mission.acceptedTick());
+            BlockPos navigation = MissionBuildingPlanner.navigationTarget(resolved);
+            for (ServerPlayer member : PartyService.onlineMembers(
+                    level.getServer(), context.participants())) {
+                saveSite(member, resolved);
+                clearSiteRestoration(member);
+                saveNavigationTarget(member, navigation);
+            }
+            ActiveMission spawned = spawnCyberpsycho(level, owner, definition, prepared);
+            if (spawned == null) {
+                cleanupContractActors(level.getServer(), context.instanceId());
+                excluded.add(resolved);
+                continue;
+            }
+
+            ContractContext deployed = context.withDeployed(true);
+            for (ServerPlayer member : PartyService.onlineMembers(
+                    level.getServer(), context.participants())) {
+                save(member, spawned);
+                saveContext(member, deployed);
+            }
+            clearDeploymentRetry(context.instanceId());
+            MissionJournalData.get(level).accept(
+                    context.participants(), deployed, spawned, navigation, level.getGameTime());
+            if (context.kind() == ContractKind.STORY_MISSION) {
+                MainlineQuestService.commitWorldPlan(level, definition.id(), resolved);
             }
             syncParticipants(level, deployed);
             return spawned;
@@ -1946,10 +2065,6 @@ public final class MissionService {
         psycho.setPersistenceRequired();
         tagActor(psycho, player, definition, ROLE_TARGET);
         if (!level.noCollision(psycho) || !addMissionActor(level, psycho)) return null;
-        if (!spawnGuards(level, player, definition, mission.target())) {
-            psycho.discard();
-            return null;
-        }
         return withActor(mission, psycho.getUUID());
     }
 

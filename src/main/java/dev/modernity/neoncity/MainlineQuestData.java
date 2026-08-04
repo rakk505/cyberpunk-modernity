@@ -300,6 +300,18 @@ final class MainlineQuestData extends SavedData {
             if (sites.size() != catalog.plans.size()) {
                 throw new IOException("fixed mainline catalog contains an invalid site descriptor");
             }
+            for (StoryMissionCatalog.StoryMission mission : StoryMissionCatalog.definitions()) {
+                if (mission.encounter().type()
+                        != MissionCatalog.MissionType.NEUTRALIZE_CYBERPSYCHO) {
+                    continue;
+                }
+                sites.remove(mission.id());
+                PublicEncounterPlanner.plan(
+                                NeonCityGenerator.fixedLayout(), mission.primaryDistrict(),
+                                NeonCityGenerator.contentSeed() ^ mission.id().hashCode(),
+                                mission.id(), sites.values())
+                        .ifPresent(site -> sites.put(mission.id(), site));
+            }
             Cyberdeck.LOGGER.info(
                     "[Mainline] loaded {} pre-analyzed sites for fixed city seed {}",
                     sites.size(), NeonCityGenerator.contentSeed());

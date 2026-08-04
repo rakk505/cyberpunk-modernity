@@ -316,5 +316,6 @@
   "message.cyberdeck.wanted.escalated": "EXCISION ESCALATION // WANTED LEVEL 3",
   "message.cyberdeck.wanted.cleared": "EXCISION PURSUIT CLEARED",
   "message.cyberdeck.navigation.no_active": "No active mission or gig is tracked.",
+  "message.cyberdeck.navigation.no_open_route": "No open route to the active objective.",
   "message.cyberdeck.navigation.unavailable": "Navigation trail unavailable here."
 }

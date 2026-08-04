@@ -5,8 +5,11 @@ import com.example.cyberdeck.network.GigJournalPacket;
 import com.example.cyberdeck.player.StreetCredState;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.mojang.authlib.GameProfile;
 import io.netty.channel.embedded.EmbeddedChannel;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -45,6 +48,63 @@ final class MissionFeatureGameTests {
                         && NavigationTrailService.sampleRoute(
                                 navigationRoute, 12.0, 0.0).isEmpty(),
                 "navigation particles are not evenly spaced and distance-bounded");
+
+        ServerLevel navigationLevel = helper.getLevel();
+        net.minecraft.core.BlockPos navigationBase = helper.absolutePos(
+                new net.minecraft.core.BlockPos(1, 3, 1));
+        int navigationFeetY = navigationBase.getY() + 1;
+        for (int offsetX = 0; offsetX <= 10; offsetX++) {
+            for (int offsetZ = 0; offsetZ <= 8; offsetZ++) {
+                net.minecraft.core.BlockPos floor = navigationBase.offset(offsetX, 0, offsetZ);
+                navigationLevel.setBlock(
+                        floor,
+                        net.minecraft.world.level.block.Blocks.SMOOTH_STONE.defaultBlockState(),
+                        net.minecraft.world.level.block.Block.UPDATE_ALL);
+                for (int clearY = 1; clearY <= 3; clearY++) {
+                    navigationLevel.setBlock(
+                            floor.above(clearY),
+                            net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(),
+                            net.minecraft.world.level.block.Block.UPDATE_ALL);
+                }
+            }
+        }
+        net.minecraft.core.BlockPos navigationStart = navigationBase.offset(1, 1, 4);
+        net.minecraft.core.BlockPos navigationTarget = navigationBase.offset(9, 1, 4);
+        net.minecraft.core.BlockPos navigationWall = navigationBase.offset(5, 1, 4);
+        navigationLevel.setBlock(
+                navigationWall,
+                net.minecraft.world.level.block.Blocks.IRON_BLOCK.defaultBlockState(),
+                net.minecraft.world.level.block.Block.UPDATE_ALL);
+        navigationLevel.setBlock(
+                navigationWall.above(),
+                net.minecraft.world.level.block.Blocks.IRON_BLOCK.defaultBlockState(),
+                net.minecraft.world.level.block.Block.UPDATE_ALL);
+        ServerPlayer navigationPlayer = makeUniquePlayer(helper, "navpath");
+        navigationPlayer.setPos(
+                navigationStart.getX() + 0.5,
+                navigationFeetY,
+                navigationStart.getZ() + 0.5);
+        navigationPlayer.setOnGround(true);
+        List<net.minecraft.world.phys.Vec3> openPath = NavigationTrailService.findOpenPath(
+                navigationLevel, navigationPlayer, navigationTarget);
+        double directZ = navigationStart.getZ() + 0.5;
+        boolean pathTurns = openPath.stream().anyMatch(
+                point -> Math.abs(point.z() - directZ) >= 0.75);
+        boolean pathCrossesWall = openPath.stream().anyMatch(point ->
+                net.minecraft.core.BlockPos.containing(point).getX() == navigationWall.getX()
+                        && net.minecraft.core.BlockPos.containing(point).getZ()
+                                == navigationWall.getZ());
+        boolean pathReachesTarget = !openPath.isEmpty()
+                && Math.hypot(
+                        openPath.getLast().x() - (navigationTarget.getX() + 0.5),
+                        openPath.getLast().z() - (navigationTarget.getZ() + 0.5)) <= 1.5;
+        disconnect(navigationPlayer);
+        helper.assertTrue(openPath.size() >= 3
+                        && pathTurns
+                        && !pathCrossesWall
+                        && pathReachesTarget,
+                "navigation did not follow a collision-safe open path around a wall: "
+                        + openPath);
         List<net.minecraft.core.BlockPos> guardCandidates = List.of(
                 new net.minecraft.core.BlockPos(0, 0, 0),
                 new net.minecraft.core.BlockPos(3, 0, 0),
@@ -67,77 +127,96 @@ final class MissionFeatureGameTests {
                 "m01_deliver_datashards", "g:71:12:e67adada6fea42bf",
                 "m02_assassinate_g_exec", "g:72:11:e7227c874cf5a54e",
                 "m03_steal_weights", "o:-76:192:9be67862fd808952",
-                "m04_assassinate_fixer", "d:-197:-59:1cb4b96cfc3905f0",
-                "m05_kill_cyberpsycho", "d:-196:-58:c8a7958c6b587fbf");
+                "m04_assassinate_fixer", "d:-197:-59:1cb4b96cfc3905f0");
         Map<String, District> expectedSiteDistricts = Map.of(
                 "m01_deliver_datashards", District.G_CORP,
                 "m02_assassinate_g_exec", District.G_CORP,
                 "m03_steal_weights", District.O_CORP,
-                "m04_assassinate_fixer", District.D_CORP,
-                "m05_kill_cyberpsycho", District.D_CORP);
+                "m04_assassinate_fixer", District.D_CORP);
         Map<String, Integer> expectedSiteFloors = Map.of(
                 "m01_deliver_datashards", 3,
                 "m02_assassinate_g_exec", 4,
                 "m03_steal_weights", 5,
-                "m04_assassinate_fixer", 3,
-                "m05_kill_cyberpsycho", 3);
+                "m04_assassinate_fixer", 3);
         Map<String, String> expectedBuildingIds = Map.of(
                 "m01_deliver_datashards", "g:atlas:8460eeb8c1fb224b",
                 "m02_assassinate_g_exec", "g:atlas:9188fc4a183218f",
                 "m03_steal_weights", "o:atlas:afe7bc2905497aad",
-                "m04_assassinate_fixer", "d:atlas:66d1b11e13fd33de",
-                "m05_kill_cyberpsycho", "d:atlas:1118dd286b08b0c6");
+                "m04_assassinate_fixer", "d:atlas:66d1b11e13fd33de");
         Map<String, String> expectedBuildingBounds = Map.of(
                 "m01_deliver_datashards", "1097,72,196..1146,152,233",
                 "m02_assassinate_g_exec", "1097,72,150..1146,152,187",
                 "m03_steal_weights", "-1236,72,3077..-1172,140,3137",
-                "m04_assassinate_fixer", "-3169,72,-966..-3040,152,-939",
-                "m05_kill_cyberpsycho", "-3169,72,-918..-3040,152,-891");
-        helper.assertTrue(fixedSites.keySet().equals(expectedSiteIds.keySet())
-                        && fixedSites.entrySet().stream().allMatch(entry ->
-                                entry.getValue().id().equals(expectedSiteIds.get(entry.getKey()))
-                                        && entry.getValue().district()
-                                                == expectedSiteDistricts.get(entry.getKey())
-                                        && entry.getValue().floorYs().size()
-                                                == expectedSiteFloors.get(entry.getKey())
-                                        && entry.getValue().buildingId().equals(
-                                                expectedBuildingIds.get(entry.getKey()))
-                                        && boundsKey(entry.getValue().buildingBounds()).equals(
-                                                expectedBuildingBounds.get(entry.getKey()))
+                "m04_assassinate_fixer", "-3169,72,-966..-3040,152,-939");
+        Set<String> expectedMissionIds = Set.of(
+                "m01_deliver_datashards", "m02_assassinate_g_exec",
+                "m03_steal_weights", "m04_assassinate_fixer",
+                "m05_kill_cyberpsycho");
+        helper.assertTrue(fixedSites.keySet().equals(expectedMissionIds)
+                        && expectedSiteIds.entrySet().stream().allMatch(expected -> {
+                            MissionBuildingPlanner.Site site = fixedSites.get(expected.getKey());
+                            return site != null
+                                        && site.id().equals(expected.getValue())
+                                        && site.district()
+                                                == expectedSiteDistricts.get(expected.getKey())
+                                        && site.floorYs().size()
+                                                == expectedSiteFloors.get(expected.getKey())
+                                        && site.buildingId().equals(
+                                                expectedBuildingIds.get(expected.getKey()))
+                                        && boundsKey(site.buildingBounds()).equals(
+                                                expectedBuildingBounds.get(expected.getKey()))
                                         && fixedLayout.locateDistrict(
-                                                        entry.getValue().target().getX(),
-                                                        entry.getValue().target().getZ())
-                                                .district() == entry.getValue().district()
+                                                        site.target().getX(), site.target().getZ())
+                                                .district() == site.district()
                                         && fixedLayout.locateDistrict(
-                                                        entry.getValue().target().getX(),
-                                                        entry.getValue().target().getZ())
+                                                        site.target().getX(), site.target().getZ())
                                                 .insideCity()
-                                        && entry.getValue().floorMasks().size()
-                                                == entry.getValue().floorYs().size()
-                                        && entry.getValue().stairs().size()
-                                                == entry.getValue().floorYs().size() - 1
-                                        && entry.getValue().entrance().position().getY()
-                                                == entry.getValue().floorYs().getFirst()
-                                        && entry.getValue().target().getY()
-                                                == entry.getValue().floorYs().getLast()
-                                        && !entry.getValue().buildingId()
-                                                .equals(entry.getValue().id())
-                                        && entry.getValue().buildingId().contains(":atlas:")
-                                        && entry.getValue().floorMasks().stream()
+                                        && site.floorMasks().size() == site.floorYs().size()
+                                        && site.stairs().size() == site.floorYs().size() - 1
+                                        && site.entrance().position().getY()
+                                                == site.floorYs().getFirst()
+                                        && site.target().getY() == site.floorYs().getLast()
+                                        && !site.buildingId().equals(site.id())
+                                        && site.buildingId().contains(":atlas:")
+                                        && site.floorMasks().stream()
                                                 .flatMap(mask -> mask.cells().stream())
                                                 .allMatch(cell -> contains(
-                                                        entry.getValue().buildingBounds(), cell))
-                                        && entry.getValue().decorations().isEmpty()
+                                                        site.buildingBounds(), cell))
+                                        && site.decorations().isEmpty()
                                         && ArnisPatchLibrary.select(
                                                         fixedLayout,
-                                                        Math.floorDiv(
-                                                                entry.getValue().target().getX(), 16),
-                                                        Math.floorDiv(
-                                                                entry.getValue().target().getZ(), 16))
+                                                        Math.floorDiv(site.target().getX(), 16),
+                                                        Math.floorDiv(site.target().getZ(), 16))
                                                 .map(placement -> placement.patch().district()
-                                                        == entry.getValue().district())
-                                                .orElse(false)),
-                "bundled fixed-seed mainline atlas lost an exact G/G/O/D/D site descriptor");
+                                                        == site.district())
+                                                .orElse(false);
+                        })
+                        && java.util.Optional.ofNullable(
+                                        fixedSites.get("m05_kill_cyberpsycho"))
+                                .filter(PublicEncounterPlanner::isPublicSite)
+                                .filter(site -> site.district() == District.D_CORP)
+                                .filter(site -> site.floorYs().size() == 1)
+                                .filter(site -> PublicEncounterPlanner.isPublicTarget(
+                                        fixedLayout, District.D_CORP,
+                                        site.target().getX(), site.target().getZ()))
+                                .filter(site -> !NeonCityGenerator.isHighwayAt(
+                                        fixedLayout, site.target().getX(), site.target().getZ()))
+                                .isPresent(),
+                "fixed mainline catalog lost an exact G/G/O/D building or public D encounter");
+        MissionBuildingPlanner.Site fogMotherSite = fixedSites.get(
+                "m05_kill_cyberpsycho");
+        MissionBuildingPlanner.Site alternatePublicSite = PublicEncounterPlanner.plan(
+                        fixedLayout, District.D_CORP,
+                        NeonCityGenerator.contentSeed() ^ 0x5055424C49434CL,
+                        "m05_public_test", fixedSites.values())
+                .orElseThrow();
+        helper.assertTrue(MissionBuildingPlanner.Site.load(fogMotherSite.save())
+                        .map(decoded -> decoded.save().equals(fogMotherSite.save()))
+                        .orElse(false)
+                        && PublicEncounterPlanner.isPublicSite(alternatePublicSite)
+                        && !MainlineQuestData.buildingConflicts(
+                                fogMotherSite, alternatePublicSite),
+                "public encounter reservation did not round-trip or avoid existing sites");
         int generatedBeforeRestore = NeonCityGenerator.generatedChunks();
         long scansBeforeRestore = ArnisBuildingAtlas.compilationRequests();
         helper.assertTrue(fixedSites.values().stream().allMatch(site ->
@@ -253,7 +332,7 @@ final class MissionFeatureGameTests {
                         List.of("OPERATIONS", "OPEN_OFFICE", "OPERATIONS", "STORAGE",
                                 "OPERATIONS"),
                 "m04_assassinate_fixer", List.of("STORAGE", "OPERATIONS", "STORAGE"),
-                "m05_kill_cyberpsycho", List.of("STORAGE", "STORAGE", "OPERATIONS"));
+                "m05_kill_cyberpsycho", List.of("OPERATIONS"));
         helper.assertTrue(definitions.stream().allMatch(mission ->
                         MissionBuildingPlanner.floorProgram(
                                 mission.encounter().type(), mission.id(),
@@ -282,10 +361,30 @@ final class MissionFeatureGameTests {
                 "completed mainline still exposed an available mission");
         StoryMissionCatalog.StoryMission oFortress =
                 StoryMissionCatalog.definition("m03_steal_weights");
+        StoryMissionCatalog.StoryMission fogMother =
+                StoryMissionCatalog.definition("m05_kill_cyberpsycho");
         helper.assertTrue(oFortress.requestedFloors() == 5
                         && oFortress.enemiesPerFloor().equals(List.of(4, 5, 5, 4, 2))
                         && definitions.stream().allMatch(value -> value.requiredStreetCred() == 0),
                 "mainline floor scale or always-available unlock policy regressed");
+        helper.assertTrue(fogMother.requestedFloors() == 1
+                        && fogMother.enemiesPerFloor().equals(List.of(0))
+                        && fogMother.encounter().guards() == 0
+                        && fogMother.nodes().stream().allMatch(node -> node.floor() == 1),
+                "cyberpsycho story mission regained floor progression or guard waves");
+        java.util.EnumSet<NeonCityGenerator.RoadClass> publicEncounterRoads =
+                java.util.EnumSet.of(
+                        NeonCityGenerator.RoadClass.CENTRAL_PLAZA,
+                        NeonCityGenerator.RoadClass.DISTRICT_BOULEVARD,
+                        NeonCityGenerator.RoadClass.LOCAL_STREET,
+                        NeonCityGenerator.RoadClass.SERVICE_ALLEY,
+                        NeonCityGenerator.RoadClass.PARK);
+        helper.assertTrue(java.util.Arrays.stream(NeonCityGenerator.RoadClass.values())
+                        .allMatch(road -> PublicEncounterPlanner.isPublicRoad(road)
+                                == publicEncounterRoads.contains(road))
+                        && publicEncounterRoads.stream()
+                                .noneMatch(NeonCityGenerator::isHighwayRoadClass),
+                "cyberpsycho public-space policy admitted highways or rejected a public road");
         helper.assertTrue(StoryMissionCatalog.characters().size() == 7
                         && StoryMissionCatalog.character("fog_mother").skinVariant() == 1,
                 "mainline character/skin catalog is incomplete");
@@ -546,6 +645,29 @@ final class MissionFeatureGameTests {
         JsonObject cycle = storyRoot("a", List.of("b"));
         cycle.getAsJsonArray("missions").add(storyEntry("b", List.of("a")));
         helper.assertTrue(rejected(cycle), "story parser accepted a dependency cycle");
+        JsonObject legacyCyberRoot = bundledStoryRoot();
+        JsonObject legacyCyber = missionEntry(
+                legacyCyberRoot, "m05_kill_cyberpsycho");
+        legacyCyber.addProperty("guards", 4);
+        JsonObject legacyScale = legacyCyber.getAsJsonObject("scale");
+        legacyScale.addProperty("floor_count", 3);
+        JsonArray legacyEnemies = new JsonArray();
+        legacyEnemies.add(1);
+        legacyEnemies.add(2);
+        legacyEnemies.add(1);
+        legacyScale.add("enemies_per_floor", legacyEnemies);
+        JsonArray legacyNodes = legacyCyber.getAsJsonObject("dag").getAsJsonArray("nodes");
+        legacyNodes.get(1).getAsJsonObject().addProperty("floor", 2);
+        legacyNodes.get(2).getAsJsonObject().addProperty("floor", 3);
+        StoryMissionCatalog.StoryMission migratedCyber = StoryMissionCatalog.parse(
+                        legacyCyberRoot).stream()
+                .filter(mission -> mission.id().equals("m05_kill_cyberpsycho"))
+                .findFirst().orElseThrow();
+        helper.assertTrue(migratedCyber.requestedFloors() == 1
+                        && migratedCyber.enemiesPerFloor().equals(List.of(0))
+                        && migratedCyber.encounter().guards() == 0
+                        && migratedCyber.nodes().stream().allMatch(node -> node.floor() == 1),
+                "legacy cyberpsycho scale did not migrate to a single public encounter");
         helper.succeed();
     }
 
@@ -1141,6 +1263,25 @@ final class MissionFeatureGameTests {
         } catch (IllegalArgumentException expected) {
             return true;
         }
+    }
+
+    private static JsonObject bundledStoryRoot() {
+        try (var stream = StoryMissionCatalog.class.getResourceAsStream(
+                        StoryMissionCatalog.RESOURCE);
+                var reader = new InputStreamReader(
+                        java.util.Objects.requireNonNull(stream), StandardCharsets.UTF_8)) {
+            return JsonParser.parseReader(reader).getAsJsonObject();
+        } catch (Exception exception) {
+            throw new IllegalStateException("could not read bundled story catalog", exception);
+        }
+    }
+
+    private static JsonObject missionEntry(JsonObject root, String id) {
+        for (var element : root.getAsJsonArray("missions")) {
+            JsonObject mission = element.getAsJsonObject();
+            if (mission.get("id").getAsString().equals(id)) return mission;
+        }
+        throw new IllegalArgumentException("missing story mission " + id);
     }
 
     private static JsonObject storyRoot(String id, List<String> prerequisites) {

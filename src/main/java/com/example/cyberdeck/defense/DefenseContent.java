@@ -69,6 +69,9 @@ public final class DefenseContent {
             TEST_FUNCTIONS.register("turret_destruction", () -> DefenseGameTests::turretDestruction);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> CANISTER_EXPLOSION_TEST =
             TEST_FUNCTIONS.register("canister_explosion", () -> DefenseGameTests::canisterExplosion);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> CANISTER_CHAIN_REACTION_TEST =
+            TEST_FUNCTIONS.register(
+                    "canister_chain_reaction", () -> DefenseGameTests::canisterChainReaction);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> TURRET_PLACEMENT_TEST =
             TEST_FUNCTIONS.register("turret_placement", () -> DefenseGameTests::turretPlacement);
 
@@ -115,6 +118,9 @@ public final class DefenseContent {
         event.registerTest(
                 Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "canister_explosion"),
                 new FunctionGameTestInstance(CANISTER_EXPLOSION_TEST.getKey(), data));
+        event.registerTest(
+                Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "canister_chain_reaction"),
+                new FunctionGameTestInstance(CANISTER_CHAIN_REACTION_TEST.getKey(), data));
         event.registerTest(
                 Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "turret_placement"),
                 new FunctionGameTestInstance(TURRET_PLACEMENT_TEST.getKey(), data));

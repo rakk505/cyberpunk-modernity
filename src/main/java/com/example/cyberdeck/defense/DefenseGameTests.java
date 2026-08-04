@@ -147,6 +147,38 @@ final class DefenseGameTests {
         helper.succeed();
     }
 
+    static void canisterChainReaction(GameTestHelper helper) {
+        BlockPos root = new BlockPos(1, 1, 1);
+        BlockPos link = new BlockPos(4, 1, 1);
+        BlockPos transitive = new BlockPos(4, 4, 1);
+        BlockPos isolated = new BlockPos(1, 4, 4);
+        BlockPos protectedBlock = new BlockPos(2, 1, 3);
+        helper.setBlock(root, DefenseContent.EXPLOSIVE_CANISTER.get());
+        helper.setBlock(link, DefenseContent.EXPLOSIVE_CANISTER.get());
+        helper.setBlock(transitive, DefenseContent.EXPLOSIVE_CANISTER.get());
+        helper.setBlock(isolated, DefenseContent.EXPLOSIVE_CANISTER.get());
+        helper.setBlock(protectedBlock, Blocks.STONE);
+        var victim = helper.spawn(EntityTypes.ZOMBIE, new BlockPos(2, 1, 1));
+        float healthBeforeExplosion = victim.getHealth();
+
+        int detonated = ExplosiveCanisterBlock.detonateChain(
+                helper.getLevel(), helper.absolutePos(root), null);
+        helper.assertTrue(detonated == 3,
+                "a canister chain must detonate each connected canister exactly once");
+        helper.assertBlockNotPresent(DefenseContent.EXPLOSIVE_CANISTER.get(), root);
+        helper.assertBlockNotPresent(DefenseContent.EXPLOSIVE_CANISTER.get(), link);
+        helper.assertBlockNotPresent(DefenseContent.EXPLOSIVE_CANISTER.get(), transitive);
+        helper.assertBlockPresent(DefenseContent.EXPLOSIVE_CANISTER.get(), isolated);
+        helper.assertBlockPresent(Blocks.STONE, protectedBlock);
+        helper.assertTrue(victim.getHealth() < healthBeforeExplosion,
+                "a chained canister detonation must deal real explosion damage");
+        helper.assertFalse(ExplosiveCanisterBlock.detonate(
+                        helper.getLevel(), helper.absolutePos(root), null),
+                "a consumed chain root must not detonate twice");
+        victim.discard();
+        helper.succeed();
+    }
+
     static void turretPlacement(GameTestHelper helper) {
         helper.runAtTickTime(1, () -> turretPlacementAfterStructureLoad(helper));
     }

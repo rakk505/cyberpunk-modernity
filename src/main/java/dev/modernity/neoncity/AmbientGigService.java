@@ -175,18 +175,27 @@ public final class AmbientGigService {
         AmbientGigData.Pool pool = AmbientGigData.get(level).pool(owner, district).orElse(null);
         if (pool == null || pool.refreshEligible()) return List.of();
         ArrayList<DiscoveredGig> available = new ArrayList<>();
+        ArrayList<MissionBuildingPlanner.Site> claimedSites = new ArrayList<>(
+                MainlineQuestData.get(level).sites());
+        pool.offers().stream()
+                .map(AmbientGigData.StoredOffer::plannedSite)
+                .flatMap(Optional::stream)
+                .forEach(claimedSites::add);
         for (AmbientGigData.StoredOffer stored : pool.offers()) {
             try {
                 MissionCatalog.MissionDefinition definition =
                         MissionCatalog.definition(stored.definitionId());
-                MissionBuildingPlanner.Site site = stored.plannedSite().orElse(null);
+                MissionBuildingPlanner.Site site = offerSite(
+                        level, definition, district, stored, claimedSites);
                 if (!definition.targetDistricts().contains(district)
                         || site == null || site.district() != district
                         || !offerSiteAvailable(level, site)) continue;
+                claimedSites.add(site);
+                BlockPos navigation = MissionBuildingPlanner.navigationTarget(site);
                 available.add(new DiscoveredGig(stored.id(), new MissionService.MissionOffer(
                         definition.id(), definition.type(), definition.title(),
                         definition.briefing(), definition.objectiveText(), district.ordinal(),
-                        stored.targetX(), stored.targetZ(), stored.reward(),
+                        navigation.getX(), navigation.getZ(), stored.reward(),
                         definition.streetCred()), site));
             } catch (IllegalArgumentException removedDefinition) {
                 // A server configuration change invalidates only this entry; it is pruned on
@@ -282,12 +291,27 @@ public final class AmbientGigService {
                 .toList();
         if (definitions.isEmpty() || usable.isEmpty()) return List.of();
 
-        ArrayList<AmbientGigData.StoredOffer> offers = new ArrayList<>(usable.size());
-        for (int index = 0; index < usable.size(); index++) {
+        ArrayList<AmbientGigData.StoredOffer> offers = new ArrayList<>(OFFERS_PER_DISTRICT);
+        ArrayList<MissionBuildingPlanner.Site> selectedSites = new ArrayList<>(usable);
+        int buildingIndex = 0;
+        for (int index = 0; index < OFFERS_PER_DISTRICT; index++) {
             long hash = boardHash(layout, worldSeed, owner, district, generation, index);
             MissionCatalog.MissionDefinition definition = definitions.get(
                     Math.floorMod((int) Long.rotateRight(hash, 19), definitions.size()));
-            MissionBuildingPlanner.Site site = usable.get(index);
+            MissionBuildingPlanner.Site site;
+            if (definition.type() == MissionCatalog.MissionType.NEUTRALIZE_CYBERPSYCHO) {
+                site = PublicEncounterPlanner.plan(
+                                layout, district, hash ^ BOARD_SALT,
+                                definition.id() + ":" + generation + ":" + index,
+                                selectedSites)
+                        .orElse(null);
+            } else {
+                site = buildingIndex < usable.size() ? usable.get(buildingIndex++) : null;
+            }
+            if (site == null) continue;
+            if (definition.type() == MissionCatalog.MissionType.NEUTRALIZE_CYBERPSYCHO) {
+                selectedSites.add(site);
+            }
             BlockPos target = MissionBuildingPlanner.navigationTarget(site);
             int reward = definition.rewardMin() + Math.floorMod(
                     (int) Long.rotateRight(hash, 41),
@@ -423,9 +447,14 @@ public final class AmbientGigService {
 
     private static boolean valid(AmbientGigData.StoredOffer offer, District district) {
         try {
-            return MissionCatalog.definition(offer.definitionId())
-                            .targetDistricts().contains(district)
-                    && offer.plannedSite().filter(site -> site.district() == district).isPresent();
+            MissionCatalog.MissionDefinition definition = MissionCatalog.definition(
+                    offer.definitionId());
+            return definition.targetDistricts().contains(district)
+                    && offer.plannedSite().filter(site -> site.district() == district)
+                            .filter(site -> definition.type()
+                                            == MissionCatalog.MissionType.NEUTRALIZE_CYBERPSYCHO
+                                    || !PublicEncounterPlanner.isPublicSite(site))
+                            .isPresent();
         } catch (IllegalArgumentException removedDefinition) {
             return false;
         }
@@ -434,9 +463,45 @@ public final class AmbientGigService {
     private static boolean offerSiteAvailable(
             ServerLevel level, MissionBuildingPlanner.Site site) {
         return site != null
+                && (!PublicEncounterPlanner.isPublicSite(site)
+                        || PublicEncounterPlanner.isPublicTarget(
+                                NeonCityGenerator.layout(), site.district(),
+                                site.target().getX(), site.target().getZ()))
                 && !MainlineQuestService.conflictsReservedSite(level, site, null)
                 && !MissionSiteData.get(level).isReservedByOther(
                         site.id(), site, OFFER_AVAILABILITY_PROBE);
+    }
+
+    private static MissionBuildingPlanner.Site offerSite(
+            ServerLevel level,
+            MissionCatalog.MissionDefinition definition,
+            District district,
+            AmbientGigData.StoredOffer stored,
+            List<MissionBuildingPlanner.Site> excluded) {
+        MissionBuildingPlanner.Site storedSite = stored.plannedSite().orElse(null);
+        if (definition.type() != MissionCatalog.MissionType.NEUTRALIZE_CYBERPSYCHO) {
+            return PublicEncounterPlanner.isPublicSite(storedSite) ? null : storedSite;
+        }
+        if (PublicEncounterPlanner.isPublicSite(storedSite)
+                && storedSite.district() == district
+                && offerSiteAvailable(level, storedSite)) {
+            return storedSite;
+        }
+        long seed = NeonCityGenerator.contentSeed()
+                ^ stored.id().getMostSignificantBits()
+                ^ Long.rotateLeft(stored.id().getLeastSignificantBits(), 23)
+                ^ definition.id().hashCode();
+        for (int attempt = 0; attempt < 16; attempt++) {
+            MissionBuildingPlanner.Site candidate = PublicEncounterPlanner.plan(
+                            NeonCityGenerator.layout(), district,
+                            MegacityLayout.mix(seed, attempt, district.ordinal()),
+                            definition.id() + ":" + stored.id(), excluded)
+                    .orElse(null);
+            if (candidate != null && offerSiteAvailable(level, candidate)) {
+                return candidate;
+            }
+        }
+        return null;
     }
 
     private static long boardHash(

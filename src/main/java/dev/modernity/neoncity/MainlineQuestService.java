@@ -150,6 +150,38 @@ final class MainlineQuestService {
                         .getBytes(StandardCharsets.UTF_8));
         long selectionSalt = PLAN_SALT ^ mission.id().hashCode()
                 ^ NeonCityGenerator.contentSeed();
+        if (mission.encounter().type()
+                == MissionCatalog.MissionType.NEUTRALIZE_CYBERPSYCHO) {
+            List<MissionBuildingPlanner.Site> excluded = data.sites();
+            for (int attempt = 0; attempt < 16; attempt++) {
+                long attemptSeed = MegacityLayout.mix(
+                        selectionSalt ^ (recovery ? 0x5245434F56455259L : 0L),
+                        attempt, rejectedSiteIds.size());
+                MissionBuildingPlanner.Site selected = PublicEncounterPlanner.plan(
+                                NeonCityGenerator.layout(), mission.primaryDistrict(),
+                                attemptSeed, mission.id(), excluded)
+                        .orElse(null);
+                if (selected == null
+                        || rejectedSiteIds.contains(selected.id())
+                        || data.conflicts(selected, mission.id())
+                        || MissionSiteData.get(level).isReservedByOther(
+                                selected.id(), selected, reservationOwner)) {
+                    continue;
+                }
+                if (!recovery) data.putSite(mission.id(), selected);
+                Cyberdeck.LOGGER.info(
+                        "[Mainline] selected {} public encounter at {} for {} in District {}",
+                        recovery ? "recovery" : "on-demand",
+                        selected.target(), mission.id(),
+                        mission.primaryDistrict().commandCode());
+                return Optional.of(selected);
+            }
+            Cyberdeck.LOGGER.warn(
+                    "[Mainline] no non-highway public encounter area available for {} in "
+                            + "District {}",
+                    mission.id(), mission.primaryDistrict().commandCode());
+            return Optional.empty();
+        }
         MissionBuildingPlanner.Site selected = ArnisBuildingAtlas.findSite(
                 level,
                 mission.primaryDistrict(),
@@ -201,17 +233,39 @@ final class MainlineQuestService {
 
     private static boolean validSite(
             StoryMissionCatalog.StoryMission mission, MissionBuildingPlanner.Site site) {
-        if (site == null
-                || site.district() != mission.primaryDistrict()
-                || site.floorYs().size() < mission.requestedFloors()
-                || site.floorMasks().size() != site.floorYs().size()
+        if (site == null || site.district() != mission.primaryDistrict()) {
+            return false;
+        }
+        boolean publicCyberpsycho = mission.encounter().type()
+                == MissionCatalog.MissionType.NEUTRALIZE_CYBERPSYCHO;
+        if (publicCyberpsycho) {
+            int expectedY = NeonCityGenerator.topologySample(
+                    NeonCityGenerator.layout(),
+                    site.target().getX(), site.target().getZ()).groundY() + 1;
+            BlockPos navigation = MissionBuildingPlanner.navigationTarget(site);
+            if (!PublicEncounterPlanner.isPublicSite(site)
+                    || site.floorYs().size() != 1
+                    || site.floorYs().getFirst() != expectedY
+                    || site.target().getY() != expectedY
+                    || !PublicEncounterPlanner.isPublicTarget(
+                            NeonCityGenerator.layout(), mission.primaryDistrict(),
+                            site.target().getX(), site.target().getZ())
+                    || !PublicEncounterPlanner.isPublicTarget(
+                            NeonCityGenerator.layout(), mission.primaryDistrict(),
+                            navigation.getX(), navigation.getZ())) {
+                return false;
+            }
+        } else if (site.floorYs().size() < mission.requestedFloors()
+                || site.floorYs().getFirst() != NeonCityGenerator.CITY_GROUND_Y + 1
+                || !site.floorYs().contains(site.target().getY())
+                || site.floorYs().size() >= 2
+                        && site.target().getY() < site.floorYs().get(1)) {
+            return false;
+        }
+        if (site.floorMasks().size() != site.floorYs().size()
                 || site.stairs().size() != site.floorYs().size() - 1
                 || site.patrolRoutes().size() != site.floorYs().size()
-                || site.floorYs().getFirst() != NeonCityGenerator.CITY_GROUND_Y + 1
-                || site.entrance().position().getY() != site.floorYs().getFirst()
-                || !site.floorYs().contains(site.target().getY())
-                || (site.floorYs().size() >= 2
-                        && site.target().getY() < site.floorYs().get(1))) {
+                || site.entrance().position().getY() != site.floorYs().getFirst()) {
             return false;
         }
         Set<Integer> floors = new HashSet<>(site.floorYs());
