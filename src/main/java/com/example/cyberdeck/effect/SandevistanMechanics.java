@@ -81,9 +81,12 @@ public final class SandevistanMechanics {
             if (state.active() || state.chargeTicks() > 0.0) {
                 state.clear();
             }
+            CyberwareAttachments.setSandevistanActive(player, false);
             return;
         }
         state.tick(profile);
+        // Mirror the authoritative active flag to tracking clients for the afterimage trail.
+        CyberwareAttachments.setSandevistanActive(player, state.active());
     }
 
     /** Installing a new OS starts it full; replacing/removing one cannot leave an old effect active. */
@@ -101,6 +104,7 @@ public final class SandevistanMechanics {
     /** Login/logout/respawn ends the active run while retaining its persisted recharge progress. */
     public static void deactivateForSessionBoundary(ServerPlayer player) {
         CyberwareAttachments.getSandevistanState(player).deactivate();
+        CyberwareAttachments.setSandevistanActive(player, false);
     }
 
     public static double slowFractionAffecting(Entity target) {

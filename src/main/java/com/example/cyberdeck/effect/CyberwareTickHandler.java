@@ -27,6 +27,10 @@ import java.util.List;
  */
 public final class CyberwareTickHandler {
     private static final double OPTICAL_CAMO_AGGRO_RADIUS = 48.0;
+    // Speed III (amplifier 2), silent icon-less buff refreshed each tick while sandevistan runs.
+    private static final int SANDEVISTAN_SPEED_AMPLIFIER = 2;
+    private static final int SANDEVISTAN_SPEED_DURATION = 40;
+    private static final int SANDEVISTAN_SPEED_MIN_REMAINING = 10;
 
     @SubscribeEvent
     public void onPlayerTick(PlayerTickEvent.Post event) {
@@ -38,8 +42,36 @@ public final class CyberwareTickHandler {
         ChargedJump.tick(player);
         DoubleJumpGuard.tick(player);
         SandevistanMechanics.tick(player);
+        tickSandevistanSpeed(player);
         tickSandevistanPlayerSlow(player);
         tickOpticalCamo(player);
+    }
+
+    /**
+     * Gives the sandevistan owner a Speed III burst while the reflex booster is active,
+     * so the world-slow reads as the player blitzing forward. Refreshed every tick and
+     * cleared the instant the sandevistan drops so it never lingers.
+     */
+    private static void tickSandevistanSpeed(ServerPlayer player) {
+        if (SandevistanMechanics.isActive(player)) {
+            MobEffectInstance current = player.getEffect(MobEffects.SPEED);
+            if (current == null || current.getAmplifier() < SANDEVISTAN_SPEED_AMPLIFIER
+                    || current.getDuration() < SANDEVISTAN_SPEED_MIN_REMAINING) {
+                player.addEffect(new MobEffectInstance(
+                        MobEffects.SPEED,
+                        SANDEVISTAN_SPEED_DURATION,
+                        SANDEVISTAN_SPEED_AMPLIFIER,
+                        true,
+                        false,
+                        false));
+            }
+        } else {
+            MobEffectInstance current = player.getEffect(MobEffects.SPEED);
+            if (current != null && current.getAmplifier() == SANDEVISTAN_SPEED_AMPLIFIER
+                    && !current.isVisible()) {
+                player.removeEffect(MobEffects.SPEED);
+            }
+        }
     }
 
     /** Fractionally cancels non-player entity ticks for an exact 20-tick time-dilation ratio. */

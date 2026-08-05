@@ -13,11 +13,8 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
-import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.AABB;
-import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
-import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
 
@@ -207,11 +204,7 @@ public final class QuickhackScannerClient {
         Vec3 look = player.getViewVector(1.0F).normalize();
         Vec3 reachEnd = eye.add(look.scale(TARGET_RANGE));
 
-        BlockHitResult blockHit = player.level().clip(new ClipContext(
-                eye, reachEnd, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player));
-        Vec3 lineEnd = blockHit.getType() == HitResult.Type.MISS
-                ? reachEnd
-                : blockHit.getLocation();
+        Vec3 lineEnd = QuickhackTargets.scannerClipEnd(player, player.level(), eye, reachEnd);
         double reach = eye.distanceTo(lineEnd);
         AABB search = player.getBoundingBox().expandTowards(look.scale(reach)).inflate(1.0);
 
