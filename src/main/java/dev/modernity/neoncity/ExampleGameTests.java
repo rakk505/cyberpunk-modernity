@@ -67,6 +67,8 @@ public final class ExampleGameTests {
     private static final long[] ZONE_SEED_OFFSETS = {0L, 20L, 85L, 127L};
     private static final int ARNIS_ATLAS_AXIS = 16;
     private static final int ARNIS_TILES_PER_ATLAS = ARNIS_ATLAS_AXIS * ARNIS_ATLAS_AXIS;
+    /** Mirrors ArnisFacadeRepair.INWARD_SCAN_DEPTH, which the repair reads on every edge. */
+    private static final int ARNIS_EDGE_SCAN_DEPTH = 4;
     private static final EnumSet<MegacityLayout.Zone> ARNIS_ZONES =
             EnumSet.of(MegacityLayout.Zone.NEST, MegacityLayout.Zone.BACKSTREETS);
 
@@ -5533,6 +5535,26 @@ public final class ExampleGameTests {
     public static void arnisFacadeRepair(GameTestHelper helper) {
         ChunkPos chunk = ChunkPos.containing(helper.absolutePos(BlockPos.ZERO));
         int minY = NeonCityGenerator.CITY_GROUND_Y + 1;
+
+        // sealEdge inspects the whole sixteen-wide edge from the city floor to the build ceiling,
+        // but this fixture only authors a few columns of it. Test structures share chunks, so
+        // whatever a neighbouring test left behind used to count as structural evidence and the
+        // repair returned a different total on every run. Clear the scanned volume first so the
+        // only input is the fixture below.
+        for (int along = 0; along < 16; along++) {
+            for (int y = minY; y <= NeonCityGenerator.MAX_BUILD_Y; y++) {
+                for (int depth = 0; depth < ARNIS_EDGE_SCAN_DEPTH; depth++) {
+                    helper.getLevel().setBlock(
+                            new BlockPos(
+                                    chunk.getMaxBlockX() - depth,
+                                    y,
+                                    chunk.getMinBlockZ() + along),
+                            Blocks.AIR.defaultBlockState(),
+                            Block.UPDATE_ALL);
+                }
+            }
+        }
+
         for (int along = 4; along <= 7; along++) {
             for (int y = minY; y < minY + 18; y++) {
                 for (int depth = 0; depth < 4; depth++) {
