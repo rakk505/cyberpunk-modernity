@@ -26,16 +26,22 @@ public enum AdCampaign {
             AdClip.META_AI,
             AdClip.META_FUTURE)),
     CLOSED_AI("closed_ai", List.of(AdClip.CLOSED_AI)),
-    /** Reserved for the megascreens that face an inter-district highway. */
+    /** Wide megascreens on the facades that face an inter-district highway. */
     HIGHWAY("highway", List.of(
             AdClip.VATER,
             AdClip.GOJO,
             AdClip.HORIZON,
             AdClip.META_LOGO_2,
-            AdClip.PETROCHEM,
             AdClip.ERI,
             AdClip.HAMBURGER,
-            AdClip.SODA));
+            AdClip.SODA)),
+    /**
+     * Vertical roadside screens. Their clips come from 9:16 sources, so they belong on narrow
+     * slices of a building rather than being letterboxed onto a wide facade.
+     */
+    HIGHWAY_TALL("highway_tall", List.of(AdClip.PETROCHEM)),
+    /** District S runs its own retro Soviet advertising, the way M runs Meta and O runs ClosedAI. */
+    S_CORP("s_corp", List.of(AdClip.SOVIET_MEAT, AdClip.SOVIET_PROPAGANDA));
 
     private final String id;
     private final List<AdClip> clips;
@@ -57,6 +63,13 @@ public enum AdCampaign {
         return clips.get(Math.floorMod(index, clips.size()));
     }
 
+    /** Shape of display this campaign's clips are meant to fill. */
+    public AdClip.Orientation orientation() {
+        return this == HIGHWAY_TALL
+                ? AdClip.Orientation.PORTRAIT
+                : AdClip.Orientation.LANDSCAPE;
+    }
+
     public static Optional<AdCampaign> byId(String id) {
         if (id == null || id.isBlank()) {
             return Optional.empty();
@@ -75,6 +88,9 @@ public enum AdCampaign {
         }
         if (district == District.O_CORP) {
             return CLOSED_AI;
+        }
+        if (district == District.S_CORP) {
+            return S_CORP;
         }
         return GENERAL;
     }

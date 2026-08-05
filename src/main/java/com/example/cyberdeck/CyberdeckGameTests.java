@@ -1254,15 +1254,45 @@ public final class CyberdeckGameTests {
                 AdCampaign.CLOSED_AI.clips(),
                 List.of(AdClip.CLOSED_AI),
                 "District O must use the ClosedAI facade campaign");
+        helper.assertValueEqual(
+                AdCampaign.S_CORP.clips(),
+                List.of(AdClip.SOVIET_MEAT, AdClip.SOVIET_PROPAGANDA),
+                "District S must rotate through its retro Soviet campaign");
+        helper.assertTrue(
+                AdCampaign.forDistrict(dev.modernity.neoncity.District.S_CORP)
+                                == AdCampaign.S_CORP
+                        && AdCampaign.forDistrict(dev.modernity.neoncity.District.M_CORP)
+                                == AdCampaign.META
+                        && AdCampaign.forDistrict(dev.modernity.neoncity.District.A_CORP)
+                                == AdCampaign.GENERAL,
+                "district ownership must route S Corp to its own campaign without disturbing "
+                        + "the existing ones");
+        helper.assertTrue(AdCampaign.S_CORP.clips().stream().noneMatch(
+                        clip -> AdCampaign.GENERAL.clips().contains(clip)),
+                "the S Corp campaign must stay out of the general rotation");
         helper.assertTrue(AdCampaign.GENERAL.clips().contains(AdClip.MISANTHROPIC)
                         && AdCampaign.GENERAL.clips().containsAll(AdCampaign.META.clips()),
                 "general facades must include Misanthropic and every Meta ad");
         helper.assertValueEqual(
                 AdCampaign.HIGHWAY.clips(),
                 List.of(AdClip.VATER, AdClip.GOJO, AdClip.HORIZON,
-                        AdClip.META_LOGO_2, AdClip.PETROCHEM,
-                        AdClip.ERI, AdClip.HAMBURGER, AdClip.SODA),
-                "highway megascreens must rotate through every roadside ad");
+                        AdClip.META_LOGO_2, AdClip.ERI, AdClip.HAMBURGER, AdClip.SODA),
+                "wide highway megascreens must rotate through every landscape roadside ad");
+        helper.assertValueEqual(
+                AdCampaign.HIGHWAY_TALL.clips(),
+                List.of(AdClip.PETROCHEM),
+                "the vertical roadside campaign must hold the portrait sources");
+        helper.assertTrue(
+                AdCampaign.HIGHWAY.orientation() == AdClip.Orientation.LANDSCAPE
+                        && AdCampaign.HIGHWAY_TALL.orientation() == AdClip.Orientation.PORTRAIT,
+                "each roadside campaign must declare the display shape it fills");
+        helper.assertTrue(
+                AdClip.Orientation.LANDSCAPE.idealHeight(16) == 9
+                        && AdClip.Orientation.PORTRAIT.idealHeight(9) == 16,
+                "clip orientations must report their undistorted height");
+        helper.assertTrue(AdCampaign.HIGHWAY.clips().stream().noneMatch(
+                        clip -> AdCampaign.HIGHWAY_TALL.clips().contains(clip)),
+                "a clip may not appear in both roadside campaigns");
         helper.assertTrue(AdCampaign.HIGHWAY.clips().stream().noneMatch(
                         clip -> AdCampaign.GENERAL.clips().contains(clip)),
                 "the roadside campaign must stay separate from the district rotation");

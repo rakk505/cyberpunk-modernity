@@ -1121,19 +1121,74 @@ public final class ExampleGameTests {
                     "a candidate may not bridge two walls further apart than the tolerance");
         }
 
-        // Too little space in either axis must yield nothing at all.
-        int[][] narrowDepth = new int[columns][rows];
-        boolean[][] narrowValid = new boolean[columns][rows];
-        for (int column = 0; column < 7; column++) {
+        // A thin slice of a building is now a usable vertical slot rather than being discarded,
+        // which is the whole point of the portrait campaign.
+        int[][] sliceDepth = new int[columns][rows];
+        boolean[][] sliceValid = new boolean[columns][rows];
+        for (int column = 0; column < 6; column++) {
             for (int row = 0; row < rows; row++) {
-                narrowDepth[column][row] = 2;
-                narrowValid[column][row] = true;
+                sliceDepth[column][row] = 2;
+                sliceValid[column][row] = true;
+            }
+        }
+        List<HighwayFacadeAdGeneration.Candidate> sliceRanked =
+                HighwayFacadeAdGeneration.rankedCandidates(
+                        columns, rows, sliceDepth, sliceValid);
+        helper.assertTrue(!sliceRanked.isEmpty(),
+                "a slice at least the minimum width wide must yield a vertical candidate");
+        helper.assertValueEqual(sliceRanked.get(0).width(), 6,
+                "a six-wide slice must be covered at its full width");
+        helper.assertTrue(
+                HighwayFacadeAdGeneration.campaignFor(sliceRanked.get(0).width())
+                        == AdCampaign.HIGHWAY_TALL,
+                "a slice that narrow must carry the vertical campaign");
+
+        // A tall sliver has more raw area than a genuine wide facade, so ranking on area alone
+        // would quietly replace the wide megascreens with narrow ones wherever a building offers
+        // both. Wide slots must always win; narrow ones exist for walls that can carry nothing
+        // else.
+        // The sliver is deliberately given the larger area: 4 x rows against 16 x 5. If area alone
+        // decided, the sliver would win.
+        int shortBandHeight = 5;
+        int[][] mixedDepth = new int[columns][rows];
+        boolean[][] mixedValid = new boolean[columns][rows];
+        for (int column = 0; column < 16; column++) {
+            for (int row = 0; row < shortBandHeight; row++) {
+                mixedDepth[column][row] = 2;
+                mixedValid[column][row] = true;
+            }
+        }
+        for (int column = 20; column < 24; column++) {
+            for (int row = 0; row < rows; row++) {
+                mixedDepth[column][row] = 2;
+                mixedValid[column][row] = true;
+            }
+        }
+        int sliverArea = 4 * rows;
+        int bandArea = 16 * shortBandHeight;
+        helper.assertTrue(sliverArea > bandArea,
+                "this fixture only proves anything while the sliver is the larger rectangle");
+        HighwayFacadeAdGeneration.Candidate mixedBest =
+                HighwayFacadeAdGeneration.rankedCandidates(
+                        columns, rows, mixedDepth, mixedValid).get(0);
+        helper.assertValueEqual(mixedBest.width(), 16,
+                "a wide facade must be preferred over a larger narrow sliver beside it");
+        helper.assertTrue(mixedBest.width() * mixedBest.height() < sliverArea,
+                "the winning wide slot must genuinely have lost on area, proving width decided");
+
+        // Below the minimum width there is still nothing to place.
+        int[][] slimmerDepth = new int[columns][rows];
+        boolean[][] slimmerValid = new boolean[columns][rows];
+        for (int column = 0; column < LargeAdSurfaceValidator.MIN_WIDTH - 1; column++) {
+            for (int row = 0; row < rows; row++) {
+                slimmerDepth[column][row] = 2;
+                slimmerValid[column][row] = true;
             }
         }
         helper.assertTrue(
                 HighwayFacadeAdGeneration.rankedCandidates(
-                        columns, rows, narrowDepth, narrowValid).isEmpty(),
-                "a facade narrower than the minimum display width must be skipped");
+                        columns, rows, slimmerDepth, slimmerValid).isEmpty(),
+                "a facade narrower than the minimum display width must still be skipped");
 
         assertHighwayStacking(helper);
         assertHighwayFacing(helper);
@@ -1187,6 +1242,23 @@ public final class ExampleGameTests {
         }
         helper.assertTrue(!HighwayFacadeAdGeneration.isOverstretched(16, 10),
                 "a screen near the clip aspect must never be treated as legacy damage");
+
+        // A narrow slice of a building carries the vertical campaign, so it is judged against the
+        // 9:16 sources rather than letterboxing a widescreen frame into a sliver.
+        helper.assertTrue(
+                HighwayFacadeAdGeneration.campaignFor(6) == AdCampaign.HIGHWAY_TALL
+                        && HighwayFacadeAdGeneration.campaignFor(32) == AdCampaign.HIGHWAY,
+                "display shape must choose between the wide and vertical roadside campaigns");
+        HighwayFacadeAdGeneration.Placement narrow =
+                new HighwayFacadeAdGeneration.Placement(anchor, Direction.NORTH, 6, 11);
+        helper.assertValueEqual(HighwayFacadeAdGeneration.stack(narrow), List.of(narrow),
+                "a vertical screen must not be split at the landscape aspect");
+        helper.assertTrue(!HighwayFacadeAdGeneration.isOverstretched(6, 11),
+                "a correctly proportioned vertical screen is not legacy damage");
+        helper.assertTrue(HighwayFacadeAdGeneration.stack(
+                        new HighwayFacadeAdGeneration.Placement(anchor, Direction.NORTH, 6, 90))
+                        .size() > 1,
+                "a vertical slot far taller than 9:16 must still break into a stack");
     }
 
     /** Chunks beside a connection must face it; the corridor and the back rows must opt out. */

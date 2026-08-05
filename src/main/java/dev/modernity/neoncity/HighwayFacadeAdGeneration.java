@@ -76,13 +76,11 @@ final class HighwayFacadeAdGeneration {
      */
     static final int STEP_TOLERANCE = 2;
     /**
-     * A clip is a 16:9 sprite sheet stretched to fill its display, so one screen covering a whole
-     * tower face would smear a single frame over two hundred blocks. Tall faces are split into a
-     * stack of panels near that aspect instead, each of which picks its own clip because the
-     * rotation is seeded from the anchor position.
+     * Widest a rectangle may be and still be treated as a vertical slot. Narrow slices of a
+     * building cannot show a 16:9 clip at any useful size, but they suit the 9:16 sources exactly,
+     * so they get the portrait campaign instead of a letterboxed wide one.
      */
-    private static final int CLIP_ASPECT_WIDTH = 16;
-    private static final int CLIP_ASPECT_HEIGHT = 9;
+    private static final int MAX_PORTRAIT_WIDTH = 10;
     private static final int MAX_STACKED_SCREENS = 4;
     /** Blank wall left between stacked screens so they read as separate billboards. */
     private static final int SCREEN_GAP = 1;
@@ -107,13 +105,27 @@ final class HighwayFacadeAdGeneration {
             return width * height;
         }
 
+        /** A slot wide enough to carry the landscape campaign rather than the vertical one. */
+        boolean wide() {
+            return width > MAX_PORTRAIT_WIDTH;
+        }
+
         /**
-         * Bigger first, then taller, then snuggest against the wall, then a stable scan order.
-         * The same rectangle is offered once per mounting plane it tolerates, so preferring the
-         * deepest one keeps the screen on the frontmost real course instead of floating it out.
+         * Wide slots first, then bigger, then taller, then snuggest against the wall, then a
+         * stable scan order.
+         *
+         * <p>Width outranks area deliberately. Ranking on area alone lets a tall sliver beat a
+         * genuine wide facade — four columns over two hundred rows is a larger rectangle than
+         * sixteen over forty — which would quietly replace the wide megascreens with narrow ones
+         * wherever a building offers both. Narrow slots exist to use walls that could not carry a
+         * screen at all, not to displace the ones that can.
+         *
+         * <p>The same rectangle is offered once per mounting plane it tolerates, so preferring the
+         * deepest one keeps the screen on the frontmost real course instead of floating it out.</p>
          */
         boolean betterThan(Candidate other) {
             if (other == null) return true;
+            if (wide() != other.wide()) return wide();
             if (area() != other.area()) return area() > other.area();
             if (height != other.height) return height > other.height;
             if (depth != other.depth) return depth > other.depth;
@@ -180,15 +192,16 @@ final class HighwayFacadeAdGeneration {
                             == LargeAdSurfaceValidator.Failure.CHUNK_UNLOADED;
                     continue;
                 }
-                // Highway megascreens run their own campaign rather than the district rotation,
-                // so the corridor reads as a continuous run of roadside advertising.
+                // Roadside screens run their own campaigns rather than the district rotation, so
+                // the corridor reads as a continuous run of advertising; the shape of the slot
+                // decides whether it shows the wide or the vertical one.
                 if (AdDisplayPlacement.placeOverlay(
                         level,
                         panel.anchor(),
                         facing,
                         panel.width(),
                         panel.height(),
-                        AdCampaign.HIGHWAY)) {
+                        campaignFor(panel.width()))) {
                     placed++;
                     LOGGER.debug(
                             "[NeonCity] placed {}x{} highway megascreen facing {} at {}",
@@ -213,9 +226,7 @@ final class HighwayFacadeAdGeneration {
      * picks its own clip, because the rotation is seeded from the anchor position.
      */
     static List<Placement> stack(Placement screen) {
-        int ideal = Math.max(
-                LargeAdSurfaceValidator.MIN_HEIGHT,
-                Math.round(screen.width() * (float) CLIP_ASPECT_HEIGHT / CLIP_ASPECT_WIDTH));
+        int ideal = idealHeight(screen.width());
         if (screen.height() < ideal * 2) {
             return List.of(screen);
         }
@@ -537,7 +548,7 @@ final class HighwayFacadeAdGeneration {
         List<BlockPos> stale = new ArrayList<>();
         for (BlockEntity blockEntity : loaded.getBlockEntities().values()) {
             if (!(blockEntity instanceof AdDisplayBlockEntity display)
-                    || display.campaign() != AdCampaign.HIGHWAY
+                    || !isRoadsideCampaign(display.campaign())
                     || !display.generatedPlacement()) {
                 continue;
             }
@@ -562,10 +573,29 @@ final class HighwayFacadeAdGeneration {
      * correctly stacked panel is never mistaken for legacy damage and deleted out of a live stack.
      */
     static boolean isOverstretched(int width, int height) {
-        int ideal = Math.max(
+        return height > idealHeight(width) * OVERSTRETCH_FACTOR;
+    }
+
+    /**
+     * Campaign a rectangle of this shape should carry. A slice too narrow to show a wide clip at
+     * any useful size is given the vertical campaign, whose sources are 9:16 to begin with, so a
+     * thin sliver of a building becomes a proper vertical billboard rather than a letterboxed
+     * smear of a widescreen frame.
+     */
+    static AdCampaign campaignFor(int width) {
+        return width <= MAX_PORTRAIT_WIDTH ? AdCampaign.HIGHWAY_TALL : AdCampaign.HIGHWAY;
+    }
+
+    /** Campaigns this pass owns, and may therefore rebuild or remove. */
+    private static boolean isRoadsideCampaign(AdCampaign campaign) {
+        return campaign == AdCampaign.HIGHWAY || campaign == AdCampaign.HIGHWAY_TALL;
+    }
+
+    /** Undistorted height for a screen of {@code width}, in whichever campaign it will carry. */
+    private static int idealHeight(int width) {
+        return Math.max(
                 LargeAdSurfaceValidator.MIN_HEIGHT,
-                Math.round(width * (float) CLIP_ASPECT_HEIGHT / CLIP_ASPECT_WIDTH));
-        return height > ideal * OVERSTRETCH_FACTOR;
+                campaignFor(width).orientation().idealHeight(width));
     }
 
     /** True when this chunk already anchors a generated screen pointing at the highway. */

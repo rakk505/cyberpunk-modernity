@@ -4,8 +4,8 @@
     "width": 8,
     "height": 4
   },
-  "total_frames": 4464,
-  "total_sheets": 280,
+  "total_frames": 4944,
+  "total_sheets": 310,
   "clips": [
     {
       "id": "neon_skyline",
@@ -24,7 +24,8 @@
       "frame_size": [
         160,
         90
-      ]
+      ],
+      "orientation": "landscape"
     },
     {
       "id": "chrome_cola",
@@ -43,7 +44,8 @@
       "frame_size": [
         160,
         90
-      ]
+      ],
+      "orientation": "landscape"
     },
     {
       "id": "orbital_air",
@@ -62,7 +64,8 @@
       "frame_size": [
         160,
         90
-      ]
+      ],
+      "orientation": "landscape"
     },
     {
       "id": "misanthropic",
@@ -81,7 +84,8 @@
       "frame_size": [
         160,
         90
-      ]
+      ],
+      "orientation": "landscape"
     },
     {
       "id": "closed_ai",
@@ -100,7 +104,8 @@
       "frame_size": [
         160,
         90
-      ]
+      ],
+      "orientation": "landscape"
     },
     {
       "id": "meta_logo",
@@ -120,7 +125,8 @@
       "frame_size": [
         160,
         90
-      ]
+      ],
+      "orientation": "landscape"
     },
     {
       "id": "meta_glasses",
@@ -140,7 +146,8 @@
       "frame_size": [
         160,
         90
-      ]
+      ],
+      "orientation": "landscape"
     },
     {
       "id": "meta_ai",
@@ -160,7 +167,8 @@
       "frame_size": [
         160,
         90
-      ]
+      ],
+      "orientation": "landscape"
     },
     {
       "id": "meta_future",
@@ -180,7 +188,8 @@
       "frame_size": [
         160,
         90
-      ]
+      ],
+      "orientation": "landscape"
     },
     {
       "id": "vater",
@@ -199,7 +208,8 @@
       "frame_size": [
         160,
         90
-      ]
+      ],
+      "orientation": "landscape"
     },
     {
       "id": "gojo",
@@ -218,7 +228,8 @@
       "frame_size": [
         160,
         90
-      ]
+      ],
+      "orientation": "landscape"
     },
     {
       "id": "horizon",
@@ -237,7 +248,8 @@
       "frame_size": [
         160,
         90
-      ]
+      ],
+      "orientation": "landscape"
     },
     {
       "id": "meta_logo_2",
@@ -256,12 +268,13 @@
       "frame_size": [
         160,
         90
-      ]
+      ],
+      "orientation": "landscape"
     },
     {
       "id": "petrochem",
       "campaigns": [
-        "highway"
+        "highway_tall"
       ],
       "audio": false,
       "duration_ticks": 600,
@@ -273,9 +286,10 @@
         4
       ],
       "frame_size": [
-        160,
-        90
-      ]
+        90,
+        160
+      ],
+      "orientation": "portrait"
     },
     {
       "id": "eri",
@@ -294,7 +308,8 @@
       "frame_size": [
         160,
         90
-      ]
+      ],
+      "orientation": "landscape"
     },
     {
       "id": "hamburger",
@@ -313,7 +328,8 @@
       "frame_size": [
         160,
         90
-      ]
+      ],
+      "orientation": "landscape"
     },
     {
       "id": "soda",
@@ -332,7 +348,48 @@
       "frame_size": [
         160,
         90
-      ]
+      ],
+      "orientation": "landscape"
+    },
+    {
+      "id": "soviet_meat",
+      "campaigns": [
+        "s_corp"
+      ],
+      "audio": false,
+      "duration_ticks": 600,
+      "fps": 8,
+      "frame_count": 240,
+      "sheet_count": 15,
+      "sheet_grid": [
+        4,
+        4
+      ],
+      "frame_size": [
+        160,
+        90
+      ],
+      "orientation": "landscape"
+    },
+    {
+      "id": "soviet_propaganda",
+      "campaigns": [
+        "s_corp"
+      ],
+      "audio": false,
+      "duration_ticks": 600,
+      "fps": 8,
+      "frame_count": 240,
+      "sheet_count": 15,
+      "sheet_grid": [
+        4,
+        4
+      ],
+      "frame_size": [
+        160,
+        90
+      ],
+      "orientation": "landscape"
     }
   ]
 }

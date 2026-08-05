@@ -20,7 +20,12 @@ public final class LargeAdSurfaceValidator {
     public static final int GENERATED_FRONT_CLEARANCE = 3;
     /** Bounded outward search used to distinguish an exterior facade from an indoor wall. */
     public static final int GENERATED_EXTERIOR_SEARCH = 16;
-    public static final int MIN_WIDTH = 8;
+    /**
+     * Narrow enough for a vertical screen to fit a thin slice of a building. The offline catalog
+     * keeps its own, wider {@code MIN_GENERATED_WIDTH}, so this only widens what live placement
+     * and the hand-placed item will accept.
+     */
+    public static final int MIN_WIDTH = 4;
     public static final int MIN_HEIGHT = 4;
     /**
      * Wide enough for a highway megascreen to span a tower face across three chunks. Offline
@@ -42,7 +47,10 @@ public final class LargeAdSurfaceValidator {
 
     public static Result validate(
             Level level, BlockPos anchor, Direction facing, int width, int height) {
-        return validate(level, anchor, facing, width, height, false, false, Set.of());
+        // Luminous facades are accepted here for the same reason the generated path accepts them:
+        // sea lanterns and glowstone are solid lit walls, not windows. Refusing them made the
+        // hand-placed item reject facades the city generator mounts screens on itself.
+        return validate(level, anchor, facing, width, height, true, false, Set.of());
     }
 
     /** Generated panel grids must face a clear, sky-connected exterior volume. */
@@ -333,10 +341,16 @@ public final class LargeAdSurfaceValidator {
         UNLOADED
     }
 
-    /** Sea-lantern facades read as glass by sound type but are valid generated ad supports. */
+    /**
+     * Full light-emitting facade blocks. They report {@link SoundType#GLASS}, so the window check
+     * would otherwise reject the lit panels that make up most of this city's blank walls. The list
+     * matches the one {@code GeneratedAdPlacement.normalizeSupport} folds together when hashing a
+     * facade, so the two cannot disagree about what counts as a wall.
+     */
     public static boolean isLuminousFacadeBlock(BlockState state) {
         String id = BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
         return id.equals("minecraft:sea_lantern")
+                || id.equals("minecraft:glowstone")
                 || id.equals("cyberdeck:camouflaged_sea_lantern");
     }
 

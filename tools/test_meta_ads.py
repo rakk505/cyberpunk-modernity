@@ -21,8 +21,14 @@ REPOSITORY = Path(__file__).resolve().parents[1]
 RESOURCES = REPOSITORY / "src/main/resources/assets/cyberdeck"
 META_IDS = ("meta_logo", "meta_glasses", "meta_ai", "meta_future")
 SUPPLIED_IDS = ("misanthropic", "closed_ai")
-HIGHWAY_IDS = ("vater", "gojo", "horizon", "meta_logo_2", "petrochem",
+HIGHWAY_IDS = ("vater", "gojo", "horizon", "meta_logo_2",
                "eri", "hamburger", "soda")
+PORTRAIT_IDS = ("petrochem",)
+S_CORP_IDS = ("soviet_meat", "soviet_propaganda")
+S_CORP_SOURCE_SHA256 = {
+    "soviet_meat": "3f53f077dfafe9e68d9afad59fbee437ddbf51526f5666584e275c9cc14a219b",
+    "soviet_propaganda": "74bef368ac0b255b805f238812df181a22ef247459091372c096a4d388594b36",
+}
 HIGHWAY_SOURCE_SHA256 = {
     "vater": "d2ece481ebd62dd45e1c90842d23644d523d08e51c3317087275278e27cfb8cf",
     "gojo": "36d3fea88b23aad8efdcbf990387f555492cdfecb887c0f96fe96a5d861d04ef",
@@ -84,10 +90,10 @@ class MetaAdGeneratorTests(unittest.TestCase):
         catalog_by_id = {clip["id"]: clip for clip in catalog["clips"]}
         manifest_by_id = {clip["id"]: clip for clip in manifest["clips"]}
 
-        self.assertEqual(4_464, process_ads.MAX_TOTAL_FRAMES)
-        self.assertEqual(280, process_ads.MAX_TOTAL_SHEETS)
-        self.assertEqual(4_464, manifest["total_frames"])
-        self.assertEqual(280, manifest["total_sheets"])
+        self.assertEqual(4_944, process_ads.MAX_TOTAL_FRAMES)
+        self.assertEqual(310, process_ads.MAX_TOTAL_SHEETS)
+        self.assertEqual(4_944, manifest["total_frames"])
+        self.assertEqual(310, manifest["total_sheets"])
         self.assertEqual(set(catalog_by_id), set(manifest_by_id))
 
         sounds = json.loads((RESOURCES / "sounds.json").read_text())
@@ -150,12 +156,12 @@ class MetaAdGeneratorTests(unittest.TestCase):
             manifest_clip = manifest_by_id[clip_id]
             self.assertEqual(["highway"], catalog_clip["campaigns"])
             self.assertEqual(["highway"], manifest_clip["campaigns"])
+            self.assertEqual([160, 90], manifest_clip["frame_size"])
             self.assertEqual(30, catalog_clip["duration_seconds"])
             self.assertEqual(8, catalog_clip["fps"])
             self.assertEqual(8, manifest_clip["fps"])
             self.assertEqual(240, manifest_clip["frame_count"])
             self.assertEqual(15, manifest_clip["sheet_count"])
-            self.assertEqual([160, 90], manifest_clip["frame_size"])
             self.assertFalse(catalog_clip["audio"])
             self.assertFalse(manifest_clip["audio"])
             self.assertTrue(catalog_clip["loop"])
@@ -215,6 +221,61 @@ class MetaAdGeneratorTests(unittest.TestCase):
         for clip_id in META_IDS:
             self.assertTrue((REPOSITORY / f"ads/{clip_id}.mp4").is_file())
             self.assertIn(META_SOURCE_SHA256[clip_id], sources_doc)
+
+    def test_portrait_clips_keep_their_vertical_frame(self) -> None:
+        """A 9:16 short must be built as a tall frame, not pillarboxed into a wide one."""
+        catalog = json.loads((REPOSITORY / "ads/catalog.json").read_text())
+        manifest = json.loads((RESOURCES / "ads/manifest.json").read_text())
+        catalog_by_id = {clip["id"]: clip for clip in catalog["clips"]}
+        manifest_by_id = {clip["id"]: clip for clip in manifest["clips"]}
+
+        self.assertIn("highway_tall", process_ads.VALID_CAMPAIGNS)
+        self.assertIn("portrait", process_ads.VALID_ORIENTATIONS)
+        for clip_id in PORTRAIT_IDS:
+            catalog_clip = catalog_by_id[clip_id]
+            manifest_clip = manifest_by_id[clip_id]
+            self.assertEqual("portrait", catalog_clip["orientation"])
+            self.assertEqual("portrait", manifest_clip["orientation"])
+            self.assertEqual(["highway_tall"], catalog_clip["campaigns"])
+            self.assertEqual([90, 160], manifest_clip["frame_size"])
+            sheets = sorted((RESOURCES / "textures/ads" / clip_id).glob("sheet_*.png"))
+            self.assertEqual(15, len(sheets), clip_id)
+            self.assertTrue(all(png_dimensions(s) == (360, 640) for s in sheets))
+
+        # Landscape clips must be untouched by the orientation work.
+        for clip_id in HIGHWAY_IDS:
+            self.assertEqual("landscape", manifest_by_id[clip_id]["orientation"])
+            sheets = sorted((RESOURCES / "textures/ads" / clip_id).glob("sheet_*.png"))
+            self.assertTrue(all(png_dimensions(s) == (640, 360) for s in sheets))
+
+    def test_s_corp_campaign_is_district_scoped(self) -> None:
+        """District S advertising must be its own campaign, not folded into the rotation."""
+        catalog = json.loads((REPOSITORY / "ads/catalog.json").read_text())
+        manifest = json.loads((RESOURCES / "ads/manifest.json").read_text())
+        catalog_by_id = {clip["id"]: clip for clip in catalog["clips"]}
+        manifest_by_id = {clip["id"]: clip for clip in manifest["clips"]}
+        sources_doc = (REPOSITORY / "ASSET_SOURCES.md").read_text()
+
+        self.assertIn("s_corp", process_ads.VALID_CAMPAIGNS)
+        for clip_id in S_CORP_IDS:
+            catalog_clip = catalog_by_id[clip_id]
+            manifest_clip = manifest_by_id[clip_id]
+            self.assertEqual(["s_corp"], catalog_clip["campaigns"])
+            self.assertEqual(["s_corp"], manifest_clip["campaigns"])
+            self.assertEqual("landscape", manifest_clip["orientation"])
+            self.assertEqual(240, manifest_clip["frame_count"])
+            self.assertFalse(catalog_clip["audio"])
+            self.assertTrue(catalog_clip["loop"])
+            source = REPOSITORY / "ads" / catalog_clip["file"]
+            self.assertTrue(source.is_file())
+            self.assertEqual(S_CORP_SOURCE_SHA256[clip_id], catalog_clip["source_sha256"])
+            self.assertEqual(
+                catalog_clip["source_sha256"],
+                hashlib.sha256(source.read_bytes()).hexdigest(),
+            )
+            self.assertIn(S_CORP_SOURCE_SHA256[clip_id], sources_doc)
+            sheets = sorted((RESOURCES / "textures/ads" / clip_id).glob("sheet_*.png"))
+            self.assertEqual(15, len(sheets), clip_id)
 
 
 if __name__ == "__main__":

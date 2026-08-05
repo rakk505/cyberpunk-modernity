@@ -24,7 +24,38 @@ public enum AdClip {
     PETROCHEM("petrochem", 30, 8, false),
     ERI("eri", 30, 8, false),
     HAMBURGER("hamburger", 30, 8, false),
-    SODA("soda", 30, 8, false);
+    SODA("soda", 30, 8, false),
+    SOVIET_MEAT("soviet_meat", 30, 8, false),
+    SOVIET_PROPAGANDA("soviet_propaganda", 30, 8, false);
+
+    /** Frame aspect of a clip, which decides the shape of display it belongs on. */
+    public enum Orientation {
+        /** 16:9 sheets, for the wide blank facades along a corridor. */
+        LANDSCAPE(16, 9),
+        /** 9:16 sheets recovered from vertical sources, for narrow slices of a building. */
+        PORTRAIT(9, 16);
+
+        private final int aspectWidth;
+        private final int aspectHeight;
+
+        Orientation(int aspectWidth, int aspectHeight) {
+            this.aspectWidth = aspectWidth;
+            this.aspectHeight = aspectHeight;
+        }
+
+        public int aspectWidth() {
+            return aspectWidth;
+        }
+
+        public int aspectHeight() {
+            return aspectHeight;
+        }
+
+        /** Height that shows a clip of this orientation undistorted at {@code width}. */
+        public int idealHeight(int width) {
+            return Math.max(1, Math.round(width * (float) aspectHeight / aspectWidth));
+        }
+    }
 
     public static final int SHEET_COLUMNS = 4;
     public static final int SHEET_ROWS = 4;

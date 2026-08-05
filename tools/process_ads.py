@@ -28,10 +28,11 @@ SHEET_ROWS = 4
 FRAMES_PER_SHEET = SHEET_COLUMNS * SHEET_ROWS
 MIN_DURATION = 30
 MAX_DURATION = 45
-MAX_TOTAL_FRAMES = 4_464
-MAX_TOTAL_SHEETS = 280
+MAX_TOTAL_FRAMES = 4_944
+MAX_TOTAL_SHEETS = 310
 VALID_ID = re.compile(r"^[a-z0-9_]+$")
-VALID_CAMPAIGNS = frozenset({"general", "meta", "closed_ai", "highway"})
+VALID_CAMPAIGNS = frozenset({"general", "meta", "closed_ai", "highway", "highway_tall", "s_corp"})
+VALID_ORIENTATIONS = frozenset({"landscape", "portrait"})
 VALID_PAD_COLORS = frozenset({"black", "white"})
 META_GENERATOR = "meta_ads_v1"
 
@@ -128,6 +129,7 @@ def process_clip(
     audio_enabled = clip.get("audio", True)
     loop = clip.get("loop", False)
     pad_color = str(clip.get("pad_color", "black"))
+    orientation = str(clip.get("orientation", "landscape"))
 
     if not VALID_ID.fullmatch(clip_id):
         raise ValueError(f"Invalid clip id: {clip_id}")
@@ -145,11 +147,17 @@ def process_clip(
         raise ValueError(f"{clip_id}: audio and loop must be booleans")
     if pad_color not in VALID_PAD_COLORS:
         raise ValueError(f"{clip_id}: invalid pad color {pad_color}")
+    if orientation not in VALID_ORIENTATIONS:
+        raise ValueError(f"{clip_id}: invalid orientation {orientation}")
     if generator is not None and generator != META_GENERATOR:
         raise ValueError(f"{clip_id}: unknown procedural generator {generator!r}")
     if generator is not None and (audio_enabled or "file" in clip or fps != FPS):
         raise ValueError(f"{clip_id}: procedural campaigns must be silent 8 FPS assets")
 
+    frame_width, frame_height = (
+        (FRAME_HEIGHT, FRAME_WIDTH) if orientation == "portrait"
+        else (FRAME_WIDTH, FRAME_HEIGHT)
+    )
     frame_count = duration * fps
     sheet_count = math.ceil(frame_count / FRAMES_PER_SHEET)
     clip_sheets = temporary / "textures" / clip_id
@@ -183,12 +191,12 @@ def process_clip(
         input_options = ["-stream_loop", "-1"] if loop else []
         if "pad_color" in clip:
             scale = (
-                f"scale={FRAME_WIDTH}:{FRAME_HEIGHT}:"
+                f"scale={frame_width}:{frame_height}:"
                 "force_original_aspect_ratio=decrease:flags=lanczos,"
-                f"pad={FRAME_WIDTH}:{FRAME_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color={pad_color}"
+                f"pad={frame_width}:{frame_height}:(ow-iw)/2:(oh-ih)/2:color={pad_color}"
             )
         else:
-            scale = f"scale={FRAME_WIDTH}:{FRAME_HEIGHT}:flags=lanczos"
+            scale = f"scale={frame_width}:{frame_height}:flags=lanczos"
         run([
             ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
             *input_options, "-i", str(source), "-t", str(duration), "-an",
@@ -224,7 +232,8 @@ def process_clip(
         "frame_count": frame_count,
         "sheet_count": sheet_count,
         "sheet_grid": [SHEET_COLUMNS, SHEET_ROWS],
-        "frame_size": [FRAME_WIDTH, FRAME_HEIGHT],
+        "frame_size": [frame_width, frame_height],
+        "orientation": orientation,
     }
     if generator is not None:
         manifest["generator"] = generator

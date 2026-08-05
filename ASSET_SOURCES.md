@@ -60,6 +60,20 @@ above, this records the supplied provenance and deterministic inputs; it is not 
 license determination, and these particular sources are third-party recordings rather than
 owner-supplied or owner-authorized material.
 
+District S runs its own campaign from two retro Soviet advertisements requested by the project
+owner on 2026-08-05. Both are 4:3 sources, so the processor aspect-fits them inside a 160x90 frame
+against a black pad at 8 FPS, loops or trims them to exactly 30 seconds, discards their audio, and
+verifies each hash before processing:
+
+- `soviet_meat`: [30 Second Vegetarian Nightmare - Chicken Minced Meat - Retro Soviet Ad from 1986](https://youtu.be/i6LAVk1sHW8), 39s source trimmed to 30 seconds.
+- `soviet_propaganda`: [A Soviet Propaganda Video](https://youtu.be/XaRfwu_kdoY), 28s source looped to 30 seconds.
+
+The inputs are `ads/soviet_meat.mp4` and `ads/soviet_propaganda.mp4`, whose SHA-256 hashes are
+respectively `3f53f077dfafe9e68d9afad59fbee437ddbf51526f5666584e275c9cc14a219b` and
+`74bef368ac0b255b805f238812df181a22ef247459091372c096a4d388594b36`. As with the roadside campaign,
+this records the supplied provenance and deterministic inputs; it is not an independent license
+determination, and these are third-party recordings rather than owner-supplied material.
+
 ## Freestanding advertising logos
 
 `src/main/resources/assets/cyberdeck/textures/ad_logos/meta.png`, `closedai.png`, and

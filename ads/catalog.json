@@ -4,21 +4,27 @@
       "id": "neon_skyline",
       "file": "neon_skyline.mp4",
       "duration_seconds": 30,
-      "campaigns": ["general"],
+      "campaigns": [
+        "general"
+      ],
       "audio": true
     },
     {
       "id": "chrome_cola",
       "file": "chrome_cola.mp4",
       "duration_seconds": 36,
-      "campaigns": ["general"],
+      "campaigns": [
+        "general"
+      ],
       "audio": true
     },
     {
       "id": "orbital_air",
       "file": "orbital_air.mp4",
       "duration_seconds": 42,
-      "campaigns": ["general"],
+      "campaigns": [
+        "general"
+      ],
       "audio": true
     },
     {
@@ -26,7 +32,9 @@
       "file": "misanthropic.mov",
       "duration_seconds": 30,
       "fps": 8,
-      "campaigns": ["general"],
+      "campaigns": [
+        "general"
+      ],
       "audio": false,
       "loop": true,
       "pad_color": "black",
@@ -37,7 +45,9 @@
       "file": "closed_ai.mov",
       "duration_seconds": 30,
       "fps": 8,
-      "campaigns": ["closed_ai"],
+      "campaigns": [
+        "closed_ai"
+      ],
       "audio": false,
       "loop": true,
       "pad_color": "white",
@@ -47,7 +57,10 @@
       "id": "meta_logo",
       "file": "meta_logo.mp4",
       "duration_seconds": 30,
-      "campaigns": ["general", "meta"],
+      "campaigns": [
+        "general",
+        "meta"
+      ],
       "audio": false,
       "source_sha256": "e865d609eec6d85f107f345c39da06c40e89b297cc1937d2ba67aaa3ea64cf66"
     },
@@ -55,7 +68,10 @@
       "id": "meta_glasses",
       "file": "meta_glasses.mp4",
       "duration_seconds": 30,
-      "campaigns": ["general", "meta"],
+      "campaigns": [
+        "general",
+        "meta"
+      ],
       "audio": false,
       "source_sha256": "14125e81121180a7c42b540eabc813d3ecf63f22d1e0860119fe323ac5d87911"
     },
@@ -63,7 +79,10 @@
       "id": "meta_ai",
       "file": "meta_ai.mp4",
       "duration_seconds": 45,
-      "campaigns": ["general", "meta"],
+      "campaigns": [
+        "general",
+        "meta"
+      ],
       "audio": false,
       "source_sha256": "4f7d6ab6c866d5e2023397a05f9c0d06077f67dcd47fda8add7fbb9f0070ecf2"
     },
@@ -71,7 +90,10 @@
       "id": "meta_future",
       "file": "meta_future.mp4",
       "duration_seconds": 45,
-      "campaigns": ["general", "meta"],
+      "campaigns": [
+        "general",
+        "meta"
+      ],
       "audio": false,
       "source_sha256": "3c25d6ecbd46567b8a25f6ae412bbe87b930c7a6c0f5049bc483df698a93a3b8"
     },
@@ -80,7 +102,9 @@
       "file": "vater.mp4",
       "duration_seconds": 30,
       "fps": 8,
-      "campaigns": ["highway"],
+      "campaigns": [
+        "highway"
+      ],
       "audio": false,
       "loop": true,
       "pad_color": "black",
@@ -91,7 +115,9 @@
       "file": "gojo.mp4",
       "duration_seconds": 30,
       "fps": 8,
-      "campaigns": ["highway"],
+      "campaigns": [
+        "highway"
+      ],
       "audio": false,
       "loop": true,
       "pad_color": "black",
@@ -102,7 +128,9 @@
       "file": "horizon.mp4",
       "duration_seconds": 30,
       "fps": 8,
-      "campaigns": ["highway"],
+      "campaigns": [
+        "highway"
+      ],
       "audio": false,
       "loop": true,
       "pad_color": "black",
@@ -113,7 +141,9 @@
       "file": "meta_logo_2.mp4",
       "duration_seconds": 30,
       "fps": 8,
-      "campaigns": ["highway"],
+      "campaigns": [
+        "highway"
+      ],
       "audio": false,
       "loop": true,
       "pad_color": "black",
@@ -124,7 +154,10 @@
       "file": "petrochem.mp4",
       "duration_seconds": 30,
       "fps": 8,
-      "campaigns": ["highway"],
+      "campaigns": [
+        "highway_tall"
+      ],
+      "orientation": "portrait",
       "audio": false,
       "loop": true,
       "pad_color": "black",
@@ -135,7 +168,9 @@
       "file": "eri.mp4",
       "duration_seconds": 30,
       "fps": 8,
-      "campaigns": ["highway"],
+      "campaigns": [
+        "highway"
+      ],
       "audio": false,
       "loop": true,
       "pad_color": "black",
@@ -146,7 +181,9 @@
       "file": "hamburger.mp4",
       "duration_seconds": 30,
       "fps": 8,
-      "campaigns": ["highway"],
+      "campaigns": [
+        "highway"
+      ],
       "audio": false,
       "loop": true,
       "pad_color": "black",
@@ -157,11 +194,39 @@
       "file": "soda.mp4",
       "duration_seconds": 30,
       "fps": 8,
-      "campaigns": ["highway"],
+      "campaigns": [
+        "highway"
+      ],
       "audio": false,
       "loop": true,
       "pad_color": "black",
       "source_sha256": "de752641d28cdd7c19d460f07e735793aea5da445cdd034592c54a962b06ca97"
+    },
+    {
+      "id": "soviet_meat",
+      "file": "soviet_meat.mp4",
+      "duration_seconds": 30,
+      "fps": 8,
+      "campaigns": [
+        "s_corp"
+      ],
+      "audio": false,
+      "loop": true,
+      "pad_color": "black",
+      "source_sha256": "3f53f077dfafe9e68d9afad59fbee437ddbf51526f5666584e275c9cc14a219b"
+    },
+    {
+      "id": "soviet_propaganda",
+      "file": "soviet_propaganda.mp4",
+      "duration_seconds": 30,
+      "fps": 8,
+      "campaigns": [
+        "s_corp"
+      ],
+      "audio": false,
+      "loop": true,
+      "pad_color": "black",
+      "source_sha256": "74bef368ac0b255b805f238812df181a22ef247459091372c096a4d388594b36"
     }
   ]
 }
