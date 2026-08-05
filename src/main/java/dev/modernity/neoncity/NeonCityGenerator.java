@@ -3014,6 +3014,11 @@ public final class NeonCityGenerator {
     /** Returns whether generation retained the Arnis column beneath an atlas road sample. */
     public static boolean isAtlasStreetColumnAt(int worldX, int worldZ) {
         UrbanSample sample = sample(worldX, worldZ);
+        return isAtlasStreetColumnAt(sample, worldX, worldZ);
+    }
+
+    private static boolean isAtlasStreetColumnAt(
+            UrbanSample sample, int worldX, int worldZ) {
         return usableArnisPlacement(
                         Math.floorDiv(worldX, 16), Math.floorDiv(worldZ, 16))
                 .map(placement -> keepsArnisColumn(sample, placement.patch().district()))
@@ -3139,10 +3144,26 @@ public final class NeonCityGenerator {
     }
     public static boolean isCivilianPedestrianArea(ServerLevel level, int worldX, int worldZ) {
         if (!isMegacityWorld(level) || !layoutInitialized) return false;
-        RoadClass roadClass = sample(worldX, worldZ).roadClass();
-        return isCivilianPedestrianTarget(
-                        roadClass, isUsableArnisChunk(level, worldX, worldZ))
-                && !isAtlasTrafficRoadAt(worldX, worldZ);
+        return isCivilianPedestrianArea(level, worldX, worldZ, sample(worldX, worldZ));
+    }
+
+    /**
+     * Sample-reusing pedestrian check for callers that already classified this city column.
+     * The regular overload used to sample the same coordinate twice.
+     */
+    public static boolean isCivilianPedestrianArea(
+            ServerLevel level, int worldX, int worldZ, UrbanSample sample) {
+        if (!isMegacityWorld(level) || !layoutInitialized || sample == null) return false;
+        var placement = usableArnisPlacement(
+                Math.floorDiv(worldX, 16), Math.floorDiv(worldZ, 16));
+        if (!isCivilianPedestrianTarget(sample.roadClass(), placement.isPresent())) {
+            return false;
+        }
+        boolean trafficRoad = placement
+                .map(value -> keepsArnisColumn(sample, value.patch().district()))
+                .orElse(false)
+                && atlasRoadAt(worldX, worldZ).supportsTraffic();
+        return !trafficRoad;
     }
     public static boolean isCivilianPedestrianTarget(RoadClass roadClass,
                                                        boolean usableArnisChunk) {

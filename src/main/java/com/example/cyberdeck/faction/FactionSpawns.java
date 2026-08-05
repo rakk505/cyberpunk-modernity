@@ -5,10 +5,16 @@ import com.example.cyberdeck.city.CityWorlds;
 import dev.modernity.neoncity.District;
 import dev.modernity.neoncity.MegacityLayout;
 import dev.modernity.neoncity.NeonCityGenerator;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.TreeMap;
+import java.util.UUID;
+import java.util.WeakHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -41,8 +47,15 @@ public final class FactionSpawns {
     public static final int POPULATION_CELL_SIZE = 128;
     public static final double NEARBY_RADIUS = 72.0;
     public static final double PATROL_SEPARATION = 24.0;
+    /** Hard budget for expensive city-column anchor checks in one server tick. */
+    public static final int MAX_ANCHOR_CHECKS_PER_TICK = 4;
+    /** Soft aggregate budget; one in-progress anchor check is always allowed to finish. */
+    private static final long SEARCH_TIME_BUDGET_NANOS = 2_000_000L;
     private static final int RANDOM_ANCHOR_ATTEMPTS = 48;
     private static final int PERIMETER_ANCHOR_ATTEMPTS = 128;
+    public static final int MAX_ANCHOR_ATTEMPTS =
+            RANDOM_ANCHOR_ATTEMPTS + PERIMETER_ANCHOR_ATTEMPTS;
+    private static final int POPULATION_REFRESH_TICKS = 20;
     private static final double MIN_PLAYER_DISTANCE = 24.0;
     private static final double MAX_OBSERVER_VISIBILITY_DISTANCE = 160.0;
     private static final double FORWARD_VIEW_DOT = 0.5;
@@ -50,16 +63,23 @@ public final class FactionSpawns {
     private static final int[][] BASE_FORMATION = {
             {0, 0}, {2, 1}, {-2, 1}, {1, -2}, {-1, -2}, {3, 0}
     };
+    private final Map<ServerLevel, SearchQueue> pendingSearches = new WeakHashMap<>();
 
     @SubscribeEvent
     public void onLevelTick(LevelTickEvent.Post event) {
         if (!(event.getLevel() instanceof ServerLevel level)
                 || level.dimension() != Level.OVERWORLD
-                || CityWorlds.kind(level) != CityWorlds.Kind.NEON_MEGACITY
-                || level.getGameTime() % SPAWN_INTERVAL != 0) {
+                || CityWorlds.kind(level) != CityWorlds.Kind.NEON_MEGACITY) {
             return;
         }
 
+        if (level.getGameTime() % SPAWN_INTERVAL == 0) {
+            enqueuePopulationSearches(level);
+        }
+        processPopulationSearches(level);
+    }
+
+    private void enqueuePopulationSearches(ServerLevel level) {
         long epoch = level.getGameTime() / SPAWN_INTERVAL;
         Map<Long, ServerPlayer> populationCells = new TreeMap<>();
         for (ServerPlayer player : level.players()) {
@@ -71,42 +91,98 @@ public final class FactionSpawns {
             long cellKey = pack(cellX, cellZ);
             populationCells.merge(cellKey, player, FactionSpawns::stableRepresentative);
         }
+        if (populationCells.isEmpty()) {
+            return;
+        }
+
+        SearchQueue queue = pendingSearches.computeIfAbsent(level, ignored -> new SearchQueue());
         for (Map.Entry<Long, ServerPlayer> entry : populationCells.entrySet()) {
+            if (!queue.activeCells.add(entry.getKey())) {
+                continue;
+            }
             ServerPlayer player = entry.getValue();
             int cellX = Math.floorDiv(player.getBlockX(), POPULATION_CELL_SIZE);
             int cellZ = Math.floorDiv(player.getBlockZ(), POPULATION_CELL_SIZE);
             RandomSource random = RandomSource.create(clusterSeed(
                     level.getSeed(), epoch, cellX, cellZ));
-            trySpawnCluster(level, player, random);
+            queue.jobs.addLast(SpawnSearch.create(entry.getKey(), player, random));
         }
     }
 
-    private void trySpawnCluster(ServerLevel level, ServerPlayer player, RandomSource random) {
-        AABB nearbyArea = player.getBoundingBox().inflate(NEARBY_RADIUS);
-        int nearby = level.getEntitiesOfClass(FactionEnemy.class, nearbyArea,
-                FactionEnemy::isAlive).size();
-        int capacity = NEARBY_CAP - nearby;
-        int loadedPatrols = 0;
-        for (net.minecraft.world.entity.Entity entity : level.getAllEntities()) {
-            if (entity instanceof FactionEnemy enemy
-                    && enemy.isAlive() && enemy.isAmbientPatrol()) {
-                loadedPatrols++;
+    private void processPopulationSearches(ServerLevel level) {
+        SearchQueue queue = pendingSearches.get(level);
+        if (queue == null || queue.jobs.isEmpty()) {
+            pendingSearches.remove(level);
+            return;
+        }
+
+        int loadedPatrols = queue.loadedPatrolCount(level);
+        int checks = 0;
+        long deadline = System.nanoTime() + SEARCH_TIME_BUDGET_NANOS;
+        while (checks < MAX_ANCHOR_CHECKS_PER_TICK && !queue.jobs.isEmpty()) {
+            if (checks > 0 && System.nanoTime() >= deadline) {
+                break;
             }
-        }
-        capacity = Math.min(capacity, LOADED_WORLD_CAP - loadedPatrols);
-        int requested = plannedPatrolSize(random.nextBoolean(), capacity);
-        if (requested == 0) {
-            return;
+            SpawnSearch search = queue.jobs.removeFirst();
+            ServerPlayer player = level.getServer().getPlayerList().getPlayer(search.playerId);
+            if (!canDrivePatrolSpawns(player) || player.level() != level
+                    || pack(Math.floorDiv(player.getBlockX(), POPULATION_CELL_SIZE),
+                            Math.floorDiv(player.getBlockZ(), POPULATION_CELL_SIZE))
+                            != search.cellKey) {
+                queue.finish(search);
+                continue;
+            }
+
+            int requested = plannedPatrolSize(
+                    search.largeRoll, LOADED_WORLD_CAP - loadedPatrols);
+            SpawnCandidate candidate = search.nextCandidate();
+            if (requested == 0 || candidate == null) {
+                queue.finish(search);
+                continue;
+            }
+
+            checks++;
+            SpawnPlan plan = planAt(level, candidate.x, candidate.z, candidate.preferredY,
+                    candidate.firstRotation, requested, search.samples);
+            if (plan == null) {
+                if (search.hasCandidates()) {
+                    queue.jobs.addLast(search);
+                } else {
+                    queue.finish(search);
+                }
+                continue;
+            }
+
+            int nearby = level.getEntitiesOfClass(FactionEnemy.class,
+                    player.getBoundingBox().inflate(NEARBY_RADIUS), FactionEnemy::isAlive).size();
+            int capacity = Math.min(NEARBY_CAP - nearby, LOADED_WORLD_CAP - loadedPatrols);
+            int actualSize = plannedPatrolSize(
+                    search.largeRoll, Math.min(capacity, plan.positions().size()));
+            if (actualSize == 0) {
+                queue.finish(search);
+                continue;
+            }
+            if (actualSize != plan.positions().size()) {
+                plan = new SpawnPlan(plan.anchor(), plan.positions().subList(0, actualSize));
+            }
+            int spawned = spawnPlannedCluster(
+                    level, player, search.random, plan, search.samples);
+            loadedPatrols += spawned;
+            queue.recordLoadedPatrolCount(level.getGameTime(), loadedPatrols);
+            queue.finish(search);
         }
 
-        SpawnPlan plan = findSpawnPlan(level, player, random, requested);
-        if (plan == null) {
-            return;
+        if (queue.jobs.isEmpty()) {
+            pendingSearches.remove(level);
         }
-        requested = plan.positions().size();
+    }
 
-        District spawnDistrict = NeonCityGenerator.sample(
-                plan.anchor().getX(), plan.anchor().getZ()).district();
+    private static int spawnPlannedCluster(
+            ServerLevel level, ServerPlayer player, RandomSource random, SpawnPlan plan,
+            Map<Long, NeonCityGenerator.UrbanSample> samples) {
+        int requested = plan.positions().size();
+
+        District spawnDistrict = sampledDistrict(samples, plan.anchor());
         boolean rCorp = isRCorpPatrol(spawnDistrict, random.nextFloat());
         Faction faction = Faction.VALUES[random.nextInt(Faction.VALUES.length)];
         java.util.UUID patrolId = new java.util.UUID(random.nextLong(), random.nextLong());
@@ -118,12 +194,13 @@ public final class FactionSpawns {
             FactionEnemy enemy = createMember(
                     level, plan.positions().get(index), plan.anchor(), faction,
                     rCorp ? rCorpRoles.get(index) : EnemyCombatRole.STANDARD,
-                    skinVariants.get(index), random);
+                    skinVariants.get(index), sampledDistrict(
+                            samples, plan.positions().get(index)), random);
             if (enemy == null) {
                 for (FactionEnemy member : members) {
                     member.discard();
                 }
-                return;
+                return 0;
             }
             enemy.setAlertGroupId(patrolId);
             members.add(enemy);
@@ -135,72 +212,38 @@ public final class FactionSpawns {
                 for (FactionEnemy squadMember : members) {
                     squadMember.discard();
                 }
-                return;
+                return 0;
             }
         }
         Cyberdeck.LOGGER.info("Spawned {}-member {} patrol in {} near {}",
                 members.size(), rCorp ? "R Corp paramilitary" : "corporate",
                 members.getFirst().getDistrict().code(), player.getScoreboardName());
+        return members.size();
     }
 
-    private static SpawnPlan findSpawnPlan(
-            ServerLevel level, ServerPlayer player, RandomSource random, int size) {
-        for (int attempt = 0; attempt < RANDOM_ANCHOR_ATTEMPTS; attempt++) {
-            double angle = random.nextDouble() * Math.PI * 2.0;
-            int distance = MIN_SPAWN_DISTANCE
-                    + random.nextInt(MAX_SPAWN_DISTANCE - MIN_SPAWN_DISTANCE + 1);
-            int x = player.getBlockX() + (int) Math.round(Math.cos(angle) * distance);
-            int z = player.getBlockZ() + (int) Math.round(Math.sin(angle) * distance);
-            SpawnPlan plan = planAt(level, x, z, player.getBlockY(), random.nextInt(4), size);
-            if (plan != null) {
-                return plan;
-            }
-        }
-
-        // A deterministic perimeter fallback prevents random misses from suppressing a full cycle
-        // around sparse parcels or imported atlas streets.
-        int rotation = random.nextInt(4);
-        int perimeterAttempts = 0;
-        for (int radius = MIN_SPAWN_DISTANCE; radius <= MAX_SPAWN_DISTANCE; radius += 2) {
-            for (int offset = -radius; offset <= radius; offset += 2) {
-                SpawnPlan plan = planAt(level,
-                        player.getBlockX() + offset, player.getBlockZ() - radius,
-                        player.getBlockY(), rotation, size);
-                if (plan != null) return plan;
-                if (++perimeterAttempts >= PERIMETER_ANCHOR_ATTEMPTS) return null;
-
-                plan = planAt(level,
-                        player.getBlockX() + offset, player.getBlockZ() + radius,
-                        player.getBlockY(), rotation, size);
-                if (plan != null) return plan;
-                if (++perimeterAttempts >= PERIMETER_ANCHOR_ATTEMPTS) return null;
-
-                plan = planAt(level,
-                        player.getBlockX() - radius, player.getBlockZ() + offset,
-                        player.getBlockY(), rotation, size);
-                if (plan != null) return plan;
-                if (++perimeterAttempts >= PERIMETER_ANCHOR_ATTEMPTS) return null;
-
-                plan = planAt(level,
-                        player.getBlockX() + radius, player.getBlockZ() + offset,
-                        player.getBlockY(), rotation, size);
-                if (plan != null) return plan;
-                if (++perimeterAttempts >= PERIMETER_ANCHOR_ATTEMPTS) return null;
-            }
-        }
-        return null;
+    private static District sampledDistrict(
+            Map<Long, NeonCityGenerator.UrbanSample> samples, BlockPos position) {
+        NeonCityGenerator.UrbanSample sample = samples.get(
+                pack(position.getX(), position.getZ()));
+        return sample == null
+                ? NeonCityGenerator.sample(position.getX(), position.getZ()).district()
+                : sample.district();
     }
 
     private static SpawnPlan planAt(
-            ServerLevel level, int x, int z, int preferredY, int firstRotation, int size) {
+            ServerLevel level, int x, int z, int preferredY, int firstRotation, int size,
+            Map<Long, NeonCityGenerator.UrbanSample> samples) {
         BlockPos anchor = CityWorlds.resolveStreetFeet(level, x, z, preferredY);
-        if (anchor == null || !isPublicPatrolPosition(level, anchor)
+        if (anchor == null || !isPublicPatrolPosition(level, anchor, samples)
                 || hasNearbyPatrol(level, anchor)) {
             return null;
         }
+        Map<Long, Optional<BlockPos>> resolvedPositions = new HashMap<>();
+        resolvedPositions.put(pack(anchor.getX(), anchor.getZ()), Optional.of(anchor));
         for (int rotationOffset = 0; rotationOffset < 4; rotationOffset++) {
             List<BlockPos> positions = resolveFormation(
-                    level, anchor, firstRotation + rotationOffset, size);
+                    level, anchor, firstRotation + rotationOffset, size,
+                    samples, resolvedPositions);
             if (positions.size() == size && isAcceptableToPlayers(level, positions)) {
                 return new SpawnPlan(anchor, positions);
             }
@@ -208,7 +251,8 @@ public final class FactionSpawns {
         if (size == LARGE_PATROL_SIZE) {
             for (int rotationOffset = 0; rotationOffset < 4; rotationOffset++) {
                 List<BlockPos> positions = resolveFormation(
-                        level, anchor, firstRotation + rotationOffset, SMALL_PATROL_SIZE);
+                        level, anchor, firstRotation + rotationOffset, SMALL_PATROL_SIZE,
+                        samples, resolvedPositions);
                 if (positions.size() == SMALL_PATROL_SIZE
                         && isAcceptableToPlayers(level, positions)) {
                     return new SpawnPlan(anchor, positions);
@@ -253,33 +297,45 @@ public final class FactionSpawns {
                 enemy -> enemy.isAlive() && enemy.isAmbientPatrol()).isEmpty();
     }
 
-    private static List<BlockPos> resolveFormation(ServerLevel level, BlockPos anchor,
-                                                   int rotation, int size) {
+    private static List<BlockPos> resolveFormation(
+            ServerLevel level, BlockPos anchor, int rotation, int size,
+            Map<Long, NeonCityGenerator.UrbanSample> samples,
+            Map<Long, Optional<BlockPos>> resolvedPositions) {
         List<BlockPos> positions = new ArrayList<>(size);
         for (BlockPos offset : formationOffsets(rotation, size)) {
             BlockPos horizontal = anchor.offset(offset.getX(), 0, offset.getZ());
-            BlockPos position;
-            if (CityWorlds.isCity(level)) {
-                position = CityWorlds.resolveStreetFeet(
-                        level, horizontal.getX(), horizontal.getZ(), anchor.getY());
-                if (position == null || position.getY() != anchor.getY()
-                        || !isPublicPatrolPosition(level, position)) {
-                    return List.of();
+            long columnKey = pack(horizontal.getX(), horizontal.getZ());
+            Optional<BlockPos> resolved = resolvedPositions.get(columnKey);
+            if (resolved == null) {
+                BlockPos position;
+                if (CityWorlds.isCity(level)) {
+                    position = CityWorlds.resolveStreetFeet(
+                            level, horizontal.getX(), horizontal.getZ(), anchor.getY());
+                    if (position == null || position.getY() != anchor.getY()
+                            || !isPublicPatrolPosition(level, position, samples)) {
+                        resolved = Optional.empty();
+                    } else {
+                        resolved = Optional.of(position);
+                    }
+                } else {
+                    position = level.getHeightmapPos(
+                            Heightmap.Types.MOTION_BLOCKING, horizontal);
+                    resolved = isSafeFeet(level, position)
+                            ? Optional.of(position) : Optional.empty();
                 }
-            } else {
-                position = level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING, horizontal);
-                if (!isSafeFeet(level, position)) {
-                    return List.of();
-                }
+                resolvedPositions.put(columnKey, resolved);
             }
-            positions.add(position);
+            if (resolved.isEmpty()) {
+                return List.of();
+            }
+            positions.add(resolved.get());
         }
         return positions;
     }
 
     private static FactionEnemy createMember(ServerLevel level, BlockPos position, BlockPos home,
                                              Faction faction, EnemyCombatRole role, int skinVariant,
-                                             RandomSource random) {
+                                             District district, RandomSource random) {
         FactionEnemy enemy = FactionEntities.FACTION_ENEMY.get().create(
                 level, EntitySpawnReason.NATURAL);
         if (enemy == null) {
@@ -296,9 +352,9 @@ public final class FactionSpawns {
         enemy.setHome(home);
         enemy.setAmbientPatrol(true);
         if (role == EnemyCombatRole.STANDARD) {
-            FactionSquads.equip(enemy, faction, random, skinVariant);
+            FactionSquads.equip(enemy, faction, random, skinVariant, district);
         } else {
-            FactionSquads.equipRCorp(enemy, role, random, skinVariant);
+            FactionSquads.equipRCorp(enemy, role, random, skinVariant, district);
         }
         return enemy;
     }
@@ -364,12 +420,28 @@ public final class FactionSpawns {
     public static boolean isPublicPatrolPosition(ServerLevel level, BlockPos position) {
         NeonCityGenerator.UrbanSample sample =
                 NeonCityGenerator.sample(position.getX(), position.getZ());
-        if (position.getY() != sample.groundY() + 1 || !isPublicPatrolArea(sample)) {
+        return isPublicPatrolPosition(level, position, sample);
+    }
+
+    /** Reuses a caller's city sample instead of recursively classifying the same coordinate. */
+    public static boolean isPublicPatrolPosition(
+            ServerLevel level, BlockPos position, NeonCityGenerator.UrbanSample sample) {
+        if (sample == null || position.getY() != sample.groundY() + 1
+                || !isPublicPatrolArea(sample)) {
             return false;
         }
         return sample.roadClass() != NeonCityGenerator.RoadClass.NONE
                 || NeonCityGenerator.isCivilianPedestrianArea(
-                        level, position.getX(), position.getZ());
+                        level, position.getX(), position.getZ(), sample);
+    }
+
+    private static boolean isPublicPatrolPosition(
+            ServerLevel level, BlockPos position,
+            Map<Long, NeonCityGenerator.UrbanSample> samples) {
+        NeonCityGenerator.UrbanSample sample = samples.computeIfAbsent(
+                pack(position.getX(), position.getZ()),
+                ignored -> NeonCityGenerator.sample(position.getX(), position.getZ()));
+        return isPublicPatrolPosition(level, position, sample);
     }
 
     public static boolean isPublicPatrolRoadClass(NeonCityGenerator.RoadClass roadClass) {
@@ -428,6 +500,117 @@ public final class FactionSpawns {
     private static ServerPlayer stableRepresentative(ServerPlayer first, ServerPlayer second) {
         return first.getUUID().compareTo(second.getUUID()) <= 0 ? first : second;
     }
+
+    private static final class SearchQueue {
+        private final ArrayDeque<SpawnSearch> jobs = new ArrayDeque<>();
+        private final HashSet<Long> activeCells = new HashSet<>();
+        private long populationCountTick = Long.MIN_VALUE;
+        private int loadedPatrolCount;
+
+        private int loadedPatrolCount(ServerLevel level) {
+            long gameTime = level.getGameTime();
+            if (populationCountTick == Long.MIN_VALUE || gameTime < populationCountTick
+                    || gameTime - populationCountTick >= POPULATION_REFRESH_TICKS) {
+                loadedPatrolCount = 0;
+                for (net.minecraft.world.entity.Entity entity : level.getAllEntities()) {
+                    if (entity instanceof FactionEnemy enemy
+                            && enemy.isAlive() && enemy.isAmbientPatrol()) {
+                        loadedPatrolCount++;
+                    }
+                }
+                populationCountTick = gameTime;
+            }
+            return loadedPatrolCount;
+        }
+
+        private void recordLoadedPatrolCount(long gameTime, int count) {
+            populationCountTick = gameTime;
+            loadedPatrolCount = count;
+        }
+
+        private void finish(SpawnSearch search) {
+            activeCells.remove(search.cellKey);
+        }
+    }
+
+    private static final class SpawnSearch {
+        private final long cellKey;
+        private final UUID playerId;
+        private final RandomSource random;
+        private final boolean largeRoll;
+        private final List<SpawnCandidate> candidates;
+        private final Map<Long, NeonCityGenerator.UrbanSample> samples = new HashMap<>();
+        private int nextCandidate;
+
+        private SpawnSearch(long cellKey, UUID playerId, RandomSource random,
+                            boolean largeRoll, List<SpawnCandidate> candidates) {
+            this.cellKey = cellKey;
+            this.playerId = playerId;
+            this.random = random;
+            this.largeRoll = largeRoll;
+            this.candidates = candidates;
+        }
+
+        private static SpawnSearch create(
+                long cellKey, ServerPlayer player, RandomSource random) {
+            boolean largeRoll = random.nextBoolean();
+            int originX = player.getBlockX();
+            int originY = player.getBlockY();
+            int originZ = player.getBlockZ();
+            List<SpawnCandidate> candidates = new ArrayList<>(MAX_ANCHOR_ATTEMPTS);
+            for (int attempt = 0; attempt < RANDOM_ANCHOR_ATTEMPTS; attempt++) {
+                double angle = random.nextDouble() * Math.PI * 2.0;
+                int distance = MIN_SPAWN_DISTANCE
+                        + random.nextInt(MAX_SPAWN_DISTANCE - MIN_SPAWN_DISTANCE + 1);
+                candidates.add(new SpawnCandidate(
+                        originX + (int) Math.round(Math.cos(angle) * distance),
+                        originZ + (int) Math.round(Math.sin(angle) * distance),
+                        originY, random.nextInt(4)));
+            }
+
+            // Keep the reliable deterministic perimeter fallback, but consume it incrementally.
+            int rotation = random.nextInt(4);
+            int perimeterAttempts = 0;
+            perimeterSearch:
+            for (int radius = MIN_SPAWN_DISTANCE;
+                    radius <= MAX_SPAWN_DISTANCE; radius += 2) {
+                for (int offset = -radius; offset <= radius; offset += 2) {
+                    candidates.add(new SpawnCandidate(
+                            originX + offset, originZ - radius, originY, rotation));
+                    if (++perimeterAttempts >= PERIMETER_ANCHOR_ATTEMPTS) {
+                        break perimeterSearch;
+                    }
+                    candidates.add(new SpawnCandidate(
+                            originX + offset, originZ + radius, originY, rotation));
+                    if (++perimeterAttempts >= PERIMETER_ANCHOR_ATTEMPTS) {
+                        break perimeterSearch;
+                    }
+                    candidates.add(new SpawnCandidate(
+                            originX - radius, originZ + offset, originY, rotation));
+                    if (++perimeterAttempts >= PERIMETER_ANCHOR_ATTEMPTS) {
+                        break perimeterSearch;
+                    }
+                    candidates.add(new SpawnCandidate(
+                            originX + radius, originZ + offset, originY, rotation));
+                    if (++perimeterAttempts >= PERIMETER_ANCHOR_ATTEMPTS) {
+                        break perimeterSearch;
+                    }
+                }
+            }
+            return new SpawnSearch(cellKey, player.getUUID(), random, largeRoll,
+                    List.copyOf(candidates));
+        }
+
+        private SpawnCandidate nextCandidate() {
+            return hasCandidates() ? candidates.get(nextCandidate++) : null;
+        }
+
+        private boolean hasCandidates() {
+            return nextCandidate < candidates.size();
+        }
+    }
+
+    private record SpawnCandidate(int x, int z, int preferredY, int firstRotation) {}
 
     private record SpawnPlan(BlockPos anchor, List<BlockPos> positions) {
         private SpawnPlan {

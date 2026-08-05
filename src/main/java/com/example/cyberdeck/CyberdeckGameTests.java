@@ -604,7 +604,9 @@ public final class CyberdeckGameTests {
                         && FactionSpawns.MIN_SPAWN_DISTANCE == 26
                         && FactionSpawns.MAX_SPAWN_DISTANCE == 46
                         && FactionSpawns.POPULATION_CELL_SIZE == 128
-                        && FactionSpawns.NEARBY_RADIUS == 72.0,
+                        && FactionSpawns.NEARBY_RADIUS == 72.0
+                        && FactionSpawns.MAX_ANCHOR_ATTEMPTS == 176
+                        && FactionSpawns.MAX_ANCHOR_CHECKS_PER_TICK == 4,
                 "ambient patrol timing and range must stay reliable at the boosted spawn rate");
         helper.assertTrue(FactionSpawns.SMALL_PATROL_SIZE == 3
                         && FactionSpawns.LARGE_PATROL_SIZE == 5

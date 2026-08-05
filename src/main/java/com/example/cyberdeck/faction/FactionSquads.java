@@ -3,6 +3,7 @@ package com.example.cyberdeck.faction;
 import com.example.cyberdeck.weapon.GrenadeType;
 import com.example.cyberdeck.weapon.GunType;
 import com.example.cyberdeck.weapon.WeaponItems;
+import dev.modernity.neoncity.District;
 import dev.modernity.neoncity.MissionService;
 
 import net.minecraft.core.BlockPos;
@@ -48,11 +49,21 @@ public final class FactionSquads {
     /** Applies a loadout with an explicitly planned skin, used for duplicate-free patrol squads. */
     public static void equip(
             FactionEnemy enemy, Faction faction, RandomSource rng, int skinVariant) {
+        equip(enemy, faction, rng, skinVariant, null);
+    }
+
+    /** Applies a loadout while reusing an already sampled spawn district when available. */
+    public static void equip(FactionEnemy enemy, Faction faction, RandomSource rng,
+                             int skinVariant, District sampledDistrict) {
         enemy.setArchetype(EnemyArchetype.CORPORATE);
         enemy.setCombatRole(EnemyCombatRole.STANDARD);
         enemy.setEnemyQuickhack(EnemyQuickhack.NONE);
         enemy.setFaction(faction);
-        enemy.assignDistrictFromPosition();
+        if (sampledDistrict == null) {
+            enemy.assignDistrictFromPosition();
+        } else {
+            enemy.setDistrict(sampledDistrict);
+        }
         enemy.setSkinVariant(skinVariant);
         enemy.setGrenadeCount(0);
         enemy.setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
@@ -112,13 +123,23 @@ public final class FactionSquads {
     /** Applies one of the three exact R Corp paramilitary role kits. */
     public static void equipRCorp(
             FactionEnemy enemy, EnemyCombatRole role, RandomSource rng, int skinVariant) {
+        equipRCorp(enemy, role, rng, skinVariant, null);
+    }
+
+    /** Applies an R Corp kit while reusing an already sampled spawn district when available. */
+    public static void equipRCorp(FactionEnemy enemy, EnemyCombatRole role, RandomSource rng,
+                                  int skinVariant, District sampledDistrict) {
         if (role == EnemyCombatRole.STANDARD) {
             role = EnemyCombatRole.ASSAULT;
         }
         enemy.setArchetype(EnemyArchetype.R_CORP);
         // The legacy faction remains an internal combat value only; R Corp has its own ally checks.
         enemy.setFaction(Faction.ARASAKA);
-        enemy.assignDistrictFromPosition();
+        if (sampledDistrict == null) {
+            enemy.assignDistrictFromPosition();
+        } else {
+            enemy.setDistrict(sampledDistrict);
+        }
         enemy.setSkinVariant(skinVariant);
         enemy.setCombatRole(role);
         enemy.setEnemyQuickhack(EnemyQuickhack.NONE);
