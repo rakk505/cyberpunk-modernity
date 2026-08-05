@@ -82,12 +82,11 @@ public final class CyberwareTickHandler {
             return;
         }
         // This fires for every entity on every tick, so it must cost nothing when nobody is
-        // dilating time. Without this guard each entity scanned the whole player list twice per
-        // tick for the entire life of the server, whether or not the ability existed in the world.
-        if (!ReactiveCyberware.hasActiveTimeDilation()) {
-            return;
-        }
-        double slowFraction = ReactiveCyberware.slowFractionAffecting(entity);
+        // dilating time. Both lookups are gated on their owner sets being non-empty and then
+        // answer from a per-tick index, rather than scanning the player list for every entity.
+        double slowFraction = Math.max(
+                SandevistanMechanics.slowFractionAffecting(entity),
+                ReactiveCyberware.slowFractionAffecting(entity));
         if (slowFraction <= 0.0) {
             return;
         }
@@ -192,6 +191,7 @@ public final class CyberwareTickHandler {
         DoubleJumpGuard.clearAll();
         ChargedJump.clearAll();
         ReactiveCyberware.clearAll();
+        SandevistanMechanics.clearAll();
         CyberwareWeaponEffects.clearAll();
     }
 

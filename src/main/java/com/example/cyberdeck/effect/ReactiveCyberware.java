@@ -101,7 +101,8 @@ public final class ReactiveCyberware {
     }
 
     public static double slowFractionAffecting(Entity target) {
-        if (!(target.level() instanceof ServerLevel level)) {
+        // Cheapest possible answer in the overwhelmingly common case that nobody is dilating.
+        if (TIME_DILATION.isEmpty() || !(target.level() instanceof ServerLevel level)) {
             return 0.0;
         }
         if (target instanceof ServerPlayer player && isTimeDilationOwner(player)) {
