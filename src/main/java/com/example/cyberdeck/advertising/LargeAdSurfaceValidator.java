@@ -22,7 +22,11 @@ public final class LargeAdSurfaceValidator {
     public static final int GENERATED_EXTERIOR_SEARCH = 16;
     public static final int MIN_WIDTH = 8;
     public static final int MIN_HEIGHT = 4;
-    public static final int MAX_WIDTH = 16;
+    /**
+     * Wide enough for a highway megascreen to span a tower face across three chunks. Offline
+     * catalog surfaces are still authored at 16 or less, since they are scoped to one Arnis tile.
+     */
+    public static final int MAX_WIDTH = 48;
     /** Tall enough to cover the audited District A spawn facade without unbounded scans. */
     public static final int MAX_HEIGHT = 256;
     public static final int WIDTH = 8;
@@ -62,7 +66,27 @@ public final class LargeAdSurfaceValidator {
      */
     public static Result validateOverlay(
             Level level, BlockPos anchor, Direction facing, int width, int height) {
-        return validate(level, anchor, facing, width, height, true, true, Set.of());
+        return validateOverlay(level, anchor, facing, width, height, 0);
+    }
+
+    /**
+     * As {@link #validateOverlay(Level, BlockPos, Direction, int, int)}, but tolerating a facade
+     * that steps back by up to {@code supportTolerance} blocks across the rectangle. Real building
+     * faces are rarely one perfect plane; a screen mounted on the frontmost course reads as a
+     * single flat billboard while a step of one or two blocks hides behind it. Each column still
+     * needs a real wall within the tolerance, and that wall still may not be window glass, so this
+     * never lets a display float over an alley or cover a window.
+     */
+    public static Result validateOverlay(
+            Level level,
+            BlockPos anchor,
+            Direction facing,
+            int width,
+            int height,
+            int supportTolerance) {
+        return validate(
+                level, anchor, facing, width, height, true, true, Set.of(),
+                Math.max(0, supportTolerance));
     }
 
     /**
@@ -115,6 +139,20 @@ public final class LargeAdSurfaceValidator {
             boolean allowLuminousGlass,
             boolean requireExterior,
             Set<BlockPos> replaceableDisplayCells) {
+        return validate(level, anchor, facing, width, height, allowLuminousGlass,
+                requireExterior, replaceableDisplayCells, 0);
+    }
+
+    private static Result validate(
+            Level level,
+            BlockPos anchor,
+            Direction facing,
+            int width,
+            int height,
+            boolean allowLuminousGlass,
+            boolean requireExterior,
+            Set<BlockPos> replaceableDisplayCells,
+            int supportTolerance) {
         if (facing.getAxis().isVertical()) {
             return Result.failure(Failure.VERTICAL_FACE, anchor);
         }
@@ -136,11 +174,25 @@ public final class LargeAdSurfaceValidator {
                 return Result.failure(Failure.BLOCKED, target);
             }
 
-            BlockPos support = target.relative(facing.getOpposite());
-            if (requireExterior && !level.hasChunkAt(support)) {
-                return Result.failure(Failure.CHUNK_UNLOADED, support);
+            // Walk back to the first real block behind this cell. Without a tolerance that is
+            // simply the block touching the display; with one, a stepped-back course still counts.
+            BlockPos support = null;
+            BlockState supportState = null;
+            for (int back = 1; back <= supportTolerance + 1; back++) {
+                BlockPos probe = target.relative(facing.getOpposite(), back);
+                if (requireExterior && !level.hasChunkAt(probe)) {
+                    return Result.failure(Failure.CHUNK_UNLOADED, probe);
+                }
+                BlockState probeState = level.getBlockState(probe);
+                if (!probeState.canBeReplaced()) {
+                    support = probe;
+                    supportState = probeState;
+                    break;
+                }
             }
-            BlockState supportState = level.getBlockState(support);
+            if (support == null) {
+                return Result.failure(Failure.UNSUPPORTED, target);
+            }
             if (isGlass(supportState)
                     && !(allowLuminousGlass && isLuminousFacadeBlock(supportState))) {
                 return Result.failure(Failure.GLASS, support);

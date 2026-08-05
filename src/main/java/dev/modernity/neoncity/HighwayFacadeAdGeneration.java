@@ -53,6 +53,37 @@ final class HighwayFacadeAdGeneration {
     private static final int MAX_FACE_DEPTH = 15;
     /** Ranked alternatives tried when the best rectangle is blocked by live geometry. */
     private static final int MAX_PLACEMENT_ATTEMPTS = 8;
+    /**
+     * Chunks scanned either side of the owner along the wall. Arnis tiles are chunk-aligned, so a
+     * single tower face routinely runs past its own chunk; scanning one neighbour each way lets one
+     * screen cover the whole face instead of stopping at an invisible seam.
+     */
+    private static final int WINDOW_CHUNKS = 1;
+    private static final int WINDOW_COLUMNS = (WINDOW_CHUNKS * 2 + 1) * 16;
+    /** Window-relative column range owned by the scanning chunk itself. */
+    private static final int OWNED_COLUMN_MIN = WINDOW_CHUNKS * 16;
+    private static final int OWNED_COLUMN_MAX = OWNED_COLUMN_MIN + 15;
+    /** Lateral reach used when looking for displays that could overlap this window. */
+    private static final int OVERLAP_SEARCH_CHUNKS = WINDOW_CHUNKS + 2;
+    /**
+     * How far a facade may step back behind the screen's mounting plane. Real building faces are
+     * rarely one perfect plane, and requiring exact coplanarity chops a lightly stepped face into
+     * slivers below the minimum display width, so nothing gets placed at all. Two blocks spans the
+     * usual staircase detailing while staying tight enough that the screen still reads as mounted
+     * on the wall rather than floating in front of it.
+     */
+    static final int STEP_TOLERANCE = 2;
+    /**
+     * A clip is a 16:9 sprite sheet stretched to fill its display, so one screen covering a whole
+     * tower face would smear a single frame over two hundred blocks. Tall faces are split into a
+     * stack of panels near that aspect instead, each of which picks its own clip because the
+     * rotation is seeded from the anchor position.
+     */
+    private static final int CLIP_ASPECT_WIDTH = 16;
+    private static final int CLIP_ASPECT_HEIGHT = 9;
+    private static final int MAX_STACKED_SCREENS = 4;
+    /** Blank wall left between stacked screens so they read as separate billboards. */
+    private static final int SCREEN_GAP = 1;
 
     /** Outcome of one chunk pass; {@code RETRYABLE} means neighbouring city chunks are not final. */
     enum Result {
@@ -68,12 +99,16 @@ final class HighwayFacadeAdGeneration {
             return width * height;
         }
 
-        /** Bigger first, then taller, then closer to the highway, then a stable scan order. */
+        /**
+         * Bigger first, then taller, then snuggest against the wall, then a stable scan order.
+         * The same rectangle is offered once per mounting plane it tolerates, so preferring the
+         * deepest one keeps the screen on the frontmost real course instead of floating it out.
+         */
         boolean betterThan(Candidate other) {
             if (other == null) return true;
             if (area() != other.area()) return area() > other.area();
             if (height != other.height) return height > other.height;
-            if (depth != other.depth) return depth < other.depth;
+            if (depth != other.depth) return depth > other.depth;
             if (column != other.column) return column < other.column;
             return row < other.row;
         }
@@ -100,7 +135,7 @@ final class HighwayFacadeAdGeneration {
         if (NeonCityGenerator.isReservedMainlineBuildingChunk(level, chunk)) {
             return Result.NOT_APPLICABLE;
         }
-        if (!frontNeighborReady(level, chunk, facing)) {
+        if (!windowReady(level, chunk, facing)) {
             return Result.RETRYABLE;
         }
         // Replaying this pass — a regenerated chunk, or the backfill queue revisiting an older
@@ -117,35 +152,78 @@ final class HighwayFacadeAdGeneration {
 
         List<BoundingBox> existing = existingDisplayBounds(level, chunk, facing);
         for (Placement candidate : candidates) {
-            BlockPos anchor = candidate.anchor();
             if (intersectsAny(
-                    bounds(anchor, facing, candidate.width(), candidate.height()), existing)) {
+                    bounds(candidate.anchor(), facing, candidate.width(), candidate.height()),
+                    existing)) {
                 continue;
             }
-            LargeAdSurfaceValidator.Result validation = LargeAdSurfaceValidator.validateOverlay(
-                    level, anchor, facing, candidate.width(), candidate.height());
-            if (!validation.valid()) {
-                if (validation.failure() == LargeAdSurfaceValidator.Failure.CHUNK_UNLOADED) {
-                    return Result.RETRYABLE;
+            int placed = 0;
+            boolean unloaded = false;
+            for (Placement panel : stack(candidate)) {
+                LargeAdSurfaceValidator.Result validation =
+                        LargeAdSurfaceValidator.validateOverlay(
+                                level, panel.anchor(), facing, panel.width(), panel.height(),
+                                STEP_TOLERANCE);
+                if (!validation.valid()) {
+                    unloaded |= validation.failure()
+                            == LargeAdSurfaceValidator.Failure.CHUNK_UNLOADED;
+                    continue;
                 }
-                continue;
+                // Highway megascreens run their own campaign rather than the district rotation,
+                // so the corridor reads as a continuous run of roadside advertising.
+                if (AdDisplayPlacement.placeOverlay(
+                        level,
+                        panel.anchor(),
+                        facing,
+                        panel.width(),
+                        panel.height(),
+                        AdCampaign.HIGHWAY)) {
+                    placed++;
+                    LOGGER.debug(
+                            "[NeonCity] placed {}x{} highway megascreen facing {} at {}",
+                            panel.width(), panel.height(), facing, panel.anchor());
+                }
             }
-            // Highway megascreens run their own campaign rather than the district rotation, so
-            // the corridor reads as a continuous run of roadside advertising.
-            if (AdDisplayPlacement.placeOverlay(
-                    level,
-                    anchor,
-                    facing,
-                    candidate.width(),
-                    candidate.height(),
-                    AdCampaign.HIGHWAY)) {
-                LOGGER.debug(
-                        "[NeonCity] placed {}x{} highway megascreen facing {} at {}",
-                        candidate.width(), candidate.height(), facing, anchor);
+            if (placed > 0) {
                 return Result.PLACED;
+            }
+            if (unloaded) {
+                return Result.RETRYABLE;
             }
         }
         return Result.NONE_FOUND;
+    }
+
+    /**
+     * Splits a tall screen into a centred stack of near-16:9 panels. A clip is a 16:9 sprite sheet
+     * stretched to fill its display, so one screen covering a whole tower face would smear a single
+     * frame over the entire building. Short screens are returned unchanged, and the stack is capped
+     * so a very tall tower gets a few readable billboards rather than dozens of slots. Each panel
+     * picks its own clip, because the rotation is seeded from the anchor position.
+     */
+    static List<Placement> stack(Placement screen) {
+        int ideal = Math.max(
+                LargeAdSurfaceValidator.MIN_HEIGHT,
+                Math.round(screen.width() * (float) CLIP_ASPECT_HEIGHT / CLIP_ASPECT_WIDTH));
+        if (screen.height() < ideal * 2) {
+            return List.of(screen);
+        }
+        int panels = Math.min(MAX_STACKED_SCREENS, screen.height() / ideal);
+        int panelHeight = (screen.height() - (panels - 1) * SCREEN_GAP) / panels;
+        if (panels < 2 || panelHeight < LargeAdSurfaceValidator.MIN_HEIGHT) {
+            return List.of(screen);
+        }
+        int span = panels * panelHeight + (panels - 1) * SCREEN_GAP;
+        int start = (screen.height() - span) / 2;
+        List<Placement> stacked = new ArrayList<>(panels);
+        for (int index = 0; index < panels; index++) {
+            stacked.add(new Placement(
+                    screen.anchor().above(start + index * (panelHeight + SCREEN_GAP)),
+                    screen.facing(),
+                    screen.width(),
+                    panelHeight));
+        }
+        return List.copyOf(stacked);
     }
 
     /** A world-space rectangle proposal: the rendering anchor plus its face dimensions. */
@@ -163,8 +241,15 @@ final class HighwayFacadeAdGeneration {
             return List.of();
         }
         List<Placement> placements = new ArrayList<>();
-        for (Candidate candidate
-                : rankedCandidates(scan.rows(), scan.depth(), scan.valid())) {
+        for (Candidate candidate : rankedCandidates(
+                WINDOW_COLUMNS, scan.rows(), scan.depth(), scan.valid())) {
+            // Exactly one chunk owns each screen: the one holding its anchor column. A rectangle
+            // anchored in a neighbour is that neighbour's to place, so the same wall never
+            // collects two overlapping displays from two passes.
+            if (candidate.column() < OWNED_COLUMN_MIN
+                    || candidate.column() > OWNED_COLUMN_MAX) {
+                continue;
+            }
             placements.add(new Placement(
                     scan.anchor(candidate), facing, candidate.width(), candidate.height()));
         }
@@ -202,17 +287,32 @@ final class HighwayFacadeAdGeneration {
      * The chunk immediately toward the highway supplies the front clearance and the outward
      * exposure ray, so its city blocks must already be final before any answer is meaningful.
      */
-    private static boolean frontNeighborReady(
-            ServerLevel level, ChunkPos chunk, Direction facing) {
-        ChunkPos front = new ChunkPos(
-                chunk.x() + facing.getStepX(), chunk.z() + facing.getStepZ());
-        if (NeonCityGenerator.chunkTouchesCity(front.x(), front.z())
-                && !NeonCityGenerator.isGenerated(front)) {
+    private static boolean windowReady(ServerLevel level, ChunkPos chunk, Direction facing) {
+        Direction right = LargeAdSurfaceValidator.rightOf(facing);
+        for (int offset = -WINDOW_CHUNKS; offset <= WINDOW_CHUNKS; offset++) {
+            ChunkPos lateral = new ChunkPos(
+                    chunk.x() + right.getStepX() * offset,
+                    chunk.z() + right.getStepZ() * offset);
+            // Both the scanned column and the open volume in front of it must be final.
+            if (!chunkReady(level, lateral)
+                    || !chunkReady(level, new ChunkPos(
+                            lateral.x() + facing.getStepX(), lateral.z() + facing.getStepZ()))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * A chunk is usable once the city has finished stamping it and it is resident. Wilderness
+     * chunks the generator never touches only need to be resident.
+     */
+    private static boolean chunkReady(ServerLevel level, ChunkPos chunk) {
+        if (NeonCityGenerator.chunkTouchesCity(chunk.x(), chunk.z())
+                && !NeonCityGenerator.isGenerated(chunk)) {
             return false;
         }
-        // The scan reads up to three blocks past the border, so the neighbour must also be
-        // resident; otherwise the probe would either force a load or read void air.
-        return level.getChunkSource().getChunkNow(front.x(), front.z()) != null;
+        return level.getChunkSource().getChunkNow(chunk.x(), chunk.z()) != null;
     }
 
     /**
@@ -238,53 +338,67 @@ final class HighwayFacadeAdGeneration {
     private static FaceScan scanFace(
             ServerLevel level, ChunkPos chunk, Direction facing, int floorY) {
         Direction right = LargeAdSurfaceValidator.rightOf(facing);
+        Direction inward = facing.getOpposite();
         int baseX = right == Direction.WEST || facing == Direction.EAST
                 ? chunk.getMaxBlockX()
                 : chunk.getMinBlockX();
         int baseZ = right == Direction.NORTH || facing == Direction.SOUTH
                 ? chunk.getMaxBlockZ()
                 : chunk.getMinBlockZ();
+        // Column 0 sits one chunk before the owner along the wall; the owner keeps columns
+        // OWNED_COLUMN_MIN..OWNED_COLUMN_MAX.
+        BlockPos base = new BlockPos(baseX, floorY, baseZ).relative(right, -OWNED_COLUMN_MIN);
 
+        // Per-column ceilings keep the sweep off empty sky, which otherwise dominates the cost of
+        // a 48-column window on a tall district.
+        int[] columnTop = new int[WINDOW_COLUMNS];
         int topY = Integer.MIN_VALUE;
-        for (int localZ = 0; localZ < 16; localZ++) {
-            for (int localX = 0; localX < 16; localX++) {
-                topY = Math.max(topY, level.getHeight(
+        for (int column = 0; column < WINDOW_COLUMNS; column++) {
+            BlockPos columnBase = base.relative(right, column);
+            int highest = Integer.MIN_VALUE;
+            for (int step = 0; step <= MAX_FACE_DEPTH; step++) {
+                highest = Math.max(highest, level.getHeight(
                         Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
-                        chunk.getMinBlockX() + localX,
-                        chunk.getMinBlockZ() + localZ) - 1);
+                        columnBase.getX() + inward.getStepX() * step,
+                        columnBase.getZ() + inward.getStepZ() * step) - 1);
             }
+            columnTop[column] = Math.min(highest, NeonCityGenerator.MAX_BUILD_Y);
+            topY = Math.max(topY, columnTop[column]);
         }
-        topY = Math.min(topY, NeonCityGenerator.MAX_BUILD_Y);
         int rows = topY - floorY + 1;
         if (rows < LargeAdSurfaceValidator.MIN_HEIGHT) {
             return null;
         }
 
-        BlockPos base = new BlockPos(baseX, floorY, baseZ);
-        int[][] depth = new int[16][rows];
-        boolean[][] valid = new boolean[16][rows];
+        int[][] depth = new int[WINDOW_COLUMNS][rows];
+        boolean[][] valid = new boolean[WINDOW_COLUMNS][rows];
         BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
         boolean anyValid = false;
-        for (int column = 0; column < 16; column++) {
+        for (int column = 0; column < WINDOW_COLUMNS; column++) {
             BlockPos columnBase = base.relative(right, column);
+            int columnRows = Math.min(rows, columnTop[column] - floorY + 1);
             for (int row = 0; row < rows; row++) {
+                depth[column][row] = -1;
+            }
+            for (int row = 0; row < columnRows; row++) {
                 int y = floorY + row;
                 int firstSolid = -1;
                 for (int step = 0; step <= MAX_FACE_DEPTH; step++) {
                     cursor.set(
-                            columnBase.getX() + facing.getOpposite().getStepX() * step,
+                            columnBase.getX() + inward.getStepX() * step,
                             y,
-                            columnBase.getZ() + facing.getOpposite().getStepZ() * step);
+                            columnBase.getZ() + inward.getStepZ() * step);
                     if (!level.getBlockState(cursor).canBeReplaced()) {
                         firstSolid = step;
                         break;
                     }
                 }
-                // step 0 is the chunk's own outer cell; its air cell would fall outside the chunk.
-                if (firstSolid < 1) {
-                    depth[column][row] = -1;
+                if (firstSolid < 0) {
                     continue;
                 }
+                // Depth 0 is a wall flush with the chunk border, which Arnis tiles produce
+                // constantly. Its display cell lives one block into the chunk toward the highway,
+                // which windowReady has already confirmed is generated and resident.
                 depth[column][row] = firstSolid;
                 BlockState support = level.getBlockState(cursor);
                 boolean sturdy = support.isFaceSturdy(level, cursor, facing);
@@ -311,8 +425,10 @@ final class HighwayFacadeAdGeneration {
      */
     private static boolean frontClear(ServerLevel level, BlockPos support, Direction facing) {
         BlockPos.MutableBlockPos probe = new BlockPos.MutableBlockPos();
-        for (int depth = 1; depth <= LargeAdSurfaceValidator.GENERATED_FRONT_CLEARANCE + 1;
-                depth++) {
+        // A stepped-back cell can be mounted up to STEP_TOLERANCE blocks in front of its own wall,
+        // so demand that much extra open air here rather than discovering it during validation.
+        int reach = LargeAdSurfaceValidator.GENERATED_FRONT_CLEARANCE + 1 + STEP_TOLERANCE;
+        for (int depth = 1; depth <= reach; depth++) {
             probe.set(
                     support.getX() + facing.getStepX() * depth,
                     support.getY(),
@@ -331,50 +447,43 @@ final class HighwayFacadeAdGeneration {
      * Only cells sharing one wall depth may form a rectangle, so a stepped facade never produces a
      * display that floats away from part of its own wall.
      */
-    static List<Candidate> rankedCandidates(int rows, int[][] depth, boolean[][] valid) {
+    static List<Candidate> rankedCandidates(
+            int columns, int rows, int[][] depth, boolean[][] valid) {
         List<Candidate> best = new ArrayList<>(MAX_PLACEMENT_ATTEMPTS);
-        // run[column] counts the usable rows ending at the current one; runDepth[column] is the
-        // wall plane they all share, so a column that steps in or out restarts its run.
-        int[] run = new int[16];
-        int[] runDepth = new int[16];
-        Arrays.fill(runDepth, -1);
-        for (int row = 0; row < rows; row++) {
-            for (int column = 0; column < 16; column++) {
-                int cellDepth = depth[column][row];
-                boolean usable = valid[column][row]
-                        && cellDepth >= 1
-                        && cellDepth <= MAX_FACE_DEPTH;
-                if (!usable) {
-                    run[column] = 0;
-                    runDepth[column] = -1;
-                } else if (runDepth[column] == cellDepth) {
-                    run[column]++;
-                } else {
-                    run[column] = 1;
-                    runDepth[column] = cellDepth;
+        // One sweep per mounting plane. A cell joins the sweep for plane `mount` when its own wall
+        // sits at that plane or steps back from it by no more than STEP_TOLERANCE, so a lightly
+        // stepped face yields one wide screen on its frontmost course instead of narrow slivers.
+        int[] run = new int[columns];
+        for (int mount = 0; mount <= MAX_FACE_DEPTH; mount++) {
+            Arrays.fill(run, 0);
+            for (int row = 0; row < rows; row++) {
+                for (int column = 0; column < columns; column++) {
+                    int cellDepth = depth[column][row];
+                    boolean usable = valid[column][row]
+                            && cellDepth >= mount
+                            && cellDepth <= mount + STEP_TOLERANCE
+                            && cellDepth <= MAX_FACE_DEPTH;
+                    run[column] = usable ? run[column] + 1 : 0;
                 }
-            }
-            for (int left = 0; left < 16; left++) {
-                if (run[left] < LargeAdSurfaceValidator.MIN_HEIGHT) {
-                    continue;
-                }
-                int wallDepth = runDepth[left];
-                int minRun = Integer.MAX_VALUE;
-                for (int rightEdge = left; rightEdge < 16; rightEdge++) {
-                    if (runDepth[rightEdge] != wallDepth) {
-                        break;
-                    }
-                    minRun = Math.min(minRun, run[rightEdge]);
-                    if (minRun < LargeAdSurfaceValidator.MIN_HEIGHT) {
-                        break;
-                    }
-                    int width = rightEdge - left + 1;
-                    if (width < LargeAdSurfaceValidator.MIN_WIDTH) {
+                for (int left = 0; left < columns; left++) {
+                    if (run[left] < LargeAdSurfaceValidator.MIN_HEIGHT) {
                         continue;
                     }
-                    int height = Math.min(minRun, LargeAdSurfaceValidator.MAX_HEIGHT);
-                    offer(best, new Candidate(
-                            left, row - height + 1, width, height, wallDepth));
+                    int minRun = Integer.MAX_VALUE;
+                    int lastEdge = Math.min(columns, left + LargeAdSurfaceValidator.MAX_WIDTH);
+                    for (int rightEdge = left; rightEdge < lastEdge; rightEdge++) {
+                        minRun = Math.min(minRun, run[rightEdge]);
+                        if (minRun < LargeAdSurfaceValidator.MIN_HEIGHT) {
+                            break;
+                        }
+                        int width = rightEdge - left + 1;
+                        if (width < LargeAdSurfaceValidator.MIN_WIDTH) {
+                            continue;
+                        }
+                        int height = Math.min(minRun, LargeAdSurfaceValidator.MAX_HEIGHT);
+                        offer(best, new Candidate(
+                                left, row - height + 1, width, height, mount));
+                    }
                 }
             }
         }
@@ -428,20 +537,20 @@ final class HighwayFacadeAdGeneration {
     private static List<BoundingBox> existingDisplayBounds(
             ServerLevel level, ChunkPos chunk, Direction facing) {
         List<BoundingBox> bounds = new ArrayList<>();
-        collectDisplayBounds(level, chunk, bounds);
-        for (Direction neighbor : Direction.Plane.HORIZONTAL) {
-            collectDisplayBounds(
-                    level,
-                    new ChunkPos(
-                            chunk.x() + neighbor.getStepX(), chunk.z() + neighbor.getStepZ()),
-                    bounds);
+        Direction right = LargeAdSurfaceValidator.rightOf(facing);
+        // A screen up to MAX_WIDTH wide can be anchored several chunks along the wall and still
+        // reach this window, and its anchor row sits in the chunk toward the highway whenever the
+        // wall is flush with a border. Sweep both axes far enough to see all of them.
+        for (int offset = -OVERLAP_SEARCH_CHUNKS; offset <= OVERLAP_SEARCH_CHUNKS; offset++) {
+            ChunkPos lateral = new ChunkPos(
+                    chunk.x() + right.getStepX() * offset,
+                    chunk.z() + right.getStepZ() * offset);
+            collectDisplayBounds(level, lateral, bounds);
+            collectDisplayBounds(level, new ChunkPos(
+                    lateral.x() + facing.getStepX(), lateral.z() + facing.getStepZ()), bounds);
+            collectDisplayBounds(level, new ChunkPos(
+                    lateral.x() - facing.getStepX(), lateral.z() - facing.getStepZ()), bounds);
         }
-        // Displays mounted on the same wall always anchor in the air layer, which the facing
-        // neighbour can own when a building sits flush against the chunk border.
-        collectDisplayBounds(
-                level,
-                new ChunkPos(chunk.x() + facing.getStepX(), chunk.z() + facing.getStepZ()),
-                bounds);
         return bounds;
     }
 

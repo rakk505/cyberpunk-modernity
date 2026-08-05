@@ -5,6 +5,7 @@ import com.example.cyberdeck.advertising.AdCampaign;
 import com.example.cyberdeck.advertising.AdClip;
 import com.example.cyberdeck.advertising.FreestandingAdType;
 import com.example.cyberdeck.advertising.GeneratedAdPlacement;
+import com.example.cyberdeck.advertising.LargeAdSurfaceValidator;
 import com.example.cyberdeck.economy.Emmies;
 import com.example.cyberdeck.defense.DefenseContent;
 import com.example.cyberdeck.defense.KangTaoTurret;
@@ -1018,22 +1019,23 @@ public final class ExampleGameTests {
      * span a window band or two different wall depths, and only fire beside a connection.
      */
     public static void highwayFacadeAds(GameTestHelper helper) {
+        int columns = 48;
         int rows = 40;
-        int[][] depth = new int[16][rows];
-        boolean[][] valid = new boolean[16][rows];
-        // One flat wall two blocks into the chunk, minus a glass band at rows 10-11.
-        for (int column = 0; column < 16; column++) {
+        int[][] depth = new int[columns][rows];
+        boolean[][] valid = new boolean[columns][rows];
+        // One flat wall two blocks in, minus a glass band at rows 10-11.
+        for (int column = 0; column < columns; column++) {
             for (int row = 0; row < rows; row++) {
                 depth[column][row] = 2;
                 valid[column][row] = row < 10 || row > 11;
             }
         }
         List<HighwayFacadeAdGeneration.Candidate> ranked =
-                HighwayFacadeAdGeneration.rankedCandidates(rows, depth, valid);
-        helper.assertTrue(!ranked.isEmpty(), "a blank 16-wide facade must yield a candidate");
+                HighwayFacadeAdGeneration.rankedCandidates(columns, rows, depth, valid);
+        helper.assertTrue(!ranked.isEmpty(), "a blank wide facade must yield a candidate");
         HighwayFacadeAdGeneration.Candidate best = ranked.get(0);
-        helper.assertValueEqual(best.width(), 16,
-                "the megascreen must span the full width of a blank facade");
+        helper.assertValueEqual(best.width(), LargeAdSurfaceValidator.MAX_WIDTH,
+                "the megascreen must span a blank facade up to the full width cap");
         helper.assertValueEqual(best.height(), rows - 12,
                 "the megascreen must take the taller of the two window-split panels");
         helper.assertValueEqual(best.row(), 12,
@@ -1042,28 +1044,86 @@ public final class ExampleGameTests {
         for (HighwayFacadeAdGeneration.Candidate candidate : ranked) {
             helper.assertTrue(candidate.row() > 11 || candidate.row() + candidate.height() <= 10,
                     "no candidate may cover the window band");
+            helper.assertTrue(
+                    candidate.width() <= LargeAdSurfaceValidator.MAX_WIDTH,
+                    "no candidate may exceed the display width cap");
         }
 
-        // A stepped facade must not produce one rectangle bridging both wall planes.
-        int[][] stepped = new int[16][rows];
-        boolean[][] steppedValid = new boolean[16][rows];
-        for (int column = 0; column < 16; column++) {
+        // Arnis tiles put building faces flush with a chunk border constantly, so depth 0 is a
+        // real wall whose display cell simply lands in the neighbouring chunk.
+        int[][] flush = new int[columns][rows];
+        boolean[][] flushValid = new boolean[columns][rows];
+        for (int column = 0; column < columns; column++) {
             for (int row = 0; row < rows; row++) {
-                stepped[column][row] = column < 8 ? 2 : 5;
+                flush[column][row] = 0;
+                flushValid[column][row] = true;
+            }
+        }
+        List<HighwayFacadeAdGeneration.Candidate> flushRanked =
+                HighwayFacadeAdGeneration.rankedCandidates(columns, rows, flush, flushValid);
+        helper.assertTrue(!flushRanked.isEmpty(),
+                "a wall flush with the chunk border must still yield a megascreen");
+        helper.assertValueEqual(flushRanked.get(0).depth(), 0,
+                "the flush wall candidate must sit at depth zero");
+        helper.assertValueEqual(flushRanked.get(0).width(), LargeAdSurfaceValidator.MAX_WIDTH,
+                "a flush wall must be covered to the full width cap");
+
+        // A flat wall must mount snug against its own course, never floated forward just because
+        // the tolerance would allow a shallower plane.
+        int[][] flat = new int[columns][rows];
+        boolean[][] flatValid = new boolean[columns][rows];
+        for (int column = 0; column < columns; column++) {
+            for (int row = 0; row < rows; row++) {
+                flat[column][row] = 6;
+                flatValid[column][row] = true;
+            }
+        }
+        helper.assertValueEqual(
+                HighwayFacadeAdGeneration.rankedCandidates(columns, rows, flat, flatValid)
+                        .get(0).depth(),
+                6,
+                "a flat wall must mount on its own course, not floated forward");
+
+        // A lightly stepped staircase facade must yield ONE wide screen on the frontmost course
+        // rather than a row of sub-minimum slivers.
+        int[][] stair = new int[columns][rows];
+        boolean[][] stairValid = new boolean[columns][rows];
+        for (int column = 0; column < columns; column++) {
+            for (int row = 0; row < rows; row++) {
+                stair[column][row] = 3 + (column % 3 == 0 ? 1 : 0);
+                stairValid[column][row] = true;
+            }
+        }
+        List<HighwayFacadeAdGeneration.Candidate> stairRanked =
+                HighwayFacadeAdGeneration.rankedCandidates(columns, rows, stair, stairValid);
+        helper.assertTrue(!stairRanked.isEmpty(), "a staircase facade must still yield a panel");
+        helper.assertValueEqual(stairRanked.get(0).width(), LargeAdSurfaceValidator.MAX_WIDTH,
+                "a one-block staircase must be spanned by a single full-width screen");
+        helper.assertValueEqual(stairRanked.get(0).depth(), 3,
+                "the staircase screen must mount on the frontmost course of the face");
+
+        // A step deeper than the tolerance is a genuinely different wall and must not be bridged.
+        int[][] stepped = new int[columns][rows];
+        boolean[][] steppedValid = new boolean[columns][rows];
+        for (int column = 0; column < columns; column++) {
+            for (int row = 0; row < rows; row++) {
+                stepped[column][row] = column < 20 ? 2 : 9;
                 steppedValid[column][row] = true;
             }
         }
         List<HighwayFacadeAdGeneration.Candidate> steppedRanked =
-                HighwayFacadeAdGeneration.rankedCandidates(rows, stepped, steppedValid);
+                HighwayFacadeAdGeneration.rankedCandidates(
+                        columns, rows, stepped, steppedValid);
         helper.assertTrue(!steppedRanked.isEmpty(), "a stepped facade must still yield a panel");
         for (HighwayFacadeAdGeneration.Candidate candidate : steppedRanked) {
-            helper.assertTrue(candidate.width() == 8,
-                    "a candidate may not bridge two wall depths");
+            helper.assertTrue(
+                    candidate.column() + candidate.width() <= 20 || candidate.column() >= 20,
+                    "a candidate may not bridge two walls further apart than the tolerance");
         }
 
         // Too little space in either axis must yield nothing at all.
-        int[][] narrowDepth = new int[16][rows];
-        boolean[][] narrowValid = new boolean[16][rows];
+        int[][] narrowDepth = new int[columns][rows];
+        boolean[][] narrowValid = new boolean[columns][rows];
         for (int column = 0; column < 7; column++) {
             for (int row = 0; row < rows; row++) {
                 narrowDepth[column][row] = 2;
@@ -1071,12 +1131,50 @@ public final class ExampleGameTests {
             }
         }
         helper.assertTrue(
-                HighwayFacadeAdGeneration.rankedCandidates(rows, narrowDepth, narrowValid)
-                        .isEmpty(),
+                HighwayFacadeAdGeneration.rankedCandidates(
+                        columns, rows, narrowDepth, narrowValid).isEmpty(),
                 "a facade narrower than the minimum display width must be skipped");
 
+        assertHighwayStacking(helper);
         assertHighwayFacing(helper);
         helper.succeed();
+    }
+
+    /** Tall faces must break into a few readable near-16:9 billboards, not one smeared frame. */
+    private static void assertHighwayStacking(GameTestHelper helper) {
+        BlockPos anchor = new BlockPos(0, NeonCityGenerator.CITY_GROUND_Y + 1, 0);
+
+        // A screen already close to the clip aspect is left as a single panel.
+        HighwayFacadeAdGeneration.Placement squat =
+                new HighwayFacadeAdGeneration.Placement(anchor, Direction.NORTH, 16, 10);
+        helper.assertValueEqual(HighwayFacadeAdGeneration.stack(squat), List.of(squat),
+                "a screen near the clip aspect must not be split");
+
+        // A tower-height face splits into a bounded stack that stays inside the original span.
+        int tallHeight = 200;
+        HighwayFacadeAdGeneration.Placement tall =
+                new HighwayFacadeAdGeneration.Placement(anchor, Direction.NORTH, 48, tallHeight);
+        List<HighwayFacadeAdGeneration.Placement> panels =
+                HighwayFacadeAdGeneration.stack(tall);
+        helper.assertTrue(panels.size() >= 2 && panels.size() <= 4,
+                "a tower-height face must split into two to four stacked screens");
+        int previousTop = Integer.MIN_VALUE;
+        for (HighwayFacadeAdGeneration.Placement panel : panels) {
+            helper.assertValueEqual(panel.width(), tall.width(),
+                    "stacked panels must keep the full face width");
+            helper.assertTrue(panel.height() >= LargeAdSurfaceValidator.MIN_HEIGHT,
+                    "every stacked panel must clear the minimum display height");
+            helper.assertTrue(panel.anchor().getY() >= anchor.getY()
+                            && panel.anchor().getY() + panel.height()
+                                    <= anchor.getY() + tallHeight,
+                    "stacked panels must stay inside the rectangle they came from");
+            helper.assertTrue(panel.anchor().getY() > previousTop,
+                    "stacked panels must not overlap each other");
+            previousTop = panel.anchor().getY() + panel.height() - 1;
+        }
+        helper.assertTrue(
+                panels.get(0).height() * 3 <= tallHeight,
+                "splitting must actually reduce how far one clip is stretched");
     }
 
     /** Chunks beside a connection must face it; the corridor and the back rows must opt out. */
