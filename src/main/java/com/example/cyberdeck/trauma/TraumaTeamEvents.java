@@ -298,10 +298,10 @@ public final class TraumaTeamEvents {
         BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
         for (int x = minX; x <= maxX; x++) {
             for (int z = minZ; z <= maxZ; z++) {
+                if (!CityWorlds.hasFullyLoadedChunk(level, x, z)) return false;
                 for (int y = minY; y <= maxY; y++) {
                     cursor.set(x, y, z);
-                    if (!level.isLoaded(cursor)
-                            || !level.getWorldBorder().isWithinBounds(cursor)
+                    if (!level.getWorldBorder().isWithinBounds(cursor)
                             || !level.isEmptyBlock(cursor)) {
                         return false;
                     }
@@ -335,7 +335,7 @@ public final class TraumaTeamEvents {
 
     private static BlockPos resolveLandingAnchor(ServerLevel level, int x, int z, int preferredY) {
         BlockPos probe = new BlockPos(x, preferredY, z);
-        if (!level.isLoaded(probe)) {
+        if (!CityWorlds.hasFullyLoadedChunk(level, probe)) {
             return null;
         }
         BlockPos candidate = level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, probe);
@@ -346,13 +346,14 @@ public final class TraumaTeamEvents {
         if (CityWorlds.isCity(level)) {
             return CityWorlds.resolveStreetFeet(level, x, z, preferredY);
         }
+        if (!CityWorlds.hasFullyLoadedChunk(level, x, z)) return null;
         BlockPos candidate = level.getHeightmapPos(
                 Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, new BlockPos(x, preferredY, z));
         return isSafeFeet(level, candidate) ? candidate : null;
     }
 
     private static boolean isSafeFeet(ServerLevel level, BlockPos feet) {
-        return level.isLoaded(feet)
+        return CityWorlds.hasFullyLoadedChunk(level, feet)
                 && level.getWorldBorder().isWithinBounds(feet)
                 && level.getBlockState(feet.below()).blocksMotion()
                 && level.isEmptyBlock(feet)

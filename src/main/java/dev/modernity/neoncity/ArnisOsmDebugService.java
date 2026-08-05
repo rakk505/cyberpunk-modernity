@@ -1,5 +1,6 @@
 package dev.modernity.neoncity;
 
+import com.example.cyberdeck.city.CityWorlds;
 import com.example.cyberdeck.Cyberdeck;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -273,7 +274,7 @@ public final class ArnisOsmDebugService {
         for (int index = selectedPass; index < visible.size(); index += passes) {
             OverlayPoint point = visible.get(index);
             BlockPos probe = new BlockPos(point.x(), player.getBlockY(), point.z());
-            if (!level.hasChunkAt(probe)) continue;
+            if (!CityWorlds.hasFullyLoadedChunk(level, probe)) continue;
             Surface surface = surfaceAt(level, point.x(), point.z());
             boolean valid = surface.present()
                     && traversableForVehicle(level, point, surface.height());

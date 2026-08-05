@@ -1,6 +1,7 @@
 package dev.modernity.neoncity;
 
 import com.example.cyberdeck.Cyberdeck;
+import com.example.cyberdeck.city.CityWorlds;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -292,7 +293,8 @@ public final class NavigationTrailService {
     static List<Vec3> findOpenPath(
             ServerLevel level, ServerPlayer player, BlockPos checkpoint) {
         if (level == null || player == null || checkpoint == null
-                || !level.isLoaded(player.blockPosition()) || !level.isLoaded(checkpoint)) {
+                || !CityWorlds.hasFullyLoadedChunk(level, player.blockPosition())
+                || !CityWorlds.hasFullyLoadedChunk(level, checkpoint)) {
             return List.of();
         }
         Villager probe = createPathProbe(level, player);
@@ -320,7 +322,7 @@ public final class NavigationTrailService {
             ServerPlayer player,
             Villager probe,
             BlockPos checkpoint) {
-        if (!level.isLoaded(checkpoint)) return List.of();
+        if (!CityWorlds.hasFullyLoadedChunk(level, checkpoint)) return List.of();
         Path path = probe.getNavigation().createPath(checkpoint, 1, MAX_PATH_DISTANCE);
         if (path == null || !path.canReach() || path.getNodeCount() == 0) {
             return List.of();
@@ -438,7 +440,7 @@ public final class NavigationTrailService {
         int x = (int) Math.round(point.x());
         int z = (int) Math.round(point.z());
         BlockPos probe = new BlockPos(x, preferredY, z);
-        if (!level.isLoaded(probe)) return null;
+        if (!CityWorlds.hasFullyLoadedChunk(level, probe)) return null;
         for (int distance = 0; distance <= VERTICAL_SEARCH; distance++) {
             int below = preferredY - distance;
             if (isWalkable(level, x, below, z)) {

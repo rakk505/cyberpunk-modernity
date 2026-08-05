@@ -27,6 +27,8 @@ public final class UrbanCrateGeneration {
     private static final int MAX_PLANS_PER_CHUNK = 24;
     private static final int MIN_LOCAL_COORDINATE = 2;
     private static final int MAX_LOCAL_COORDINATE = 13;
+    private static final int PLACEMENT_FLAGS =
+            Block.UPDATE_SKIP_ALL_SIDEEFFECTS | Block.UPDATE_CLIENTS;
     private static final Direction[] HORIZONTAL_DIRECTIONS = {
             Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST
     };
@@ -135,7 +137,9 @@ public final class UrbanCrateGeneration {
     }
 
     static boolean placePlannedCrate(ServerLevel level, CratePlan plan) {
-        if (isManagedCrate(level, plan.position()) || !canPlace(level, plan)) {
+        if (!hasFullyLoadedChunk(level, plan.position())
+                || isManagedCrate(level, plan.position())
+                || !canPlace(level, plan)) {
             return false;
         }
 
@@ -147,12 +151,12 @@ public final class UrbanCrateGeneration {
         }
         BlockState barrel = Blocks.BARREL.defaultBlockState()
                 .setValue(BarrelBlock.FACING, backing.getOpposite());
-        if (!level.setBlock(position, barrel, Block.UPDATE_ALL)) {
+        if (!level.setBlock(position, barrel, PLACEMENT_FLAGS)) {
             return false;
         }
         if (!(level.getBlockEntity(position)
                 instanceof RandomizableContainerBlockEntity container)) {
-            level.setBlock(position, previous, Block.UPDATE_ALL);
+            level.setBlock(position, previous, PLACEMENT_FLAGS);
             return false;
         }
         container.setLootTable(plan.tier().lootTable());
@@ -195,6 +199,7 @@ public final class UrbanCrateGeneration {
     }
 
     static boolean isManagedCrate(ServerLevel level, BlockPos position) {
+        if (!hasFullyLoadedChunk(level, position)) return false;
         if (!(level.getBlockEntity(position)
                 instanceof RandomizableContainerBlockEntity container)) {
             return false;
@@ -212,6 +217,12 @@ public final class UrbanCrateGeneration {
             }
         }
         return false;
+    }
+
+    private static boolean hasFullyLoadedChunk(ServerLevel level, BlockPos position) {
+        return level.getChunkSource().getChunkNow(
+                Math.floorDiv(position.getX(), 16),
+                Math.floorDiv(position.getZ(), 16)) != null;
     }
 
     private static boolean isEligible(NeonCityGenerator.UrbanSample sample) {

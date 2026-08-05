@@ -1,5 +1,6 @@
 package com.example.cyberdeck.defense;
 
+import com.example.cyberdeck.city.CityWorlds;
 import java.util.ArrayDeque;
 import java.util.HashSet;
 import java.util.List;
@@ -118,7 +119,7 @@ public final class ExplosiveCanisterBlock extends Block {
                     }
                     BlockPos candidate = origin.offset(dx, dy, dz);
                     if (!level.isInWorldBounds(candidate)
-                            || !level.hasChunkAt(candidate)
+                            || !CityWorlds.hasFullyLoadedChunk(level, candidate)
                             || !level.getBlockState(candidate)
                                     .is(DefenseContent.EXPLOSIVE_CANISTER.get())) {
                         continue;
@@ -174,7 +175,7 @@ public final class ExplosiveCanisterBlock extends Block {
                     if (blockX * blockX + blockY * blockY + blockZ * blockZ
                                     > rangeSquared
                             || !level.isInWorldBounds(candidate)
-                            || !level.hasChunkAt(candidate)
+                            || !CityWorlds.hasFullyLoadedChunk(level, candidate)
                             || !level.getBlockState(candidate)
                                     .is(DefenseContent.EXPLOSIVE_CANISTER.get())) {
                         continue;

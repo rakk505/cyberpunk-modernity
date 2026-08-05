@@ -596,7 +596,8 @@ final class MainlineQuestService {
 
     static boolean ensureQuestNpc(
             ServerLevel level, String characterId, BlockPos position) {
-        if (level == null || position == null || !level.isLoaded(position)
+        if (level == null || position == null
+                || !CityWorlds.hasFullyLoadedChunk(level, position)
                 || !level.getWorldBorder().isWithinBounds(position)
                 || !level.getBlockState(position.below()).blocksMotion()
                 || level.getBlockState(position).blocksMotion()

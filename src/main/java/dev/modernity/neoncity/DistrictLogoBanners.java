@@ -1,5 +1,6 @@
 package dev.modernity.neoncity;
 
+import com.example.cyberdeck.city.CityWorlds;
 import java.util.ArrayDeque;
 import java.util.EnumMap;
 import java.util.HashSet;
@@ -230,7 +231,7 @@ final class DistrictLogoBanners {
         int checks = Math.min(PENDING.size(), MAX_UNLOADED_CHECKS_PER_TICK);
         while (checks-- > 0) {
             PendingBanner pending = PENDING.removeFirst();
-            if (!level.isLoaded(pending.bannerPos())) {
+            if (!CityWorlds.hasFullyLoadedChunk(level, pending.bannerPos())) {
                 PENDING.addLast(pending);
                 continue;
             }

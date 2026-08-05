@@ -96,6 +96,13 @@ public final class CyberpsychoEntity extends FactionEnemy {
         return Math.max(40, Math.min(MAX_CONFIGURED_HEALTH, requestedHealth));
     }
 
+    /** Overflow-safe cooldown check; {@link Long#MIN_VALUE} represents "never dashed". */
+    public static boolean isSandevistanDashCooldownReady(long gameTime, long lastDashTick) {
+        return lastDashTick == Long.MIN_VALUE
+                || gameTime < lastDashTick
+                || gameTime - lastDashTick >= SANDEVISTAN_DASH_COOLDOWN_TICKS;
+    }
+
     /**
      * On natural spawn, roll one of the {@link #SPAWN_LOADOUTS} so the sandevistan is an optional
      * variant. A mission datapack that has already called {@link #configure} keeps its explicit
@@ -133,12 +140,15 @@ public final class CyberpsychoEntity extends FactionEnemy {
         // valid target with line of sight, and the cooldown has elapsed so it cannot teleport-lock
         // the player. tryStartTacticalManeuver reuses canManeuverAgainst/canTravel, so it will not
         // fire off a ledge, into lava, or through a wall.
+        long now = level.getGameTime();
+        boolean dashCooldownReady = isSandevistanDashCooldownReady(
+                now, lastSandevistanDashTick);
         if (target != null && target.isAlive() && isTriggered()
                 && installedCyberware.contains("sandevistan")
-                && level.getGameTime() - lastSandevistanDashTick >= SANDEVISTAN_DASH_COOLDOWN_TICKS
+                && dashCooldownReady
                 && tickCount % 15 == 0 && hasLineOfSight(target)) {
             if (tryStartTacticalManeuver(TacticalManeuver.SANDEVISTAN_DASH, target)) {
-                lastSandevistanDashTick = level.getGameTime();
+                lastSandevistanDashTick = now;
             }
         }
         if (installedCyberware.contains("blood_pump")

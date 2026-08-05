@@ -5982,6 +5982,19 @@ public final class ExampleGameTests {
             MegacityLayout.Location secondLocation = secondLayout.locate(point[0], point[1]);
             helper.assertTrue(firstLocation.equals(secondLocation),
                     "layout changed at negative/global coordinate " + point[0] + "," + point[1]);
+            helper.assertTrue(firstLayout.containsCity(point[0], point[1])
+                            == firstLocation.insideCity(),
+                    "fast city containment disagrees with layout location at "
+                            + point[0] + "," + point[1]);
+            MegacityLayout.ConnectionProjection bounded = firstLayout.nearestConnection(
+                    point[0], point[1]).orElseThrow();
+            MegacityLayout.ConnectionProjection exhaustive = firstLayout.edges().stream()
+                    .map(edge -> MegacityLayout.projectConnection(edge, point[0], point[1]))
+                    .min((left, right) -> Double.compare(left.distance(), right.distance()))
+                    .orElseThrow();
+            helper.assertTrue(Math.abs(bounded.distance() - exhaustive.distance()) < 1.0E-6,
+                    "bounded edge lookup disagrees with exhaustive projection at "
+                            + point[0] + "," + point[1]);
 
             NeonCityGenerator.UrbanSample first = NeonCityGenerator.sample(point[0], point[1]);
             NeonCityGenerator.UrbanSample second = NeonCityGenerator.sample(point[0], point[1]);
@@ -6028,6 +6041,9 @@ public final class ExampleGameTests {
         for (MegacityLayout.Edge edge : layout.edges()) {
             for (int step = 1; step < 10; step++) {
                 int[] point = connectionPoint(edge, step / 10.0);
+                helper.assertTrue(layout.containsCity(point[0], point[1])
+                                == layout.locate(point[0], point[1]).insideCity(),
+                        "fast city containment disagrees on a travel-graph sample");
                 if (NeonCityGenerator.isHighwayAt(layout, point[0], point[1])) {
                     highwaySamples++;
                 }

@@ -89,6 +89,9 @@ public final class NeonCityGenerator {
     private static final int PLACE_FLAGS = Block.UPDATE_SKIP_ALL_SIDEEFFECTS;
     private static final int MAX_ARNIS_PLAN_CACHE = 32_768;
     private static final int MAX_PARK_SITE_CACHE = 32_768;
+    private static final int MAX_CITY_COLUMN_CACHE = 262_144;
+    private static final int MAX_CITY_CHUNK_CACHE = 32_768;
+    private static final long PLAYER_ENQUEUE_REFRESH_TICKS = 100L;
     private static final int MIN_ARNIS_COLUMNS = 32;
     static final int MIN_PARK_SITE_COLUMNS = 128;
     private static final int MIN_PARK_SITE_AXIS = 10;
@@ -137,6 +140,13 @@ public final class NeonCityGenerator {
     private static final Map<ParkSiteKey, ParkSitePlan> PARK_SITE_PLANS =
             new ConcurrentHashMap<>();
     private static final Map<UUID, TravelMotion> TRAVEL_MOTIONS = new HashMap<>();
+    private static final Map<UUID, PlayerEnqueueState> PLAYER_ENQUEUE_STATES = new HashMap<>();
+    private static final Map<Long, Boolean> INSIDE_CITY_COLUMNS = new ConcurrentHashMap<>();
+    private static final Map<Long, Boolean> CITY_CHUNK_MEMBERSHIP = new ConcurrentHashMap<>();
+    private static final ConcurrentLinkedQueue<Long> INSIDE_CITY_COLUMN_ORDER =
+            new ConcurrentLinkedQueue<>();
+    private static final ConcurrentLinkedQueue<Long> CITY_CHUNK_MEMBERSHIP_ORDER =
+            new ConcurrentLinkedQueue<>();
     private static final Set<Long> PENDING_LIGHT_REFRESHES = ConcurrentHashMap.newKeySet();
     private static final ConcurrentLinkedQueue<Long> READY_LIGHT_REFRESHES =
             new ConcurrentLinkedQueue<>();
@@ -276,6 +286,8 @@ public final class NeonCityGenerator {
 
     private record TravelMotion(UUID sourceId, double x, double z, long gameTime) {}
 
+    private record PlayerEnqueueState(long chunkKey, long gameTime) {}
+
     record TravelVelocity(Vec3 movement, boolean positionFallback) {}
 
     record ChunkBuildPlan(
@@ -356,6 +368,11 @@ public final class NeonCityGenerator {
         DISTRICT_HIGHWAY_FEEDERS.clear();
         PARK_SITE_PLANS.clear();
         TRAVEL_MOTIONS.clear();
+        PLAYER_ENQUEUE_STATES.clear();
+        INSIDE_CITY_COLUMNS.clear();
+        CITY_CHUNK_MEMBERSHIP.clear();
+        INSIDE_CITY_COLUMN_ORDER.clear();
+        CITY_CHUNK_MEMBERSHIP_ORDER.clear();
         PENDING_LIGHT_REFRESHES.clear();
         READY_LIGHT_REFRESHES.clear();
         lastActiveTravelGameTime = Long.MIN_VALUE;
@@ -380,14 +397,24 @@ public final class NeonCityGenerator {
     }
 
     public static int enqueueAroundPlayer(ServerPlayer player) {
-        int added = enqueueAround(player.getBlockX(), player.getBlockZ());
+        ServerLevel level = (ServerLevel) player.level();
         int centerChunkX = SectionPos.blockToSectionCoord(player.getBlockX());
         int centerChunkZ = SectionPos.blockToSectionCoord(player.getBlockZ());
-        enqueueAdBackfillsAround(
-                (ServerLevel) player.level(),
-                centerChunkX,
-                centerChunkZ,
-                AD_BACKFILL_RADIUS_CHUNKS);
+        long chunkKey = ChunkPos.pack(centerChunkX, centerChunkZ);
+        long gameTime = level.getGameTime();
+        PlayerEnqueueState previous = PLAYER_ENQUEUE_STATES.get(player.getUUID());
+        boolean refresh = previous == null
+                || previous.chunkKey() != chunkKey
+                || gameTime < previous.gameTime()
+                || gameTime - previous.gameTime() >= PLAYER_ENQUEUE_REFRESH_TICKS;
+        int added = 0;
+        if (refresh) {
+            PLAYER_ENQUEUE_STATES.put(
+                    player.getUUID(), new PlayerEnqueueState(chunkKey, gameTime));
+            added = enqueueAround(player.getBlockX(), player.getBlockZ());
+            enqueueAdBackfillsAround(
+                    level, centerChunkX, centerChunkZ, AD_BACKFILL_RADIUS_CHUNKS);
+        }
         for (int deltaZ = -1; deltaZ <= 1; deltaZ++) {
             for (int deltaX = -1; deltaX <= 1; deltaX++) {
                 promoteNear(new ChunkPos(centerChunkX + deltaX, centerChunkZ + deltaZ));
@@ -405,9 +432,9 @@ public final class NeonCityGenerator {
                     if (Math.max(Math.abs(dx), Math.abs(dz)) != ring) continue;
                     int chunkX = centerChunkX + dx;
                     int chunkZ = centerChunkZ + dz;
-                    if (!chunkTouchesCity(chunkX, chunkZ)) continue;
                     long key = ChunkPos.pack(chunkX, chunkZ);
-                    if (GENERATED.contains(key) || !QUEUED.add(key)) continue;
+                    if (GENERATED.contains(key) || QUEUED.contains(key)) continue;
+                    if (!chunkTouchesCity(chunkX, chunkZ) || !QUEUED.add(key)) continue;
                     if (pendingQueueSize() >= MAX_PENDING_CHUNKS) {
                         if (PENDING.isEmpty()) {
                             QUEUED.remove(key);
@@ -458,7 +485,8 @@ public final class NeonCityGenerator {
         int promoted = 0;
         for (int index = corridor.size() - 1; index >= 0; index--) {
             ChunkPos chunk = corridor.get(index);
-            if (!chunkTouchesCity(chunk.x(), chunk.z()) || GENERATED.contains(chunk.pack())) {
+            if (GENERATED.contains(chunk.pack())
+                    || !chunkTouchesCity(chunk.x(), chunk.z())) {
                 continue;
             }
             if (promoteUrgent(chunk)) promoted++;
@@ -500,6 +528,7 @@ public final class NeonCityGenerator {
 
     static void forgetTravelMotion(UUID playerId) {
         TRAVEL_MOTIONS.remove(playerId);
+        PLAYER_ENQUEUE_STATES.remove(playerId);
     }
 
     static List<ChunkPos> travelCorridorChunks(
@@ -624,18 +653,28 @@ public final class NeonCityGenerator {
     }
 
     public static boolean chunkTouchesCity(int chunkX, int chunkZ) {
-        if (UCorpPortGeneration.plan(layout).chunkIntersectsManagedArea(chunkX, chunkZ)) {
-            return true;
-        }
+        long key = ChunkPos.pack(chunkX, chunkZ);
+        Boolean cached = CITY_CHUNK_MEMBERSHIP.get(key);
+        if (cached != null) return cached;
+        boolean touches = UCorpPortGeneration.plan(layout)
+                .chunkIntersectsManagedArea(chunkX, chunkZ);
         int minX = chunkX << 4;
         int minZ = chunkZ << 4;
         int[] offsets = {0, 8, 15};
-        for (int dz : offsets) {
-            for (int dx : offsets) {
-                if (layout.locate(minX + dx, minZ + dz).insideCity()) return true;
+        if (!touches) {
+            outer:
+            for (int dz : offsets) {
+                for (int dx : offsets) {
+                    if (isInsideCity(minX + dx, minZ + dz)) {
+                        touches = true;
+                        break outer;
+                    }
+                }
             }
         }
-        return false;
+        cacheBounded(CITY_CHUNK_MEMBERSHIP, CITY_CHUNK_MEMBERSHIP_ORDER,
+                key, touches, MAX_CITY_CHUNK_CACHE);
+        return touches;
     }
 
     /** Generate a bounded batch of already-loaded chunks while the current tick has headroom. */
@@ -3036,6 +3075,30 @@ public final class NeonCityGenerator {
                 && atlasRoadAt(worldX, worldZ).supportsTraffic();
     }
 
+    /**
+     * Lightweight conservative traffic lookup for hot AI pathfinding. It maps the selected atlas
+     * tile directly instead of building a complete {@link UrbanSample} several times per node.
+     * Infrastructure cuts can only turn a false result into an unnecessary avoidance cost, which
+     * is preferable to running world-generation geometry inside A*.
+     */
+    public static boolean isAtlasTrafficRoadAtFast(int worldX, int worldZ) {
+        MegacityLayout activeLayout = layoutInitialized ? layout : fixedLayout();
+        ArnisPatchLibrary.Placement placement = ArnisPatchLibrary.select(
+                activeLayout, Math.floorDiv(worldX, 16), Math.floorDiv(worldZ, 16))
+                .orElse(null);
+        if (placement == null) return false;
+        MegacityLayout.Location location = activeLayout.locateDistrict(worldX, worldZ);
+        if (placement.patch().district() != location.district()
+                || !placement.patch().placementZones().contains(location.zone())) return false;
+        int sourceX = RoadDebugOverlayService.sourceCoordinate(
+                placement.sourceTileX(), Math.floorMod(worldX, 16), placement.flipX());
+        int sourceZ = RoadDebugOverlayService.sourceCoordinate(
+                placement.sourceTileZ(), Math.floorMod(worldZ, 16), placement.flipZ());
+        return OsmRoadSample.forAtlas(location.district(), location.zone())
+                .map(sample -> publicRoadClass(sample.roadAt(sourceX, sourceZ)).supportsTraffic())
+                .orElse(false);
+    }
+
     /** Finds the nearest reflected primary/secondary OSM centerline around a world position. */
     public static Optional<AtlasRoadPoint> nearestAtlasTrafficRoad(
             double worldX, double worldZ, double radius) {
@@ -3188,14 +3251,40 @@ public final class NeonCityGenerator {
         return activeLayout.locate(worldX, worldZ).onConnection();
     }
     public static boolean isInsideCity(int worldX, int worldZ) {
-        return layout.locate(worldX, worldZ).insideCity()
-                || UCorpPortGeneration.plan(layout).isManagedAt(worldX, worldZ);
+        return isInsideCity(layout, worldX, worldZ, true);
     }
     public static boolean isInsideCity(ServerLevel level, int worldX, int worldZ) {
         if (!isMegacityWorld(level)) return false;
         MegacityLayout activeLayout = layoutInitialized ? layout : fixedLayout();
-        return activeLayout.locate(worldX, worldZ).insideCity()
+        return isInsideCity(activeLayout, worldX, worldZ, layoutInitialized);
+    }
+    private static boolean isInsideCity(
+            MegacityLayout activeLayout, int worldX, int worldZ, boolean cacheable) {
+        long key = ChunkPos.pack(worldX, worldZ);
+        if (cacheable) {
+            Boolean cached = INSIDE_CITY_COLUMNS.get(key);
+            if (cached != null) return cached;
+        }
+        boolean inside = activeLayout.containsCity(worldX, worldZ)
                 || UCorpPortGeneration.plan(activeLayout).isManagedAt(worldX, worldZ);
+        if (cacheable) cacheBounded(INSIDE_CITY_COLUMNS, INSIDE_CITY_COLUMN_ORDER,
+                key, inside, MAX_CITY_COLUMN_CACHE);
+        return inside;
+    }
+
+    private static void cacheBounded(
+            Map<Long, Boolean> cache,
+            ConcurrentLinkedQueue<Long> order,
+            long key,
+            boolean value,
+            int maximumSize) {
+        if (cache.putIfAbsent(key, value) != null) return;
+        order.add(key);
+        while (cache.size() > maximumSize) {
+            Long oldest = order.poll();
+            if (oldest == null) break;
+            cache.remove(oldest);
+        }
     }
     public static boolean isEnabled() { return enabled; }
     public static boolean isGenerated(ChunkPos chunk) {

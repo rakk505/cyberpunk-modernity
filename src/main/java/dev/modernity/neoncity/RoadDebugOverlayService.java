@@ -1,5 +1,6 @@
 package dev.modernity.neoncity;
 
+import com.example.cyberdeck.city.CityWorlds;
 import com.example.cyberdeck.Cyberdeck;
 import java.util.HashMap;
 import java.util.Map;
@@ -83,7 +84,7 @@ public final class RoadDebugOverlayService {
                 if (dx * dx + dz * dz > radiusSquared) continue;
 
                 BlockPos loadedProbe = new BlockPos(x, center.getY(), z);
-                if (!level.hasChunkAt(loadedProbe)) continue;
+                if (!CityWorlds.hasFullyLoadedChunk(level, loadedProbe)) continue;
                 NeonCityGenerator.RoadClass proceduralRoad = NeonCityGenerator.roadAt(x, z);
                 DustParticleOptions particle = particleAt(x, z, proceduralRoad);
                 if (particle == null) continue;

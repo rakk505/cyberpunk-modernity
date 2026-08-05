@@ -318,10 +318,14 @@ public final class FactionSpawns {
                         resolved = Optional.of(position);
                     }
                 } else {
-                    position = level.getHeightmapPos(
-                            Heightmap.Types.MOTION_BLOCKING, horizontal);
-                    resolved = isSafeFeet(level, position)
-                            ? Optional.of(position) : Optional.empty();
+                    if (!CityWorlds.hasFullyLoadedChunk(level, horizontal)) {
+                        resolved = Optional.empty();
+                    } else {
+                        position = level.getHeightmapPos(
+                                Heightmap.Types.MOTION_BLOCKING, horizontal);
+                        resolved = isSafeFeet(level, position)
+                                ? Optional.of(position) : Optional.empty();
+                    }
                 }
                 resolvedPositions.put(columnKey, resolved);
             }
@@ -453,7 +457,7 @@ public final class FactionSpawns {
     }
 
     private static boolean isSafeFeet(ServerLevel level, BlockPos position) {
-        return level.isLoaded(position)
+        return CityWorlds.hasFullyLoadedChunk(level, position)
                 && level.getWorldBorder().isWithinBounds(position)
                 && level.getBlockState(position.below()).blocksMotion()
                 && level.isEmptyBlock(position)

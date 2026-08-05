@@ -1,5 +1,6 @@
 package com.example.cyberdeck.vehicle;
 
+import com.example.cyberdeck.city.CityWorlds;
 import dev.modernity.neoncity.MegacityLayout;
 import dev.modernity.neoncity.NeonCityGenerator;
 import java.util.ArrayList;
@@ -112,7 +113,7 @@ final class CityTrafficGraph {
         NeonCityGenerator.UrbanSample sample = sample(laneX, laneZ);
         if (!NeonCityGenerator.isHighwayRoadClass(sample.roadClass())) return null;
         BlockPos loaded = new BlockPos(Mth.floor(laneX), sample.groundY() + 1, Mth.floor(laneZ));
-        if (!level.hasChunkAt(loaded)) return null;
+        if (!CityWorlds.hasFullyLoadedChunk(level, loaded)) return null;
         float yaw = (float) Math.toDegrees(Math.atan2(-forwardX, forwardZ));
         NodeKey key = new NodeKey(
                 loaded.getX(), loaded.getZ(), headingBin(yaw), Network.HIGHWAY);
@@ -256,7 +257,7 @@ final class CityTrafficGraph {
         LaneNode cached = NODES.get(key);
         if (cached != null) return cached;
         BlockPos loaded = new BlockPos(key.x(), lane.groundY() + 1, key.z());
-        if (!level.hasChunkAt(loaded)) return null;
+        if (!CityWorlds.hasFullyLoadedChunk(level, loaded)) return null;
         LaneNode node = new LaneNode(
                 key,
                 new Vec3(laneX, lane.groundY() + 1.0, laneZ),
@@ -277,7 +278,7 @@ final class CityTrafficGraph {
             int z = Mth.floor(Mth.lerp(progress, from.z, to.z));
             RoadProfile sample = roadProfile(x, z);
             if (sample.network() != network
-                    || !level.hasChunkAt(new BlockPos(x, sample.groundY(), z))) {
+                    || !CityWorlds.hasFullyLoadedChunk(level, x, z)) {
                 return 0;
             }
             score++;
@@ -300,7 +301,7 @@ final class CityTrafficGraph {
             RoadProfile sample = roadProfile(x, z);
             if (sample.network() != originRoad.network()
                     || Math.abs(sample.groundY() - groundY) > 2
-                    || !level.hasChunkAt(new BlockPos(x, sample.groundY(), z))) {
+                    || !CityWorlds.hasFullyLoadedChunk(level, x, z)) {
                 break;
             }
             score += 10;

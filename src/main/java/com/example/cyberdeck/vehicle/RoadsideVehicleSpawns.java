@@ -58,6 +58,7 @@ public final class RoadsideVehicleSpawns {
     private static final double MIN_DRIVING_LEAD = 48.0;
     private static final double MAX_DRIVING_LEAD = 144.0;
     private static final double DRIVING_LEAD_PER_BLOCK_PER_TICK = 96.0;
+    private static final int UNAVAILABLE_SURFACE_Y = Integer.MIN_VALUE;
     private static final String MANAGED_KEY = Cyberdeck.MODID + ":roadside_vehicle_managed";
 
     private RoadsideVehicleSpawns() {
@@ -279,10 +280,8 @@ public final class RoadsideVehicleSpawns {
             int z = Mth.floor(laneZ);
             NeonCityGenerator.UrbanSample sample = NeonCityGenerator.sample(x, z);
             if (!NeonCityGenerator.isHighwayRoadClass(sample.roadClass())) continue;
-            BlockPos probe = new BlockPos(x, sample.groundY() + 1, z);
-            if (!level.hasChunkAt(probe)) continue;
-            int surfaceY = level.getHeight(
-                    Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+            int surfaceY = loadedSurfaceY(level, x, z, 3);
+            if (surfaceY == UNAVAILABLE_SURFACE_Y) continue;
             if (Math.abs(surfaceY - (sample.groundY() + 1)) > 2) continue;
             BlockPos position = new BlockPos(x, surfaceY, z);
             if (!isVehicleSurface(level, position)) continue;
@@ -329,10 +328,8 @@ public final class RoadsideVehicleSpawns {
                     / Math.max(0.01, Math.hypot(fromPlayerX, fromPlayerZ)
                             * Math.hypot(look.x, look.z));
             if (!focus.driving() && dot > 0.25) continue;
-            BlockPos probe = new BlockPos(x, NeonCityGenerator.CITY_GROUND_Y + 1, z);
-            if (!level.hasChunkAt(probe)) continue;
-            int surfaceY = level.getHeight(
-                    Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+            int surfaceY = loadedSurfaceY(level, x, z, 3);
+            if (surfaceY == UNAVAILABLE_SURFACE_Y) continue;
             if (Math.abs(surfaceY - (NeonCityGenerator.CITY_GROUND_Y + 1)) > 2) continue;
             BlockPos position = new BlockPos(x, surfaceY, z);
             if (!isVehicleSurface(level, position)) continue;
@@ -375,11 +372,8 @@ public final class RoadsideVehicleSpawns {
                 double centerZ = road.z() + normalZ * (baseOffset + extra);
                 int x = Mth.floor(centerX);
                 int z = Mth.floor(centerZ);
-                BlockPos loaded = new BlockPos(
-                        x, NeonCityGenerator.CITY_GROUND_Y + 1, z);
-                if (!level.hasChunkAt(loaded)) continue;
-                int surfaceY = level.getHeight(
-                        Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+                int surfaceY = loadedSurfaceY(level, x, z, 3);
+                if (surfaceY == UNAVAILABLE_SURFACE_Y) continue;
                 if (Math.abs(surfaceY - (NeonCityGenerator.CITY_GROUND_Y + 1)) > 2) {
                     continue;
                 }
@@ -418,12 +412,8 @@ public final class RoadsideVehicleSpawns {
                                 NeonCityGenerator.roadAt(x, z))) {
                     return false;
                 }
-                if (!level.hasChunkAt(new BlockPos(
-                        x, NeonCityGenerator.CITY_GROUND_Y + 1, z))) {
-                    return false;
-                }
-                int surfaceY = level.getHeight(
-                        Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+                int surfaceY = loadedSurfaceY(level, x, z, 0);
+                if (surfaceY == UNAVAILABLE_SURFACE_Y) return false;
                 if (Math.abs(surfaceY - center.getY()) > 1) return false;
                 BlockPos surface = new BlockPos(x, surfaceY, z);
                 if (!isVehicleSurface(level, surface)
@@ -438,6 +428,7 @@ public final class RoadsideVehicleSpawns {
     }
 
     private static boolean isVehicleSurface(ServerLevel level, BlockPos position) {
+        if (!hasFullyLoadedArea(level, position.getX(), position.getZ(), 0)) return false;
         var at = level.getBlockState(position);
         var below = level.getBlockState(position.below());
         if (at.is(Blocks.SNOW)) {
@@ -447,6 +438,29 @@ public final class RoadsideVehicleSpawns {
         if (below.isSolid()) return true;
         return below.is(Blocks.SNOW)
                 && level.getBlockState(position.below(2)).isSolid();
+    }
+
+    /** Returns a surface only when every chunk a vehicle can overlap is already fully available. */
+    private static int loadedSurfaceY(
+            ServerLevel level, int blockX, int blockZ, int footprintRadius) {
+        if (!hasFullyLoadedArea(level, blockX, blockZ, footprintRadius)) {
+            return UNAVAILABLE_SURFACE_Y;
+        }
+        return level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, blockX, blockZ);
+    }
+
+    private static boolean hasFullyLoadedArea(
+            ServerLevel level, int blockX, int blockZ, int radius) {
+        int minChunkX = Math.floorDiv(blockX - radius, 16);
+        int maxChunkX = Math.floorDiv(blockX + radius, 16);
+        int minChunkZ = Math.floorDiv(blockZ - radius, 16);
+        int maxChunkZ = Math.floorDiv(blockZ + radius, 16);
+        for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
+            for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
+                if (level.getChunkSource().getChunkNow(chunkX, chunkZ) == null) return false;
+            }
+        }
+        return true;
     }
 
     static double drivingLeadDistance(ServerPlayer player) {

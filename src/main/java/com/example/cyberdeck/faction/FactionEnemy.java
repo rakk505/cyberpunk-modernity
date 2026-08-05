@@ -1208,7 +1208,8 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         Vec3 next = this.position().add(step);
         BlockPos support = BlockPos.containing(
                 next.x, this.getBoundingBox().minY - 0.12, next.z);
-        return level.isLoaded(support) && level.getBlockState(support).blocksMotion();
+        return CityWorlds.hasFullyLoadedChunk(level, support)
+                && level.getBlockState(support).blocksMotion();
     }
 
     private void applyTacticalVelocity(Vec3 direction, double requestedSpeed, TacticalManeuver maneuver) {

@@ -71,12 +71,16 @@ public final class SandevistanMechanics {
         state.markToggled(now);
         if (state.active()) {
             state.deactivate();
+            CyberwareAttachments.setSandevistanActive(player, false);
+            ACTIVE_OWNERS.remove(player.getUUID());
             return ToggleResult.DEACTIVATED;
         }
         if (!state.canActivate(profile)) {
             return ToggleResult.RECHARGING;
         }
         state.activate();
+        CyberwareAttachments.setSandevistanActive(player, true);
+        ACTIVE_OWNERS.add(player.getUUID());
         return ToggleResult.ACTIVATED;
     }
 
@@ -88,6 +92,7 @@ public final class SandevistanMechanics {
                 state.clear();
             }
             CyberwareAttachments.setSandevistanActive(player, false);
+            ACTIVE_OWNERS.remove(player.getUUID());
             return;
         }
         state.tick(profile);
@@ -110,6 +115,8 @@ public final class SandevistanMechanics {
             state.clear();
             state.ensureVariant(profile);
         }
+        CyberwareAttachments.setSandevistanActive(player, false);
+        ACTIVE_OWNERS.remove(player.getUUID());
     }
 
     /** Login/logout/respawn ends the active run while retaining its persisted recharge progress. */

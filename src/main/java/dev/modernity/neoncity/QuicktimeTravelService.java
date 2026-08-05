@@ -1,5 +1,6 @@
 package dev.modernity.neoncity;
 
+import com.example.cyberdeck.city.CityWorlds;
 import com.example.cyberdeck.network.OpenQuicktimeStationPacket;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -16,6 +17,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.level.TicketType;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Relative;
@@ -35,7 +37,10 @@ public final class QuicktimeTravelService {
     private static final int STATION_CLEAR_RADIUS = 1;
     private static final int[] ARRIVAL_X = {0, 1, 0, -1, 1, 1, -1, -1};
     private static final int[] ARRIVAL_Z = {-1, 0, 1, 0, -1, 1, 1, -1};
+    private static final TicketType QUICKTIME_TRAVEL_TICKET = new TicketType(
+            12_347L, TicketType.FLAG_LOADING);
     private static final Map<UUID, Long> NEXT_TRAVEL_TICK = new ConcurrentHashMap<>();
+    private static final Set<UUID> PENDING_TRAVEL = ConcurrentHashMap.newKeySet();
 
     private QuicktimeTravelService() {
     }
@@ -84,34 +89,27 @@ public final class QuicktimeTravelService {
             return;
         }
 
+        if (!PENDING_TRAVEL.add(player.getUUID())) {
+            fail(player, "message.cyberdeck.quicktime.cooldown");
+            return;
+        }
         QuicktimeStationData data = QuicktimeStationData.get(level);
-        Optional<BlockPos> destination = resolveDestination(level, data, source, targetDistrict);
-        if (destination.isEmpty()) {
+        List<BlockPos> destinations = new ArrayList<>(candidates(data, targetDistrict));
+        destinations.sort(Comparator
+                .comparingDouble((BlockPos pos) -> pos.distSqr(source))
+                .thenComparingLong(BlockPos::asLong));
+        if (destinations.isEmpty()) {
+            PENDING_TRAVEL.remove(player.getUUID());
             fail(player, "message.cyberdeck.quicktime.unavailable");
             return;
         }
-        Optional<BlockPos> arrival = findSafeArrival(level, player, destination.get());
-        if (arrival.isEmpty()) {
-            fail(player, "message.cyberdeck.quicktime.blocked");
-            return;
-        }
-
-        BlockPos arrivalPos = arrival.get();
-        if (!teleportPlayer(player, level, arrivalPos)) {
-            fail(player, "message.cyberdeck.quicktime.teleport_failed");
-            return;
-        }
-        NEXT_TRAVEL_TICK.put(player.getUUID(), gameTime + TRAVEL_COOLDOWN_TICKS);
-        level.playSound(null, source, SoundEvents.ENDERMAN_TELEPORT,
-                SoundSource.PLAYERS, 0.7F, 1.35F);
-        level.playSound(null, arrivalPos, SoundEvents.ENDERMAN_TELEPORT,
-                SoundSource.PLAYERS, 0.7F, 1.55F);
-        player.sendSystemMessage(Component.translatable(
-                "message.cyberdeck.quicktime.arrived", targetDistrict.label()), true);
+        continueTravel(player, level, source, sourceDistrict, targetDistrict,
+                data, List.copyOf(destinations), 0);
     }
 
     static void clearRuntimeState() {
         NEXT_TRAVEL_TICK.clear();
+        PENDING_TRAVEL.clear();
     }
 
     static List<District> destinationDistricts(District sourceDistrict) {
@@ -167,24 +165,116 @@ public final class QuicktimeTravelService {
         }
     }
 
-    private static Optional<BlockPos> resolveDestination(
+    private static void continueTravel(
+            ServerPlayer player,
             ServerLevel level,
-            QuicktimeStationData data,
             BlockPos source,
-            District targetDistrict) {
-        List<BlockPos> candidates = new ArrayList<>(candidates(data, targetDistrict));
-        candidates.sort(Comparator
-                .comparingDouble((BlockPos pos) -> pos.distSqr(source))
-                .thenComparingLong(BlockPos::asLong));
-        for (BlockPos candidate : candidates) {
-            level.getChunk(candidate.getX() >> 4, candidate.getZ() >> 4);
-            if (isStation(level, candidate) && stationDistrict(candidate) == targetDistrict) {
-                data.add(candidate);
-                return Optional.of(candidate);
+            District sourceDistrict,
+            District targetDistrict,
+            QuicktimeStationData data,
+            List<BlockPos> destinations,
+            int startIndex) {
+        for (int index = startIndex; index < destinations.size(); index++) {
+            BlockPos candidate = destinations.get(index);
+            ChunkPos chunk = ChunkPos.containing(candidate);
+            if (level.getChunkSource().getChunkNow(chunk.x(), chunk.z()) != null) {
+                if (isStation(level, candidate) && stationDistrict(candidate) == targetDistrict) {
+                    finishTravel(player, level, source, sourceDistrict, targetDistrict, candidate);
+                    return;
+                }
+                data.remove(candidate);
+                continue;
             }
-            data.remove(candidate);
+
+            int nextIndex = index + 1;
+            player.sendSystemMessage(Component.literal(
+                    "Preparing Quicktime destination without blocking the server..."), true);
+            try {
+                level.getChunkSource().addTicketAndLoadWithRadius(
+                        QUICKTIME_TRAVEL_TICKET, chunk, 0)
+                        .whenComplete((ignored, failure) -> level.getServer().execute(() -> {
+                            boolean tryNext = false;
+                            try {
+                                if (failure != null || level.getChunkSource().getChunkNow(
+                                        chunk.x(), chunk.z()) == null) {
+                                    endTravelFailure(
+                                            player, "message.cyberdeck.quicktime.unavailable");
+                                    return;
+                                }
+                                if (isStation(level, candidate)
+                                        && stationDistrict(candidate) == targetDistrict) {
+                                    finishTravel(player, level, source, sourceDistrict,
+                                            targetDistrict, candidate);
+                                    return;
+                                }
+                                data.remove(candidate);
+                                tryNext = true;
+                            } finally {
+                                level.getChunkSource().removeTicketWithRadius(
+                                        QUICKTIME_TRAVEL_TICKET, chunk, 0);
+                            }
+                            if (tryNext) {
+                                continueTravel(player, level, source, sourceDistrict,
+                                        targetDistrict, data, destinations, nextIndex);
+                            }
+                        }));
+            } catch (RuntimeException exception) {
+                level.getChunkSource().removeTicketWithRadius(
+                        QUICKTIME_TRAVEL_TICKET, chunk, 0);
+                endTravelFailure(player, "message.cyberdeck.quicktime.unavailable");
+            }
+            return;
         }
-        return Optional.empty();
+        endTravelFailure(player, "message.cyberdeck.quicktime.unavailable");
+    }
+
+    private static void finishTravel(
+            ServerPlayer player,
+            ServerLevel level,
+            BlockPos source,
+            District sourceDistrict,
+            District targetDistrict,
+            BlockPos destination) {
+        try {
+            if (level.getServer().getPlayerList().getPlayer(player.getUUID()) != player
+                    || player.level() != level) {
+                return;
+            }
+            if (validSource(player, level, source) != sourceDistrict) {
+                return;
+            }
+            Optional<BlockPos> arrival = findSafeArrival(level, player, destination);
+            if (arrival.isEmpty()) {
+                fail(player, "message.cyberdeck.quicktime.blocked");
+                return;
+            }
+
+            BlockPos arrivalPos = arrival.get();
+            if (!teleportPlayer(player, level, arrivalPos)) {
+                fail(player, "message.cyberdeck.quicktime.teleport_failed");
+                return;
+            }
+            NEXT_TRAVEL_TICK.put(
+                    player.getUUID(), level.getGameTime() + TRAVEL_COOLDOWN_TICKS);
+            level.playSound(null, source, SoundEvents.ENDERMAN_TELEPORT,
+                    SoundSource.PLAYERS, 0.7F, 1.35F);
+            level.playSound(null, arrivalPos, SoundEvents.ENDERMAN_TELEPORT,
+                    SoundSource.PLAYERS, 0.7F, 1.55F);
+            player.sendSystemMessage(Component.translatable(
+                    "message.cyberdeck.quicktime.arrived", targetDistrict.label()), true);
+        } finally {
+            PENDING_TRAVEL.remove(player.getUUID());
+        }
+    }
+
+    private static void endTravelFailure(ServerPlayer player, String translationKey) {
+        try {
+            if (player.level().getServer().getPlayerList().getPlayer(player.getUUID()) == player) {
+                fail(player, translationKey);
+            }
+        } finally {
+            PENDING_TRAVEL.remove(player.getUUID());
+        }
     }
 
     private static Set<BlockPos> candidates(QuicktimeStationData data, District district) {
@@ -293,7 +383,7 @@ public final class QuicktimeTravelService {
                 || !level.isInWorldBounds(source)
                 || !level.getWorldBorder().isWithinBounds(source)
                 || player.distanceToSqr(Vec3.atCenterOf(source)) > MAX_USE_DISTANCE_SQUARED
-                || !level.isLoaded(source)
+                || !CityWorlds.hasFullyLoadedChunk(level, source)
                 || !isStation(level, source)) {
             fail(player, "message.cyberdeck.quicktime.invalid_source");
             return null;

@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import net.minecraft.resources.Identifier;
@@ -115,26 +116,47 @@ public final class ArnisPatchLibrary {
     private static final Map<District, List<Atlas>> ATLASES = buildAtlases(PATCHES);
     private static final ConcurrentHashMap<SelectionKey, Optional<Placement>> SELECTION_CACHE =
             new ConcurrentHashMap<>();
+    private static final ConcurrentLinkedQueue<SelectionKey> SELECTION_CACHE_ORDER =
+            new ConcurrentLinkedQueue<>();
 
     private ArnisPatchLibrary() {}
 
     /** Select the exact coherent Arnis tile for a developed district chunk. */
     public static Optional<Placement> select(MegacityLayout layout, int chunkX, int chunkZ) {
-        if (SELECTION_CACHE.size() > MAX_SELECTION_CACHE) clearSelectionCache();
         SelectionKey key = new SelectionKey(layout.seed(), chunkX, chunkZ);
-        return SELECTION_CACHE.computeIfAbsent(
-                key, ignored -> computeSelection(layout, chunkX, chunkZ));
+        Optional<Placement> cached = SELECTION_CACHE.get(key);
+        if (cached != null) return cached;
+        Optional<Placement> computed = computeSelection(layout, chunkX, chunkZ);
+        Optional<Placement> raced = SELECTION_CACHE.putIfAbsent(key, computed);
+        if (raced != null) return raced;
+        SELECTION_CACHE_ORDER.add(key);
+        while (SELECTION_CACHE.size() > MAX_SELECTION_CACHE) {
+            SelectionKey oldest = SELECTION_CACHE_ORDER.poll();
+            if (oldest == null) break;
+            SELECTION_CACHE.remove(oldest);
+        }
+        return computed;
     }
 
     private static Optional<Placement> computeSelection(
             MegacityLayout layout, int chunkX, int chunkZ) {
         int centerX = (chunkX << 4) + 8;
         int centerZ = (chunkZ << 4) + 8;
-        MegacityLayout.Location location = layout.locate(centerX, centerZ);
+        // Atlas selection normally only depends on the district lookup. Full locate() projects
+        // against graph edges and used to leak that cost into civilian A* through connector
+        // checks. Only a district-border point can change back to an atlas zone when a graph road
+        // crosses it, so preserve that rare case with one exact fallback.
+        MegacityLayout.Location location = layout.locateDistrict(centerX, centerZ);
+        if (location.zone() == MegacityLayout.Zone.BORDER_WALLED
+                || location.zone() == MegacityLayout.Zone.BORDER_FOREST
+                || location.zone() == MegacityLayout.Zone.BORDER_CLIFF) {
+            location = layout.locate(centerX, centerZ);
+        }
         if (!isAtlasZone(location.zone())) return Optional.empty();
 
+        MegacityLayout.Zone placementZone = location.zone();
         List<Atlas> candidates = ATLASES.getOrDefault(location.district(), List.of())
-                .stream().filter(atlas -> atlas.supports(location.zone())).toList();
+                .stream().filter(atlas -> atlas.supports(placementZone)).toList();
         if (candidates.isEmpty()) return Optional.empty();
         long atlasHash = MegacityLayout.mix(
                 layout.seed() ^ SELECTION_SALT,
@@ -344,6 +366,7 @@ public final class ArnisPatchLibrary {
 
     public static void clearSelectionCache() {
         SELECTION_CACHE.clear();
+        SELECTION_CACHE_ORDER.clear();
     }
 
     public static int atlasCount() {

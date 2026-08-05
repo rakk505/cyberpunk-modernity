@@ -250,7 +250,7 @@ public final class CityNpcSpawns {
     }
 
     private static boolean isBuildingColumn(ServerLevel level, BlockPos feet) {
-        if (!level.isLoaded(feet)) {
+        if (!CityWorlds.hasFullyLoadedChunk(level, feet)) {
             return false;
         }
         int solid = 0;

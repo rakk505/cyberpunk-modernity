@@ -31,7 +31,15 @@ sourceSets.main.resources {
     exclude("data/neoncity/park_trees/structures/**/*.nbt")
 }
 
+def verifyOpenParkAudit = tasks.register('verifyOpenParkAudit', Exec) {
+    group = 'verification'
+    description = 'Verifies that the open-park audit matches the bundled Arnis catalog.'
+    workingDir projectDir
+    commandLine 'python3', 'tools/arnis/refresh_open_park_audit.py', '--check'
+}
+
 tasks.named('processResources', ProcessResources).configure {
+    dependsOn verifyOpenParkAudit
     from('src/main/resources/data/neoncity/arnis/structures') {
         include '**/*.nbt'
         into 'data/neoncity/structure/arnis'

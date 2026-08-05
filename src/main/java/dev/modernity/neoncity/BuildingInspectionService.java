@@ -1,5 +1,6 @@
 package dev.modernity.neoncity;
 
+import com.example.cyberdeck.city.CityWorlds;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -263,7 +264,7 @@ final class BuildingInspectionService {
     private static void emit(ServerPlayer player, Session session) {
         if (!(player.level() instanceof ServerLevel level)) return;
         for (DebugPoint point : session.points()) {
-            if (!level.isLoaded(point.position())) continue;
+            if (!CityWorlds.hasFullyLoadedChunk(level, point.position())) continue;
             level.sendParticles(
                     player,
                     new DustParticleOptions(point.color(), point.scale()),

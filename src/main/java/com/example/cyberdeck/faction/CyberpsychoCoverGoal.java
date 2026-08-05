@@ -1,5 +1,6 @@
 package com.example.cyberdeck.faction;
 
+import com.example.cyberdeck.city.CityWorlds;
 import java.util.EnumSet;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -73,10 +74,12 @@ final class CyberpsychoCoverGoal extends Goal {
             double angle = psycho.getRandom().nextDouble() * Math.PI * 2.0;
             int x = origin.getX() + (int) Math.round(Math.cos(angle) * radius);
             int z = origin.getZ() + (int) Math.round(Math.sin(angle) * radius);
+            if (!CityWorlds.hasFullyLoadedChunk(level, x, z)) {
+                continue;
+            }
             BlockPos feet = level.getHeightmapPos(
                     Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, new BlockPos(x, origin.getY(), z));
-            if (!level.isLoaded(feet)
-                    || !level.getBlockState(feet.below()).blocksMotion()
+            if (!level.getBlockState(feet.below()).blocksMotion()
                     || !level.isEmptyBlock(feet)
                     || !level.isEmptyBlock(feet.above())) {
                 continue;

@@ -1,5 +1,6 @@
 package dev.modernity.neoncity;
 
+import com.example.cyberdeck.city.CityWorlds;
 import com.example.cyberdeck.Cyberdeck;
 
 import java.util.ArrayDeque;
@@ -1687,7 +1688,7 @@ public final class MissionBuildingPlanner {
     }
 
     private static boolean isInteriorWalkable(ServerLevel level, BlockPos position) {
-        if (!level.isLoaded(position)
+        if (!CityWorlds.hasFullyLoadedChunk(level, position)
                 || !level.isEmptyBlock(position)
                 || !level.isEmptyBlock(position.above())
                 || !level.getBlockState(position.below()).blocksMotion()

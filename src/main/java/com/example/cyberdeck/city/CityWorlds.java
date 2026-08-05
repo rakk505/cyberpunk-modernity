@@ -143,7 +143,8 @@ public final class CityWorlds {
         Kind kind = kind(level);
         if (kind == Kind.NONE || (!kind.usesDynamicStreetY()
                 && feet.getY() != kind.streetY() + 1)
-                || !level.isLoaded(feet) || !level.getWorldBorder().isWithinBounds(feet)) {
+                || !hasFullyLoadedChunk(level, feet.getX(), feet.getZ())
+                || !level.getWorldBorder().isWithinBounds(feet)) {
             return false;
         }
         BlockPos floorPos = feet.below();
@@ -179,7 +180,7 @@ public final class CityWorlds {
         BlockPos candidate;
         if (kind.usesDynamicStreetY()) {
             BlockPos probe = new BlockPos(x, preferredY, z);
-            if (!level.isLoaded(probe)) {
+            if (!hasFullyLoadedChunk(level, x, z)) {
                 return null;
             }
             candidate = level.getHeightmapPos(
@@ -220,7 +221,7 @@ public final class CityWorlds {
         int connected = 0;
         for (int[] direction : CARDINAL_DIRECTIONS) {
             BlockPos probe = feet.offset(direction[0], 0, direction[1]);
-            if (!level.isLoaded(probe)) {
+            if (!hasFullyLoadedChunk(level, probe.getX(), probe.getZ())) {
                 continue;
             }
             BlockPos neighborFeet = level.getHeightmapPos(
@@ -269,28 +270,34 @@ public final class CityWorlds {
             }
         }
 
-        // Generated streets can be sparse around large parcels. A deterministic perimeter scan
-        // guarantees that random misses do not suppress an entire civilian population cycle.
+        // Generated streets can be sparse around large parcels. Keep a deterministic fallback,
+        // but cap it to the caller's attempt budget. The old unbounded perimeter walk could test
+        // thousands of columns in one server tick.
+        int perimeterProbes = 0;
         for (int radius = minDistance; radius <= maxDistance; radius += 2) {
             for (int offset = -radius; offset <= radius; offset += 2) {
+                if (perimeterProbes++ >= attempts) return null;
                 BlockPos north = resolveFeet(level,
                         origin.getX() + offset, origin.getZ() - radius, origin.getY(),
                         pedestriansOnly);
                 if (north != null) {
                     return north;
                 }
+                if (perimeterProbes++ >= attempts) return null;
                 BlockPos south = resolveFeet(level,
                         origin.getX() + offset, origin.getZ() + radius, origin.getY(),
                         pedestriansOnly);
                 if (south != null) {
                     return south;
                 }
+                if (perimeterProbes++ >= attempts) return null;
                 BlockPos west = resolveFeet(level,
                         origin.getX() - radius, origin.getZ() + offset, origin.getY(),
                         pedestriansOnly);
                 if (west != null) {
                     return west;
                 }
+                if (perimeterProbes++ >= attempts) return null;
                 BlockPos east = resolveFeet(level,
                         origin.getX() + radius, origin.getZ() + offset, origin.getY(),
                         pedestriansOnly);
@@ -353,5 +360,19 @@ public final class CityWorlds {
             }
         }
         return best;
+    }
+
+    /**
+     * {@link ServerLevel#isLoaded(BlockPos)} can be true while a chunk holder is still promoting
+     * to a full {@code LevelChunk}. Reading blocks at that point makes the server thread wait for
+     * generation. Runtime population searches must skip those candidates instead.
+     */
+    public static boolean hasFullyLoadedChunk(ServerLevel level, BlockPos position) {
+        return hasFullyLoadedChunk(level, position.getX(), position.getZ());
+    }
+
+    public static boolean hasFullyLoadedChunk(ServerLevel level, int blockX, int blockZ) {
+        return level.getChunkSource().getChunkNow(
+                Math.floorDiv(blockX, 16), Math.floorDiv(blockZ, 16)) != null;
     }
 }

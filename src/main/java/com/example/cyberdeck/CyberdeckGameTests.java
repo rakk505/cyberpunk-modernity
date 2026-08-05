@@ -3506,6 +3506,18 @@ public final class CyberdeckGameTests {
         helper.assertTrue(sandevistanCap <= 2.0,
                 "the sandevistan cap must stay low enough to remain a swept move, not a teleport ("
                         + sandevistanCap + ")");
+        helper.assertTrue(
+                com.example.cyberdeck.faction.CyberpsychoEntity
+                        .isSandevistanDashCooldownReady(0L, Long.MIN_VALUE),
+                "a never-used sandevistan dash must be immediately ready without long overflow");
+        helper.assertFalse(
+                com.example.cyberdeck.faction.CyberpsychoEntity
+                        .isSandevistanDashCooldownReady(49L, 0L),
+                "the sandevistan dash cooldown must block early reuse");
+        helper.assertTrue(
+                com.example.cyberdeck.faction.CyberpsychoEntity
+                        .isSandevistanDashCooldownReady(50L, 0L),
+                "the sandevistan dash must become ready when its cooldown expires");
 
         // Spawn loadouts must offer a sandevistan variant so it is genuinely optional-but-possible.
         boolean anyHasSandevistan = false;

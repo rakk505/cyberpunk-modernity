@@ -24,6 +24,7 @@ import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.level.TicketType;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.level.ChunkPos;
@@ -31,6 +32,10 @@ import net.minecraft.world.level.ChunkPos;
 /** Administrative generation/status commands for previews and large builds. */
 public final class NeonCityCommand {
     private static final int MAX_BUILDING_SUMMARY_LINES = 24;
+    private static final TicketType DISTRICT_TELEPORT_TICKET = new TicketType(
+            12_346L, TicketType.FLAG_LOADING);
+    private static final Set<UUID> PENDING_DISTRICT_TELEPORTS =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
     private static final List<String> DISTRICT_CODES = Arrays.stream(District.values())
             .map(District::commandCode)
             .toList();
@@ -572,9 +577,10 @@ public final class NeonCityCommand {
     private static int pregenStatus(CommandSourceStack source) {
         CityPriorityPreGenerator.Status status = CityPriorityPreGenerator.status();
         source.sendSuccess(() -> Component.literal(String.format(
-                "Priority pre-generation: complete=%d/%d, remaining=%d, paused=%s, loading=%s",
+                "Priority pre-generation: complete=%d/%d, remaining=%d, paused=%s, "
+                        + "waiting_for_players=%s, loading=%s",
                 status.complete(), status.total(), status.remaining(), status.paused(),
-                status.loading())), false);
+                status.waitingForPlayers(), status.loading())), false);
         return status.complete();
     }
 
@@ -586,7 +592,9 @@ public final class NeonCityCommand {
 
     private static int resumePregen(CommandSourceStack source) {
         CityPriorityPreGenerator.resume();
-        source.sendSuccess(() -> Component.literal("Priority pre-generation resumed."), true);
+        source.sendSuccess(() -> Component.literal(
+                "Priority pre-generation resumed; it runs while the server is empty. "
+                        + "Player-adjacent foreground generation remains active during play."), true);
         return 1;
     }
 
@@ -1368,6 +1376,56 @@ public final class NeonCityCommand {
         District district = parsed.get();
         BlockPos station = QuicktimeTravelService.canonicalStation(district);
         ChunkPos centerChunk = ChunkPos.containing(station);
+        if (destinationLevel.getChunkSource().getChunkNow(
+                centerChunk.x(), centerChunk.z()) != null) {
+            return finishDistrictTeleport(source, player, destinationLevel, district,
+                    station, centerChunk);
+        }
+        if (!PENDING_DISTRICT_TELEPORTS.add(player.getUUID())) {
+            source.sendFailure(Component.literal(
+                    "A district teleport is already being prepared for you."));
+            return 0;
+        }
+
+        source.sendSuccess(() -> Component.literal(
+                "Preparing " + district.label() + " without blocking the server..."), false);
+        try {
+            destinationLevel.getChunkSource().addTicketAndLoadWithRadius(
+                    DISTRICT_TELEPORT_TICKET, centerChunk, 0)
+                    .whenComplete((ignored, failure) -> source.getServer().execute(() -> {
+                        try {
+                            if (failure != null || destinationLevel.getChunkSource().getChunkNow(
+                                    centerChunk.x(), centerChunk.z()) == null) {
+                                source.sendFailure(Component.literal(
+                                        "Could not load the center of " + district.label() + "."));
+                                return;
+                            }
+                            finishDistrictTeleport(source, player, destinationLevel, district,
+                                    station, centerChunk);
+                        } finally {
+                            destinationLevel.getChunkSource().removeTicketWithRadius(
+                                    DISTRICT_TELEPORT_TICKET, centerChunk, 0);
+                            PENDING_DISTRICT_TELEPORTS.remove(player.getUUID());
+                        }
+                    }));
+        } catch (RuntimeException exception) {
+            destinationLevel.getChunkSource().removeTicketWithRadius(
+                    DISTRICT_TELEPORT_TICKET, centerChunk, 0);
+            PENDING_DISTRICT_TELEPORTS.remove(player.getUUID());
+            source.sendFailure(Component.literal(
+                    "Could not start loading " + district.label() + "."));
+            return 0;
+        }
+        return 1;
+    }
+
+    private static int finishDistrictTeleport(
+            CommandSourceStack source,
+            ServerPlayer player,
+            ServerLevel destinationLevel,
+            District district,
+            BlockPos station,
+            ChunkPos centerChunk) {
         NeonCityGenerator.generateNow(destinationLevel, centerChunk.x(), centerChunk.z(), 0);
         if (!NeonCityGenerator.isGenerated(centerChunk)) {
             source.sendFailure(Component.literal(

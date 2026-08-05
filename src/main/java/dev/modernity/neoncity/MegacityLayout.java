@@ -154,10 +154,24 @@ public final class MegacityLayout {
 
     private record Candidate(Node node, double score) {}
 
+    /** Conservative Bezier bounds used to reject distant graph edges before projection. */
+    private record BoundedEdge(
+            Edge edge, double minX, double minZ, double maxX, double maxZ) {
+        double distanceSquared(double worldX, double worldZ) {
+            double dx = worldX < minX ? minX - worldX
+                    : worldX > maxX ? worldX - maxX : 0.0;
+            double dz = worldZ < minZ ? minZ - worldZ
+                    : worldZ > maxZ ? worldZ - maxZ : 0.0;
+            return dx * dx + dz * dz;
+        }
+    }
+
     private final long seed;
     private final List<Node> nodes;
     private final List<Edge> edges;
     private final List<Edge> elevatedEdges;
+    private final List<BoundedEdge> boundedEdges;
+    private final List<BoundedEdge> boundedElevatedEdges;
     private final Map<District, Node> byDistrict;
 
     private MegacityLayout(long seed, List<Node> nodes, List<Edge> edges) {
@@ -165,6 +179,9 @@ public final class MegacityLayout {
         this.nodes = List.copyOf(nodes);
         this.edges = List.copyOf(edges);
         this.elevatedEdges = this.edges.stream().filter(Edge::hasElevatedLayer).toList();
+        this.boundedEdges = this.edges.stream().map(MegacityLayout::bounds).toList();
+        this.boundedElevatedEdges = this.boundedEdges.stream()
+                .filter(value -> value.edge().hasElevatedLayer()).toList();
         EnumMap<District, Node> index = new EnumMap<>(District.class);
         for (Node node : nodes) index.put(node.district(), node);
         this.byDistrict = Collections.unmodifiableMap(index);
@@ -346,6 +363,22 @@ public final class MegacityLayout {
     /** Fast district-only lookup for map rasterization; graph routes are drawn as vector overlays. */
     public Location locateDistrict(int worldX, int worldZ) {
         return locate(worldX, worldZ, false);
+    }
+
+    /**
+     * Exact {@link Location#insideCity()} predicate without building a full location record.
+     * Most runtime callers only need containment, so they can return immediately for the central
+     * hull or the first matching district blob instead of projecting against every road edge.
+     */
+    public boolean containsCity(int worldX, int worldZ) {
+        if (insideUrbanHull(worldX, worldZ)) return true;
+        for (Node node : nodes) {
+            if (normalizedDistanceTo(node, worldX, worldZ) <= DISTRICT_BLOB_LIMIT) return true;
+        }
+        Optional<ConnectionProjection> nearest = nearestConnection(worldX, worldZ);
+        return nearest.isPresent()
+                && nearest.get().distance() <= CONNECTION_CLEARANCE_RADIUS
+                && betweenEndpoints(nearest.get().edge(), worldX, worldZ, 1.15);
     }
 
     private Location locate(int worldX, int worldZ, boolean includeConnections) {
@@ -571,24 +604,77 @@ public final class MegacityLayout {
 
     /** Nearest ground route; every graph edge is retained in the connected road layer. */
     public Optional<ConnectionProjection> nearestConnection(double worldX, double worldZ) {
-        return nearestConnection(edges, worldX, worldZ);
+        return nearestConnection(boundedEdges, worldX, worldZ);
     }
 
     /** Nearest route in the connected elevated backbone plus elevated-style chord loops. */
     public Optional<ConnectionProjection> nearestElevatedConnection(double worldX, double worldZ) {
-        return nearestConnection(elevatedEdges, worldX, worldZ);
+        return nearestConnection(boundedElevatedEdges, worldX, worldZ);
     }
 
     private static Optional<ConnectionProjection> nearestConnection(
-            List<Edge> candidates, double worldX, double worldZ) {
-        ConnectionProjection nearest = null;
-        for (Edge edge : candidates) {
-            ConnectionProjection projection = projectConnection(edge, worldX, worldZ);
-            if (nearest == null || projection.distance() < nearest.distance()) {
-                nearest = projection;
+            List<BoundedEdge> candidates, double worldX, double worldZ) {
+        if (candidates.isEmpty()) return Optional.empty();
+
+        // A quadratic Bezier is contained by the box around its two endpoints and control point.
+        // Project the closest box first, then reject every box farther away than the best exact
+        // projection. This preserves the exact answer while avoiding dozens of 12-segment curve
+        // projections for the overwhelmingly common case.
+        BoundedEdge first = candidates.getFirst();
+        int firstIndex = 0;
+        double firstBound = first.distanceSquared(worldX, worldZ);
+        for (int index = 1; index < candidates.size(); index++) {
+            BoundedEdge candidate = candidates.get(index);
+            double bound = candidate.distanceSquared(worldX, worldZ);
+            if (bound < firstBound) {
+                first = candidate;
+                firstIndex = index;
+                firstBound = bound;
             }
         }
-        return Optional.ofNullable(nearest);
+        ConnectionProjection nearest = projectConnection(first.edge(), worldX, worldZ);
+        double nearestSquared = nearest.distance() * nearest.distance();
+        int nearestIndex = firstIndex;
+        for (int index = 0; index < candidates.size(); index++) {
+            BoundedEdge candidate = candidates.get(index);
+            if (index == firstIndex
+                    || candidate.distanceSquared(worldX, worldZ)
+                            > nearestSquared + projectionBoundTolerance(nearestSquared)) {
+                continue;
+            }
+            ConnectionProjection projection = projectConnection(
+                    candidate.edge(), worldX, worldZ);
+            double distanceSquared = projection.distance() * projection.distance();
+            if (distanceSquared < nearestSquared
+                    || (distanceSquared == nearestSquared && index < nearestIndex)) {
+                nearest = projection;
+                nearestSquared = distanceSquared;
+                nearestIndex = index;
+            }
+        }
+        return Optional.of(nearest);
+    }
+
+    private static double projectionBoundTolerance(double distanceSquared) {
+        // projectConnection stores sqrt(distanceSquared); squaring that value again can round a
+        // fraction below the mathematically identical AABB bound at shared endpoints. Retaining a
+        // tiny scale-relative margin preserves the original first-edge tie behavior.
+        return Math.max(1.0E-7, distanceSquared * 1.0E-12);
+    }
+
+    private static BoundedEdge bounds(Edge edge) {
+        double endpointX = edge.second().x() - edge.first().x();
+        double endpointZ = edge.second().z() - edge.first().z();
+        double controlX = (edge.first().x() + edge.second().x()) * 0.5
+                - endpointZ * edge.bend();
+        double controlZ = (edge.first().z() + edge.second().z()) * 0.5
+                + endpointX * edge.bend();
+        return new BoundedEdge(
+                edge,
+                Math.min(Math.min(edge.first().x(), edge.second().x()), controlX),
+                Math.min(Math.min(edge.first().z(), edge.second().z()), controlZ),
+                Math.max(Math.max(edge.first().x(), edge.second().x()), controlX),
+                Math.max(Math.max(edge.first().z(), edge.second().z()), controlZ));
     }
 
     private static boolean betweenEndpoints(Edge edge, int x, int z, double slack) {

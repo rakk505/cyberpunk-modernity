@@ -172,7 +172,7 @@ final class PublicEncounterPlanner {
 
     private static BlockPos liveTarget(
             ServerLevel level, District district, int x, int z, int preferredY) {
-        if (!level.hasChunkAt(new BlockPos(x, preferredY, z))
+        if (!CityWorlds.hasFullyLoadedChunk(level, x, z)
                 || !isPublicTarget(NeonCityGenerator.layout(), district, x, z)) {
             return null;
         }

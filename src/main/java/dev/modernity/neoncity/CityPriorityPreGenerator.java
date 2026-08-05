@@ -25,11 +25,13 @@ final class CityPriorityPreGenerator {
             12_345L, TicketType.FLAG_LOADING);
     private static final int PROGRESS_LOG_INTERVAL = 512;
     private static final int RETRY_DELAY_TICKS = 200;
+    private static final int IDLE_GENERATION_INTERVAL_TICKS = 1;
 
     private static List<ChunkPos> plan = List.of();
     private static int cursor;
     private static int generatedThisRun;
     private static boolean paused;
+    private static boolean waitingForPlayers;
     private static boolean completionLogged;
     private static ChunkPos loadingChunk;
     private static CompletableFuture<?> loadingFuture;
@@ -45,6 +47,7 @@ final class CityPriorityPreGenerator {
         cursor = 0;
         generatedThisRun = 0;
         paused = false;
+        waitingForPlayers = false;
         completionLogged = false;
         nextAttemptTick = level.getGameTime();
         advancePastGenerated();
@@ -56,7 +59,17 @@ final class CityPriorityPreGenerator {
     }
 
     static void tick(ServerLevel level, boolean foregroundGeneratedChunk) {
-        if (paused || plan.isEmpty()) return;
+        if (paused || plan.isEmpty()) {
+            waitingForPlayers = false;
+            return;
+        }
+        // This is speculative background work. Foreground generation still services chunks that
+        // players approach, but priority pre-generation must never stamp a full chunk during play.
+        waitingForPlayers = !level.players().isEmpty();
+        if (waitingForPlayers) {
+            if (loadingFuture != null) releaseTicket(level);
+            return;
+        }
         if (foregroundGeneratedChunk) {
             CityGenerationTrace.pregenSkipped(CityGenerationTrace.PregenSkip.FOREGROUND);
             return;
@@ -134,7 +147,7 @@ final class CityPriorityPreGenerator {
         if (generatedByPregen) generatedThisRun++;
         cursor++;
         releaseTicket(level);
-        nextAttemptTick = level.getGameTime() + (level.players().isEmpty() ? 0 : 1);
+        nextAttemptTick = level.getGameTime() + IDLE_GENERATION_INTERVAL_TICKS;
         if (generatedByPregen && generatedThisRun % PROGRESS_LOG_INTERVAL == 0) {
             Status status = status();
             Cyberdeck.LOGGER.info(
@@ -160,6 +173,7 @@ final class CityPriorityPreGenerator {
         plan = List.of();
         cursor = 0;
         generatedThisRun = 0;
+        waitingForPlayers = false;
         completionLogged = false;
     }
 
@@ -177,7 +191,8 @@ final class CityPriorityPreGenerator {
             if (NeonCityGenerator.isGenerated(chunk)) complete++;
         }
         return new Status(
-                plan.size(), complete, plan.size() - complete, paused, loadingChunk != null);
+                plan.size(), complete, plan.size() - complete, paused,
+                waitingForPlayers, loadingChunk != null);
     }
 
     private static void advancePastGenerated() {
@@ -278,9 +293,9 @@ final class CityPriorityPreGenerator {
         int[] offsets = {0, 8, 15};
         for (int offsetZ : offsets) {
             for (int offsetX : offsets) {
-                if (layout.locate(
+                if (layout.containsCity(
                         chunk.getMinBlockX() + offsetX,
-                        chunk.getMinBlockZ() + offsetZ).insideCity()) {
+                        chunk.getMinBlockZ() + offsetZ)) {
                     return true;
                 }
             }
@@ -288,6 +303,12 @@ final class CityPriorityPreGenerator {
         return false;
     }
 
-    record Status(int total, int complete, int remaining, boolean paused, boolean loading) {
+    record Status(
+            int total,
+            int complete,
+            int remaining,
+            boolean paused,
+            boolean waitingForPlayers,
+            boolean loading) {
     }
 }

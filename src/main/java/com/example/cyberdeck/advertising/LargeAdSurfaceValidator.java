@@ -6,10 +6,12 @@ import java.util.List;
 import java.util.Set;
 
 import com.example.cyberdeck.Cyberdeck;
+import com.example.cyberdeck.city.CityWorlds;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockState;
@@ -173,7 +175,7 @@ public final class LargeAdSurfaceValidator {
                     || !level.getWorldBorder().isWithinBounds(target)) {
                 return Result.failure(Failure.OUT_OF_BOUNDS, target);
             }
-            if (requireExterior && !level.hasChunkAt(target)) {
+            if (requireExterior && !hasFullyLoadedChunk(level, target)) {
                 return Result.failure(Failure.CHUNK_UNLOADED, target);
             }
             BlockState targetState = level.getBlockState(target);
@@ -188,7 +190,7 @@ public final class LargeAdSurfaceValidator {
             BlockState supportState = null;
             for (int back = 1; back <= supportTolerance + 1; back++) {
                 BlockPos probe = target.relative(facing.getOpposite(), back);
-                if (requireExterior && !level.hasChunkAt(probe)) {
+                if (requireExterior && !hasFullyLoadedChunk(level, probe)) {
                     return Result.failure(Failure.CHUNK_UNLOADED, probe);
                 }
                 BlockState probeState = level.getBlockState(probe);
@@ -224,7 +226,7 @@ public final class LargeAdSurfaceValidator {
                         || !level.getWorldBorder().isWithinBounds(clearance)) {
                     return Result.failure(Failure.OUT_OF_BOUNDS, clearance);
                 }
-                if (!level.hasChunkAt(clearance)) {
+                if (!hasFullyLoadedChunk(level, clearance)) {
                     return Result.failure(Failure.CHUNK_UNLOADED, clearance);
                 }
                 BlockState clearanceState = level.getBlockState(clearance);
@@ -308,7 +310,7 @@ public final class LargeAdSurfaceValidator {
                     || !level.getWorldBorder().isWithinBounds(probe)) {
                 return Exposure.ENCLOSED;
             }
-            if (!level.hasChunkAt(probe)) {
+            if (!hasFullyLoadedChunk(level, probe)) {
                 return Exposure.UNLOADED;
             }
             BlockState state = level.getBlockState(probe);
@@ -320,6 +322,12 @@ public final class LargeAdSurfaceValidator {
             }
         }
         return Exposure.ENCLOSED;
+    }
+
+    private static boolean hasFullyLoadedChunk(Level level, BlockPos position) {
+        return level instanceof ServerLevel serverLevel
+                ? CityWorlds.hasFullyLoadedChunk(serverLevel, position)
+                : level.hasChunkAt(position);
     }
 
     /** Synchronous sky check; unlike light/heightmap queries, this observes same-tick roofs. */

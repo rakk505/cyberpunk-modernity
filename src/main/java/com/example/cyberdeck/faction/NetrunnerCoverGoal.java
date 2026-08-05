@@ -1,5 +1,6 @@
 package com.example.cyberdeck.faction;
 
+import com.example.cyberdeck.city.CityWorlds;
 import java.util.EnumSet;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -139,7 +140,7 @@ final class NetrunnerCoverGoal extends Goal {
 
     static boolean isSafeSameFloor(ServerLevel level, BlockPos origin, BlockPos feet) {
         return Math.abs(feet.getY() - origin.getY()) <= 1
-                && level.isLoaded(feet)
+                && CityWorlds.hasFullyLoadedChunk(level, feet)
                 && level.getBlockState(feet.below()).blocksMotion()
                 && level.isEmptyBlock(feet)
                 && level.isEmptyBlock(feet.above());

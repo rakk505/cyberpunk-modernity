@@ -1,5 +1,6 @@
 package dev.modernity.neoncity;
 
+import com.example.cyberdeck.city.CityWorlds;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -92,7 +93,7 @@ final class VendorService {
                     continue;
                 }
             }
-            if (!level.isLoaded(anchor.merchantPos())) {
+            if (!CityWorlds.hasFullyLoadedChunk(level, anchor.merchantPos())) {
                 continue;
             }
 
@@ -186,7 +187,7 @@ final class VendorService {
             VendorAnchorData data,
             VendorAnchorData.Anchor anchor) {
         anchor.entityUuid().map(level::getEntity).ifPresent(Entity::discard);
-        if (level.isLoaded(anchor.merchantPos())) {
+        if (CityWorlds.hasFullyLoadedChunk(level, anchor.merchantPos())) {
             AABB area = new AABB(anchor.merchantPos()).inflate(18.0, 8.0, 18.0);
             for (Villager merchant : level.getEntitiesOfClass(
                     Villager.class,

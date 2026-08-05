@@ -497,7 +497,7 @@ public final class WantedSystem {
             return street;
         }
         BlockPos probe = new BlockPos(x, preferredY, z);
-        if (!level.isLoaded(probe)) {
+        if (!CityWorlds.hasFullyLoadedChunk(level, probe)) {
             return null;
         }
         BlockPos candidate = level.getHeightmapPos(
@@ -506,7 +506,7 @@ public final class WantedSystem {
     }
 
     private static boolean isSafeFeet(ServerLevel level, BlockPos feet) {
-        return level.isLoaded(feet)
+        return CityWorlds.hasFullyLoadedChunk(level, feet)
                 && level.getWorldBorder().isWithinBounds(feet)
                 && level.getBlockState(feet.below()).blocksMotion()
                 && level.isEmptyBlock(feet)
@@ -524,10 +524,10 @@ public final class WantedSystem {
         BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
         for (int x = minX; x <= maxX; x++) {
             for (int z = minZ; z <= maxZ; z++) {
+                if (!CityWorlds.hasFullyLoadedChunk(level, x, z)) return false;
                 for (int y = minY; y <= maxY; y++) {
                     cursor.set(x, y, z);
-                    if (!level.isLoaded(cursor)
-                            || !level.getWorldBorder().isWithinBounds(cursor)
+                    if (!level.getWorldBorder().isWithinBounds(cursor)
                             || !level.isEmptyBlock(cursor)) {
                         return false;
                     }
