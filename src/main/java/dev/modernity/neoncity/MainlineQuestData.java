@@ -207,7 +207,9 @@ final class MainlineQuestData extends SavedData {
             if (entry.getKey().equals(exceptMissionId)) continue;
             MissionBuildingPlanner.Site reserved = MissionBuildingPlanner.Site.load(
                     entry.getValue()).orElse(null);
-            if (reserved != null && buildingConflicts(reserved, candidate)) return true;
+            // sharesBuilding, not buildingConflicts: a second actor may not move into a tower
+            // another mission already occupies, even on a floor nothing has reserved.
+            if (reserved != null && sharesBuilding(reserved, candidate)) return true;
         }
         return false;
     }
@@ -383,10 +385,28 @@ final class MainlineQuestData extends SavedData {
         int clearance = hasPhysicalBuildingIdentity(first)
                         && hasPhysicalBuildingIdentity(second)
                 ? 0 : MissionSiteData.SITE_CLEARANCE;
+        // Compared on the footprint only, deliberately ignoring height. Two actors stacked on
+        // different floors of one tower occupy the same building to anyone looking at it, and to
+        // the map tools, even when the planner carved their floors into separate stacks whose
+        // reserved volumes never meet.
         return a.minX() <= b.maxX() + clearance
                 && a.maxX() + clearance >= b.minX()
                 && a.minZ() <= b.maxZ() + clearance
                 && a.maxZ() + clearance >= b.minZ();
+    }
+
+    /**
+     * True when two sites share a physical building. Footprints that overlap at all are the same
+     * structure regardless of which floors each site reserved, so a caller placing a second actor
+     * can reject the whole tower rather than only the exact volume already taken.
+     */
+    static boolean sharesBuilding(
+            MissionBuildingPlanner.Site first, MissionBuildingPlanner.Site second) {
+        if (first.buildingId().equals(second.buildingId())) return true;
+        BoundingBox a = first.buildingBounds();
+        BoundingBox b = second.buildingBounds();
+        return a.minX() <= b.maxX() && a.maxX() >= b.minX()
+                && a.minZ() <= b.maxZ() && a.maxZ() >= b.minZ();
     }
 
     private static boolean hasPhysicalBuildingIdentity(MissionBuildingPlanner.Site site) {

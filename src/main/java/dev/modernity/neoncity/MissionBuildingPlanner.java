@@ -720,12 +720,14 @@ public final class MissionBuildingPlanner {
             if (labels.size() >= MAX_ATLAS_BUILDING_LABELS) break;
             List<FloorProfile> buildingFloors = stack.floors();
             BoundingBox buildingBounds = floorStackBounds(buildingFloors);
+            // Identity is the footprint alone. Folding the floor heights and floor count in as
+            // well gave every floor stack carved out of one tower a different id, so two mission
+            // actors placed on different floors of the same physical building looked like two
+            // separate buildings to the conflict check and to the map tools.
             long geometryHash = MegacityLayout.mix(
                     0x4255494C44494E47L,
                     buildingBounds.minX() * 31 + buildingBounds.maxX(),
-                    buildingBounds.minZ() * 31 + buildingBounds.maxZ())
-                    ^ buildingFloors.stream().mapToLong(FloorProfile::y).sum()
-                    ^ (long) buildingFloors.size() << 48;
+                    buildingBounds.minZ() * 31 + buildingBounds.maxZ());
             String buildingId = district.resourceCode() + ":atlas:"
                     + Long.toUnsignedString(geometryHash, 16);
             long buildingSeed = MegacityLayout.mix(
