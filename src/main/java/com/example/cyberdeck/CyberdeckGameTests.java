@@ -738,20 +738,20 @@ public final class CyberdeckGameTests {
                 "could not create district patrol loadout fixtures");
 
         FactionSquads.equipBallisticTier(light, "light");
-        helper.assertValueEqual(light.getAttributeValue(Attributes.ARMOR), 15.0,
+        helper.assertValueEqual(light.getAttributeValue(Attributes.ARMOR), 4.0,
                 "light patrol armor total");
-        helper.assertValueEqual(light.getAttributeValue(Attributes.ARMOR_TOUGHNESS), 8.0,
+        helper.assertValueEqual(light.getAttributeValue(Attributes.ARMOR_TOUGHNESS), 2.0,
                 "light patrol toughness total");
         helper.assertValueEqual(light.getAttributeValue(Attributes.KNOCKBACK_RESISTANCE), 0.20,
                 "light patrol knockback resistance");
         FactionSquads.equipBallisticTier(light, "light");
-        helper.assertValueEqual(light.getAttributeValue(Attributes.ARMOR), 15.0,
+        helper.assertValueEqual(light.getAttributeValue(Attributes.ARMOR), 4.0,
                 "reapplying a patrol loadout must not stack armor modifiers");
 
         FactionSquads.equipBallisticTier(heavy, "heavy");
-        helper.assertValueEqual(heavy.getAttributeValue(Attributes.ARMOR), 20.0,
+        helper.assertValueEqual(heavy.getAttributeValue(Attributes.ARMOR), 8.0,
                 "heavy patrol armor total");
-        helper.assertValueEqual(heavy.getAttributeValue(Attributes.ARMOR_TOUGHNESS), 12.0,
+        helper.assertValueEqual(heavy.getAttributeValue(Attributes.ARMOR_TOUGHNESS), 4.0,
                 "heavy patrol toughness total");
         helper.assertValueEqual(heavy.getAttributeValue(Attributes.KNOCKBACK_RESISTANCE), 0.60,
                 "heavy patrol knockback resistance");
@@ -2783,10 +2783,12 @@ public final class CyberdeckGameTests {
                 }
             }
         }
-        helper.assertTrue(generatedKinds.containsAll(List.of(
-                        CityLootGeneration.CacheKind.BLACK_LOOT,
-                        CityLootGeneration.CacheKind.AMMO)),
-                "the city generation pass must emit both cache variants");
+        // Ammunition caches are no longer seeded: nothing consumed the ammunition, and each one
+        // cost a bounded street search during generation.
+        helper.assertTrue(generatedKinds.contains(CityLootGeneration.CacheKind.BLACK_LOOT),
+                "the city generation pass must still emit black-loot caches");
+        helper.assertTrue(!generatedKinds.contains(CityLootGeneration.CacheKind.AMMO),
+                "ammunition caches must no longer be seeded during generation");
 
         BlockPos generatedPosition = helper.absolutePos(new BlockPos(6, 2, 4));
         level.setBlock(generatedPosition.below(), Blocks.STONE.defaultBlockState(),

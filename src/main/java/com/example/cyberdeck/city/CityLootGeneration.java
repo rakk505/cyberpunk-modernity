@@ -135,10 +135,15 @@ public final class CityLootGeneration {
         return cacheKindForHash(mix(worldSeed ^ CACHE_SALT, chunkX, chunkZ));
     }
 
+    /**
+     * Only black-loot caches are seeded. Ammunition caches were two of every sixteen chunks, and
+     * each one paid for a bounded street search during generation to hand out a resource nothing
+     * consumes; dropping them removes two thirds of all cache searching. {@link CacheKind#AMMO}
+     * itself stays so hand-placed crates and existing saves keep working.
+     */
     private static CacheKind cacheKindForHash(long hash) {
         return switch (Math.floorMod((int) (hash ^ (hash >>> 32)), 16)) {
             case 0 -> CacheKind.BLACK_LOOT;
-            case 1, 2 -> CacheKind.AMMO;
             default -> null;
         };
     }
