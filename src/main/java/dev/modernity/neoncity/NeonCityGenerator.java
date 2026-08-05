@@ -81,7 +81,7 @@ public final class NeonCityGenerator {
     public static final int TRAVEL_CORRIDOR_SAMPLE_BLOCKS = 8;
     public static final int MIN_TRAVEL_LOOKAHEAD_BLOCKS = 96;
     public static final int MAX_TRAVEL_LOOKAHEAD_BLOCKS = 512;
-    public static final int MAX_FOREGROUND_CHUNKS_PER_TICK = 3;
+    public static final int MAX_FOREGROUND_CHUNKS_PER_TICK = 8;
     static final int MAX_LIGHT_REFRESHES_PER_TICK = 8;
     public static final long FOREGROUND_GENERATION_BUDGET_NANOS = 25_000_000L;
     static final double MAX_POSITION_FALLBACK_SPEED = 8.0;
