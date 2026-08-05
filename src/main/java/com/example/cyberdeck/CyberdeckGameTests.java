@@ -1204,8 +1204,8 @@ public final class CyberdeckGameTests {
         helper.assertTrue(AdCampaign.GENERAL.clips().contains(AdClip.MISANTHROPIC)
                         && AdCampaign.GENERAL.clips().containsAll(AdCampaign.META.clips()),
                 "general facades must include Misanthropic and every Meta ad");
-        helper.assertTrue(AdClip.MISANTHROPIC.framesPerSecond() == 4
-                        && AdClip.CLOSED_AI.framesPerSecond() == 4
+        helper.assertTrue(AdClip.MISANTHROPIC.framesPerSecond() == 8
+                        && AdClip.CLOSED_AI.framesPerSecond() == 8
                         && !AdClip.MISANTHROPIC.audioEnabled()
                         && !AdClip.CLOSED_AI.audioEnabled()
                         && AdCampaign.META.clips().stream().allMatch(
@@ -1214,7 +1214,7 @@ public final class CyberdeckGameTests {
                                 .stream().allMatch(
                                         clip -> clip.framesPerSecond() == 8
                                                 && clip.audioEnabled()),
-                "Java playback metadata must match the mixed-FPS asset manifest");
+                "Java playback metadata must match the 8-FPS asset manifest");
         helper.assertTrue(GeneratedAdSurfaceCatalog.size() > 0,
                 "the offline Arnis facade scan must expose generated ad placements");
         helper.assertTrue(GeneratedAdSurfaceCatalog.validGeneratedDimensions(8, 4)
