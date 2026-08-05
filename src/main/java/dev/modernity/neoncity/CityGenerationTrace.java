@@ -6,6 +6,8 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import java.io.IOException;
+import java.lang.management.GarbageCollectorMXBean;
+import java.lang.management.ManagementFactory;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -60,6 +62,7 @@ final class CityGenerationTrace {
         BANNER_QUEUE,
         CITY_LOOT,
         URBAN_CRATES,
+        ADS,
         CLIENT_REFRESH
     }
 
@@ -85,6 +88,7 @@ final class CityGenerationTrace {
         Session session = active;
         if (session == null) return;
         session.observeTick(level.getServer().getAverageTickTimeNanos());
+        session.observeQueueDepth(NeonCityGenerator.pendingQueueDepth());
         session.maximumOutstandingPlans = Math.max(
                 session.maximumOutstandingPlans, CityChunkPlanner.outstandingPlans());
         if (System.nanoTime() >= session.deadlineNanos) {
@@ -221,6 +225,63 @@ final class CityGenerationTrace {
                 session.maximumPendingBanners, remainingBanners);
     }
 
+    /** Records one Arnis-tile branded ad placement attempt (facade rectangles). */
+    static void adArnisTile(
+            boolean placed, boolean worldBlocked, boolean retryable, long elapsedNanos) {
+        Session session = active;
+        if (session == null) return;
+        session.adArnisAttempts++;
+        if (placed) {
+            session.adArnisPlaced++;
+        } else if (worldBlocked) {
+            session.adArnisWorldBlocked++;
+        } else if (retryable) {
+            session.adArnisRetryable++;
+        } else {
+            session.adArnisNotApplicable++;
+        }
+        session.adArnisNanos += Math.max(0L, elapsedNanos);
+        session.adArnisMaxNanos = Math.max(session.adArnisMaxNanos, elapsedNanos);
+    }
+
+    /** Records one district freestanding ad decoration pass (medium + small candidates). */
+    static void adDistrict(
+            boolean applicable, int presentStructures, int placedStructures, long elapsedNanos) {
+        Session session = active;
+        if (session == null) return;
+        session.adDistrictCalls++;
+        if (applicable) session.adDistrictApplicable++;
+        session.adDistrictPresent += presentStructures;
+        session.adDistrictPlaced += placedStructures;
+        session.adDistrictNanos += Math.max(0L, elapsedNanos);
+        session.adDistrictMaxNanos = Math.max(session.adDistrictMaxNanos, elapsedNanos);
+    }
+
+    /** Records one mainline-reservation guard check gating Arnis-tile ad placement. */
+    static void adReservationGuard(long elapsedNanos) {
+        Session session = active;
+        if (session == null) return;
+        session.adReservationChecks++;
+        session.adReservationNanos += Math.max(0L, elapsedNanos);
+        session.adReservationMaxNanos = Math.max(session.adReservationMaxNanos, elapsedNanos);
+    }
+
+    /** Records one deferred Arnis-tile ad backfill attempt (runs after the chunk generated). */
+    static void adBackfill(boolean placed, boolean retryable, long elapsedNanos) {
+        Session session = active;
+        if (session == null) return;
+        session.adBackfillAttempts++;
+        if (placed) {
+            session.adBackfillPlaced++;
+        } else if (retryable) {
+            session.adBackfillRetryable++;
+        } else {
+            session.adBackfillOther++;
+        }
+        session.adBackfillNanos += Math.max(0L, elapsedNanos);
+        session.adBackfillMaxNanos = Math.max(session.adBackfillMaxNanos, elapsedNanos);
+    }
+
     static ChunkSpan begin(ChunkPos chunk, Source source) {
         Session session = active;
         if (session == null) return null;
@@ -289,6 +350,7 @@ final class CityGenerationTrace {
         private final long queueNanos;
         private final long loadNanos;
         private final long[] phaseNanos = new long[Phase.values().length];
+        private final long startAllocatedBytes;
         private Phase phase;
         private long phaseStartedNanos;
         private int directBlockChanges;
@@ -307,6 +369,7 @@ final class CityGenerationTrace {
             this.startedNanos = startedNanos;
             this.queueNanos = queueNanos;
             this.loadNanos = loadNanos;
+            this.startAllocatedBytes = currentThreadAllocatedBytes();
         }
 
         void phase(Phase next) {
@@ -325,6 +388,10 @@ final class CityGenerationTrace {
             finished = true;
             long now = System.nanoTime();
             closePhase(now);
+            if (startAllocatedBytes >= 0L) {
+                session.recordForegroundAllocation(
+                        currentThreadAllocatedBytes() - startAllocatedBytes);
+            }
             if (session.currentSpan == this) session.currentSpan = null;
             session.record(new ChunkRecord(
                     chunk.x(), chunk.z(), source, success,
@@ -435,6 +502,35 @@ final class CityGenerationTrace {
         private long deferredBannerNanos;
         private long maximumDeferredBannerNanos;
         private int maximumPendingBanners;
+        private long adArnisAttempts;
+        private long adArnisPlaced;
+        private long adArnisWorldBlocked;
+        private long adArnisRetryable;
+        private long adArnisNotApplicable;
+        private long adArnisNanos;
+        private long adArnisMaxNanos;
+        private long adDistrictCalls;
+        private long adDistrictApplicable;
+        private long adDistrictPresent;
+        private long adDistrictPlaced;
+        private long adDistrictNanos;
+        private long adDistrictMaxNanos;
+        private long adReservationChecks;
+        private long adReservationNanos;
+        private long adReservationMaxNanos;
+        private long adBackfillAttempts;
+        private long adBackfillPlaced;
+        private long adBackfillRetryable;
+        private long adBackfillOther;
+        private long adBackfillNanos;
+        private long adBackfillMaxNanos;
+        private final long startingGcCount;
+        private final long startingGcMillis;
+        private final long startingAllocatedBytes;
+        private long foregroundAllocatedBytes;
+        private long maximumForegroundAllocatedBytes;
+        private long foregroundAllocationSamples;
+        private int maximumQueueDepth;
         private ChunkRecord slowest;
         private ChunkSpan currentSpan;
 
@@ -449,12 +545,26 @@ final class CityGenerationTrace {
             this.deadlineNanos = deadlineNanos;
             this.targetSeconds = targetSeconds;
             this.startingAverageTickNanos = startingAverageTickNanos;
+            this.startingGcCount = totalGcCount();
+            this.startingGcMillis = totalGcMillis();
+            this.startingAllocatedBytes = totalAllocatedBytes();
+        }
+
+        private void recordForegroundAllocation(long bytes) {
+            if (bytes < 0L) return;
+            foregroundAllocationSamples++;
+            foregroundAllocatedBytes += bytes;
+            maximumForegroundAllocatedBytes = Math.max(maximumForegroundAllocatedBytes, bytes);
         }
 
         private void observeTick(long averageTickNanos) {
             observedTicks++;
             observedTickNanos += averageTickNanos;
             maximumAverageTickNanos = Math.max(maximumAverageTickNanos, averageTickNanos);
+        }
+
+        private void observeQueueDepth(int depth) {
+            maximumQueueDepth = Math.max(maximumQueueDepth, depth);
         }
 
         private void record(ChunkRecord record) {
@@ -513,7 +623,7 @@ final class CityGenerationTrace {
         private JsonObject toJson(boolean running) {
             Status status = status(running);
             JsonObject root = new JsonObject();
-            root.addProperty("schema_version", 1);
+            root.addProperty("schema_version", 4);
             root.addProperty("started_at", startedAt.toString());
             root.addProperty("active", running);
             root.addProperty("stop_reason", stopReason);
@@ -532,7 +642,18 @@ final class CityGenerationTrace {
             summary.addProperty("stamp_p95_ms", status.p95StampMillis());
             summary.addProperty("stamp_p99_ms", status.p99StampMillis());
             summary.addProperty("queue_average_ms", status.averageQueueMillis());
+            long[] queueSamplesNanos = records.stream()
+                    .mapToLong(ChunkRecord::queueNanos)
+                    .filter(value -> value >= 0L)
+                    .toArray();
+            summary.addProperty(
+                    "queue_p95_ms", percentileNanos(queueSamplesNanos, 0.95) / 1_000_000.0);
+            summary.addProperty(
+                    "queue_p99_ms", percentileNanos(queueSamplesNanos, 0.99) / 1_000_000.0);
+            summary.addProperty(
+                    "queue_maximum_ms", percentileNanos(queueSamplesNanos, 1.0) / 1_000_000.0);
             summary.addProperty("queue_samples", queueSamples);
+            summary.addProperty("maximum_queue_depth", maximumQueueDepth);
             summary.addProperty("load_average_ms", status.averageLoadMillis());
             summary.addProperty("load_samples", loadSamples);
             summary.addProperty("sampled_records", records.size());
@@ -543,9 +664,20 @@ final class CityGenerationTrace {
 
             JsonObject phases = new JsonObject();
             for (Phase phase : Phase.values()) {
+                int ordinal = phase.ordinal();
+                long[] phaseSamples = records.stream()
+                        .mapToLong(record -> record.phaseNanos()[ordinal])
+                        .toArray();
                 JsonObject value = new JsonObject();
-                value.addProperty("total_ms", phaseTotals[phase.ordinal()] / 1_000_000.0);
-                value.addProperty("average_ms", millis(phaseTotals[phase.ordinal()], chunks));
+                value.addProperty("total_ms", phaseTotals[ordinal] / 1_000_000.0);
+                value.addProperty("average_ms", millis(phaseTotals[ordinal], chunks));
+                value.addProperty("p50_ms", percentileNanos(phaseSamples, 0.50) / 1_000_000.0);
+                value.addProperty("p95_ms", percentileNanos(phaseSamples, 0.95) / 1_000_000.0);
+                value.addProperty("p99_ms", percentileNanos(phaseSamples, 0.99) / 1_000_000.0);
+                value.addProperty("maximum_ms", percentileNanos(phaseSamples, 1.0) / 1_000_000.0);
+                value.addProperty(
+                        "share_of_stamp",
+                        stampNanos == 0L ? 0.0 : phaseTotals[ordinal] / (double) stampNanos);
                 phases.add(phase.name().toLowerCase(Locale.ROOT), value);
             }
             root.add("phases", phases);
@@ -604,6 +736,60 @@ final class CityGenerationTrace {
             deferredBanners.addProperty("maximum_pending_after_attempt", maximumPendingBanners);
             root.add("deferred_banners", deferredBanners);
 
+            JsonObject ads = new JsonObject();
+            JsonObject arnisTileAds = new JsonObject();
+            arnisTileAds.addProperty("attempts", adArnisAttempts);
+            arnisTileAds.addProperty("placed", adArnisPlaced);
+            arnisTileAds.addProperty("world_blocked", adArnisWorldBlocked);
+            arnisTileAds.addProperty("retryable_failures", adArnisRetryable);
+            arnisTileAds.addProperty("not_applicable", adArnisNotApplicable);
+            arnisTileAds.addProperty(
+                    "placement_rate",
+                    adArnisAttempts == 0L ? 0.0 : adArnisPlaced / (double) adArnisAttempts);
+            arnisTileAds.addProperty("total_ms", adArnisNanos / 1_000_000.0);
+            arnisTileAds.addProperty("average_ms", millis(adArnisNanos, adArnisAttempts));
+            arnisTileAds.addProperty("maximum_ms", adArnisMaxNanos / 1_000_000.0);
+            ads.add("arnis_tile", arnisTileAds);
+
+            JsonObject districtAds = new JsonObject();
+            districtAds.addProperty("chunks_scanned", adDistrictCalls);
+            districtAds.addProperty("applicable_chunks", adDistrictApplicable);
+            districtAds.addProperty("present_structures", adDistrictPresent);
+            districtAds.addProperty("placed_structures", adDistrictPlaced);
+            districtAds.addProperty(
+                    "placement_rate",
+                    adDistrictPresent == 0L ? 0.0 : adDistrictPlaced / (double) adDistrictPresent);
+            districtAds.addProperty("total_ms", adDistrictNanos / 1_000_000.0);
+            districtAds.addProperty("average_ms", millis(adDistrictNanos, adDistrictCalls));
+            districtAds.addProperty("maximum_ms", adDistrictMaxNanos / 1_000_000.0);
+            ads.add("district_freestanding", districtAds);
+
+            JsonObject reservationGuard = new JsonObject();
+            reservationGuard.addProperty("checks", adReservationChecks);
+            reservationGuard.addProperty("total_ms", adReservationNanos / 1_000_000.0);
+            reservationGuard.addProperty("average_ms", millis(adReservationNanos, adReservationChecks));
+            reservationGuard.addProperty("maximum_ms", adReservationMaxNanos / 1_000_000.0);
+            ads.add("reservation_guard", reservationGuard);
+
+            JsonObject backfill = new JsonObject();
+            backfill.addProperty("attempts", adBackfillAttempts);
+            backfill.addProperty("placed", adBackfillPlaced);
+            backfill.addProperty("retryable_failures", adBackfillRetryable);
+            backfill.addProperty("other", adBackfillOther);
+            backfill.addProperty("total_ms", adBackfillNanos / 1_000_000.0);
+            backfill.addProperty("average_ms", millis(adBackfillNanos, adBackfillAttempts));
+            backfill.addProperty("maximum_ms", adBackfillMaxNanos / 1_000_000.0);
+            backfill.addProperty("retry_pending_at_export", NeonCityGenerator.adRetryPendingCount());
+            ads.add("backfill", backfill);
+
+            ads.addProperty("total_ms",
+                    (adArnisNanos + adDistrictNanos + adReservationNanos + adBackfillNanos)
+                            / 1_000_000.0);
+            ads.addProperty(
+                    "total_structures_placed",
+                    adArnisPlaced + adDistrictPlaced + adBackfillPlaced);
+            root.add("ad_placement", ads);
+
             JsonObject driving = new JsonObject();
             driving.addProperty("lookahead_samples", lookaheadSamples);
             driving.addProperty("position_fallback_samples", positionFallbackSamples);
@@ -624,6 +810,50 @@ final class CityGenerationTrace {
                     maximumAverageTickNanos / 1_000_000.0);
             ticks.addProperty("observations", observedTicks);
             root.add("server_ticks", ticks);
+
+            JsonObject gc = new JsonObject();
+            long gcCollections = Math.max(0L, totalGcCount() - startingGcCount);
+            long gcPauseMillis = Math.max(0L, totalGcMillis() - startingGcMillis);
+            gc.addProperty("collections", gcCollections);
+            gc.addProperty("total_pause_ms", gcPauseMillis);
+            gc.addProperty(
+                    "pause_fraction_of_elapsed",
+                    status.elapsedSeconds() <= 0.0
+                            ? 0.0
+                            : (gcPauseMillis / 1_000.0) / status.elapsedSeconds());
+            gc.addProperty(
+                    "average_pause_ms",
+                    gcCollections == 0L ? 0.0 : gcPauseMillis / (double) gcCollections);
+            root.add("server_gc", gc);
+
+            JsonObject allocation = new JsonObject();
+            long endingAllocatedBytes = totalAllocatedBytes();
+            boolean allocationSupported =
+                    startingAllocatedBytes >= 0L && endingAllocatedBytes >= 0L;
+            allocation.addProperty("supported", allocationSupported);
+            if (allocationSupported) {
+                long jvmBytes = Math.max(0L, endingAllocatedBytes - startingAllocatedBytes);
+                double jvmMib = jvmBytes / 1_048_576.0;
+                allocation.addProperty("jvm_allocated_mib", jvmMib);
+                allocation.addProperty(
+                        "jvm_allocated_mib_per_second",
+                        status.elapsedSeconds() <= 0.0 ? 0.0 : jvmMib / status.elapsedSeconds());
+                allocation.addProperty(
+                        "jvm_allocated_kib_per_chunk",
+                        chunks == 0L ? 0.0 : jvmBytes / 1024.0 / chunks);
+            }
+            allocation.addProperty(
+                    "foreground_allocated_mib", foregroundAllocatedBytes / 1_048_576.0);
+            allocation.addProperty(
+                    "foreground_kib_per_chunk_average",
+                    foregroundAllocationSamples == 0L
+                            ? 0.0
+                            : foregroundAllocatedBytes / 1024.0 / foregroundAllocationSamples);
+            allocation.addProperty(
+                    "foreground_kib_per_chunk_maximum",
+                    maximumForegroundAllocatedBytes / 1024.0);
+            allocation.addProperty("foreground_samples", foregroundAllocationSamples);
+            root.add("allocation", allocation);
 
             JsonArray sampleArray = new JsonArray();
             for (ChunkRecord record : records) sampleArray.add(recordJson(record));
@@ -659,5 +889,49 @@ final class CityGenerationTrace {
 
     private static double millis(long nanos, long count) {
         return count == 0L ? 0.0 : nanos / 1_000_000.0 / count;
+    }
+
+    private static final com.sun.management.ThreadMXBean ALLOCATION_BEAN = resolveAllocationBean();
+
+    private static com.sun.management.ThreadMXBean resolveAllocationBean() {
+        java.lang.management.ThreadMXBean bean = ManagementFactory.getThreadMXBean();
+        if (bean instanceof com.sun.management.ThreadMXBean sunBean
+                && sunBean.isThreadAllocatedMemorySupported()) {
+            if (!sunBean.isThreadAllocatedMemoryEnabled()) {
+                sunBean.setThreadAllocatedMemoryEnabled(true);
+            }
+            return sunBean;
+        }
+        return null;
+    }
+
+    /** Bytes allocated by ALL threads since JVM start, or -1 when unsupported. */
+    private static long totalAllocatedBytes() {
+        return ALLOCATION_BEAN == null ? -1L : ALLOCATION_BEAN.getTotalThreadAllocatedBytes();
+    }
+
+    /** Bytes allocated by the calling (generation) thread since JVM start, or -1 when unsupported. */
+    private static long currentThreadAllocatedBytes() {
+        return ALLOCATION_BEAN == null
+                ? -1L
+                : ALLOCATION_BEAN.getCurrentThreadAllocatedBytes();
+    }
+
+    private static long totalGcCount() {
+        long total = 0L;
+        for (GarbageCollectorMXBean bean : ManagementFactory.getGarbageCollectorMXBeans()) {
+            long count = bean.getCollectionCount();
+            if (count > 0L) total += count;
+        }
+        return total;
+    }
+
+    private static long totalGcMillis() {
+        long total = 0L;
+        for (GarbageCollectorMXBean bean : ManagementFactory.getGarbageCollectorMXBeans()) {
+            long time = bean.getCollectionTime();
+            if (time > 0L) total += time;
+        }
+        return total;
     }
 }

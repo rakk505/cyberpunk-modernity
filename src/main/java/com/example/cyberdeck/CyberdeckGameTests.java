@@ -184,6 +184,9 @@ public final class CyberdeckGameTests {
             ATLAS_TRAFFIC_ROUTE = register(
                     "atlas_traffic_route", CyberdeckGameTests::atlasTrafficRoute);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            TRAFFIC_OBSTACLE_CORRIDOR = register(
+                    "traffic_obstacle_corridor", CyberdeckGameTests::trafficObstacleCorridor);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             CIVILIAN_NONCOMBAT = register(
                     "civilian_noncombat", CyberdeckGameTests::civilianNoncombat);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
@@ -419,6 +422,12 @@ public final class CyberdeckGameTests {
                         && RoadsideVehicleSpawns.drivingLeadForSpeed(0.5) == 96.0
                         && RoadsideVehicleSpawns.drivingLeadForSpeed(10.0) == 144.0,
                 "driving traffic lookahead did not scale and clamp with vehicle speed");
+        helper.assertTrue(RoadsideVehicleSpawns.targetParkedNearby() == 2
+                        && RoadsideVehicleSpawns.desiredSpawnCount(
+                                0, 0, 0, 0, 0) == 0
+                        && RoadsideVehicleSpawns.desiredSpawnCount(
+                                0, 0, 2, 18, 0) == 1,
+                "parked vehicles exceeded their target or bypassed the nearby hard cap");
         MegacityLayout.Edge road = NeonCityGenerator.layout().groundEdges().stream()
                 .filter(edge -> !edge.hasElevatedLayer())
                 .findFirst()
@@ -535,6 +544,46 @@ public final class CyberdeckGameTests {
         CityTrafficService.retire(vehicle);
         vehicle.discard();
         if (driver != null) driver.discard();
+        helper.succeed();
+    }
+
+    private static void trafficObstacleCorridor(GameTestHelper helper) {
+        AABB vehicle = new AABB(-1.2, 0.0, -1.8, 1.2, 2.0, 1.8);
+        AABB sameLane = new AABB(-1.1, 0.0, 3.8, 1.1, 2.0, 6.2);
+        AABB shoulder = new AABB(3.4, 0.0, 2.0, 5.6, 2.0, 4.4);
+        AABB behind = new AABB(-1.1, 0.0, -5.8, 1.1, 2.0, -3.4);
+        helper.assertTrue(CityTrafficService.occupiesForwardLane(
+                        vehicle, sameLane, 0.0F),
+                "same-lane vehicle was not detected ahead");
+        helper.assertTrue(!CityTrafficService.occupiesForwardLane(
+                        vehicle, shoulder, 0.0F),
+                "shoulder parking incorrectly blocked a straight traffic lane");
+        helper.assertTrue(!CityTrafficService.occupiesForwardLane(
+                        vehicle, behind, 0.0F),
+                "vehicle behind traffic incorrectly blocked the forward lane");
+
+        AABB diagonalLane = new AABB(-4.5, 0.0, 2.4, -2.5, 2.0, 4.6);
+        AABB diagonalShoulder = new AABB(-0.4, 0.0, 3.8, 1.8, 2.0, 6.2);
+        helper.assertTrue(CityTrafficService.occupiesForwardLane(
+                        vehicle, diagonalLane, 45.0F),
+                "same-lane vehicle was missed on a diagonal road");
+        helper.assertTrue(!CityTrafficService.occupiesForwardLane(
+                        vehicle, diagonalShoulder, 45.0F),
+                "axis-aligned scan treated diagonal shoulder parking as a lane obstacle");
+
+        AABB exitLane = new AABB(-1.0, 0.0, 3.0, 1.0, 2.0, 5.0);
+        AABB exitShoulder = new AABB(4.0, 0.0, 3.0, 6.0, 2.0, 5.0);
+        helper.assertTrue(CityTrafficService.occupiesLanePoint(
+                        exitLane, new Vec3(0.0, 0.0, 4.0), 0.0F, 1.2),
+                "junction admission missed a vehicle occupying its exit lane");
+        helper.assertTrue(!CityTrafficService.occupiesLanePoint(
+                        exitShoulder, new Vec3(0.0, 0.0, 4.0), 0.0F, 1.2),
+                "junction admission treated shoulder parking as a blocked exit");
+        helper.assertTrue(CityTrafficService.junctionsConflict(
+                        Vec3.ZERO, new Vec3(10.0, 0.0, 0.0))
+                        && !CityTrafficService.junctionsConflict(
+                                Vec3.ZERO, new Vec3(30.0, 0.0, 0.0)),
+                "junction leases did not separate one crossing from distant crossings");
         helper.succeed();
     }
 
@@ -2128,14 +2177,14 @@ public final class CyberdeckGameTests {
     }
 
     private static void civilianPopulation(GameTestHelper helper) {
-        helper.assertTrue(CityNpcSpawns.targetNearby() <= 12,
-                "civilian target regressed to the old high-density crowd level");
-        helper.assertTrue(CityNpcSpawns.spawnBatch() <= 2
-                        && CityNpcSpawns.spawnInterval() >= 100,
-                "civilian generation must use small, low-frequency batches");
+        helper.assertTrue(CityNpcSpawns.targetNearby() == 18,
+                "civilian target must sustain the increased visible crowd density");
+        helper.assertTrue(CityNpcSpawns.spawnBatch() == 4
+                        && CityNpcSpawns.spawnInterval() == 60,
+                "civilian generation must replenish four residents every three seconds");
         helper.assertTrue(CityNpcSpawns.nearbyRadius() == 72.0,
                 "the pedestrian population must fill the player's visible city radius");
-        helper.assertTrue(CityNpcSpawns.desiredSpawnCount(0, 0, 0) == 2
+        helper.assertTrue(CityNpcSpawns.desiredSpawnCount(0, 0, 0) == 4
                         && CityNpcSpawns.desiredSpawnCount(
                                 0, CityNpcSpawns.maxPerCell() - 1, 0) == 1
                         && CityNpcSpawns.desiredSpawnCount(

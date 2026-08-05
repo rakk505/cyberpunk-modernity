@@ -81,7 +81,7 @@ public final class NeonCityGenerator {
     public static final int TRAVEL_CORRIDOR_SAMPLE_BLOCKS = 8;
     public static final int MIN_TRAVEL_LOOKAHEAD_BLOCKS = 96;
     public static final int MAX_TRAVEL_LOOKAHEAD_BLOCKS = 512;
-    public static final int MAX_FOREGROUND_CHUNKS_PER_TICK = 3;
+    public static final int MAX_FOREGROUND_CHUNKS_PER_TICK = 8;
     static final int MAX_LIGHT_REFRESHES_PER_TICK = 8;
     public static final long FOREGROUND_GENERATION_BUDGET_NANOS = 25_000_000L;
     static final double MAX_POSITION_FALLBACK_SPEED = 8.0;
@@ -743,6 +743,7 @@ public final class NeonCityGenerator {
                                     "[NeonCity] cannot backfill ad; Arnis template {} changed size",
                                     placement.patch().templateId());
                         } else {
+                            long backfillStarted = System.nanoTime();
                             GeneratedAdPlacement.Result result =
                                     GeneratedAdPlacement.backfillForArnisTile(
                                             level,
@@ -751,6 +752,10 @@ public final class NeonCityGenerator {
                                             template,
                                             CITY_GROUND_Y
                                                     - placement.patch().surfaceOffset());
+                            CityGenerationTrace.adBackfill(
+                                    result == GeneratedAdPlacement.Result.PLACED,
+                                    result == GeneratedAdPlacement.Result.RETRYABLE_FAILURE,
+                                    System.nanoTime() - backfillStarted);
                             facadeCompleted =
                                     result != GeneratedAdPlacement.Result.RETRYABLE_FAILURE;
                             facadeRetryable =
@@ -1154,22 +1159,39 @@ public final class NeonCityGenerator {
                 if (trace != null) trace.phase(CityGenerationTrace.Phase.URBAN_CRATES);
                 UrbanCrateGeneration.decorateChunk(level, chunk, samples);
             }
-            if (patchTemplate != null
-                    && patchPlacement.isPresent()
-                    && !isReservedMainlineBuildingChunk(level, chunk)) {
-                ArnisPatchLibrary.Placement placement = patchPlacement.get();
-                GeneratedAdPlacement.Result adResult =
-                        GeneratedAdPlacement.placeForArnisTileResult(
-                                level,
-                                chunk,
-                                placement,
-                                patchTemplate,
-                                CITY_GROUND_Y - placement.patch().surfaceOffset());
-                if (adResult == GeneratedAdPlacement.Result.RETRYABLE_FAILURE) {
-                    AD_DECORATION_RETRY_PENDING.add(chunk.pack());
+            if (trace != null) trace.phase(CityGenerationTrace.Phase.ADS);
+            if (patchTemplate != null && patchPlacement.isPresent()) {
+                long guardStarted = System.nanoTime();
+                boolean reserved = isReservedMainlineBuildingChunk(level, chunk);
+                CityGenerationTrace.adReservationGuard(System.nanoTime() - guardStarted);
+                if (!reserved) {
+                    ArnisPatchLibrary.Placement placement = patchPlacement.get();
+                    long adStarted = System.nanoTime();
+                    GeneratedAdPlacement.Result adResult =
+                            GeneratedAdPlacement.placeForArnisTileResult(
+                                    level,
+                                    chunk,
+                                    placement,
+                                    patchTemplate,
+                                    CITY_GROUND_Y - placement.patch().surfaceOffset());
+                    CityGenerationTrace.adArnisTile(
+                            adResult == GeneratedAdPlacement.Result.PLACED,
+                            adResult == GeneratedAdPlacement.Result.WORLD_BLOCKED,
+                            adResult == GeneratedAdPlacement.Result.RETRYABLE_FAILURE,
+                            System.nanoTime() - adStarted);
+                    if (adResult == GeneratedAdPlacement.Result.RETRYABLE_FAILURE) {
+                        AD_DECORATION_RETRY_PENDING.add(chunk.pack());
+                    }
                 }
             }
-            DistrictAdGeneration.decorateChunk(level, chunk);
+            long districtAdStarted = System.nanoTime();
+            DistrictAdGeneration.DecorationResult districtAdResult =
+                    DistrictAdGeneration.decorateChunk(level, chunk);
+            CityGenerationTrace.adDistrict(
+                    districtAdResult.applicable(),
+                    districtAdResult.presentStructures(),
+                    districtAdResult.placedStructures(),
+                    System.nanoTime() - districtAdStarted);
             if (HighwayFacadeAdGeneration.decorateChunk(level, chunk)
                     == HighwayFacadeAdGeneration.Result.RETRYABLE) {
                 HIGHWAY_AD_RETRY_PENDING.add(chunk.pack());
@@ -1191,21 +1213,23 @@ public final class NeonCityGenerator {
     }
 
     static boolean isFixedMainlineBuildingChunk(ChunkPos chunk) {
-        return MainlineQuestData.fixedSites().values().stream()
-                .anyMatch(site -> chunkIntersects(chunk, site.buildingBounds()));
+        return MainlineQuestData.fixedReservedBuildingChunks().contains(chunk.pack());
     }
 
     static boolean isReservedMainlineBuildingChunk(ServerLevel level, ChunkPos chunk) {
-        return isFixedMainlineBuildingChunk(chunk)
-                || MainlineQuestData.get(level).sites().stream()
-                        .anyMatch(site -> chunkIntersects(chunk, site.buildingBounds()));
+        long key = chunk.pack();
+        return MainlineQuestData.fixedReservedBuildingChunks().contains(key)
+                || MainlineQuestData.get(level).reservedBuildingChunks().contains(key);
     }
 
-    private static boolean chunkIntersects(ChunkPos chunk, BoundingBox bounds) {
-        return chunk.getMinBlockX() <= bounds.maxX()
-                && chunk.getMaxBlockX() >= bounds.minX()
-                && chunk.getMinBlockZ() <= bounds.maxZ()
-                && chunk.getMaxBlockZ() >= bounds.minZ();
+    /** Number of generated chunks still awaiting a branded-ad backfill retry. */
+    static int adRetryPendingCount() {
+        return AD_DECORATION_RETRY_PENDING.size();
+    }
+
+    /** Current depth of the outstanding chunk-generation queue (backlog). */
+    static int pendingQueueDepth() {
+        return QUEUED.size();
     }
 
     static UrbanSample[][] sampleChunk(int minX, int minZ) {
@@ -2977,8 +3001,24 @@ public final class NeonCityGenerator {
                 activeLayout, location, worldX, worldZ));
     }
 
+    /** Returns whether generation retained the Arnis column beneath an atlas road sample. */
+    public static boolean isAtlasStreetColumnAt(int worldX, int worldZ) {
+        UrbanSample sample = sample(worldX, worldZ);
+        return usableArnisPlacement(
+                        Math.floorDiv(worldX, 16), Math.floorDiv(worldZ, 16))
+                .map(placement -> keepsArnisColumn(sample, placement.patch().district()))
+                .orElse(false);
+    }
+
+    /** Returns whether this retained column belongs to any mapped OSM road ribbon. */
+    public static boolean isAtlasRoadSurfaceAt(int worldX, int worldZ) {
+        return isAtlasStreetColumnAt(worldX, worldZ)
+                && atlasRoadAt(worldX, worldZ) != AtlasRoadClass.NONE;
+    }
+
     public static boolean isAtlasTrafficRoadAt(int worldX, int worldZ) {
-        return atlasRoadAt(worldX, worldZ).supportsTraffic();
+        return isAtlasStreetColumnAt(worldX, worldZ)
+                && atlasRoadAt(worldX, worldZ).supportsTraffic();
     }
 
     /** Finds the nearest reflected primary/secondary OSM centerline around a world position. */
@@ -3006,6 +3046,11 @@ public final class NeonCityGenerator {
                 for (OsmRoadSample.CenterlinePoint point : sample.arterialCenterlines(
                         placement.sourceTileX(), placement.sourceTileZ())) {
                     AtlasRoadPoint candidate = transformAtlasRoadPoint(placement, point);
+                    if (!isAtlasTrafficRoadAt(
+                            (int) Math.floor(candidate.x()),
+                            (int) Math.floor(candidate.z()))) {
+                        continue;
+                    }
                     double dx = candidate.x() - worldX;
                     double dz = candidate.z() - worldZ;
                     double distanceSquared = dx * dx + dz * dz;
@@ -3084,13 +3129,14 @@ public final class NeonCityGenerator {
     }
     public static boolean isCivilianPedestrianArea(ServerLevel level, int worldX, int worldZ) {
         if (!isMegacityWorld(level) || !layoutInitialized) return false;
+        RoadClass roadClass = sample(worldX, worldZ).roadClass();
         return isCivilianPedestrianTarget(
-                sample(worldX, worldZ).roadClass(),
-                isUsableArnisChunk(level, worldX, worldZ));
+                        roadClass, isUsableArnisChunk(level, worldX, worldZ))
+                && !isAtlasTrafficRoadAt(worldX, worldZ);
     }
     public static boolean isCivilianPedestrianTarget(RoadClass roadClass,
                                                        boolean usableArnisChunk) {
-        if (roadClass == RoadClass.PARK) return true;
+        if (roadClass == RoadClass.PARK || roadClass == RoadClass.HIGHWAY_BUFFER) return true;
         if (!usableArnisChunk) return false;
         return switch (roadClass) {
             case NONE, CENTRAL_PLAZA, DISTRICT_BOULEVARD, LOCAL_STREET, SERVICE_ALLEY -> true;

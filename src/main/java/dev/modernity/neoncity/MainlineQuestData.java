@@ -21,6 +21,7 @@ import net.minecraft.nbt.NbtIo;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.saveddata.SavedDataType;
@@ -57,8 +58,11 @@ final class MainlineQuestData extends SavedData {
             MainlineQuestData::new,
             CODEC);
     private static volatile Map<String, MissionBuildingPlanner.Site> fixedSites;
+    private static volatile Set<Long> fixedReservedChunks;
 
     private final Map<String, CompoundTag> plans = new HashMap<>();
+    /** Cached packed chunk keys covered by dynamic site reservations; null when stale. */
+    private volatile Set<Long> reservedChunks;
     private final Map<String, CompoundTag> permanentInteriors = new HashMap<>();
     private final Set<String> committedRecoveryPlans = new HashSet<>();
     private final Map<UUID, Progress> progress = new HashMap<>();
@@ -154,6 +158,7 @@ final class MainlineQuestData extends SavedData {
             boolean committedRecovery) {
         CompoundTag encoded = MissionBuildingPlanner.withoutMissionInteriorPlan(site).save();
         CompoundTag previous = plans.put(missionId, encoded);
+        reservedChunks = null;
         boolean sameBuilding = previous != null && matchingSite(previous, encoded);
         boolean interiorChanged = !sameBuilding
                 && permanentInteriors.remove(missionId) != null;
@@ -188,6 +193,7 @@ final class MainlineQuestData extends SavedData {
 
     void removeSite(String missionId) {
         boolean changed = plans.remove(missionId) != null;
+        if (changed) reservedChunks = null;
         changed |= permanentInteriors.remove(missionId) != null;
         changed |= committedRecoveryPlans.remove(missionId);
         if (changed) {
@@ -212,6 +218,50 @@ final class MainlineQuestData extends SavedData {
                 .flatMap(Optional::stream)
                 .map(MissionBuildingPlanner::withoutMissionInteriorPlan)
                 .toList();
+    }
+
+    /**
+     * Packed chunk keys covered by dynamic (runtime-committed) site reservations. Computed once
+     * and cached; recomputed only when a site is added or removed. Avoids deserializing every
+     * site's NBT on every chunk generation, which the trace showed dominated the ads phase.
+     */
+    Set<Long> reservedBuildingChunks() {
+        Set<Long> cached = reservedChunks;
+        if (cached != null) return cached;
+        Set<Long> computed = new HashSet<>();
+        for (MissionBuildingPlanner.Site site : sites()) {
+            addChunkKeys(computed, site.buildingBounds());
+        }
+        reservedChunks = computed;
+        return computed;
+    }
+
+    /** Packed chunk keys covered by the immutable, resource-loaded fixed sites. */
+    static Set<Long> fixedReservedBuildingChunks() {
+        Set<Long> cached = fixedReservedChunks;
+        if (cached != null) return cached;
+        synchronized (MainlineQuestData.class) {
+            if (fixedReservedChunks == null) {
+                Set<Long> computed = new HashSet<>();
+                for (MissionBuildingPlanner.Site site : fixedSites().values()) {
+                    addChunkKeys(computed, site.buildingBounds());
+                }
+                fixedReservedChunks = computed;
+            }
+            return fixedReservedChunks;
+        }
+    }
+
+    private static void addChunkKeys(Set<Long> out, BoundingBox bounds) {
+        int minChunkX = bounds.minX() >> 4;
+        int maxChunkX = bounds.maxX() >> 4;
+        int minChunkZ = bounds.minZ() >> 4;
+        int maxChunkZ = bounds.maxZ() >> 4;
+        for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
+            for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
+                out.add(ChunkPos.pack(chunkX, chunkZ));
+            }
+        }
     }
 
     void start(UUID instanceId, String missionId) {

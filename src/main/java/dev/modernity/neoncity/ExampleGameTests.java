@@ -1379,6 +1379,11 @@ public final class ExampleGameTests {
                     helper.assertTrue(!NeonCityGenerator.keepsArnisColumn(
                                     buffer, buffer.district()),
                             "Arnis building entered the reserved highway shoulder");
+                    if (buffer.roadClass() == NeonCityGenerator.RoadClass.HIGHWAY_BUFFER) {
+                        helper.assertTrue(!NeonCityGenerator.isAtlasTrafficRoadAt(
+                                        bufferX, bufferZ),
+                                "OSM traffic escaped onto the reserved highway sidewalk");
+                    }
                     clearanceSamples++;
                 }
             }
@@ -5932,11 +5937,13 @@ public final class ExampleGameTests {
         for (NeonCityGenerator.RoadClass road : NeonCityGenerator.RoadClass.values()) {
             helper.assertTrue(
                     NeonCityGenerator.isCivilianPedestrianTarget(road, false)
-                            == (road == NeonCityGenerator.RoadClass.PARK),
+                            == (road == NeonCityGenerator.RoadClass.PARK
+                            || road == NeonCityGenerator.RoadClass.HIGHWAY_BUFFER),
                     "non-Arnis civilian policy accepted " + road);
             helper.assertTrue(
                     NeonCityGenerator.isCivilianPedestrianTarget(road, true)
                             == (road == NeonCityGenerator.RoadClass.PARK
+                            || road == NeonCityGenerator.RoadClass.HIGHWAY_BUFFER
                             || arnisSurfaces.contains(road)),
                     "Arnis civilian policy misclassified " + road);
             helper.assertTrue(
