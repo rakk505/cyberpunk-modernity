@@ -30,6 +30,8 @@ public final class CyberwareEffects {
     private static final Map<UUID, Boolean> IN_COMBAT = new HashMap<>();
     private static final Map<UUID, Double> RAM_REGEN_BUFFER = new HashMap<>();
     private static final Map<UUID, Skill> LAST_QUICKHACK = new HashMap<>();
+    /** Melee swing-rate boost (as a fraction of base) applied while a sandevistan is active. */
+    private static final double SANDEVISTAN_ATTACK_SPEED_BONUS = 1.5;
 
     private CyberwareEffects() {
     }
@@ -166,6 +168,24 @@ public final class CyberwareEffects {
     }
 
     /**
+     * Highest optical-zoom factor granted by the player's installed Face optics
+     * (e.g. 4/6/8/10), or {@code 1.0} when no zoom-capable optics are equipped.
+     * Client-safe: reads only from the synced {@link CyberwareData}.
+     */
+    public static double opticalZoom(CyberwareData data) {
+        if (data == null) {
+            return 1.0;
+        }
+        double zoom = 1.0;
+        for (Cyberware cyberware : data.sockets(BodySlot.FACE)) {
+            if (cyberware != null) {
+                zoom = Math.max(zoom, cyberware.value("optical_zoom"));
+            }
+        }
+        return zoom;
+    }
+
+    /**
      * Every Face-slot family except the identity faceplate is an ocular implant. Scanner-highlight
      * flags describe optional through-wall bonuses, not the baseline scanner capability.
      */
@@ -292,6 +312,11 @@ public final class CyberwareEffects {
         if (berserk != null && ActiveAbilities.isActive(player, "berserk")) {
             movement += berserk.value("active_movement_speed_percent") / 100.0;
             attackSpeed += berserk.value("active_attack_speed_percent") / 100.0;
+        }
+        // Attacks land faster while the sandevistan is running so melee keeps pace with the
+        // world-slow, selling the reflex boost.
+        if (SandevistanMechanics.isActive(player)) {
+            attackSpeed += SANDEVISTAN_ATTACK_SPEED_BONUS;
         }
         CyberwarePassives.setDynamicMovement(player, movement);
         CyberwarePassives.setDynamicAttackSpeed(player, attackSpeed);

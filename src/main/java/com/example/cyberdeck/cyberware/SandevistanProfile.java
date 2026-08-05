@@ -21,6 +21,9 @@ public record SandevistanProfile(
         double mitigationStrength,
         double elementalResistance) {
 
+    /** Multiplier applied to every sandevistan's catalog duration so active windows last longer. */
+    public static final double DURATION_MULTIPLIER = 2.0;
+
     public static final SandevistanProfile APOGEE = create(Cyberware.MILITECH_APOGEE);
     public static final SandevistanProfile FALCON = create(Cyberware.MILITECH_FALCON);
     public static final SandevistanProfile DYNALAR = create(Cyberware.DYNALAR_SANDEVISTAN);
@@ -40,7 +43,7 @@ public record SandevistanProfile(
         return new SandevistanProfile(
                 cyberware,
                 fraction(cyberware, "time_slow_percent"),
-                ticks(cyberware, "duration_seconds"),
+                (int) Math.max(1, Math.round(ticks(cyberware, "duration_seconds") * DURATION_MULTIPLIER)),
                 ticks(cyberware, "cooldown_seconds"),
                 partial,
                 fraction(cyberware, "active_damage_percent"),

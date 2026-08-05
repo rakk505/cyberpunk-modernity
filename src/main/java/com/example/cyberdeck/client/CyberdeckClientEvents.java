@@ -21,6 +21,7 @@ import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.player.Input;
@@ -29,6 +30,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
+import net.neoforged.neoforge.client.event.ComputeFovModifierEvent;
 import net.neoforged.neoforge.client.event.InputEvent;
 import net.neoforged.neoforge.client.event.MovementInputUpdateEvent;
 import net.neoforged.neoforge.client.event.RenderGuiLayerEvent;
@@ -46,8 +48,62 @@ public final class CyberdeckClientEvents {
     private static boolean quickhackUseLatched;
     private static boolean chargedJumpHeld;
     private static boolean navigationBindingMigrationChecked;
+    /** Current optics zoom factor (1.0 = no zoom); scrolled up to the installed optics' max. */
+    private static double opticsZoom = 1.0;
 
     private CyberdeckClientEvents() {
+    }
+
+    /**
+     * Scrolling the mouse wheel while the scanner is up and zoom-capable optics are
+     * installed ramps the optical zoom instead of swapping the hotbar slot. Zoom is
+     * clamped to the best installed optics factor and consumes the scroll so vanilla
+     * hotbar cycling is suppressed while scanning.
+     */
+    @SubscribeEvent
+    public static void onMouseScroll(InputEvent.MouseScrollingEvent event) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null || mc.gui.screen() != null || !QuickhackScannerClient.isActive()) {
+            return;
+        }
+        double maxZoom = CyberwareEffects.opticalZoom(CyberwareAttachments.get(mc.player));
+        if (maxZoom <= 1.0) {
+            return;
+        }
+        double delta = event.getScrollDeltaY();
+        if (delta == 0.0) {
+            return;
+        }
+        opticsZoom = Mth.clamp(opticsZoom + delta, 1.0, maxZoom);
+        event.setCanceled(true);
+    }
+
+    /** Applies the current optical zoom by shrinking the FOV modifier while scanning. */
+    @SubscribeEvent
+    public static void onComputeFov(ComputeFovModifierEvent event) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null || event.getPlayer() != mc.player) {
+            return;
+        }
+        double zoom = effectiveOpticsZoom(mc);
+        if (zoom > 1.0) {
+            event.setNewFovModifier((float) (event.getNewFovModifier() / zoom));
+        }
+    }
+
+    /** Zoom only applies while the scanner is up with zoom-capable optics; otherwise resets. */
+    private static double effectiveOpticsZoom(Minecraft mc) {
+        if (mc.player == null || !QuickhackScannerClient.isActive()) {
+            opticsZoom = 1.0;
+            return 1.0;
+        }
+        double maxZoom = CyberwareEffects.opticalZoom(CyberwareAttachments.get(mc.player));
+        if (maxZoom <= 1.0) {
+            opticsZoom = 1.0;
+            return 1.0;
+        }
+        opticsZoom = Mth.clamp(opticsZoom, 1.0, maxZoom);
+        return opticsZoom;
     }
 
     /** Queue on F before vanilla handles its swap-offhand mapping. */
@@ -456,6 +512,7 @@ public final class CyberdeckClientEvents {
     public static void onLogout(ClientPlayerNetworkEvent.LoggingOut event) {
         quickhackUseLatched = false;
         chargedJumpHeld = false;
+        opticsZoom = 1.0;
         EntityControlClient.clear();
         QuickhackScannerClient.reset();
         QuickhackUploadClient.set(com.example.cyberdeck.network.QuickhackUploadPacket.NONE);

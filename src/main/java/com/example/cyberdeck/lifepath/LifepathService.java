@@ -18,6 +18,7 @@ import net.neoforged.neoforge.network.PacketDistributor;
 /** Server authority for opening and permanently claiming one starter lifepath. */
 public final class LifepathService {
     private static final String BASIC_OPTICS = "basic_kiroshi_optics_t2";
+    private static final String MERC_SANDEVISTAN = "zetatech_sandevistan_t2";
     private static final String[] STARTING_LEGS = {
             "fortified_ankles_t1",
             "jenkins_tendons_t2",
@@ -118,6 +119,7 @@ public final class LifepathService {
             case MERC -> {
                 cyberware.add(required(startingLeg));
                 cyberware.add(required("mantis_blades_t2"));
+                cyberware.add(required(MERC_SANDEVISTAN));
                 items.add(new ItemStack(WeaponItems.gun(GunType.ASSAULT_RIFLE).get()));
                 items.add(new ItemStack(AmmoItems.item(AmmoType.HEAVY).get(), 300));
             }

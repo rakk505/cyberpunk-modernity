@@ -38,6 +38,17 @@ public final class CyberwareAttachments {
                     .build());
 
     /**
+     * Client-synced flag that mirrors whether a player's sandevistan is currently active.
+     * Not persisted (transient combat state) but synced to every tracking client so the
+     * afterimage trail renders for the owner and nearby players alike.
+     */
+    public static final Supplier<AttachmentType<Boolean>> SANDEVISTAN_ACTIVE =
+            ATTACHMENT_TYPES.register("sandevistan_active", () -> AttachmentType
+                    .<Boolean>builder(() -> Boolean.FALSE)
+                    .sync(ByteBufCodecs.BOOL)
+                    .build());
+
+    /**
      * Permanent per-player bonus to maximum cyberware capacity granted by consuming
      * {@code cyberware_shard} items. Persisted to disk and copied across death so the
      * bonus is never lost, and folded into {@link CyberwareCapacity#maximum}.
@@ -60,6 +71,18 @@ public final class CyberwareAttachments {
 
     public static SandevistanState getSandevistanState(Player player) {
         return player.getData(SANDEVISTAN_STATE.get());
+    }
+
+    /** Whether this player's sandevistan is active (client-synced; safe on either side). */
+    public static boolean isSandevistanActive(Player player) {
+        return player.getData(SANDEVISTAN_ACTIVE.get());
+    }
+
+    /** Server-only: updates the synced sandevistan-active flag, syncing to tracking clients. */
+    public static void setSandevistanActive(Player player, boolean active) {
+        if (isSandevistanActive(player) != active) {
+            player.setData(SANDEVISTAN_ACTIVE.get(), active);
+        }
     }
 
     public static int getBonusCapacity(Player player) {

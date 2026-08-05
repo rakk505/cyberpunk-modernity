@@ -2338,7 +2338,8 @@ public final class CyberdeckGameTests {
         for (int tick = 0; tick < 60; tick++) {
             state.tick(SandevistanProfile.APOGEE);
         }
-        helper.assertTrue(close(state.chargeTicks(), 60.0),
+        helper.assertTrue(close(state.chargeTicks(),
+                        SandevistanProfile.APOGEE.durationTicks() - 60.0),
                 "Apogee must drain one charge tick per active server tick");
         state.deactivate();
         helper.assertTrue(state.canActivate(SandevistanProfile.APOGEE),
@@ -2862,7 +2863,9 @@ public final class CyberdeckGameTests {
                         cyberware.value("time_slow_percent") / 100.0),
                 profile.cyberware().id() + " slow fraction mismatch");
         helper.assertTrue(profile.durationTicks()
-                        == Math.max(1, (int) Math.round(cyberware.value("duration_seconds") * 20)),
+                        == Math.max(1, (int) Math.round(
+                                Math.max(1, (int) Math.round(cyberware.value("duration_seconds") * 20))
+                                        * SandevistanProfile.DURATION_MULTIPLIER)),
                 profile.cyberware().id() + " duration mismatch");
         helper.assertTrue(profile.cooldownTicks()
                         == Math.max(1, (int) Math.round(cyberware.value("cooldown_seconds") * 20)),
