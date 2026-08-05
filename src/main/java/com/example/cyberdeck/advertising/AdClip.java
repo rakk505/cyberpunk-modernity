@@ -16,7 +16,15 @@ public enum AdClip {
     META_LOGO("meta_logo", 30, 8, false),
     META_GLASSES("meta_glasses", 30, 8, false),
     META_AI("meta_ai", 45, 8, false),
-    META_FUTURE("meta_future", 45, 8, false);
+    META_FUTURE("meta_future", 45, 8, false),
+    VATER("vater", 30, 8, false),
+    GOJO("gojo", 30, 8, false),
+    HORIZON("horizon", 30, 8, false),
+    META_LOGO_2("meta_logo_2", 30, 8, false),
+    PETROCHEM("petrochem", 30, 8, false),
+    ERI("eri", 30, 8, false),
+    HAMBURGER("hamburger", 30, 8, false),
+    SODA("soda", 30, 8, false);
 
     public static final int SHEET_COLUMNS = 4;
     public static final int SHEET_ROWS = 4;

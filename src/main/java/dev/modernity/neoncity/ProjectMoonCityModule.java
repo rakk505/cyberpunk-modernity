@@ -106,6 +106,9 @@ public final class ProjectMoonCityModule {
             DISTRICT_AD_GENERATION = register(
                     "district_ad_generation", ExampleGameTests::districtAdGeneration);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            HIGHWAY_FACADE_ADS = register(
+                    "highway_facade_ads", ExampleGameTests::highwayFacadeAds);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             CONNECTION_CONTINUITY = register(
                     "connection_continuity", ExampleGameTests::connectionContinuity);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
@@ -491,6 +494,7 @@ public final class ProjectMoonCityModule {
         registerInstance(event, "finite_city_wilderness", FINITE_CITY_WILDERNESS, data);
         registerInstance(event, "district_zones_and_culture", DISTRICT_ZONES_AND_CULTURE, data);
         registerInstance(event, "district_ad_generation", DISTRICT_AD_GENERATION, data);
+        registerInstance(event, "highway_facade_ads", HIGHWAY_FACADE_ADS, data);
         registerInstance(event, "connection_continuity", CONNECTION_CONTINUITY, data);
         registerInstance(
                 event,

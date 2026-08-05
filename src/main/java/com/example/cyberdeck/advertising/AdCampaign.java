@@ -25,7 +25,17 @@ public enum AdCampaign {
             AdClip.META_GLASSES,
             AdClip.META_AI,
             AdClip.META_FUTURE)),
-    CLOSED_AI("closed_ai", List.of(AdClip.CLOSED_AI));
+    CLOSED_AI("closed_ai", List.of(AdClip.CLOSED_AI)),
+    /** Reserved for the megascreens that face an inter-district highway. */
+    HIGHWAY("highway", List.of(
+            AdClip.VATER,
+            AdClip.GOJO,
+            AdClip.HORIZON,
+            AdClip.META_LOGO_2,
+            AdClip.PETROCHEM,
+            AdClip.ERI,
+            AdClip.HAMBURGER,
+            AdClip.SODA));
 
     private final String id;
     private final List<AdClip> clips;

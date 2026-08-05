@@ -21,6 +21,18 @@ REPOSITORY = Path(__file__).resolve().parents[1]
 RESOURCES = REPOSITORY / "src/main/resources/assets/cyberdeck"
 META_IDS = ("meta_logo", "meta_glasses", "meta_ai", "meta_future")
 SUPPLIED_IDS = ("misanthropic", "closed_ai")
+HIGHWAY_IDS = ("vater", "gojo", "horizon", "meta_logo_2", "petrochem",
+               "eri", "hamburger", "soda")
+HIGHWAY_SOURCE_SHA256 = {
+    "vater": "d2ece481ebd62dd45e1c90842d23644d523d08e51c3317087275278e27cfb8cf",
+    "gojo": "36d3fea88b23aad8efdcbf990387f555492cdfecb887c0f96fe96a5d861d04ef",
+    "horizon": "c7420259b558af7e7a1c86384e1990986f20de4c3cfad1cafc19aab8684b1bfc",
+    "meta_logo_2": "32a0d9c2df0c41762351205de85148e2e1c489eee6d50006c33a73a488e276e1",
+    "petrochem": "4ffb04f95bdea2e3537bdb8dd648a2a77595a449f57819600098cc3dc582af0a",
+    "eri": "04af3b167329d25c08871d9877cbe8ba6a6fcec04c5f6879aa547ce55aa8500b",
+    "hamburger": "f2766ba3478ac3c644965b86ff92cfa1e2e76cb75a9b18e5eb52b66c39a082f0",
+    "soda": "de752641d28cdd7c19d460f07e735793aea5da445cdd034592c54a962b06ca97",
+}
 SHEET_COUNTS = {
     "meta_logo": 15,
     "meta_glasses": 15,
@@ -36,8 +48,9 @@ META_SOURCE_SHA256 = {
 
 
 def hashes(root: Path) -> dict[str, str]:
+    # as_posix keeps the "<clip>/sheet_nnn.png" keys stable on Windows checkouts too.
     return {
-        str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
+        path.relative_to(root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
         for path in sorted(root.rglob("sheet_*.png"))
     }
 
@@ -71,10 +84,10 @@ class MetaAdGeneratorTests(unittest.TestCase):
         catalog_by_id = {clip["id"]: clip for clip in catalog["clips"]}
         manifest_by_id = {clip["id"]: clip for clip in manifest["clips"]}
 
-        self.assertEqual(2_544, process_ads.MAX_TOTAL_FRAMES)
-        self.assertEqual(160, process_ads.MAX_TOTAL_SHEETS)
-        self.assertEqual(2_544, manifest["total_frames"])
-        self.assertEqual(160, manifest["total_sheets"])
+        self.assertEqual(4_464, process_ads.MAX_TOTAL_FRAMES)
+        self.assertEqual(280, process_ads.MAX_TOTAL_SHEETS)
+        self.assertEqual(4_464, manifest["total_frames"])
+        self.assertEqual(280, manifest["total_sheets"])
         self.assertEqual(set(catalog_by_id), set(manifest_by_id))
 
         sounds = json.loads((RESOURCES / "sounds.json").read_text())
@@ -124,6 +137,48 @@ class MetaAdGeneratorTests(unittest.TestCase):
                     (REPOSITORY / "ads" / catalog_clip["file"]).read_bytes()
                 ).hexdigest(),
             )
+
+    def test_highway_campaign_clips_are_silent_thirty_second_loops(self) -> None:
+        catalog = json.loads((REPOSITORY / "ads/catalog.json").read_text())
+        manifest = json.loads((RESOURCES / "ads/manifest.json").read_text())
+        catalog_by_id = {clip["id"]: clip for clip in catalog["clips"]}
+        manifest_by_id = {clip["id"]: clip for clip in manifest["clips"]}
+
+        self.assertIn("highway", process_ads.VALID_CAMPAIGNS)
+        for clip_id in HIGHWAY_IDS:
+            catalog_clip = catalog_by_id[clip_id]
+            manifest_clip = manifest_by_id[clip_id]
+            self.assertEqual(["highway"], catalog_clip["campaigns"])
+            self.assertEqual(["highway"], manifest_clip["campaigns"])
+            self.assertEqual(30, catalog_clip["duration_seconds"])
+            self.assertEqual(8, catalog_clip["fps"])
+            self.assertEqual(8, manifest_clip["fps"])
+            self.assertEqual(240, manifest_clip["frame_count"])
+            self.assertEqual(15, manifest_clip["sheet_count"])
+            self.assertEqual([160, 90], manifest_clip["frame_size"])
+            self.assertFalse(catalog_clip["audio"])
+            self.assertFalse(manifest_clip["audio"])
+            self.assertTrue(catalog_clip["loop"])
+            self.assertEqual("black", catalog_clip["pad_color"])
+
+            source = REPOSITORY / "ads" / catalog_clip["file"]
+            self.assertTrue(source.is_file())
+            self.assertEqual(HIGHWAY_SOURCE_SHA256[clip_id], catalog_clip["source_sha256"])
+            self.assertEqual(
+                catalog_clip["source_sha256"],
+                hashlib.sha256(source.read_bytes()).hexdigest(),
+            )
+
+            sheets = sorted((RESOURCES / "textures/ads" / clip_id).glob("sheet_*.png"))
+            self.assertEqual(15, len(sheets), clip_id)
+            self.assertTrue(all(png_dimensions(sheet) == (640, 360) for sheet in sheets))
+
+    def test_provenance_records_highway_campaign_sources(self) -> None:
+        sources_doc = (REPOSITORY / "ASSET_SOURCES.md").read_text()
+        ads_doc = (REPOSITORY / "ADS.md").read_text()
+        self.assertIn("highway", ads_doc)
+        for clip_id in HIGHWAY_IDS:
+            self.assertIn(HIGHWAY_SOURCE_SHA256[clip_id], sources_doc)
 
     def test_meta_source_duration_is_read_without_ffmpeg(self) -> None:
         catalog = json.loads((REPOSITORY / "ads/catalog.json").read_text())
