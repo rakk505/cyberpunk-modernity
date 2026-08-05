@@ -81,6 +81,9 @@ public final class CyberwareTickHandler {
         if (entity.level().isClientSide() || entity instanceof net.minecraft.world.entity.player.Player) {
             return;
         }
+        // This fires for every entity on every tick, so it must cost nothing when nobody is
+        // dilating time. Both lookups are gated on their owner sets being non-empty and then
+        // answer from a per-tick index, rather than scanning the player list for every entity.
         double slowFraction = Math.max(
                 SandevistanMechanics.slowFractionAffecting(entity),
                 ReactiveCyberware.slowFractionAffecting(entity));
@@ -188,6 +191,7 @@ public final class CyberwareTickHandler {
         DoubleJumpGuard.clearAll();
         ChargedJump.clearAll();
         ReactiveCyberware.clearAll();
+        SandevistanMechanics.clearAll();
         CyberwareWeaponEffects.clearAll();
     }
 

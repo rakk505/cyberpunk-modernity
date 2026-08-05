@@ -214,7 +214,7 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
 
     public static AttributeSupplier.Builder createAttributes() {
         return Monster.createMonsterAttributes()
-                .add(Attributes.MAX_HEALTH, 24.0)
+                .add(Attributes.MAX_HEALTH, 20.0)
                 .add(Attributes.MOVEMENT_SPEED, 0.26)
                 .add(Attributes.ATTACK_DAMAGE, 5.0)
                 .add(Attributes.ARMOR, 0.0)
@@ -493,10 +493,16 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
     /** Preserves the former four-piece light/heavy defense as invisible entity modifiers. */
     public void setBallisticTier(String tier) {
         ballisticTier = "heavy".equals(tier) ? "heavy" : "light".equals(tier) ? "light" : "";
-        double armor = "heavy".equals(ballisticTier) ? 20.0
-                : "light".equals(ballisticTier) ? 15.0 : 0.0;
-        double toughness = "heavy".equals(ballisticTier) ? 12.0
-                : "light".equals(ballisticTier) ? 8.0 : 0.0;
+        // Vanilla reduces damage per hit, and toughness blunts exactly the high-damage shots that
+        // are supposed to punch through, so the old 20/12 and 15/8 removed about three quarters of
+        // every bullet. That fell hardest on the fast, low-damage guns - an SMG round landed for
+        // well under one heart - and turned every fight into a magazine dump. These values keep
+        // heavy troopers meaningfully tougher than light ones while leaving the weapon table,
+        // rather than the armour formula, in charge of time to kill.
+        double armor = "heavy".equals(ballisticTier) ? 8.0
+                : "light".equals(ballisticTier) ? 4.0 : 0.0;
+        double toughness = "heavy".equals(ballisticTier) ? 4.0
+                : "light".equals(ballisticTier) ? 2.0 : 0.0;
         double knockback = "heavy".equals(ballisticTier) ? 0.60
                 : "light".equals(ballisticTier) ? 0.20 : 0.0;
         replaceBallisticModifier(Attributes.ARMOR, BALLISTIC_ARMOR_MODIFIER, armor);

@@ -91,8 +91,18 @@ public final class ReactiveCyberware {
         activateTimeDilation(player, kerenzikov, "kerenzikov");
     }
 
+    /**
+     * Cheap gate for the per-entity tick hook. Nothing can be slowed while no player holds a
+     * dilation window, so callers can skip the player scan entirely in the overwhelmingly common
+     * case that the ability is not in use.
+     */
+    public static boolean hasActiveTimeDilation() {
+        return !TIME_DILATION.isEmpty();
+    }
+
     public static double slowFractionAffecting(Entity target) {
-        if (!(target.level() instanceof ServerLevel level)) {
+        // Cheapest possible answer in the overwhelmingly common case that nobody is dilating.
+        if (TIME_DILATION.isEmpty() || !(target.level() instanceof ServerLevel level)) {
             return 0.0;
         }
         if (target instanceof ServerPlayer player && isTimeDilationOwner(player)) {

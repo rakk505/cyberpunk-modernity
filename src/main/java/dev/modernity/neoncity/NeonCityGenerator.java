@@ -1140,16 +1140,13 @@ public final class NeonCityGenerator {
             DistrictWorldFeatures.decorateChunk(level, chunk, samples);
             if (trace != null) trace.phase(CityGenerationTrace.Phase.STATIONS);
             QuicktimeTravelService.installCanonicalStations(level, chunk);
-            if (trace != null) trace.phase(CityGenerationTrace.Phase.BANNER_SCAN);
-            if (patchPlacement.isPresent()) {
-                ArnisPatchLibrary.Placement placement = patchPlacement.get();
-                DistrictLogoBanners.SearchResult bannerSearch =
-                        DistrictLogoBanners.findArnisBannerSite(
-                                level, chunk, placement.selectionHash());
-                if (trace != null) trace.phase(CityGenerationTrace.Phase.BANNER_QUEUE);
-                bannerSearch.site().ifPresent(site -> DistrictLogoBanners.enqueue(
-                        level, site, placement.patch().district()));
-            } else if (trace != null) {
+            // District logo banners are no longer generated. Finding a site cost 256 heightmap
+            // queries plus a bounded facade probe on every Arnis chunk, and each hit joined a
+            // persistent queue that was drained a little every server tick for the rest of the
+            // world's life. DistrictLogoBanners itself is retained so existing saves keep their
+            // banners and the placement helper stays available.
+            if (trace != null) {
+                trace.phase(CityGenerationTrace.Phase.BANNER_SCAN);
                 trace.phase(CityGenerationTrace.Phase.BANNER_QUEUE);
             }
             if (trace != null) trace.phase(CityGenerationTrace.Phase.CITY_LOOT);
