@@ -276,12 +276,8 @@ public final class ProjectMoonCityModule {
             atmosphereDistricts.keySet().retainAll(activePlayers);
         }
         boolean foregroundGeneratedChunk = NeonCityGenerator.tick(overworld);
-        boolean placedDeferredBanner = DistrictLogoBanners.tickDeferred(
-                overworld,
-                foregroundGeneratedChunk,
-                NeonCityGenerator.hasActiveTravel(overworld));
-        CityPriorityPreGenerator.tick(
-                overworld, foregroundGeneratedChunk || placedDeferredBanner);
+        // Nothing enqueues banners any more, so the deferred drain no longer runs every tick.
+        CityPriorityPreGenerator.tick(overworld, foregroundGeneratedChunk);
     }
 
     private void finishStartup(ServerLevel overworld) {
