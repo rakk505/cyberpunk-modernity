@@ -33,8 +33,8 @@ public final class RoadsideVehicleSpawns {
     static final int SPAWN_INTERVAL_TICKS = 30;
     static final int TARGET_HIGHWAY_TRAFFIC_NEARBY = 12;
     static final int TARGET_ATLAS_TRAFFIC_NEARBY = 5;
-    static final int TARGET_PARKED_NEARBY = 5;
-    static final int TARGET_TOTAL_NEARBY = 22;
+    static final int TARGET_PARKED_NEARBY = 2;
+    static final int TARGET_TOTAL_NEARBY = 19;
     static final int SPAWN_BATCH = 6;
     static final int MAX_LOADED_VEHICLES = 56;
     static final int MOTORBIKE_PERCENT = 35;
@@ -158,11 +158,8 @@ public final class RoadsideVehicleSpawns {
                 ? Math.max(0, TARGET_ATLAS_TRAFFIC_NEARBY - nearbyAtlasTraffic) : 0;
         int parkedWanted = atlasActive
                 ? Math.max(0, TARGET_PARKED_NEARBY - nearbyParked) : 0;
-        int wanted = Math.min(
-                SPAWN_BATCH,
-                Math.min(Math.max(highwayWanted + atlasWanted + parkedWanted,
-                                Math.max(0, TARGET_TOTAL_NEARBY - nearby)),
-                        MAX_LOADED_VEHICLES - vehicles.size()));
+        int wanted = desiredSpawnCount(
+                highwayWanted, atlasWanted, parkedWanted, nearby, vehicles.size());
         if (wanted <= 0) return;
 
         RandomSource random = level.getRandom();
@@ -483,6 +480,27 @@ public final class RoadsideVehicleSpawns {
 
     public static boolean isMovingTrafficRoad(NeonCityGenerator.RoadClass roadClass) {
         return NeonCityGenerator.isHighwayRoadClass(roadClass);
+    }
+
+    public static int targetParkedNearby() {
+        return TARGET_PARKED_NEARBY;
+    }
+
+    /** Pure bounded population budget shared with regression tests. */
+    public static int desiredSpawnCount(
+            int highwayWanted,
+            int atlasWanted,
+            int parkedWanted,
+            int nearby,
+            int loadedVehicles) {
+        int demand = Math.max(0, highwayWanted)
+                + Math.max(0, atlasWanted)
+                + Math.max(0, parkedWanted);
+        int nearbyCapacity = Math.max(0, TARGET_TOTAL_NEARBY - Math.max(0, nearby));
+        int loadedCapacity = Math.max(
+                0, MAX_LOADED_VEHICLES - Math.max(0, loadedVehicles));
+        return Math.min(SPAWN_BATCH, Math.min(demand,
+                Math.min(nearbyCapacity, loadedCapacity)));
     }
 
     public static int randomizedFuelLevel(int capacity, RandomSource random) {

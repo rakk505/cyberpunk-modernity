@@ -155,6 +155,12 @@ final class CityTrafficGraph {
         return result;
     }
 
+    static boolean isJunction(ServerLevel level, LaneNode node) {
+        return node.network() == Network.ATLAS
+                && successors(level, node).stream()
+                        .anyMatch(arc -> Math.abs(arc.turnDegrees()) >= 45.0F);
+    }
+
     static LaneNode chooseSuccessor(
             ServerLevel level,
             LaneNode node,
@@ -342,7 +348,8 @@ final class CityTrafficGraph {
         NeonCityGenerator.AtlasRoadClass atlas = NeonCityGenerator.atlasRoadAt(x, z);
         return new RoadProfile(
                 sample.roadClass(), atlas, sample.groundY(),
-                atlas.supportsTraffic() ? Network.ATLAS : null);
+                NeonCityGenerator.isAtlasStreetColumnAt(x, z) && atlas.supportsTraffic()
+                        ? Network.ATLAS : null);
     }
 
     private static float cruisingThrottle(RoadProfile road) {

@@ -35,8 +35,11 @@ public final class CityTrafficService {
     private static final String TRAFFIC_DRIVER_KEY = Cyberdeck.MODID + ":traffic_driver";
     private static final int INPUT_INTERVAL_TICKS = 2;
     private static final int RECONCILE_INTERVAL_TICKS = 100;
-    private static final int STUCK_RECOVERY_TICKS = 80;
-    private static final int UNSAFE_ROUTE_RETIRE_TICKS = 12;
+    private static final int STUCK_REPLAN_TICKS = 100;
+    private static final int STUCK_RETIRE_TICKS = 360;
+    private static final int UNSAFE_ROUTE_REPLAN_TICKS = 12;
+    private static final int UNSAFE_ROUTE_RETIRE_TICKS = 80;
+    private static final int MAX_COURSE_RECOVERIES = 3;
     private static final int RETIRE_INVALID_ROUTE_TICKS = 80;
     private static final int RETIRE_RECOVERY_INTERVAL_TICKS = 40;
     private static final int ROUTE_LOOKAHEAD_NODES = 8;
@@ -46,8 +49,13 @@ public final class CityTrafficService {
     private static final double DESTINATION_REACHED_DISTANCE_SQR = 96.0 * 96.0;
     private static final double TARGET_REACHED_DISTANCE_SQR = 12.25;
     private static final double OBSTACLE_LOOKAHEAD = 6.0;
+    private static final double JUNCTION_APPROACH_DISTANCE_SQR = 24.0 * 24.0;
+    private static final double JUNCTION_CONFLICT_DISTANCE_SQR = 18.0 * 18.0;
+    private static final double JUNCTION_CLEAR_DISTANCE_SQR = 28.0 * 28.0;
+    private static final int JUNCTION_LEASE_TICKS = 60;
     private static final double RETIRE_PROTECTED_RADIUS_SQR = 64.0 * 64.0;
     private static final Map<UUID, RouteState> ROUTES = new HashMap<>();
+    private static final Map<UUID, JunctionReservation> JUNCTION_RESERVATIONS = new HashMap<>();
 
     private CityTrafficService() {
     }
@@ -71,15 +79,27 @@ public final class CityTrafficService {
         private int stuckTicks;
         private int invalidRouteTicks;
         private int unsafeRouteTicks;
+        private int courseRecoveries;
+        private boolean atlasDeadEnd;
         private boolean retirementPending;
         private long nextRecoveryTick;
         private Vec3 lastPosition;
+        private Vec3 recoveryPosition;
 
         private RouteState(UUID vehicleId, Vec3 position) {
             this.random = RandomSource.create(
                     vehicleId.getMostSignificantBits() ^ vehicleId.getLeastSignificantBits());
             this.lastPosition = position;
+            this.recoveryPosition = position;
         }
+    }
+
+    private record JunctionApproach(
+            CityTrafficGraph.LaneNode junction,
+            CityTrafficGraph.LaneNode exit) {
+    }
+
+    private record JunctionReservation(Vec3 center, long expiresAt) {
     }
 
     /** Creates and seats a visible civilian driver for a vehicle already in the level. */
@@ -215,6 +235,7 @@ public final class CityTrafficService {
         VehicleApi.find(vehicle).ifPresent(RemoteControllableVehicle::clearRemoteInput);
         vehicle.getPersistentData().remove(TRAFFIC_VEHICLE_KEY);
         ROUTES.remove(vehicle.getUUID());
+        JUNCTION_RESERVATIONS.remove(vehicle.getUUID());
     }
 
     /** Removes a managed driver together with an ambient vehicle being retired. */
@@ -224,6 +245,7 @@ public final class CityTrafficService {
             if (isTrafficDriver(passenger)) passenger.discard();
         }
         ROUTES.remove(vehicle.getUUID());
+        JUNCTION_RESERVATIONS.remove(vehicle.getUUID());
     }
 
     @SubscribeEvent
@@ -244,12 +266,16 @@ public final class CityTrafficService {
                 }
             }
         }
+        JUNCTION_RESERVATIONS.entrySet().removeIf(entry ->
+                entry.getValue().expiresAt() < level.getGameTime()
+                        || !ROUTES.containsKey(entry.getKey()));
         var routes = ROUTES.entrySet().iterator();
         while (routes.hasNext()) {
             Map.Entry<UUID, RouteState> entry = routes.next();
             Entity vehicle = level.getEntity(entry.getKey());
             if (vehicle == null || !vehicle.isAlive()
                     || !vehicle.getPersistentData().getBooleanOr(TRAFFIC_VEHICLE_KEY, false)) {
+                JUNCTION_RESERVATIONS.remove(entry.getKey());
                 routes.remove();
                 continue;
             }
@@ -257,6 +283,7 @@ public final class CityTrafficService {
             Entity driver = trafficDriver(vehicle);
             if (traffic == null || !isManagedPair(vehicle, driver)) {
                 vehicle.getPersistentData().remove(TRAFFIC_VEHICLE_KEY);
+                JUNCTION_RESERVATIONS.remove(entry.getKey());
                 routes.remove();
                 continue;
             }
@@ -265,6 +292,7 @@ public final class CityTrafficService {
                 traffic.setTrafficInput(0.0F, 0.0F, true);
                 if (canRetireOutOfSight(level, vehicle)) {
                     discardManagedVehicle(vehicle);
+                    JUNCTION_RESERVATIONS.remove(entry.getKey());
                     routes.remove();
                 } else if (level.getGameTime() >= route.nextRecoveryTick) {
                     route.nextRecoveryTick = level.getGameTime()
@@ -305,7 +333,11 @@ public final class CityTrafficService {
         route.stuckTicks = 0;
         route.invalidRouteTicks = 0;
         route.unsafeRouteTicks = 0;
+        route.courseRecoveries = 0;
+        route.atlasDeadEnd = false;
         route.lastPosition = vehicle.position();
+        route.recoveryPosition = vehicle.position();
+        JUNCTION_RESERVATIONS.remove(vehicle.getUUID());
         return initializeRoute(level, vehicle, route);
     }
 
@@ -345,7 +377,17 @@ public final class CityTrafficService {
         } else {
             route.stuckTicks = 0;
         }
+        if (horizontalDistanceSqr(vehicle.position(), route.recoveryPosition)
+                >= 20.0 * 20.0) {
+            route.courseRecoveries = 0;
+            route.recoveryPosition = vehicle.position();
+        }
 
+        if (route.route.isEmpty() && route.atlasDeadEnd
+                && !tryAtlasTurnaround(level, vehicle, route)) {
+            traffic.setTrafficInput(0.0F, 0.0F, true);
+            return route.stuckTicks < STUCK_RETIRE_TICKS;
+        }
         if (route.route.isEmpty() && !initializeRoute(level, vehicle, route)) {
             route.invalidRouteTicks += INPUT_INTERVAL_TICKS;
             traffic.setTrafficInput(0.0F, 0.0F, true);
@@ -354,7 +396,13 @@ public final class CityTrafficService {
         while (!route.route.isEmpty()
                 && horizontalDistanceSqr(vehicle.position(), route.route.getFirst().position())
                         <= TARGET_REACHED_DISTANCE_SQR) {
-            rememberVisited(route, route.route.removeFirst().key());
+            rememberVisited(route, route.route.removeFirst());
+        }
+        if (route.route.isEmpty() && route.atlasDeadEnd) {
+            if (!tryAtlasTurnaround(level, vehicle, route)) {
+                traffic.setTrafficInput(0.0F, 0.0F, true);
+                return route.stuckTicks < STUCK_RETIRE_TICKS;
+            }
         }
         if (route.destination == null
                 || horizontalDistanceSqr(vehicle.position(), route.destination)
@@ -383,8 +431,13 @@ public final class CityTrafficService {
         boolean envelopeSafe = roadEnvelopeSafe(level, vehicle, target, route.highwayTrip);
         boolean physicalClearance = hasPhysicalClearance(level, vehicle, dx, dz);
         boolean unsafeRoute = !envelopeSafe;
-        route.unsafeRouteTicks = wallBlocked || unsafeRoute
+        route.unsafeRouteTicks = unsafeRoute
                 ? route.unsafeRouteTicks + INPUT_INTERVAL_TICKS : 0;
+        if (route.unsafeRouteTicks >= UNSAFE_ROUTE_REPLAN_TICKS
+                && tryChangeCourse(level, vehicle, route)) {
+            traffic.setTrafficInput(0.0F, 0.0F, true);
+            return true;
+        }
         if (route.unsafeRouteTicks >= UNSAFE_ROUTE_RETIRE_TICKS) {
             traffic.setTrafficInput(0.0F, 0.0F, true);
             Cyberdeck.LOGGER.debug(
@@ -398,16 +451,24 @@ public final class CityTrafficService {
             return false;
         }
         boolean gradeClearance = route.highwayTrip && envelopeSafe;
+        boolean junctionBlocked = !route.highwayTrip
+                && junctionAdmissionBlocked(level, vehicle, route);
         boolean blocked = wallBlocked || unsafeRoute
                 || (!physicalClearance && !gradeClearance)
+                || junctionBlocked
                 || hasObstacle(level, vehicle, targetYaw);
         route.blockedTicks = blocked ? route.blockedTicks + INPUT_INTERVAL_TICKS : 0;
-        if (route.stuckTicks >= STUCK_RECOVERY_TICKS) {
+        if (route.stuckTicks >= STUCK_REPLAN_TICKS
+                && tryChangeCourse(level, vehicle, route)) {
+            traffic.setTrafficInput(0.0F, 0.0F, true);
+            return true;
+        }
+        if (route.stuckTicks >= STUCK_RETIRE_TICKS) {
             traffic.setTrafficInput(0.0F, 0.0F, true);
             Cyberdeck.LOGGER.debug(
-                    "Retiring stuck traffic {} at ({},{}) after {} ticks",
+                    "Retiring traffic {} at ({},{}) after {} stopped ticks and {} recoveries",
                     vehicle.getUUID(), vehicle.getBlockX(), vehicle.getBlockZ(),
-                    route.stuckTicks);
+                    route.stuckTicks, route.courseRecoveries);
             return false;
         }
         float yawError = Mth.wrapDegrees(targetYaw - vehicle.getYRot());
@@ -458,6 +519,7 @@ public final class CityTrafficService {
     }
 
     private static void fillAtlasRoute(ServerLevel level, RouteState route) {
+        route.atlasDeadEnd = false;
         while (route.route.size() < ROUTE_LOOKAHEAD_NODES && !route.route.isEmpty()) {
             CityTrafficGraph.LaneNode tail = route.route.peekLast();
             CityTrafficGraph.NodeKey previous = route.route.size() > 1
@@ -468,10 +530,163 @@ public final class CityTrafficService {
                     level, tail, previous, occupied, route.destination, false, route.random);
             if (next == null || occupied.contains(next.key())
                     || next.network() != CityTrafficGraph.Network.ATLAS) {
+                route.atlasDeadEnd = true;
                 return;
             }
             route.route.addLast(next);
         }
+    }
+
+    private static boolean tryAtlasTurnaround(
+            ServerLevel level, Entity vehicle, RouteState route) {
+        if (route.highwayTrip) return false;
+        float reverseYaw = Mth.wrapDegrees(vehicle.getYRot() + 180.0F);
+        double radians = Math.toRadians(reverseYaw);
+        double reverseX = -Math.sin(radians) * 3.0;
+        double reverseZ = Math.cos(radians) * 3.0;
+        if (hasObstacle(level, vehicle, reverseYaw)
+                || !hasPhysicalClearance(level, vehicle, reverseX, reverseZ)) {
+            return false;
+        }
+        CityTrafficGraph.LaneNode entry = CityTrafficGraph.enter(
+                level, vehicle.position(), reverseYaw);
+        if (entry == null || entry.network() != CityTrafficGraph.Network.ATLAS) return false;
+
+        clearCoursePlan(route);
+        chooseDestination(vehicle, route);
+        route.highwayTrip = false;
+        route.route.addLast(entry);
+        fillAtlasRoute(level, route);
+        route.courseRecoveries = Math.max(1, route.courseRecoveries);
+        route.recoveryPosition = vehicle.position();
+        route.stuckTicks = 0;
+        route.blockedTicks = 0;
+        route.invalidRouteTicks = 0;
+        route.unsafeRouteTicks = 0;
+        return !route.route.isEmpty();
+    }
+
+    private static boolean tryChangeCourse(
+            ServerLevel level, Entity vehicle, RouteState route) {
+        if (route.courseRecoveries >= MAX_COURSE_RECOVERIES) return false;
+        int attempt = ++route.courseRecoveries;
+
+        if (!route.highwayTrip && attempt >= 2) {
+            boolean turnedAround = tryAtlasTurnaround(level, vehicle, route);
+            if (turnedAround) return true;
+        }
+
+        clearCoursePlan(route);
+        chooseDestination(vehicle, route);
+        boolean rebuilt = initializeRoute(level, vehicle, route);
+        if (rebuilt) {
+            route.stuckTicks = 0;
+            route.blockedTicks = 0;
+            route.invalidRouteTicks = 0;
+            route.unsafeRouteTicks = 0;
+            route.recoveryPosition = vehicle.position();
+        }
+        return rebuilt;
+    }
+
+    private static void clearCoursePlan(RouteState route) {
+        route.route.clear();
+        route.recent.clear();
+        route.recentOrder.clear();
+        route.previous = null;
+        route.destination = null;
+        route.atlasDeadEnd = false;
+        route.highwayEdge = null;
+        route.previousHighwayEdge = null;
+        route.recentHighwayEdgeOrder.clear();
+        route.recentHighwayEdges.clear();
+    }
+
+    private static boolean junctionAdmissionBlocked(
+            ServerLevel level, Entity vehicle, RouteState route) {
+        JunctionReservation owned = JUNCTION_RESERVATIONS.get(vehicle.getUUID());
+        if (owned != null) {
+            if (horizontalDistanceSqr(vehicle.position(), owned.center())
+                    > JUNCTION_CLEAR_DISTANCE_SQR) {
+                JUNCTION_RESERVATIONS.remove(vehicle.getUUID());
+                owned = null;
+            } else {
+                JUNCTION_RESERVATIONS.put(vehicle.getUUID(), new JunctionReservation(
+                        owned.center(), level.getGameTime() + JUNCTION_LEASE_TICKS));
+            }
+        }
+
+        JunctionApproach approach = nextJunction(level, route);
+        if (approach == null || horizontalDistanceSqr(
+                vehicle.position(), approach.junction().position())
+                > JUNCTION_APPROACH_DISTANCE_SQR) {
+            return false;
+        }
+        if (owned != null && horizontalDistanceSqr(
+                vehicle.position(), owned.center()) <= 8.0 * 8.0) {
+            return false;
+        }
+        for (Map.Entry<UUID, JunctionReservation> entry : JUNCTION_RESERVATIONS.entrySet()) {
+            if (entry.getKey().equals(vehicle.getUUID())
+                    || entry.getValue().expiresAt() < level.getGameTime()) {
+                continue;
+            }
+            if (junctionsConflict(
+                    approach.junction().position(), entry.getValue().center())) {
+                return true;
+            }
+        }
+        if (exitLaneOccupied(level, vehicle, approach.exit())) return true;
+        JUNCTION_RESERVATIONS.put(vehicle.getUUID(), new JunctionReservation(
+                approach.junction().position(), level.getGameTime() + JUNCTION_LEASE_TICKS));
+        return false;
+    }
+
+    private static JunctionApproach nextJunction(
+            ServerLevel level, RouteState route) {
+        var iterator = route.route.iterator();
+        while (iterator.hasNext()) {
+            CityTrafficGraph.LaneNode node = iterator.next();
+            if (!CityTrafficGraph.isJunction(level, node) || !iterator.hasNext()) continue;
+            return new JunctionApproach(node, iterator.next());
+        }
+        return null;
+    }
+
+    private static boolean exitLaneOccupied(
+            ServerLevel level, Entity vehicle, CityTrafficGraph.LaneNode exit) {
+        Vec3 point = exit.position();
+        AABB scan = new AABB(
+                point.x - 6.0, point.y - 2.0, point.z - 6.0,
+                point.x + 6.0, point.y + 2.0, point.z + 6.0);
+        double laneHalfWidth = Math.min(
+                vehicle.getBoundingBox().getXsize(), vehicle.getBoundingBox().getZsize()) * 0.5;
+        return !level.getEntities(vehicle, scan, candidate -> candidate.isAlive()
+                && !vehicle.getPassengers().contains(candidate)
+                && VehicleApi.findTraffic(candidate).isPresent()
+                && occupiesLanePoint(
+                        candidate.getBoundingBox(), point, exit.yaw(), laneHalfWidth)).isEmpty();
+    }
+
+    public static boolean junctionsConflict(Vec3 first, Vec3 second) {
+        return horizontalDistanceSqr(first, second) <= JUNCTION_CONFLICT_DISTANCE_SQR;
+    }
+
+    public static boolean occupiesLanePoint(
+            AABB candidate, Vec3 point, float yaw, double laneHalfWidth) {
+        double radians = Math.toRadians(yaw);
+        double forwardX = -Math.sin(radians);
+        double forwardZ = Math.cos(radians);
+        double rightX = Math.cos(radians);
+        double rightZ = Math.sin(radians);
+        Vec3 center = candidate.getCenter();
+        double dx = center.x - point.x;
+        double dz = center.z - point.z;
+        double longitudinal = Math.abs(dx * forwardX + dz * forwardZ);
+        double lateral = Math.abs(dx * rightX + dz * rightZ);
+        double candidateHalfWidth = Math.min(candidate.getXsize(), candidate.getZsize()) * 0.5;
+        return longitudinal <= 4.5 + candidateHalfWidth
+                && lateral <= laneHalfWidth + candidateHalfWidth + 0.35;
     }
 
     private static boolean initializeHighwayRoute(
@@ -590,7 +805,8 @@ public final class CityTrafficService {
         route.recentOrder.clear();
     }
 
-    private static void rememberVisited(RouteState route, CityTrafficGraph.NodeKey key) {
+    private static void rememberVisited(RouteState route, CityTrafficGraph.LaneNode node) {
+        CityTrafficGraph.NodeKey key = node.key();
         route.previous = key;
         if (route.recent.add(key)) route.recentOrder.addLast(key);
         while (route.recentOrder.size() > RECENT_NODE_LIMIT) {
@@ -667,11 +883,35 @@ public final class CityTrafficService {
                 -Math.sin(radians) * OBSTACLE_LOOKAHEAD,
                 0.0,
                 Math.cos(radians) * OBSTACLE_LOOKAHEAD);
-        AABB scan = vehicle.getBoundingBox().expandTowards(lookahead).inflate(1.0, 0.5, 1.0);
+        // The broad AABB is only a cheap candidate query. The oriented lane test below
+        // prevents shoulder parking from blocking diagonal and curved traffic lanes.
+        AABB scan = vehicle.getBoundingBox().expandTowards(lookahead).inflate(2.0, 0.5, 2.0);
         return !level.getEntities(vehicle, scan, candidate -> candidate.isAlive()
                 && !vehicle.getPassengers().contains(candidate)
                 && (candidate instanceof net.minecraft.world.entity.LivingEntity
-                        || VehicleApi.findTraffic(candidate).isPresent())).isEmpty();
+                        || VehicleApi.findTraffic(candidate).isPresent())
+                && occupiesForwardLane(
+                        vehicle.getBoundingBox(), candidate.getBoundingBox(), yaw)).isEmpty();
+    }
+
+    public static boolean occupiesForwardLane(AABB vehicle, AABB candidate, float yaw) {
+        double radians = Math.toRadians(yaw);
+        double forwardX = -Math.sin(radians);
+        double forwardZ = Math.cos(radians);
+        double rightX = Math.cos(radians);
+        double rightZ = Math.sin(radians);
+        Vec3 origin = vehicle.getCenter();
+        Vec3 obstacle = candidate.getCenter();
+        double dx = obstacle.x - origin.x;
+        double dz = obstacle.z - origin.z;
+        double longitudinal = dx * forwardX + dz * forwardZ;
+        double lateral = Math.abs(dx * rightX + dz * rightZ);
+        double vehicleHalfWidth = Math.min(vehicle.getXsize(), vehicle.getZsize()) * 0.5;
+        double candidateHalfWidth = Math.min(candidate.getXsize(), candidate.getZsize()) * 0.5;
+        double overlapMargin = 0.35;
+        return longitudinal >= -(candidateHalfWidth + overlapMargin)
+                && longitudinal <= OBSTACLE_LOOKAHEAD + candidateHalfWidth
+                && lateral <= vehicleHalfWidth + candidateHalfWidth + overlapMargin;
     }
 
 }

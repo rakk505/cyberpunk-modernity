@@ -32,7 +32,9 @@ final class CityPedestrianNavigation extends GroundPathNavigation {
             if (mob.level() instanceof ServerLevel level
                     && CityWorlds.kind(level) == CityWorlds.Kind.NEON_MEGACITY
                     && mob.getPathfindingMalus(base) >= 0.0F
-                    && NeonCityGenerator.isHighwayAt(level, x, z)) {
+                    && (NeonCityGenerator.isHighwayRoadClass(
+                                    NeonCityGenerator.roadAt(x, z))
+                            || NeonCityGenerator.isAtlasTrafficRoadAt(x, z))) {
                 return PathType.DAMAGE_CAUTIOUS;
             }
             return base;

@@ -2951,8 +2951,24 @@ public final class NeonCityGenerator {
                 activeLayout, location, worldX, worldZ));
     }
 
+    /** Returns whether generation retained the Arnis column beneath an atlas road sample. */
+    public static boolean isAtlasStreetColumnAt(int worldX, int worldZ) {
+        UrbanSample sample = sample(worldX, worldZ);
+        return usableArnisPlacement(
+                        Math.floorDiv(worldX, 16), Math.floorDiv(worldZ, 16))
+                .map(placement -> keepsArnisColumn(sample, placement.patch().district()))
+                .orElse(false);
+    }
+
+    /** Returns whether this retained column belongs to any mapped OSM road ribbon. */
+    public static boolean isAtlasRoadSurfaceAt(int worldX, int worldZ) {
+        return isAtlasStreetColumnAt(worldX, worldZ)
+                && atlasRoadAt(worldX, worldZ) != AtlasRoadClass.NONE;
+    }
+
     public static boolean isAtlasTrafficRoadAt(int worldX, int worldZ) {
-        return atlasRoadAt(worldX, worldZ).supportsTraffic();
+        return isAtlasStreetColumnAt(worldX, worldZ)
+                && atlasRoadAt(worldX, worldZ).supportsTraffic();
     }
 
     /** Finds the nearest reflected primary/secondary OSM centerline around a world position. */
@@ -2980,6 +2996,11 @@ public final class NeonCityGenerator {
                 for (OsmRoadSample.CenterlinePoint point : sample.arterialCenterlines(
                         placement.sourceTileX(), placement.sourceTileZ())) {
                     AtlasRoadPoint candidate = transformAtlasRoadPoint(placement, point);
+                    if (!isAtlasTrafficRoadAt(
+                            (int) Math.floor(candidate.x()),
+                            (int) Math.floor(candidate.z()))) {
+                        continue;
+                    }
                     double dx = candidate.x() - worldX;
                     double dz = candidate.z() - worldZ;
                     double distanceSquared = dx * dx + dz * dz;
@@ -3058,13 +3079,14 @@ public final class NeonCityGenerator {
     }
     public static boolean isCivilianPedestrianArea(ServerLevel level, int worldX, int worldZ) {
         if (!isMegacityWorld(level) || !layoutInitialized) return false;
+        RoadClass roadClass = sample(worldX, worldZ).roadClass();
         return isCivilianPedestrianTarget(
-                sample(worldX, worldZ).roadClass(),
-                isUsableArnisChunk(level, worldX, worldZ));
+                        roadClass, isUsableArnisChunk(level, worldX, worldZ))
+                && !isAtlasTrafficRoadAt(worldX, worldZ);
     }
     public static boolean isCivilianPedestrianTarget(RoadClass roadClass,
                                                        boolean usableArnisChunk) {
-        if (roadClass == RoadClass.PARK) return true;
+        if (roadClass == RoadClass.PARK || roadClass == RoadClass.HIGHWAY_BUFFER) return true;
         if (!usableArnisChunk) return false;
         return switch (roadClass) {
             case NONE, CENTRAL_PLAZA, DISTRICT_BOULEVARD, LOCAL_STREET, SERVICE_ALLEY -> true;
