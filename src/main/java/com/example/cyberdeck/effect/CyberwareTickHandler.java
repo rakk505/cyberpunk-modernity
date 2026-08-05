@@ -81,9 +81,13 @@ public final class CyberwareTickHandler {
         if (entity.level().isClientSide() || entity instanceof net.minecraft.world.entity.player.Player) {
             return;
         }
-        double slowFraction = Math.max(
-                SandevistanMechanics.slowFractionAffecting(entity),
-                ReactiveCyberware.slowFractionAffecting(entity));
+        // This fires for every entity on every tick, so it must cost nothing when nobody is
+        // dilating time. Without this guard each entity scanned the whole player list twice per
+        // tick for the entire life of the server, whether or not the ability existed in the world.
+        if (!ReactiveCyberware.hasActiveTimeDilation()) {
+            return;
+        }
+        double slowFraction = ReactiveCyberware.slowFractionAffecting(entity);
         if (slowFraction <= 0.0) {
             return;
         }

@@ -6,11 +6,15 @@ import com.example.cyberdeck.cyberware.CyberwareAttachments;
 import com.example.cyberdeck.cyberware.SandevistanProfile;
 import com.example.cyberdeck.weapon.GunType;
 
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.phys.Vec3;
 
@@ -18,6 +22,10 @@ import net.minecraft.world.phys.Vec3;
 public final class SandevistanMechanics {
     public static final double EFFECT_RADIUS = 24.0;
     private static final double EFFECT_RADIUS_SQR = EFFECT_RADIUS * EFFECT_RADIUS;
+    private static final Identifier SPEED_MODIFIER =
+            Identifier.fromNamespaceAndPath("cyberdeck", "sandevistan_speed");
+    private static final Identifier ATTACK_SPEED_MODIFIER =
+            Identifier.fromNamespaceAndPath("cyberdeck", "sandevistan_attack_speed");
     private static final ThreadLocal<Boolean> PREMODIFIED_GUN_DAMAGE =
             ThreadLocal.withInitial(() -> false);
 
@@ -87,6 +95,38 @@ public final class SandevistanMechanics {
         state.tick(profile);
         // Mirror the authoritative active flag to tracking clients for the afterimage trail.
         CyberwareAttachments.setSandevistanActive(player, state.active());
+        applySpeed(player, state.active() ? speedMultiplier(player) : 1.0);
+    }
+
+    /**
+     * Holds the wearer's movement and attack speed at {@code multiplier}. The modifiers are
+     * transient and keyed, so re-applying every tick is idempotent and a crash or disconnect
+     * cannot leave a player permanently hasted.
+     */
+    private static void applySpeed(ServerPlayer player, double multiplier) {
+        setMultiplier(player, Attributes.MOVEMENT_SPEED, SPEED_MODIFIER, multiplier);
+        setMultiplier(player, Attributes.ATTACK_SPEED, ATTACK_SPEED_MODIFIER, multiplier);
+    }
+
+    private static void setMultiplier(
+            ServerPlayer player,
+            net.minecraft.core.Holder<net.minecraft.world.entity.ai.attributes.Attribute> attribute,
+            Identifier id,
+            double multiplier) {
+        AttributeInstance instance = player.getAttribute(attribute);
+        if (instance == null) {
+            return;
+        }
+        double amount = multiplier - 1.0;
+        AttributeModifier existing = instance.getModifier(id);
+        if (existing != null && Math.abs(existing.amount() - amount) < 1.0e-6) {
+            return;
+        }
+        instance.removeModifier(id);
+        if (amount > 1.0e-6) {
+            instance.addTransientModifier(new AttributeModifier(
+                    id, amount, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
+        }
     }
 
     /** Installing a new OS starts it full; replacing/removing one cannot leave an old effect active. */
@@ -105,31 +145,32 @@ public final class SandevistanMechanics {
     public static void deactivateForSessionBoundary(ServerPlayer player) {
         CyberwareAttachments.getSandevistanState(player).deactivate();
         CyberwareAttachments.setSandevistanActive(player, false);
+        applySpeed(player, 1.0);
     }
 
-    public static double slowFractionAffecting(Entity target) {
-        if (!(target.level() instanceof ServerLevel level)) {
-            return 0.0;
+    /**
+     * Speed multiplier the wearer runs at, derived from the slow fraction the tier used to impose
+     * on everyone else. Holding the ratio identical keeps every tier's relative advantage exactly
+     * as tuned: a 0.6 slow fraction meant the world moved at 40% speed, which is the same
+     * advantage as the wearer moving at 250%.
+     */
+    public static double speedMultiplier(ServerPlayer player) {
+        SandevistanProfile profile = activeProfile(player);
+        if (profile == null) {
+            return 1.0;
         }
-        if (target instanceof ServerPlayer targetPlayer && isActive(targetPlayer)) {
-            return 0.0;
-        }
-        if (target instanceof Projectile projectile
-                && projectile.getOwner() instanceof ServerPlayer owner
-                && isActive(owner)) {
-            return 0.0;
-        }
+        double slowFraction = Math.min(0.95, Math.max(0.0, profile.slowFraction(isAirborne(player))));
+        return 1.0 / (1.0 - slowFraction);
+    }
 
-        double strongest = 0.0;
-        for (ServerPlayer owner : level.players()) {
-            SandevistanProfile profile = activeProfile(owner);
-            if (profile == null || owner == target
-                    || owner.distanceToSqr(target) > EFFECT_RADIUS_SQR) {
-                continue;
-            }
-            strongest = Math.max(strongest, profile.slowFraction(isAirborne(owner)));
-        }
-        return strongest;
+    /**
+     * Kept for the tier data and tests, but no longer consulted per entity. Time dilation used to
+     * cancel a share of every nearby entity's ticks, which cost a scan of the player list for
+     * every entity in the world on every tick whether or not anybody owned a sandevistan, and
+     * stalled AI and physics in a bursty twenty-tick pattern. The wearer is sped up instead.
+     */
+    public static double slowFractionAffecting(Entity target) {
+        return 0.0;
     }
 
     public static int slownessAmplifier(double slowFraction) {
