@@ -24,6 +24,8 @@ import net.minecraft.world.level.saveddata.SavedDataType;
  */
 public final class NeonCitySavedData extends SavedData {
     public static final int FORMAT_VERSION = 1;
+    /** Forces one safe facade re-audit when the generated-surface catalog changes. */
+    static final int AD_SAFETY_VERSION = 2;
 
     private static final Codec<DeferredBanner> DEFERRED_BANNER_CODEC =
             RecordCodecBuilder.create(instance -> instance.group(
@@ -45,6 +47,8 @@ public final class NeonCitySavedData extends SavedData {
                     DEFERRED_BANNER_CODEC.listOf()
                             .optionalFieldOf("pending_banners", List.of())
                             .forGetter(NeonCitySavedData::serializedBanners),
+                    Codec.INT.optionalFieldOf("ad_safety_version", 0)
+                            .forGetter(ignored -> AD_SAFETY_VERSION),
                     Codec.LONG.listOf()
                             .optionalFieldOf("ad_decorated_chunks", List.of())
                             .forGetter(NeonCitySavedData::serializedAdDecoratedChunks),
@@ -76,7 +80,7 @@ public final class NeonCitySavedData extends SavedData {
 
     public NeonCitySavedData() {
         this(FORMAT_VERSION, NeonCityGenerator.generatorFingerprint(),
-                List.of(), List.of(), List.of(), List.of());
+                List.of(), List.of(), AD_SAFETY_VERSION, List.of(), List.of());
     }
 
     private NeonCitySavedData(
@@ -84,6 +88,7 @@ public final class NeonCitySavedData extends SavedData {
             String generatorFingerprint,
             List<Long> generatedChunks,
             List<DeferredBanner> pendingBanners,
+            int loadedAdSafetyVersion,
             List<Long> adDecoratedChunks,
             List<Long> freestandingAdDecoratedChunks) {
         this.formatVersion = formatVersion;
@@ -93,7 +98,9 @@ public final class NeonCitySavedData extends SavedData {
         for (DeferredBanner banner : pendingBanners) {
             this.pendingBanners.put(banner.key(), banner);
         }
-        this.adDecoratedChunks = new HashSet<>(adDecoratedChunks);
+        this.adDecoratedChunks = loadedAdSafetyVersion >= AD_SAFETY_VERSION
+                ? new HashSet<>(adDecoratedChunks)
+                : new HashSet<>();
         this.adDecoratedChunks.retainAll(this.generatedChunks);
         this.freestandingAdDecoratedChunks = new HashSet<>(freestandingAdDecoratedChunks);
         this.freestandingAdDecoratedChunks.retainAll(this.generatedChunks);

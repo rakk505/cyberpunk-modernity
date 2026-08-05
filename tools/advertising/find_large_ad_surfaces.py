@@ -22,11 +22,11 @@ from arnis_import import NbtReader  # noqa: E402
 
 
 FORMAT = "cyberdeck:large_ad_surfaces"
-FORMAT_VERSION = 2
+FORMAT_VERSION = 3
 MIN_WIDTH = 8
 MIN_HEIGHT = 4
 MAX_WIDTH = 16
-MAX_HEIGHT = 9
+MAX_HEIGHT = 256
 
 LIGHT_BLOCKS = frozenset(
     {
@@ -41,6 +41,12 @@ LIGHT_BLOCKS = frozenset(
         "minecraft:verdant_froglight",
     }
 )
+
+SUPPORT_HASH_ALIASES = {
+    "minecraft:glowstone": "cyberdeck:luminous_facade",
+    "minecraft:sea_lantern": "cyberdeck:luminous_facade",
+    "cyberdeck:camouflaged_sea_lantern": "cyberdeck:luminous_facade",
+}
 
 NON_FULL_MARKERS = (
     "_banner",
@@ -134,10 +140,19 @@ class Rectangle:
     height: int
     light_blocks: int
     support_blocks: tuple[str, ...]
+    boundary_face: bool
 
     @property
     def area(self) -> int:
         return self.width * self.height
+
+    @property
+    def support_hash(self) -> str:
+        normalized_blocks = (
+            SUPPORT_HASH_ALIASES.get(block, block) for block in self.support_blocks
+        )
+        payload = "\n".join(normalized_blocks).encode("utf-8")
+        return hashlib.sha256(payload).hexdigest()
 
     def score(self) -> tuple[float, ...]:
         aspect_error = abs(self.width / self.height - 16.0 / 9.0)
@@ -148,6 +163,31 @@ class Rectangle:
             self.width,
             self.height,
             -self.support[1],
+        )
+
+    def identity(self) -> tuple[object, ...]:
+        return (
+            self.support,
+            self.facing,
+            self.width,
+            self.height,
+            self.light_blocks,
+            self.support_hash,
+            self.boundary_face,
+        )
+
+    def output_order(self) -> tuple[object, ...]:
+        return (
+            -self.area,
+            abs(self.width / self.height - 16.0 / 9.0),
+            -self.light_blocks,
+            -self.width,
+            -self.height,
+            self.support[1],
+            FACINGS.index(self.facing),
+            self.support[0],
+            self.support[2],
+            self.support_hash,
         )
 
 
@@ -245,6 +285,7 @@ def component_rectangles(
     cells: dict[tuple[int, int], str],
     facing: str,
     plane: int,
+    boundary_face: bool,
     config: SearchConfig,
 ) -> tuple[list[Rectangle], int]:
     glass_cells = {cell for cell, name in cells.items() if is_glass(name)}
@@ -273,7 +314,9 @@ def component_rectangles(
 
         eligible = {cell for cell in component if is_full_surface_block(cells[cell])}
         lights = {cell for cell in eligible if cells[cell] in LIGHT_BLOCKS}
-        rectangle = largest_rectangle(eligible, lights, cells, facing, plane, config)
+        rectangle = largest_rectangle(
+            eligible, lights, cells, facing, plane, boundary_face, config
+        )
         if rectangle is not None:
             rectangles.append(rectangle)
 
@@ -286,8 +329,11 @@ def largest_rectangle(
     cell_blocks: dict[tuple[int, int], str],
     facing: str,
     plane: int,
+    boundary_face: bool,
     config: SearchConfig,
 ) -> Rectangle | None:
+    if not cells:
+        return None
     min_horizontal = min(value[0] for value in cells)
     max_horizontal = max(value[0] for value in cells)
     min_y = min(value[1] for value in cells)
@@ -353,13 +399,16 @@ def largest_rectangle(
                     height,
                     lights_in_rectangle,
                     support_blocks,
+                    boundary_face,
                 )
                 if best is None or candidate.score() > best.score():
                     best = candidate
     return best
 
 
-def scan_patch(arguments: tuple[Path, dict[str, Any], SearchConfig]) -> tuple[str, Rectangle | None, dict[str, int]]:
+def scan_patch(
+    arguments: tuple[Path, dict[str, Any], SearchConfig]
+) -> tuple[str, list[Rectangle], dict[str, int]]:
     catalog_root, patch, config = arguments
     structure = catalog_root / patch["file"]
     document = NbtReader(gzip.decompress(structure.read_bytes())).document()
@@ -376,28 +425,37 @@ def scan_patch(arguments: tuple[Path, dict[str, Any], SearchConfig]) -> tuple[st
     }
     exterior_air_cache: dict[tuple[int, int, int], bool] = {}
     by_plane: dict[tuple[str, int], dict[tuple[int, int], str]] = {}
+    boundary_planes: set[tuple[str, int]] = set()
     interior_faces_excluded = 0
     for position, name in blocks.items():
         if not (is_full_surface_block(name) or is_glass(name)):
             continue
         for facing in FACINGS:
             target = add(position, STEPS[facing])
-            if not in_horizontal_bounds(target, size) or target in blocks:
+            target_in_bounds = in_horizontal_bounds(target, size)
+            if target_in_bounds and target in blocks:
                 continue
-            if not is_exterior_air(target, blocks, size, exterior_air_cache):
+            if (target_in_bounds
+                    and not is_exterior_air(target, blocks, size, exterior_air_cache)):
                 interior_faces_excluded += 1
                 continue
             plane, horizontal, y = project(position, facing)
-            by_plane.setdefault((facing, plane), {})[(horizontal, y)] = name
+            plane_key = (facing, plane)
+            by_plane.setdefault(plane_key, {})[(horizontal, y)] = name
+            if not target_in_bounds:
+                boundary_planes.add(plane_key)
 
     candidates: list[Rectangle] = []
     glass_excluded = 0
     for (facing, plane), cells in by_plane.items():
-        rectangles, rejected = component_rectangles(cells, facing, plane, config)
+        rectangles, rejected = component_rectangles(
+            cells, facing, plane, (facing, plane) in boundary_planes, config
+        )
         candidates.extend(rectangles)
         glass_excluded += rejected
-    best = max(candidates, key=Rectangle.score, default=None)
-    return patch["id"], best, {
+    unique = {rectangle.identity(): rectangle for rectangle in candidates}
+    surfaces = sorted(unique.values(), key=Rectangle.output_order)
+    return patch["id"], surfaces, {
         "glass_excluded": glass_excluded,
         "interior_faces_excluded": interior_faces_excluded,
         "lit_palette": lit_palette,
@@ -428,30 +486,46 @@ def main() -> None:
     if args.limit is not None:
         patches = patches[: args.limit]
     work = [(args.catalog.parent, patch, config) for patch in patches]
-    results: list[tuple[str, Rectangle | None, dict[str, int]]] = []
+    results: list[tuple[str, list[Rectangle], dict[str, int]]] = []
     with ProcessPoolExecutor(max_workers=max(1, args.workers)) as executor:
         for index, result in enumerate(executor.map(scan_patch, work, chunksize=32), 1):
             results.append(result)
             if index % 1000 == 0:
                 print(f"scanned {index}/{len(work)} templates", file=sys.stderr)
 
-    placements: dict[str, dict[str, object]] = {}
+    placements: dict[str, list[dict[str, object]]] = {}
     diagnostics: Counter[str] = Counter()
     dimensions: Counter[str] = Counter()
-    for patch_id, rectangle, stats in results:
+    all_surfaces: list[Rectangle] = []
+    for patch_id, surfaces, stats in results:
         diagnostics.update(stats)
-        if rectangle is None:
+        if not surfaces:
             continue
-        placements[patch_id] = {
-            "support": list(rectangle.support),
-            "facing": rectangle.facing,
-            "width": rectangle.width,
-            "height": rectangle.height,
-            "area": rectangle.area,
-            "light_blocks": rectangle.light_blocks,
-            "support_blocks": list(rectangle.support_blocks),
-        }
-        dimensions[f"{rectangle.width}x{rectangle.height}"] += 1
+        placements[patch_id] = [
+            {
+                "support": list(rectangle.support),
+                "facing": rectangle.facing,
+                "width": rectangle.width,
+                "height": rectangle.height,
+                "area": rectangle.area,
+                "light_blocks": rectangle.light_blocks,
+                "support_hash": rectangle.support_hash,
+                "boundary_face": rectangle.boundary_face,
+            }
+            for rectangle in surfaces
+        ]
+        all_surfaces.extend(surfaces)
+        dimensions.update(
+            f"{rectangle.width}x{rectangle.height}" for rectangle in surfaces
+        )
+
+    surface_count = len(all_surfaces)
+    template_placement_count = len(placements)
+    max_dimensions = {
+        "width": max((surface.width for surface in all_surfaces), default=0),
+        "height": max((surface.height for surface in all_surfaces), default=0),
+        "area": max((surface.area for surface in all_surfaces), default=0),
+    }
 
     output = {
         "format": FORMAT,
@@ -464,15 +538,26 @@ def main() -> None:
             "max_height": config.max_height,
             "prefers_full_light_blocks": True,
             "reject_glass_in_rectangle": True,
-            "boundary_faces": "excluded",
+            "boundary_faces": "included_pending_runtime_validation",
             "target_air": "horizontal_boundary_connected",
         },
         "template_count": len(work),
-        "placement_count": len(placements),
+        "template_placement_count": template_placement_count,
+        "surface_count": surface_count,
+        "placement_count": surface_count,
         "diagnostics": {
+            "surface_count": surface_count,
+            "templates_with_surfaces": template_placement_count,
             "templates_with_light_palette": diagnostics["lit_palette"],
             "glass_cells_excluded": diagnostics["glass_excluded"],
             "interior_faces_excluded": diagnostics["interior_faces_excluded"],
+            "boundary_surface_count": sum(
+                surface.boundary_face for surface in all_surfaces
+            ),
+            "multi_surface_templates": sum(
+                len(surfaces) > 1 for _, surfaces, _ in results
+            ),
+            "max_dimensions": max_dimensions,
             "dimension_counts": dict(sorted(dimensions.items())),
         },
         "placements": dict(sorted(placements.items())),
@@ -480,7 +565,8 @@ def main() -> None:
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(output, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(
-        f"wrote {len(placements)} placements from {len(work)} templates to {args.output}"
+        f"wrote {surface_count} surfaces across {template_placement_count} "
+        f"templates from {len(work)} audited templates to {args.output}"
     )
 
 

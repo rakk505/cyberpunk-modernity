@@ -1,7 +1,10 @@
 package dev.modernity.neoncity;
 
 import com.example.cyberdeck.CyberdeckItems;
+import com.example.cyberdeck.advertising.AdCampaign;
+import com.example.cyberdeck.advertising.AdClip;
 import com.example.cyberdeck.advertising.FreestandingAdType;
+import com.example.cyberdeck.advertising.GeneratedAdPlacement;
 import com.example.cyberdeck.economy.Emmies;
 import com.example.cyberdeck.defense.DefenseContent;
 import com.example.cyberdeck.defense.KangTaoTurret;
@@ -5077,6 +5080,7 @@ public final class ExampleGameTests {
         helper.assertTrue(checkedRealConnector,
                 "no selected Arnis tile exposed an inferred road connector");
         assertColumnLevelInfrastructureComposition(helper, layout);
+        assertGeneratedAdCampaignCoverage(helper, layout);
 
         int far = MegacityLayout.NOMINAL_CITY_RADIUS * 3;
         int[][] wildernessChunks = {
@@ -5090,6 +5094,66 @@ public final class ExampleGameTests {
                             + chunk[0] + "," + chunk[1]);
         }
         helper.succeed();
+    }
+
+    private static void assertGeneratedAdCampaignCoverage(
+            GameTestHelper helper, MegacityLayout layout) {
+        Map<District, AdCampaign> expectedCampaigns = Map.of(
+                District.A_CORP, AdCampaign.GENERAL,
+                District.M_CORP, AdCampaign.META,
+                District.O_CORP, AdCampaign.CLOSED_AI);
+        for (Map.Entry<District, AdCampaign> entry : expectedCampaigns.entrySet()) {
+            ArnisPatchLibrary.Placement placement = findGeneratedAdCampaignPlacement(
+                    layout, entry.getKey(), entry.getValue());
+            helper.assertTrue(placement != null,
+                    "fixed map has no catalog-backed " + entry.getValue().id()
+                            + " facade in " + entry.getKey());
+            AdCampaign selected = GeneratedAdPlacement.campaignForPlacement(
+                    placement).orElseThrow();
+            if (selected == AdCampaign.CLOSED_AI) {
+                helper.assertValueEqual(selected.clips(), List.of(AdClip.CLOSED_AI),
+                        "District O generated playlist must contain only ClosedAI");
+            } else {
+                helper.assertTrue(selected.clips().containsAll(AdCampaign.META.clips()),
+                        entry.getKey() + " generated playlist is missing Meta ads");
+            }
+            if (selected == AdCampaign.GENERAL) {
+                helper.assertTrue(selected.clips().contains(AdClip.MISANTHROPIC),
+                        "general generated playlist lost Misanthropic");
+            }
+        }
+    }
+
+    private static ArnisPatchLibrary.Placement findGeneratedAdCampaignPlacement(
+            MegacityLayout layout, District district, AdCampaign campaign) {
+        MegacityLayout.Node node = layout.node(district);
+        int centerChunkX = Math.floorDiv(node.x(), 16);
+        int centerChunkZ = Math.floorDiv(node.z(), 16);
+        int maxRadius = Math.max(node.radiusX(), node.radiusZ()) / 16 + 4;
+        for (int ring = 0; ring <= maxRadius; ring++) {
+            for (int deltaZ = -ring; deltaZ <= ring; deltaZ++) {
+                for (int deltaX = -ring; deltaX <= ring; deltaX++) {
+                    if (Math.max(Math.abs(deltaX), Math.abs(deltaZ)) != ring) continue;
+                    int chunkX = centerChunkX + deltaX;
+                    int chunkZ = centerChunkZ + deltaZ;
+                    ArnisPatchLibrary.Placement placement = ArnisPatchLibrary.select(
+                            layout, chunkX, chunkZ).orElse(null);
+                    if (placement == null
+                            || placement.patch().district() != district
+                            || GeneratedAdPlacement.campaignForPlacement(placement)
+                                    .orElse(null) != campaign) {
+                        continue;
+                    }
+                    ChunkPos chunk = new ChunkPos(chunkX, chunkZ);
+                    if (NeonCityGenerator.isFixedMainlineBuildingChunk(chunk)) continue;
+                    if (NeonCityGenerator.planChunk(chunk).patchPlacement()
+                            .filter(placement::equals).isPresent()) {
+                        return placement;
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     private static void assertColumnLevelInfrastructureComposition(
@@ -5299,6 +5363,25 @@ public final class ExampleGameTests {
                         && deferredBannerLedger.isFreestandingAdDecorated(decoratedChunk)
                         && !deferredBannerLedger.markFreestandingAdDecorated(decoratedChunk),
                 "freestanding-ad migration ledger lost its independent idempotent state");
+        var ledgerOps = helper.getLevel().registryAccess().createSerializationContext(
+                com.mojang.serialization.JsonOps.INSTANCE);
+        com.google.gson.JsonObject legacyAdLedger = NeonCitySavedData.TYPE.codec()
+                .encodeStart(ledgerOps, deferredBannerLedger)
+                .getOrThrow(message -> helper.assertionException(
+                        net.minecraft.network.chat.Component.literal(
+                                "ad ledger must encode: " + message)))
+                .getAsJsonObject();
+        legacyAdLedger.addProperty(
+                "ad_safety_version", NeonCitySavedData.AD_SAFETY_VERSION - 1);
+        NeonCitySavedData migratedAdLedger = NeonCitySavedData.TYPE.codec()
+                .parse(ledgerOps, legacyAdLedger)
+                .getOrThrow(message -> helper.assertionException(
+                        net.minecraft.network.chat.Component.literal(
+                                "legacy ad ledger must decode: " + message)));
+        helper.assertTrue(migratedAdLedger.contains(decoratedChunk)
+                        && !migratedAdLedger.isAdDecorated(decoratedChunk)
+                        && migratedAdLedger.isFreestandingAdDecorated(decoratedChunk),
+                "ad safety migration must re-audit facades without replaying street ads");
 
         BlockPos bannerSupport = new BlockPos(
                 chunk.getMinBlockX() + 8, minY + 20, chunk.getMinBlockZ() + 8);

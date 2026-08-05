@@ -1,11 +1,13 @@
 package com.example.cyberdeck;
 
 import com.mojang.authlib.GameProfile;
+import com.example.cyberdeck.advertising.AdCampaign;
 import com.example.cyberdeck.advertising.AdClip;
 import com.example.cyberdeck.advertising.AdDisplayBlockEntity;
 import com.example.cyberdeck.advertising.AdDisplayPlacement;
 import com.example.cyberdeck.advertising.AdvertisingContent;
 import com.example.cyberdeck.advertising.GeneratedAdSurfaceCatalog;
+import com.example.cyberdeck.advertising.GeneratedAdPlacement;
 import com.example.cyberdeck.advertising.FreestandingAdPlacement;
 import com.example.cyberdeck.advertising.FreestandingAdType;
 import com.example.cyberdeck.advertising.LargeAdSurfaceValidator;
@@ -127,6 +129,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
@@ -1085,6 +1088,63 @@ public final class CyberdeckGameTests {
                 "large displays must explicitly reject glass support");
         level.setBlock(firstSupport, Blocks.STONE.defaultBlockState(), 3);
 
+        BlockPos frontObstruction = anchor.relative(facing, 2);
+        level.setBlock(frontObstruction, Blocks.STONE.defaultBlockState(), 3);
+        helper.assertTrue(LargeAdSurfaceValidator.validate(level, anchor, facing).valid()
+                        && LargeAdSurfaceValidator.validateGenerated(
+                                level,
+                                anchor,
+                                facing,
+                                LargeAdSurfaceValidator.WIDTH,
+                                LargeAdSurfaceValidator.HEIGHT).failure()
+                                == LargeAdSurfaceValidator.Failure.FRONT_BLOCKED,
+                "generated displays must require three clear blocks in front of the facade");
+        level.setBlock(frontObstruction, Blocks.AIR.defaultBlockState(), 3);
+
+        Direction right = LargeAdSurfaceValidator.rightOf(facing);
+        int enclosureDepth = LargeAdSurfaceValidator.GENERATED_FRONT_CLEARANCE + 1;
+        BlockPos enclosureRoof = anchor.above(LargeAdSurfaceValidator.HEIGHT);
+        BlockPos enclosureBarrier = anchor
+                .above(LargeAdSurfaceValidator.HEIGHT - 1)
+                .relative(facing, enclosureDepth);
+        for (int column = 0; column < LargeAdSurfaceValidator.WIDTH; column++) {
+            for (int depth = 1; depth <= enclosureDepth; depth++) {
+                level.setBlock(
+                        enclosureRoof.relative(right, column).relative(facing, depth),
+                        Blocks.STONE.defaultBlockState(),
+                        3);
+            }
+            level.setBlock(enclosureBarrier.relative(right, column),
+                    Blocks.STONE.defaultBlockState(), 3);
+        }
+        helper.assertValueEqual(
+                LargeAdSurfaceValidator.validateGenerated(
+                        level,
+                        anchor,
+                        facing,
+                        LargeAdSurfaceValidator.WIDTH,
+                        LargeAdSurfaceValidator.HEIGHT).failure(),
+                LargeAdSurfaceValidator.Failure.ENCLOSED,
+                "a roofed interior wall must not be classified as an exterior facade");
+        helper.assertTrue(!AdDisplayPlacement.placeOverlay(
+                        level,
+                        anchor,
+                        facing,
+                        LargeAdSurfaceValidator.WIDTH,
+                        LargeAdSurfaceValidator.HEIGHT)
+                        && level.isEmptyBlock(anchor),
+                "rejected interior placement must not create a rendering anchor");
+        for (int column = 0; column < LargeAdSurfaceValidator.WIDTH; column++) {
+            for (int depth = 1; depth <= enclosureDepth; depth++) {
+                level.setBlock(
+                        enclosureRoof.relative(right, column).relative(facing, depth),
+                        Blocks.AIR.defaultBlockState(),
+                        3);
+            }
+            level.setBlock(enclosureBarrier.relative(right, column),
+                    Blocks.AIR.defaultBlockState(), 3);
+        }
+
         BlockPos blockedTarget = targets.get(targets.size() - 1);
         level.setBlock(blockedTarget, Blocks.STONE.defaultBlockState(), 3);
         helper.assertTrue(LargeAdSurfaceValidator.validate(level, anchor, facing).failure()
@@ -1125,19 +1185,50 @@ public final class CyberdeckGameTests {
                 "the remaining large display cells must be inert panels");
         helper.assertTrue(level.getBlockEntity(anchor) instanceof AdDisplayBlockEntity,
                 "the rendering anchor must own the display block entity");
+        helper.assertTrue(!((AdDisplayBlockEntity) level.getBlockEntity(anchor))
+                        .generatedPlacement(),
+                "manually placed displays must not be marked as catalog generated");
         for (AdClip clip : AdClip.values()) {
             helper.assertTrue(clip.durationTicks() >= 600 && clip.durationTicks() <= 900,
                     "every advertising clip must last 30 to 45 seconds");
         }
+        helper.assertValueEqual(
+                AdCampaign.META.clips(),
+                List.of(AdClip.META_LOGO, AdClip.META_GLASSES,
+                        AdClip.META_AI, AdClip.META_FUTURE),
+                "District M must rotate through all four Meta facade ads");
+        helper.assertValueEqual(
+                AdCampaign.CLOSED_AI.clips(),
+                List.of(AdClip.CLOSED_AI),
+                "District O must use the ClosedAI facade campaign");
+        helper.assertTrue(AdCampaign.GENERAL.clips().contains(AdClip.MISANTHROPIC)
+                        && AdCampaign.GENERAL.clips().containsAll(AdCampaign.META.clips()),
+                "general facades must include Misanthropic and every Meta ad");
+        helper.assertTrue(AdClip.MISANTHROPIC.framesPerSecond() == 4
+                        && AdClip.CLOSED_AI.framesPerSecond() == 4
+                        && !AdClip.MISANTHROPIC.audioEnabled()
+                        && !AdClip.CLOSED_AI.audioEnabled()
+                        && AdCampaign.META.clips().stream().allMatch(
+                                clip -> clip.framesPerSecond() == 8 && !clip.audioEnabled())
+                        && List.of(AdClip.NEON_SKYLINE, AdClip.CHROME_COLA, AdClip.ORBITAL_AIR)
+                                .stream().allMatch(
+                                        clip -> clip.framesPerSecond() == 8
+                                                && clip.audioEnabled()),
+                "Java playback metadata must match the mixed-FPS asset manifest");
         helper.assertTrue(GeneratedAdSurfaceCatalog.size() > 0,
                 "the offline Arnis facade scan must expose generated ad placements");
         helper.assertTrue(GeneratedAdSurfaceCatalog.validGeneratedDimensions(8, 4)
                         && !GeneratedAdSurfaceCatalog.validGeneratedDimensions(7, 9)
                         && !GeneratedAdSurfaceCatalog.validGeneratedDimensions(16, 3),
                 "generated building ads must remain at least 8 x 4 regardless of area");
+        helper.assertTrue(GeneratedAdSurfaceCatalog.size() == 2_420
+                        && GeneratedAdSurfaceCatalog.surfaceCount() == 3_744
+                        && GeneratedAdSurfaceCatalog.boundarySurfaceCount() == 3_561
+                        && GeneratedAdSurfaceCatalog.multiSurfaceTemplateCount() == 955,
+                "the exhaustive facade catalog lost large boundary or multi-surface candidates");
 
         int generatedWidth = 12;
-        int generatedHeight = 5;
+        int generatedHeight = 12;
         BlockPos generatedAnchor = helper.absolutePos(new BlockPos(2, 8, 2));
         List<BlockPos> generatedTargets = LargeAdSurfaceValidator.targets(
                 generatedAnchor, facing, generatedWidth, generatedHeight);
@@ -1145,14 +1236,125 @@ public final class CyberdeckGameTests {
             level.setBlock(target.relative(facing.getOpposite()),
                     Blocks.STONE.defaultBlockState(), 3);
         }
-        helper.assertTrue(AdDisplayPlacement.place(
-                        level, generatedAnchor, facing, generatedWidth, generatedHeight),
-                "catalog-driven placement must support variable large rectangles");
+        helper.assertTrue(AdDisplayPlacement.placeOverlay(
+                        level, generatedAnchor, facing, generatedWidth, generatedHeight,
+                        AdCampaign.META),
+                "catalog-driven placement must support a tall exterior overlay");
         helper.assertTrue(level.getBlockEntity(generatedAnchor)
                         instanceof AdDisplayBlockEntity generated
                         && generated.displayWidth() == generatedWidth
-                        && generated.displayHeight() == generatedHeight,
-                "variable dimensions must be stored on the rendering anchor");
+                        && generated.displayHeight() == generatedHeight
+                        && generated.generatedPlacement()
+                        && generated.campaign() == AdCampaign.META
+                        && AdCampaign.META.clips().contains(generated.currentClip()),
+                "variable dimensions, campaign, and generated ownership must be stored");
+        int generatedAnchors = 0;
+        int generatedPanels = 0;
+        for (BlockPos target : generatedTargets) {
+            BlockState state = level.getBlockState(target);
+            generatedAnchors += state.is(AdvertisingContent.AD_DISPLAY_ANCHOR.get()) ? 1 : 0;
+            generatedPanels += state.is(AdvertisingContent.AD_DISPLAY_PANEL.get()) ? 1 : 0;
+            helper.assertTrue(level.getBlockState(target.relative(facing.getOpposite()))
+                            .is(Blocks.STONE),
+                    "generated overlay placement must preserve its supporting facade");
+        }
+        helper.assertTrue(generatedAnchors == 1
+                        && generatedPanels == 0
+                        && AdDisplayPlacement.placeOverlay(
+                                level,
+                                generatedAnchor,
+                                facing,
+                                generatedWidth,
+                                generatedHeight,
+                                AdCampaign.META),
+                "generated facades must use one idempotent anchor and no panel grid");
+        AdDisplayBlockEntity generated =
+                (AdDisplayBlockEntity) level.getBlockEntity(generatedAnchor);
+        CompoundTag persisted = generated.saveWithFullMetadata(level.registryAccess());
+        BlockEntity restored = BlockEntity.loadStatic(
+                generatedAnchor,
+                level.getBlockState(generatedAnchor),
+                persisted,
+                level.registryAccess());
+        helper.assertTrue(persisted.getBooleanOr("GeneratedPlacement", false)
+                        && "meta".equals(persisted.getStringOr("Campaign", ""))
+                        && restored instanceof AdDisplayBlockEntity restoredDisplay
+                        && restoredDisplay.generatedPlacement()
+                        && restoredDisplay.campaign() == AdCampaign.META
+                        && restoredDisplay.displayWidth() == generatedWidth
+                        && restoredDisplay.displayHeight() == generatedHeight,
+                "generated facade ownership and dimensions must survive save/load");
+
+        int resizedWidth = 12;
+        int resizedHeight = 10;
+        BlockPos resizedAnchor = helper.absolutePos(new BlockPos(18, 8, 2));
+        List<BlockPos> resizedTargets = LargeAdSurfaceValidator.targets(
+                resizedAnchor, facing, resizedWidth, resizedHeight);
+        for (BlockPos target : resizedTargets) {
+            level.setBlock(target.relative(facing.getOpposite()),
+                    Blocks.STONE.defaultBlockState(), 3);
+        }
+        helper.assertTrue(AdDisplayPlacement.place(
+                        level,
+                        resizedAnchor,
+                        facing,
+                        LargeAdSurfaceValidator.WIDTH,
+                        LargeAdSurfaceValidator.HEIGHT,
+                        AdCampaign.GENERAL),
+                "legacy resize fixture could not place its smaller panel grid");
+        helper.assertTrue(GeneratedAdPlacement.auditExistingGeneratedGrid(
+                        level,
+                        resizedAnchor,
+                        facing,
+                        resizedWidth,
+                        resizedHeight,
+                        AdCampaign.META) == GeneratedAdPlacement.Result.PLACED,
+                "a smaller legacy panel grid must migrate to the full catalog facade");
+        int resizedAnchors = 0;
+        int resizedPanels = 0;
+        for (BlockPos target : resizedTargets) {
+            BlockState state = level.getBlockState(target);
+            resizedAnchors += state.is(AdvertisingContent.AD_DISPLAY_ANCHOR.get()) ? 1 : 0;
+            resizedPanels += state.is(AdvertisingContent.AD_DISPLAY_PANEL.get()) ? 1 : 0;
+        }
+        helper.assertTrue(resizedAnchors == 1
+                        && resizedPanels == 0
+                        && level.getBlockEntity(resizedAnchor)
+                                instanceof AdDisplayBlockEntity resized
+                        && resized.generatedPlacement()
+                        && resized.campaign() == AdCampaign.META
+                        && resized.displayWidth() == resizedWidth
+                        && resized.displayHeight() == resizedHeight,
+                "legacy migration must remove panels and adopt the larger Meta overlay");
+
+        BlockPos generatedRoof = generatedAnchor.above(generatedHeight);
+        BlockPos generatedBarrier = generatedAnchor
+                .above(generatedHeight - 1)
+                .relative(facing, enclosureDepth);
+        for (int column = 0; column < generatedWidth; column++) {
+            for (int depth = 1; depth <= enclosureDepth; depth++) {
+                level.setBlock(
+                        generatedRoof.relative(right, column).relative(facing, depth),
+                        Blocks.STONE.defaultBlockState(),
+                        3);
+            }
+            level.setBlock(generatedBarrier.relative(right, column),
+                    Blocks.STONE.defaultBlockState(), 3);
+        }
+        helper.assertTrue(GeneratedAdPlacement.auditExistingGeneratedGrid(
+                        level,
+                        generatedAnchor,
+                        facing,
+                        generatedWidth,
+                        generatedHeight,
+                        AdCampaign.META) == GeneratedAdPlacement.Result.WORLD_BLOCKED,
+                "a generated display must be removed when its facade becomes enclosed");
+        for (BlockPos target : generatedTargets) {
+            helper.assertTrue(level.isEmptyBlock(target)
+                            && level.getBlockState(target.relative(facing.getOpposite()))
+                                    .is(Blocks.STONE),
+                    "generated cleanup must remove only display cells and preserve the building");
+        }
         helper.succeed();
     }
 
@@ -1181,6 +1383,22 @@ public final class CyberdeckGameTests {
                         && medium.displayWidth() == 6
                         && medium.displayHeight() == 8,
                 "one configured block entity must drive both medium faces");
+        AdDisplayBlockEntity medium =
+                (AdDisplayBlockEntity) level.getBlockEntity(mediumOrigin);
+        CompoundTag mediumPersisted = medium.saveWithFullMetadata(level.registryAccess());
+        BlockEntity mediumRestored = BlockEntity.loadStatic(
+                mediumOrigin,
+                level.getBlockState(mediumOrigin),
+                mediumPersisted,
+                level.registryAccess());
+        helper.assertTrue(mediumRestored instanceof AdDisplayBlockEntity restoredMedium
+                        && restoredMedium.freestandingType().orElse(null)
+                                == FreestandingAdType.MEDIUM
+                        && restoredMedium.longAxis() == Direction.Axis.X
+                        && restoredMedium.displayWidth() == 6
+                        && restoredMedium.displayHeight() == 8
+                        && restoredMedium.campaign() == AdCampaign.GENERAL,
+                "campaign persistence must retain the complete freestanding layout");
 
         int mediumControllers = 0;
         int mediumFrames = 0;
@@ -1222,6 +1440,20 @@ public final class CyberdeckGameTests {
                         && small.freestandingType().orElse(null) == FreestandingAdType.SMALL,
                 "one configured block entity must drive all four small faces");
         AdDisplayBlockEntity small = (AdDisplayBlockEntity) level.getBlockEntity(smallOrigin);
+        CompoundTag smallPersisted = small.saveWithFullMetadata(level.registryAccess());
+        BlockEntity smallRestored = BlockEntity.loadStatic(
+                smallOrigin,
+                level.getBlockState(smallOrigin),
+                smallPersisted,
+                level.registryAccess());
+        helper.assertTrue(smallRestored instanceof AdDisplayBlockEntity restoredSmall
+                        && restoredSmall.freestandingType().orElse(null)
+                                == FreestandingAdType.SMALL
+                        && restoredSmall.longAxis() == Direction.Axis.Z
+                        && restoredSmall.displayWidth() == 2
+                        && restoredSmall.displayHeight() == 4
+                        && restoredSmall.usesLogoAds(),
+                "small Z-axis logo layout must survive save/load");
         LogoAd firstLogo = small.currentLogo();
         for (int tick = 0; tick < AdDisplayBlockEntity.LOGO_DURATION_TICKS; tick++) {
             AdDisplayBlockEntity.clientTick(

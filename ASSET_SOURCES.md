@@ -1,5 +1,25 @@
 # Asset provenance
 
+## Animated advertising campaigns
+
+`neon_skyline`, `chrome_cola`, and `orbital_air` are original audiovisual campaigns generated
+from scratch by `tools/create_demo_ads.py`. The four silent campaigns `meta_logo`, `meta_glasses`,
+`meta_ai`, and `meta_future` are original parody artwork generated directly as 160x90 animation
+frames by `tools/generate_meta_ads.py`. Both generators remain checked in for reproducibility.
+
+The Meta campaigns use only project-authored geometric marks, lettering, interface motifs, and
+pixel-art scenes. They contain no downloaded video, audio, font, logo pixels, or other third-party
+artwork. Historical YouTube-derived Meta advertisements from an earlier development commit were
+not restored because redistribution rights were not established.
+
+The project owner supplied `ads/misanthropic.mov` and `ads/closed_ai.mov` on 2026-08-04. They are
+silent H.264 recordings used only for the correspondingly named parody campaigns. The processor
+loops each source to 30 seconds, preserves its aspect ratio inside a 160x90 frame, and verifies the
+source before processing. Their SHA-256 hashes are respectively
+`ecef312c4f125e5c5e08a36579690dbf853a66841c274c24e8e20b7d1ab2cd9e` and
+`0570dd81195c5cefd43e93114b87e5075defc9e6e0cb2c2edc52a4bb6f1a1799`. This records the supplied
+provenance and deterministic inputs; it is not an independent license determination.
+
 ## Freestanding advertising logos
 
 `src/main/resources/assets/cyberdeck/textures/ad_logos/meta.png`, `closedai.png`, and

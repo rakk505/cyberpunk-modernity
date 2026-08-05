@@ -75,6 +75,7 @@ public final class NeonCityGenerator {
     public static final int MAX_PENDING_CHUNKS = 768;
     private static final int AD_BACKFILL_RADIUS_CHUNKS = 2;
     private static final int MAX_PENDING_AD_BACKFILLS = 256;
+    private static final int AD_BACKFILL_RETRY_DELAY_TICKS = 40;
     public static final int TRAVEL_LOOKAHEAD_TICKS = 100;
     public static final int TRAVEL_CORRIDOR_MARGIN_CHUNKS = 1;
     public static final int TRAVEL_CORRIDOR_SAMPLE_BLOCKS = 8;
@@ -121,7 +122,9 @@ public final class NeonCityGenerator {
     private static final Set<Long> QUEUED = new HashSet<>();
     private static final Set<Long> AD_BACKFILL_QUEUED = new HashSet<>();
     private static final Set<Long> AD_BACKFILL_FAILED = new HashSet<>();
+    private static final Set<Long> AD_DECORATION_RETRY_PENDING = new HashSet<>();
     private static final Set<Long> GENERATED = new HashSet<>();
+    private static final Map<Long, Long> AD_BACKFILL_RETRY_AFTER = new HashMap<>();
     private static final Map<Long, AlleyMaze.Plan> DIAGNOSTIC_ALLEY_PLANS = new HashMap<>();
     private static final Map<Long, Optional<ArnisPatchLibrary.Placement>>
             USABLE_ARNIS_PLACEMENTS = new ConcurrentHashMap<>();
@@ -341,6 +344,8 @@ public final class NeonCityGenerator {
         QUEUED.clear();
         AD_BACKFILL_QUEUED.clear();
         AD_BACKFILL_FAILED.clear();
+        AD_DECORATION_RETRY_PENDING.clear();
+        AD_BACKFILL_RETRY_AFTER.clear();
         GENERATED.clear();
         DIAGNOSTIC_ALLEY_PLANS.clear();
         USABLE_ARNIS_PLACEMENTS.clear();
@@ -677,6 +682,11 @@ public final class NeonCityGenerator {
 
     private static void enqueueAdBackfill(ServerLevel level, ChunkPos chunk) {
         long key = chunk.pack();
+        Long retryAfter = AD_BACKFILL_RETRY_AFTER.get(key);
+        if (retryAfter != null) {
+            if (level.getGameTime() < retryAfter) return;
+            AD_BACKFILL_RETRY_AFTER.remove(key);
+        }
         if (!GENERATED.contains(key)
                 || savedData == null
                 || (savedData.isAdDecorated(key)
@@ -708,6 +718,7 @@ public final class NeonCityGenerator {
 
             boolean facadeCompleted = savedData.isAdDecorated(key);
             boolean freestandingCompleted = savedData.isFreestandingAdDecorated(key);
+            boolean facadeRetryable = false;
             try {
                 if (!facadeCompleted) {
                     Optional<ArnisPatchLibrary.Placement> selected = usableArnisPlacement(
@@ -736,6 +747,8 @@ public final class NeonCityGenerator {
                                                     - placement.patch().surfaceOffset());
                             facadeCompleted =
                                     result != GeneratedAdPlacement.Result.RETRYABLE_FAILURE;
+                            facadeRetryable =
+                                    result == GeneratedAdPlacement.Result.RETRYABLE_FAILURE;
                         }
                     } else {
                         facadeCompleted = true;
@@ -751,12 +764,16 @@ public final class NeonCityGenerator {
                 LOGGER.error("[NeonCity] failed animated-ad backfill for {}", chunk, exception);
             }
             if (facadeCompleted) {
+                AD_BACKFILL_RETRY_AFTER.remove(key);
                 savedData.markAdDecorated(key);
             }
             if (freestandingCompleted) {
                 savedData.markFreestandingAdDecorated(key);
             }
-            if (!facadeCompleted || !freestandingCompleted) {
+            if (facadeRetryable) {
+                AD_BACKFILL_RETRY_AFTER.put(
+                        key, level.getGameTime() + AD_BACKFILL_RETRY_DELAY_TICKS);
+            } else if (!facadeCompleted || !freestandingCompleted) {
                 AD_BACKFILL_FAILED.add(key);
             }
             return true;
@@ -976,7 +993,9 @@ public final class NeonCityGenerator {
         GENERATED.add(key);
         CityChunkPlanner.cancel(key);
         savedData.markGenerated(key, GENERATOR_FINGERPRINT);
-        savedData.markAdDecorated(key);
+        if (!AD_DECORATION_RETRY_PENDING.remove(key)) {
+            savedData.markAdDecorated(key);
+        }
         savedData.markFreestandingAdDecorated(key);
     }
 
@@ -998,6 +1017,7 @@ public final class NeonCityGenerator {
     private static boolean generateChunk(
             ServerLevel level, ChunkPos chunk, CityGenerationTrace.Source source) {
         CityGenerationTrace.ChunkSpan trace = CityGenerationTrace.begin(chunk, source);
+        AD_DECORATION_RETRY_PENDING.remove(chunk.pack());
         boolean succeeded = false;
         try {
             BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
@@ -1117,12 +1137,16 @@ public final class NeonCityGenerator {
                     && patchPlacement.isPresent()
                     && !isReservedMainlineBuildingChunk(level, chunk)) {
                 ArnisPatchLibrary.Placement placement = patchPlacement.get();
-                GeneratedAdPlacement.placeForArnisTile(
-                        level,
-                        chunk,
-                        placement,
-                        patchTemplate,
-                        CITY_GROUND_Y - placement.patch().surfaceOffset());
+                GeneratedAdPlacement.Result adResult =
+                        GeneratedAdPlacement.placeForArnisTileResult(
+                                level,
+                                chunk,
+                                placement,
+                                patchTemplate,
+                                CITY_GROUND_Y - placement.patch().surfaceOffset());
+                if (adResult == GeneratedAdPlacement.Result.RETRYABLE_FAILURE) {
+                    AD_DECORATION_RETRY_PENDING.add(chunk.pack());
+                }
             }
             DistrictAdGeneration.decorateChunk(level, chunk);
             if (trace != null) trace.phase(CityGenerationTrace.Phase.CLIENT_REFRESH);
@@ -1133,6 +1157,9 @@ public final class NeonCityGenerator {
             LOGGER.error("[NeonCity] failed generating chunk {}", chunk, exception);
             return false;
         } finally {
+            if (!succeeded) {
+                AD_DECORATION_RETRY_PENDING.remove(chunk.pack());
+            }
             if (trace != null) trace.finish(succeeded);
         }
     }
@@ -3068,7 +3095,9 @@ public final class NeonCityGenerator {
                 || UCorpPortGeneration.plan(activeLayout).isManagedAt(worldX, worldZ);
     }
     public static boolean isEnabled() { return enabled; }
-    static boolean isGenerated(ChunkPos chunk) { return GENERATED.contains(chunk.pack()); }
+    public static boolean isGenerated(ChunkPos chunk) {
+        return GENERATED.contains(chunk.pack());
+    }
     public static int pendingChunks() { return pendingQueueSize(); }
     public static int urgentPendingChunks() { return URGENT_PENDING.size(); }
     public static int nearPendingChunks() { return NEAR_PENDING.size(); }
