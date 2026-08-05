@@ -178,6 +178,9 @@ public final class CyberdeckGameTests {
             TRAFFIC_DRIVER_HANDOFF = register(
                     "traffic_driver_handoff", CyberdeckGameTests::trafficDriverHandoff);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            ATLAS_TRAFFIC_ROUTE = register(
+                    "atlas_traffic_route", CyberdeckGameTests::atlasTrafficRoute);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             CIVILIAN_NONCOMBAT = register(
                     "civilian_noncombat", CyberdeckGameTests::civilianNoncombat);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
@@ -488,6 +491,47 @@ public final class CyberdeckGameTests {
                 "released traffic driver did not return to the pedestrian population");
         vehicle.discard();
         driver.discard();
+        helper.succeed();
+    }
+
+    private static void atlasTrafficRoute(GameTestHelper helper) {
+        MegacityLayout.Node district = NeonCityGenerator.layout().node(District.G_CORP);
+        NeonCityGenerator.AtlasRoadPoint road = NeonCityGenerator.nearestAtlasTrafficRoad(
+                district.x(), district.z(), 256.0).orElse(null);
+        helper.assertTrue(road != null && road.roadClass().supportsTraffic(),
+                "Jakarta atlas did not expose a cyan/yellow traffic centerline");
+        int roadX = Mth.floor(road.x());
+        int roadZ = Mth.floor(road.z());
+        ServerLevel level = helper.getLevel();
+        for (int chunkX = (roadX >> 4) - 6; chunkX <= (roadX >> 4) + 6; chunkX++) {
+            for (int chunkZ = (roadZ >> 4) - 6; chunkZ <= (roadZ >> 4) + 6; chunkZ++) {
+                level.getChunk(chunkX, chunkZ);
+            }
+        }
+        double tangentLength = Math.max(
+                0.001, Math.hypot(road.tangentX(), road.tangentZ()));
+        double forwardX = road.tangentX() / tangentLength;
+        double forwardZ = road.tangentZ() / tangentLength;
+        float yaw = (float) Math.toDegrees(Math.atan2(-forwardX, forwardZ));
+        int roadY = NeonCityGenerator.sample(roadX, roadZ).groundY() + 1;
+        var vehicle = vehicle_mod.BMW_M3_GTR.get().create(
+                level, EntitySpawnReason.COMMAND);
+        helper.assertTrue(vehicle != null, "atlas traffic test could not create a car");
+        vehicle.snapTo(road.x(), roadY, road.z(), yaw, 0.0F);
+        helper.assertTrue(level.addFreshEntity(vehicle),
+                "atlas traffic test could not add its car");
+        helper.assertTrue(CityTrafficService.assignDriver(
+                        level, vehicle, RandomSource.create(20260805L)),
+                "traffic controller rejected an OSM primary/secondary road");
+        helper.assertTrue(CityTrafficService.plannedNodeCount(vehicle) >= 2
+                        && CityTrafficService.plannedRouteUsesAtlas(vehicle),
+                "OSM road did not compile a multi-node atlas-only traffic route");
+        Entity driver = vehicle.getPassengers().stream()
+                .filter(CityTrafficService::isTrafficDriver)
+                .findFirst().orElse(null);
+        CityTrafficService.retire(vehicle);
+        vehicle.discard();
+        if (driver != null) driver.discard();
         helper.succeed();
     }
 

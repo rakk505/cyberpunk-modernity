@@ -18,6 +18,7 @@ import java.util.Optional;
 final class OsmRoadSample {
     static final int ATLAS_CHUNKS = 16;
     static final int ATLAS_BLOCKS = ATLAS_CHUNKS * 16;
+    private static final double CENTERLINE_SAMPLE_SPACING = 4.0;
     private static final String RESOURCE_ROOT = "/data/neoncity/osm_roads/";
     private static final Catalog CATALOG = loadCatalog();
 
@@ -26,6 +27,15 @@ final class OsmRoadSample {
     record Point(double x, double z) {}
 
     record Segment(Point first, Point second) {}
+
+    record CenterlinePoint(
+            double x,
+            double z,
+            double tangentX,
+            double tangentZ,
+            double width,
+            RoadKind kind
+    ) {}
 
     record Road(long id, String kind, boolean oneWay, int lanes, double width,
                 List<Segment> segments) {
@@ -49,11 +59,16 @@ final class OsmRoadSample {
             District district,
             MegacityLayout.Zone zone,
             List<Road> roads,
-            byte[] roadRaster
+            byte[] roadRaster,
+            Map<Integer, List<CenterlinePoint>> arterialCenterlines
     ) {
         Sample {
             roads = List.copyOf(roads);
             roadRaster = roadRaster.clone();
+            LinkedHashMap<Integer, List<CenterlinePoint>> centerlines = new LinkedHashMap<>();
+            arterialCenterlines.forEach(
+                    (tile, points) -> centerlines.put(tile, List.copyOf(points)));
+            arterialCenterlines = Map.copyOf(centerlines);
         }
 
         int segmentCount() {
@@ -67,6 +82,15 @@ final class OsmRoadSample {
             }
             return RoadKind.values()[Byte.toUnsignedInt(
                     roadRaster[sourceZ * ATLAS_BLOCKS + sourceX])];
+        }
+
+        List<CenterlinePoint> arterialCenterlines(int tileX, int tileZ) {
+            if (tileX < 0 || tileX >= ATLAS_CHUNKS
+                    || tileZ < 0 || tileZ >= ATLAS_CHUNKS) {
+                return List.of();
+            }
+            return arterialCenterlines.getOrDefault(
+                    tileZ * ATLAS_CHUNKS + tileX, List.of());
         }
     }
 
@@ -183,7 +207,45 @@ final class OsmRoadSample {
         }
         if (roads.isEmpty()) throw new IllegalStateException("OSM road sample is empty: " + id);
         List<Road> immutableRoads = List.copyOf(roads);
-        return new Sample(id, name, district, zone, immutableRoads, rasterize(immutableRoads));
+        return new Sample(
+                id,
+                name,
+                district,
+                zone,
+                immutableRoads,
+                rasterize(immutableRoads),
+                indexArterialCenterlines(immutableRoads));
+    }
+
+    private static Map<Integer, List<CenterlinePoint>> indexArterialCenterlines(
+            List<Road> roads) {
+        LinkedHashMap<Integer, List<CenterlinePoint>> indexed = new LinkedHashMap<>();
+        for (Road road : roads) {
+            RoadKind kind = classify(road.kind());
+            if (kind != RoadKind.PRIMARY && kind != RoadKind.SECONDARY) continue;
+            for (Segment segment : road.segments()) {
+                double dx = segment.second().x() - segment.first().x();
+                double dz = segment.second().z() - segment.first().z();
+                double length = Math.hypot(dx, dz);
+                if (length < 0.01) continue;
+                int steps = Math.max(1, (int) Math.ceil(length / CENTERLINE_SAMPLE_SPACING));
+                double tangentX = dx / length;
+                double tangentZ = dz / length;
+                for (int step = 0; step <= steps; step++) {
+                    double progress = step / (double) steps;
+                    double x = segment.first().x() + dx * progress;
+                    double z = segment.first().z() + dz * progress;
+                    int tileX = Math.clamp((int) Math.floor(x / 16.0), 0, ATLAS_CHUNKS - 1);
+                    int tileZ = Math.clamp((int) Math.floor(z / 16.0), 0, ATLAS_CHUNKS - 1);
+                    indexed.computeIfAbsent(
+                                    tileZ * ATLAS_CHUNKS + tileX,
+                                    ignored -> new ArrayList<>())
+                            .add(new CenterlinePoint(
+                                    x, z, tangentX, tangentZ, road.width(), kind));
+                }
+            }
+        }
+        return indexed;
     }
 
     private static byte[] rasterize(List<Road> roads) {

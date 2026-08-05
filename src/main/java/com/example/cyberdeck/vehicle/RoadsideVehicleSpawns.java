@@ -10,7 +10,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
@@ -33,7 +32,9 @@ import net.neoforged.neoforge.event.tick.LevelTickEvent;
 public final class RoadsideVehicleSpawns {
     static final int SPAWN_INTERVAL_TICKS = 30;
     static final int TARGET_HIGHWAY_TRAFFIC_NEARBY = 12;
-    static final int TARGET_TOTAL_NEARBY = 16;
+    static final int TARGET_ATLAS_TRAFFIC_NEARBY = 5;
+    static final int TARGET_PARKED_NEARBY = 5;
+    static final int TARGET_TOTAL_NEARBY = 22;
     static final int SPAWN_BATCH = 6;
     static final int MAX_LOADED_VEHICLES = 56;
     static final int MOTORBIKE_PERCENT = 35;
@@ -51,6 +52,9 @@ public final class RoadsideVehicleSpawns {
     private static final double HIGHWAY_ACTIVATION_RADIUS = 80.0;
     private static final double RETIRE_DISTANCE = 144.0;
     private static final double MIN_SEPARATION = 11.0;
+    private static final double ATLAS_ROAD_SEARCH_RADIUS = 22.0;
+    private static final double MIN_PARKING_ROAD_WIDTH = 7.0;
+    private static final double PARKING_SHOULDER_GAP = 0.75;
     private static final double MIN_DRIVING_LEAD = 48.0;
     private static final double MAX_DRIVING_LEAD = 144.0;
     private static final double DRIVING_LEAD_PER_BLOCK_PER_TICK = 96.0;
@@ -63,6 +67,12 @@ public final class RoadsideVehicleSpawns {
     }
 
     private record TrafficFocus(Vec3 position, Vec3 forward, double lead, boolean driving) {
+    }
+
+    private enum SpawnKind {
+        HIGHWAY_TRAFFIC,
+        ATLAS_TRAFFIC,
+        PARKED
     }
 
     @SubscribeEvent
@@ -112,18 +122,21 @@ public final class RoadsideVehicleSpawns {
                 .inflate(HIGHWAY_NEARBY_RADIUS);
         int nearby = 0;
         int nearbyHighwayTraffic = 0;
+        int nearbyAtlasTraffic = 0;
+        int nearbyParked = 0;
         for (FuelPoweredVehicleEntity vehicle : vehicles) {
             if (!vehicle.isAlive()) continue;
             if (nearbyArea.intersects(vehicle.getBoundingBox())) {
-                boolean activeTraffic = CityTrafficService.isActiveTraffic(vehicle);
-                boolean inactiveTraffic = CityTrafficService.hasTrafficDriver(vehicle)
-                        && !activeTraffic;
-                if (!inactiveTraffic) nearby++;
+                if (CityTrafficService.isActiveTraffic(vehicle)) {
+                    if (CityTrafficService.isAtlasTraffic(vehicle)) nearbyAtlasTraffic++;
+                } else if (!CityTrafficService.hasTrafficDriver(vehicle)) {
+                    nearbyParked++;
+                }
+                nearby++;
             }
             if (highwayArea.intersects(vehicle.getBoundingBox())
                     && CityTrafficService.isActiveTraffic(vehicle)
-                    && NeonCityGenerator.isHighwayRoadClass(NeonCityGenerator.sample(
-                            vehicle.getBlockX(), vehicle.getBlockZ()).roadClass())) {
+                    && CityTrafficService.isHighwayTraffic(vehicle)) {
                 nearbyHighwayTraffic++;
             }
         }
@@ -136,45 +149,41 @@ public final class RoadsideVehicleSpawns {
                 ? NeonCityGenerator.layout().nearestConnection(
                         focus.position().x, focus.position().z).orElse(playerHighway)
                 : playerHighway;
-
-        // Only highway vehicles may enter traffic control. Local spawns stay parked.
-        if (highwayActive && nearbyHighwayTraffic < TARGET_HIGHWAY_TRAFFIC_NEARBY) {
-            for (FuelPoweredVehicleEntity vehicle : vehicles) {
-                if (nearbyHighwayTraffic >= TARGET_HIGHWAY_TRAFFIC_NEARBY) break;
-                if (!vehicle.isAlive()
-                        || !highwayArea.intersects(vehicle.getBoundingBox())
-                        || !vehicle.getPersistentData().getBooleanOr(MANAGED_KEY, false)
-                        || !vehicle.getPassengers().isEmpty()
-                        || !isMovingTrafficRoad(NeonCityGenerator.sample(
-                                vehicle.getBlockX(), vehicle.getBlockZ()).roadClass())
-                        || isMotorbike(vehicle)) {
-                    continue;
-                }
-                if (CityTrafficService.assignDriver(level, vehicle, level.getRandom())) {
-                    nearbyHighwayTraffic++;
-                }
-            }
-        }
+        boolean atlasActive = NeonCityGenerator.nearestAtlasTrafficRoad(
+                focus.position().x, focus.position().z, 48.0).isPresent();
 
         int highwayWanted = highwayActive
                 ? Math.max(0, TARGET_HIGHWAY_TRAFFIC_NEARBY - nearbyHighwayTraffic) : 0;
+        int atlasWanted = atlasActive
+                ? Math.max(0, TARGET_ATLAS_TRAFFIC_NEARBY - nearbyAtlasTraffic) : 0;
+        int parkedWanted = atlasActive
+                ? Math.max(0, TARGET_PARKED_NEARBY - nearbyParked) : 0;
         int wanted = Math.min(
                 SPAWN_BATCH,
-                Math.min(Math.max(highwayWanted,
-                                TARGET_TOTAL_NEARBY - nearby),
+                Math.min(Math.max(highwayWanted + atlasWanted + parkedWanted,
+                                Math.max(0, TARGET_TOTAL_NEARBY - nearby)),
                         MAX_LOADED_VEHICLES - vehicles.size()));
         if (wanted <= 0) return;
 
         RandomSource random = level.getRandom();
         int spawned = 0;
         int spawnedHighway = 0;
+        int spawnedAtlas = 0;
         int attempts = 0;
         while (spawned < wanted && attempts++ < MAX_PLACEMENT_ATTEMPTS) {
-            boolean highway = spawnedHighway < highwayWanted;
-            boolean motorbike = !highway && random.nextInt(100) < MOTORBIKE_PERCENT;
-            ParkingSite site = highway
-                    ? findHighwayTrafficSite(level, player, focus, nearestHighway, random)
-                    : findParkingSite(level, player, focus, random, motorbike);
+            SpawnKind kind = spawnedHighway < highwayWanted
+                    ? SpawnKind.HIGHWAY_TRAFFIC
+                    : spawnedAtlas < atlasWanted
+                            ? SpawnKind.ATLAS_TRAFFIC : SpawnKind.PARKED;
+            boolean moving = kind != SpawnKind.PARKED;
+            boolean motorbike = !moving && random.nextInt(100) < MOTORBIKE_PERCENT;
+            ParkingSite site = switch (kind) {
+                case HIGHWAY_TRAFFIC -> findHighwayTrafficSite(
+                        level, player, focus, nearestHighway, random);
+                case ATLAS_TRAFFIC -> findAtlasTrafficSite(
+                        level, player, focus, random);
+                case PARKED -> findParkingSite(level, focus, random, motorbike);
+            };
             if (site == null || !hasVehicleSeparation(vehicles, site.position())) continue;
 
             EntityType<? extends FuelPoweredVehicleEntity> type = randomType(random, motorbike);
@@ -198,7 +207,7 @@ public final class RoadsideVehicleSpawns {
             VehicleQuickhackService.markCompatibleCar(vehicle);
             if (level.addFreshEntity(vehicle)) {
                 vehicles.add(vehicle);
-                if (highway) {
+                if (moving) {
                     if (!CityTrafficService.assignDriver(level, vehicle, random)) {
                         vehicle.discard();
                         vehicles.remove(vehicle);
@@ -206,7 +215,11 @@ public final class RoadsideVehicleSpawns {
                     }
                 }
                 spawned++;
-                if (highway) spawnedHighway++;
+                switch (kind) {
+                    case HIGHWAY_TRAFFIC -> spawnedHighway++;
+                    case ATLAS_TRAFFIC -> spawnedAtlas++;
+                    case PARKED -> { }
+                }
             } else {
                 vehicle.discard();
             }
@@ -282,75 +295,149 @@ public final class RoadsideVehicleSpawns {
         return null;
     }
 
-    private static boolean isMotorbike(FuelPoweredVehicleEntity vehicle) {
-        return vehicle instanceof com.modernity.vehicle_mod.entity.MotorbikeEntity;
+    private static ParkingSite findAtlasTrafficSite(
+            ServerLevel level,
+            ServerPlayer player,
+            TrafficFocus focus,
+            RandomSource random
+    ) {
+        Vec3 look = player.getLookAngle();
+        for (int attempt = 0; attempt < 10; attempt++) {
+            double angle = random.nextDouble() * Math.PI * 2.0;
+            double radius = MIN_SPAWN_RADIUS
+                    + random.nextDouble() * (MAX_SPAWN_RADIUS - MIN_SPAWN_RADIUS);
+            double probeX = focus.position().x + Math.cos(angle) * radius;
+            double probeZ = focus.position().z + Math.sin(angle) * radius;
+            NeonCityGenerator.AtlasRoadPoint road = NeonCityGenerator.nearestAtlasTrafficRoad(
+                    probeX, probeZ, ATLAS_ROAD_SEARCH_RADIUS).orElse(null);
+            if (road == null) continue;
+            double tangentLength = Math.max(
+                    0.001, Math.hypot(road.tangentX(), road.tangentZ()));
+            double forwardX = road.tangentX() / tangentLength;
+            double forwardZ = road.tangentZ() / tangentLength;
+            if (random.nextBoolean()) {
+                forwardX = -forwardX;
+                forwardZ = -forwardZ;
+            }
+            double laneOffset = Mth.clamp(road.width() * 0.22, 1.1, 2.6);
+            double laneX = road.x() + forwardZ * laneOffset;
+            double laneZ = road.z() - forwardX * laneOffset;
+            int x = Mth.floor(laneX);
+            int z = Mth.floor(laneZ);
+            if (!NeonCityGenerator.isAtlasTrafficRoadAt(x, z)) continue;
+
+            double fromPlayerX = laneX - player.getX();
+            double fromPlayerZ = laneZ - player.getZ();
+            double dot = (fromPlayerX * look.x + fromPlayerZ * look.z)
+                    / Math.max(0.01, Math.hypot(fromPlayerX, fromPlayerZ)
+                            * Math.hypot(look.x, look.z));
+            if (!focus.driving() && dot > 0.25) continue;
+            BlockPos probe = new BlockPos(x, NeonCityGenerator.CITY_GROUND_Y + 1, z);
+            if (!level.hasChunkAt(probe)) continue;
+            int surfaceY = level.getHeight(
+                    Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+            if (Math.abs(surfaceY - (NeonCityGenerator.CITY_GROUND_Y + 1)) > 2) continue;
+            BlockPos position = new BlockPos(x, surfaceY, z);
+            if (!isVehicleSurface(level, position)) continue;
+            float yaw = (float) Math.toDegrees(Math.atan2(-forwardX, forwardZ));
+            return new ParkingSite(position, yaw);
+        }
+        return null;
     }
 
     private static ParkingSite findParkingSite(
             ServerLevel level,
-            ServerPlayer player,
             TrafficFocus focus,
             RandomSource random,
             boolean motorbike) {
         double angle = random.nextDouble() * Math.PI * 2.0;
-        int radius = MIN_SPAWN_RADIUS
-                + random.nextInt(MAX_SPAWN_RADIUS - MIN_SPAWN_RADIUS + 1);
-        int x = (int) Math.floor(focus.position().x + Math.cos(angle) * radius);
-        int z = (int) Math.floor(focus.position().z + Math.sin(angle) * radius);
-        NeonCityGenerator.UrbanSample sample = NeonCityGenerator.sample(x, z);
-        if (!isParkableRoad(sample.roadClass(), motorbike)) return null;
+        double radius = MIN_SPAWN_RADIUS
+                + random.nextDouble() * (MAX_SPAWN_RADIUS - MIN_SPAWN_RADIUS);
+        double probeX = focus.position().x + Math.cos(angle) * radius;
+        double probeZ = focus.position().z + Math.sin(angle) * radius;
+        NeonCityGenerator.AtlasRoadPoint road = NeonCityGenerator.nearestAtlasTrafficRoad(
+                probeX, probeZ, ATLAS_ROAD_SEARCH_RADIUS).orElse(null);
+        if (road == null || road.width() < MIN_PARKING_ROAD_WIDTH) return null;
 
-        boolean alongX = roadScore(x, z, true, motorbike)
-                > roadScore(x, z, false, motorbike);
-        Direction shoulder = alongX
-                ? (random.nextBoolean() ? Direction.NORTH : Direction.SOUTH)
-                : (random.nextBoolean() ? Direction.WEST : Direction.EAST);
-        BlockPos roadEdge = moveTowardRoadEdge(x, z, sample.groundY(), shoulder, motorbike);
-        if (!level.hasChunkAt(roadEdge)) return null;
-
-        int surfaceY = level.getHeight(
-                Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
-                roadEdge.getX(),
-                roadEdge.getZ());
-        if (Math.abs(surfaceY - (sample.groundY() + 1)) > 2) return null;
-        BlockPos position = new BlockPos(roadEdge.getX(), surfaceY, roadEdge.getZ());
-        if (!isVehicleSurface(level, position)) {
-            return null;
-        }
-
-        float yaw = alongX ? 90.0F : 0.0F;
+        double tangentLength = Math.max(
+                0.001, Math.hypot(road.tangentX(), road.tangentZ()));
+        double forwardX = road.tangentX() / tangentLength;
+        double forwardZ = road.tangentZ() / tangentLength;
+        float yaw = (float) Math.toDegrees(Math.atan2(-forwardX, forwardZ));
         if (random.nextBoolean()) yaw += 180.0F;
-        return new ParkingSite(position, yaw);
-    }
-
-    private static BlockPos moveTowardRoadEdge(
-            int x, int z, int groundY, Direction direction, boolean motorbike) {
-        BlockPos best = new BlockPos(x, groundY + 1, z);
-        for (int step = 1; step <= 6; step++) {
-            int candidateX = x + direction.getStepX() * step;
-            int candidateZ = z + direction.getStepZ() * step;
-            NeonCityGenerator.UrbanSample candidate =
-                    NeonCityGenerator.sample(candidateX, candidateZ);
-            if (!isParkableRoad(candidate.roadClass(), motorbike)
-                    || Math.abs(candidate.groundY() - groundY) > 1) {
-                break;
-            }
-            best = new BlockPos(candidateX, candidate.groundY() + 1, candidateZ);
-        }
-        return best;
-    }
-
-    private static int roadScore(int x, int z, boolean alongX, boolean motorbike) {
-        int score = 0;
-        for (int offset : new int[] {-6, -3, 3, 6}) {
-            int sampleX = alongX ? x + offset : x;
-            int sampleZ = alongX ? z : z + offset;
-            if (isParkableRoad(
-                    NeonCityGenerator.sample(sampleX, sampleZ).roadClass(), motorbike)) {
-                score++;
+        double vehicleHalfWidth = motorbike ? 0.7 : 1.3;
+        int firstSide = random.nextBoolean() ? 1 : -1;
+        for (int sideAttempt = 0; sideAttempt < 2; sideAttempt++) {
+            int side = sideAttempt == 0 ? firstSide : -firstSide;
+            double normalX = forwardZ * side;
+            double normalZ = -forwardX * side;
+            double baseOffset = road.width() * 0.5
+                    + vehicleHalfWidth + PARKING_SHOULDER_GAP;
+            for (int extra = 0; extra <= 5; extra++) {
+                double centerX = road.x() + normalX * (baseOffset + extra);
+                double centerZ = road.z() + normalZ * (baseOffset + extra);
+                int x = Mth.floor(centerX);
+                int z = Mth.floor(centerZ);
+                BlockPos loaded = new BlockPos(
+                        x, NeonCityGenerator.CITY_GROUND_Y + 1, z);
+                if (!level.hasChunkAt(loaded)) continue;
+                int surfaceY = level.getHeight(
+                        Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+                if (Math.abs(surfaceY - (NeonCityGenerator.CITY_GROUND_Y + 1)) > 2) {
+                    continue;
+                }
+                BlockPos position = new BlockPos(x, surfaceY, z);
+                if (hasFlatParkingFootprint(level, position, yaw, motorbike)) {
+                    return new ParkingSite(position, yaw);
+                }
             }
         }
-        return score;
+        return null;
+    }
+
+    private static boolean hasFlatParkingFootprint(
+            ServerLevel level, BlockPos center, float yaw, boolean motorbike) {
+        double halfLength = motorbike ? 1.5 : 2.6;
+        double halfWidth = motorbike ? 0.7 : 1.3;
+        double radians = Math.toRadians(yaw);
+        double forwardX = -Math.sin(radians);
+        double forwardZ = Math.cos(radians);
+        double rightX = Math.cos(radians);
+        double rightZ = Math.sin(radians);
+        int minimumY = Integer.MAX_VALUE;
+        int maximumY = Integer.MIN_VALUE;
+        Set<Long> checked = new HashSet<>();
+        for (double along = -halfLength; along <= halfLength + 0.01; along += 0.75) {
+            for (double across = -halfWidth; across <= halfWidth + 0.01; across += 0.75) {
+                int x = Mth.floor(center.getX() + 0.5
+                        + forwardX * along + rightX * across);
+                int z = Mth.floor(center.getZ() + 0.5
+                        + forwardZ * along + rightZ * across);
+                long column = BlockPos.asLong(x, 0, z);
+                if (!checked.add(column)) continue;
+                if (NeonCityGenerator.atlasRoadAt(x, z)
+                                != NeonCityGenerator.AtlasRoadClass.NONE
+                        || NeonCityGenerator.isHighwayRoadClass(
+                                NeonCityGenerator.roadAt(x, z))) {
+                    return false;
+                }
+                if (!level.hasChunkAt(new BlockPos(
+                        x, NeonCityGenerator.CITY_GROUND_Y + 1, z))) {
+                    return false;
+                }
+                int surfaceY = level.getHeight(
+                        Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+                if (Math.abs(surfaceY - center.getY()) > 1) return false;
+                BlockPos surface = new BlockPos(x, surfaceY, z);
+                if (!isVehicleSurface(level, surface)
+                        || !level.getBlockState(surface.above()).isAir()) {
+                    return false;
+                }
+                minimumY = Math.min(minimumY, surfaceY);
+                maximumY = Math.max(maximumY, surfaceY);
+            }
+        }
+        return maximumY - minimumY <= 1;
     }
 
     private static boolean isVehicleSurface(ServerLevel level, BlockPos position) {
@@ -392,13 +479,6 @@ public final class RoadsideVehicleSpawns {
                         + Math.max(0.0, horizontalBlocksPerTick)
                                 * DRIVING_LEAD_PER_BLOCK_PER_TICK,
                 MIN_DRIVING_LEAD, MAX_DRIVING_LEAD);
-    }
-
-    static boolean isParkableRoad(
-            NeonCityGenerator.RoadClass roadClass, boolean motorbike) {
-        return roadClass == NeonCityGenerator.RoadClass.LOCAL_STREET
-                || roadClass == NeonCityGenerator.RoadClass.DISTRICT_BOULEVARD
-                || (motorbike && roadClass == NeonCityGenerator.RoadClass.SERVICE_ALLEY);
     }
 
     public static boolean isMovingTrafficRoad(NeonCityGenerator.RoadClass roadClass) {

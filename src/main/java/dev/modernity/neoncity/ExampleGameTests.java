@@ -924,6 +924,7 @@ public final class ExampleGameTests {
                 helper.assertTrue(districtZones.contains(MegacityLayout.Zone.BACKSTREETS),
                         context + " has no Backstreets belt");
             }
+
         }
         helper.assertTrue(allZones.containsAll(ARNIS_ZONES),
                 "layout sampling did not expose both inhabited zones: " + allZones);
@@ -1093,6 +1094,7 @@ public final class ExampleGameTests {
                 EnumSet.noneOf(NeonCityGenerator.RoadClass.class);
         int gradedSamples = 0;
         int clearanceSamples = 0;
+        int arterialFeeders = 0;
         for (MegacityLayout.Edge edge : layout.edges()) {
             for (int step = 0; step <= 20; step++) {
                 int[] point = connectionPoint(edge, step / 20.0);
@@ -1143,8 +1145,14 @@ public final class ExampleGameTests {
                                 > NeonCityGenerator.HIGHWAY_HALF_WIDTH
                         && buffer.location().connectionDistance()
                                 <= NeonCityGenerator.HIGHWAY_CLEARANCE_RADIUS) {
+                    boolean feederMouth = NeonCityGenerator.highwayFeederMouthAt(
+                            layout, edge, bufferX, bufferZ);
                     helper.assertTrue(
-                            buffer.roadClass() == NeonCityGenerator.RoadClass.HIGHWAY_BUFFER,
+                            buffer.roadClass() == NeonCityGenerator.RoadClass.HIGHWAY_BUFFER
+                                    || (feederMouth
+                                            && buffer.roadClass()
+                                                    == NeonCityGenerator.RoadClass
+                                                            .INTERDISTRICT_ROAD),
                             "reserved highway shoulder classified as " + buffer.roadClass()
                                     + " at " + bufferX + "," + bufferZ);
                     helper.assertTrue(!NeonCityGenerator.keepsArnisColumn(
@@ -1153,6 +1161,24 @@ public final class ExampleGameTests {
                     clearanceSamples++;
                 }
             }
+
+            for (boolean firstEndpoint : new boolean[] {true, false}) {
+                NeonCityGenerator.HighwayFeederDebug feeder =
+                        NeonCityGenerator.highwayFeederDebug(
+                                layout, edge, firstEndpoint).orElse(null);
+                if (feeder == null) continue;
+                arterialFeeders++;
+                helper.assertTrue(feeder.targetRoad() == OsmRoadSample.RoadKind.MOTORWAY
+                                || feeder.targetRoad() == OsmRoadSample.RoadKind.PRIMARY
+                                || feeder.targetRoad() == OsmRoadSample.RoadKind.SECONDARY,
+                        "highway feeder does not terminate on an OSM arterial for "
+                                + feeder.district());
+                int endX = (int) Math.floor(feeder.endX());
+                int endZ = (int) Math.floor(feeder.endZ());
+                helper.assertTrue(isTravelInfrastructure(
+                                NeonCityGenerator.roadAt(endX, endZ)),
+                        "highway feeder endpoint is not drivable at " + endX + "," + endZ);
+            }
         }
         helper.assertTrue(infrastructure.contains(NeonCityGenerator.RoadClass.INTERDISTRICT_ROAD)
                         || infrastructure.contains(NeonCityGenerator.RoadClass.BRIDGE),
@@ -1160,9 +1186,11 @@ public final class ExampleGameTests {
         helper.assertTrue(infrastructure.contains(NeonCityGenerator.RoadClass.ELEVATED_RAIL),
                 "connections contain no elevated rail");
         helper.assertTrue(gradedSamples >= layout.edges().size()
-                        && clearanceSamples >= layout.edges().size(),
+                        && clearanceSamples >= layout.edges().size()
+                        && arterialFeeders >= layout.edges().size(),
                 "highway scan missed graded approaches or atlas setbacks: grades="
-                        + gradedSamples + ", setbacks=" + clearanceSamples);
+                        + gradedSamples + ", setbacks=" + clearanceSamples
+                        + ", arterialFeeders=" + arterialFeeders);
         helper.succeed();
     }
 
@@ -4889,6 +4917,32 @@ public final class ExampleGameTests {
                                 .flatMap(sample -> sample.roads().stream())
                                 .anyMatch(road -> road.width() >= 14.0),
                 "OSM verification samples did not retain usable lane-derived road widths");
+        long trafficAtlases = OsmRoadSample.samples().stream()
+                .filter(sample -> sample.roads().stream().anyMatch(road -> {
+                    OsmRoadSample.RoadKind kind = switch (road.kind()) {
+                        case "primary", "primary_link" -> OsmRoadSample.RoadKind.PRIMARY;
+                        case "secondary", "secondary_link", "tertiary", "tertiary_link" ->
+                                OsmRoadSample.RoadKind.SECONDARY;
+                        default -> OsmRoadSample.RoadKind.NONE;
+                    };
+                    return kind == OsmRoadSample.RoadKind.PRIMARY
+                            || kind == OsmRoadSample.RoadKind.SECONDARY;
+                }))
+                .count();
+        helper.assertTrue(trafficAtlases >= 50,
+                "too few OSM atlases expose primary/secondary traffic roads: "
+                        + trafficAtlases);
+        MegacityLayout.Node trafficDistrict = layout.node(District.G_CORP);
+        NeonCityGenerator.AtlasRoadPoint trafficRoad =
+                NeonCityGenerator.nearestAtlasTrafficRoad(
+                        trafficDistrict.x(), trafficDistrict.z(), 256.0).orElse(null);
+        helper.assertTrue(trafficRoad != null
+                        && trafficRoad.roadClass().supportsTraffic()
+                        && trafficRoad.width() >= 4.0
+                        && NeonCityGenerator.isAtlasTrafficRoadAt(
+                                (int) Math.floor(trafficRoad.x()),
+                                (int) Math.floor(trafficRoad.z())),
+                "reflected OSM traffic centerline did not map back onto its road ribbon");
 
         Set<String> auditedOpenParkTiles = ArnisPatchLibrary.auditedOpenParkTileIds();
         Map<District, Integer> auditedParkDistricts =

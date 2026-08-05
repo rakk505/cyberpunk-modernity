@@ -94,6 +94,10 @@ public final class NeonCityGenerator {
     static final double HIGHWAY_HALF_WIDTH = MegacityLayout.CONNECTION_HALF_WIDTH;
     static final double HIGHWAY_ARNIS_SETBACK = 10.0;
     static final double HIGHWAY_CLEARANCE_RADIUS = MegacityLayout.CONNECTION_CLEARANCE_RADIUS;
+    private static final int HIGHWAY_FEEDER_SEARCH_RADIUS = 176;
+    private static final int MAX_HIGHWAY_FEEDERS_PER_ENDPOINT = 3;
+    private static final double MIN_HIGHWAY_FEEDER_SPACING = 72.0;
+    private static final double HIGHWAY_FEEDER_START_HALF_WIDTH = 4.75;
     static final int BRIDGE_RISE = 8;
     static final int BRIDGE_GRADE_STEP = 6;
     private static final int ELEVATED_DECK_Y = CITY_GROUND_Y + 15;
@@ -122,6 +126,10 @@ public final class NeonCityGenerator {
     private static final Map<Long, Optional<ArnisPatchLibrary.Placement>>
             USABLE_ARNIS_PLACEMENTS = new ConcurrentHashMap<>();
     private static final Map<Long, BridgeProfile> BRIDGE_PROFILES = new ConcurrentHashMap<>();
+    private static final Map<HighwayFeederKey, List<HighwayFeeder>> HIGHWAY_FEEDERS =
+            new ConcurrentHashMap<>();
+    private static final Map<HighwayDistrictKey, List<HighwayFeeder>> DISTRICT_HIGHWAY_FEEDERS =
+            new ConcurrentHashMap<>();
     private static final Map<ParkSiteKey, ParkSitePlan> PARK_SITE_PLANS =
             new ConcurrentHashMap<>();
     private static final Map<UUID, TravelMotion> TRAVEL_MOTIONS = new HashMap<>();
@@ -160,6 +168,29 @@ public final class NeonCityGenerator {
         WILDERNESS
     }
 
+    public enum AtlasRoadClass {
+        NONE,
+        LOCAL,
+        SERVICE,
+        SECONDARY,
+        PRIMARY,
+        MOTORWAY;
+
+        public boolean supportsTraffic() {
+            return this == PRIMARY || this == SECONDARY;
+        }
+    }
+
+    /** Centerline geometry from the OSM atlas after its chunk reflection is applied. */
+    public record AtlasRoadPoint(
+            double x,
+            double z,
+            double tangentX,
+            double tangentZ,
+            double width,
+            AtlasRoadClass roadClass
+    ) {}
+
     /** Pure diagnostic sample shared by runtime, tests, and preview tooling. */
     public record UrbanSample(
             MegacityLayout.Location location,
@@ -197,6 +228,45 @@ public final class NeonCityGenerator {
             return rise[index];
         }
     }
+
+    private record HighwayFeeder(
+            MegacityLayout.Edge edge,
+            District district,
+            double mergeProgress,
+            double startX,
+            double startZ,
+            double control1X,
+            double control1Z,
+            double control2X,
+            double control2Z,
+            double endX,
+            double endZ,
+            double endHalfWidth,
+            OsmRoadSample.RoadKind targetRoad
+    ) {}
+
+    private record HighwayFeederKey(long layoutSeed, long edgeIdentity, boolean firstEndpoint) {}
+
+    private record HighwayDistrictKey(long layoutSeed, District district) {}
+
+    private record HighwayRoadTarget(
+            double x,
+            double z,
+            double tangentX,
+            double tangentZ,
+            double halfWidth,
+            OsmRoadSample.RoadKind road
+    ) {}
+
+    record HighwayFeederDebug(
+            District district,
+            double startX,
+            double startZ,
+            double endX,
+            double endZ,
+            double mergeProgress,
+            OsmRoadSample.RoadKind targetRoad
+    ) {}
 
     private record ParkSiteKey(long seed, int chunkX, int chunkZ) {}
 
@@ -275,6 +345,8 @@ public final class NeonCityGenerator {
         DIAGNOSTIC_ALLEY_PLANS.clear();
         USABLE_ARNIS_PLACEMENTS.clear();
         BRIDGE_PROFILES.clear();
+        HIGHWAY_FEEDERS.clear();
+        DISTRICT_HIGHWAY_FEEDERS.clear();
         PARK_SITE_PLANS.clear();
         TRAVEL_MOTIONS.clear();
         PENDING_LIGHT_REFRESHES.clear();
@@ -1445,7 +1517,9 @@ public final class NeonCityGenerator {
             }
             set(level, pos, x, deck, z, laneMark(x, z)
                     ? concrete(DyeColor.YELLOW) : concrete(DyeColor.BLACK));
-            if (sample.location().connectionDistance() > 10.5) {
+            if (sample.location().connectionDistance() > 10.5
+                    && !highwayFeederMouthAt(
+                            layout, sample.location().nearestConnection(), x, z)) {
                 set(level, pos, x, deck + 1, z, Blocks.IRON_BARS.defaultBlockState());
             }
         } else if (sample.roadClass() == RoadClass.BRIDGE) {
@@ -2028,6 +2102,13 @@ public final class NeonCityGenerator {
             }
             return RoadClass.INTERDISTRICT_ROAD;
         }
+        if (includeAtlasConnectors) {
+            double feederClearance = highwayFeederClearance(
+                    activeLayout, location, worldX, worldZ);
+            if (feederClearance <= 0.0) {
+                return RoadClass.INTERDISTRICT_ROAD;
+            }
+        }
         // The ground routes enter the civic plaza instead of terminating at its rim. The
         // elevated backbone crosses above this same hub in decorateInfrastructure.
         if (radius < 34.0) return RoadClass.CENTRAL_PLAZA;
@@ -2104,6 +2185,349 @@ public final class NeonCityGenerator {
         RoadClass culturalRoad = culturalRoad(district, local, location, hash);
         if (culturalRoad != null && culturalRoad != RoadClass.PARK) return culturalRoad;
         return null;
+    }
+
+    private static double highwayFeederClearance(
+            MegacityLayout activeLayout,
+            MegacityLayout.Location location,
+            int worldX,
+            int worldZ
+    ) {
+        double distance = Double.MAX_VALUE;
+        for (HighwayFeeder feeder : districtHighwayFeeders(
+                activeLayout, location.district())) {
+            distance = Math.min(distance, feederClearance(feeder, worldX, worldZ));
+            if (distance <= 0.0) return distance;
+        }
+        return distance;
+    }
+
+    private static List<HighwayFeeder> districtHighwayFeeders(
+            MegacityLayout activeLayout, District district) {
+        HighwayDistrictKey key = new HighwayDistrictKey(activeLayout.seed(), district);
+        return DISTRICT_HIGHWAY_FEEDERS.computeIfAbsent(key, ignored -> {
+            ArrayList<HighwayFeeder> feeders = new ArrayList<>();
+            for (MegacityLayout.Edge edge : activeLayout.edges()) {
+                if (edge.first().district() == district) {
+                    feeders.addAll(highwayFeeders(activeLayout, edge, true));
+                }
+                if (edge.second().district() == district) {
+                    feeders.addAll(highwayFeeders(activeLayout, edge, false));
+                }
+            }
+            return List.copyOf(feeders);
+        });
+    }
+
+    static boolean highwayFeederMouthAt(
+            MegacityLayout activeLayout, MegacityLayout.Edge edge, int worldX, int worldZ) {
+        for (boolean firstEndpoint : new boolean[] {true, false}) {
+            for (HighwayFeeder feeder : highwayFeeders(
+                    activeLayout, edge, firstEndpoint)) {
+                if (feederClearance(feeder, worldX, worldZ) <= 2.0) return true;
+            }
+        }
+        return false;
+    }
+
+    private static List<HighwayFeeder> highwayFeeders(
+            MegacityLayout activeLayout, MegacityLayout.Edge edge, boolean firstEndpoint) {
+        HighwayFeederKey key = new HighwayFeederKey(
+                activeLayout.seed(), edge.identity(), firstEndpoint);
+        return HIGHWAY_FEEDERS.computeIfAbsent(
+                key, ignored -> buildHighwayFeeders(activeLayout, edge, firstEndpoint));
+    }
+
+    static Optional<HighwayFeederDebug> highwayFeederDebug(
+            MegacityLayout activeLayout, MegacityLayout.Edge edge, boolean firstEndpoint) {
+        return highwayFeeders(activeLayout, edge, firstEndpoint).stream()
+                .findFirst()
+                .map(NeonCityGenerator::debugFeeder);
+    }
+
+    static List<HighwayFeederDebug> highwayFeederDebug(
+            MegacityLayout activeLayout, MegacityLayout.Edge edge) {
+        ArrayList<HighwayFeederDebug> result = new ArrayList<>();
+        for (HighwayFeeder feeder : highwayFeeders(activeLayout, edge, true)) {
+            result.add(debugFeeder(feeder));
+        }
+        for (HighwayFeeder feeder : highwayFeeders(activeLayout, edge, false)) {
+            result.add(debugFeeder(feeder));
+        }
+        return List.copyOf(result);
+    }
+
+    private static HighwayFeederDebug debugFeeder(HighwayFeeder feeder) {
+        return new HighwayFeederDebug(
+                feeder.district(), feeder.startX(), feeder.startZ(),
+                feeder.endX(), feeder.endZ(), feeder.mergeProgress(), feeder.targetRoad());
+    }
+
+    static Optional<HighwayFeederDebug> highwayFeederDebug(District district) {
+        return districtHighwayFeeders(layout, district).stream()
+                .findFirst()
+                .map(NeonCityGenerator::debugFeeder);
+    }
+
+    private static List<HighwayFeeder> buildHighwayFeeders(
+            MegacityLayout activeLayout, MegacityLayout.Edge edge, boolean firstEndpoint) {
+        District district = firstEndpoint
+                ? edge.first().district() : edge.second().district();
+        double[] endpointOffsets = {0.07, 0.13, 0.19, 0.25, 0.31, 0.37, 0.43};
+        ArrayList<HighwayFeeder> feeders = new ArrayList<>();
+        for (double endpointOffset : endpointOffsets) {
+            if (feeders.size() >= MAX_HIGHWAY_FEEDERS_PER_ENDPOINT) break;
+            double progress = firstEndpoint ? endpointOffset : 1.0 - endpointOffset;
+            MegacityLayout.CurvePoint merge = MegacityLayout.curvePoint(edge, progress);
+            int x = (int) Math.floor(merge.x());
+            int z = (int) Math.floor(merge.z());
+            MegacityLayout.Location location = activeLayout.locateDistrict(x, z);
+            if (location.district() == district
+                    && (location.zone() == MegacityLayout.Zone.NEST
+                            || location.zone() == MegacityLayout.Zone.BACKSTREETS)
+                    && highwayDeckY(activeLayout, edge, progress) == CITY_GROUND_Y
+                    && separatedMerge(feeders, merge)) {
+                findHighwayRoadTarget(activeLayout, edge, district, merge, feeders)
+                        .map(target -> createHighwayFeeder(
+                                edge, district, progress, merge, target))
+                        .ifPresent(feeders::add);
+            }
+        }
+        return List.copyOf(feeders);
+    }
+
+    private static boolean separatedMerge(
+            List<HighwayFeeder> feeders, MegacityLayout.CurvePoint merge) {
+        return feeders.stream().noneMatch(feeder -> Math.hypot(
+                feeder.startX() - merge.x(), feeder.startZ() - merge.z())
+                < MIN_HIGHWAY_FEEDER_SPACING);
+    }
+
+    private static Optional<HighwayRoadTarget> findHighwayRoadTarget(
+            MegacityLayout activeLayout,
+            MegacityLayout.Edge edge,
+            District district,
+            MegacityLayout.CurvePoint merge,
+            List<HighwayFeeder> existing
+    ) {
+        int minChunkX = Math.floorDiv(
+                (int) Math.floor(merge.x() - HIGHWAY_FEEDER_SEARCH_RADIUS), 16);
+        int maxChunkX = Math.floorDiv(
+                (int) Math.floor(merge.x() + HIGHWAY_FEEDER_SEARCH_RADIUS), 16);
+        int minChunkZ = Math.floorDiv(
+                (int) Math.floor(merge.z() - HIGHWAY_FEEDER_SEARCH_RADIUS), 16);
+        int maxChunkZ = Math.floorDiv(
+                (int) Math.floor(merge.z() + HIGHWAY_FEEDER_SEARCH_RADIUS), 16);
+        HighwayRoadTarget best = null;
+        double bestScore = Double.MAX_VALUE;
+        for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
+            for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
+                int chunkCenterX = (chunkX << 4) + 8;
+                int chunkCenterZ = (chunkZ << 4) + 8;
+                MegacityLayout.Location chunkLocation = activeLayout.locateDistrict(
+                        chunkCenterX, chunkCenterZ);
+                if (chunkLocation.district() != district
+                        || (chunkLocation.zone() != MegacityLayout.Zone.NEST
+                                && chunkLocation.zone() != MegacityLayout.Zone.BACKSTREETS)) {
+                    continue;
+                }
+                ArnisPatchLibrary.Placement placement = ArnisPatchLibrary.select(
+                        activeLayout, chunkX, chunkZ).orElse(null);
+                if (placement == null
+                        || placement.patch().district() != district
+                        || !placement.patch().placementZones().contains(chunkLocation.zone())) {
+                    continue;
+                }
+                OsmRoadSample.Sample sample = OsmRoadSample.forAtlas(
+                        district, chunkLocation.zone()).orElse(null);
+                if (sample == null) continue;
+                for (OsmRoadSample.CenterlinePoint point : sample.arterialCenterlines(
+                        placement.sourceTileX(), placement.sourceTileZ())) {
+                    HighwayRoadTarget candidate = transformRoadTarget(placement, point);
+                    double dx = candidate.x() - merge.x();
+                    double dz = candidate.z() - merge.z();
+                    double direct = Math.hypot(dx, dz);
+                    if (direct < HIGHWAY_CLEARANCE_RADIUS + 8.0
+                            || direct > HIGHWAY_FEEDER_SEARCH_RADIUS
+                            || existing.stream().anyMatch(feeder -> Math.hypot(
+                                    feeder.endX() - candidate.x(),
+                                    feeder.endZ() - candidate.z())
+                                    < MIN_HIGHWAY_FEEDER_SPACING)) {
+                        continue;
+                    }
+                    int targetX = (int) Math.floor(candidate.x());
+                    int targetZ = (int) Math.floor(candidate.z());
+                    MegacityLayout.Location targetLocation = activeLayout.locate(targetX, targetZ);
+                    if (targetLocation.district() != district
+                            || (targetLocation.zone() != MegacityLayout.Zone.NEST
+                                    && targetLocation.zone() != MegacityLayout.Zone.BACKSTREETS)
+                            || targetLocation.connectionDistance()
+                                    <= HIGHWAY_CLEARANCE_RADIUS + candidate.halfWidth() + 2.0) {
+                        continue;
+                    }
+                    double alignment = Math.abs(
+                            (dx * candidate.tangentX() + dz * candidate.tangentZ()) / direct);
+                    double classBonus = candidate.road() == OsmRoadSample.RoadKind.PRIMARY
+                            ? 22.0 : 10.0;
+                    double score = direct + (1.0 - alignment) * 24.0 - classBonus;
+                    if (score < bestScore) {
+                        best = candidate;
+                        bestScore = score;
+                    }
+                }
+            }
+        }
+        return Optional.ofNullable(best);
+    }
+
+    private static HighwayRoadTarget transformRoadTarget(
+            ArnisPatchLibrary.Placement placement,
+            OsmRoadSample.CenterlinePoint point
+    ) {
+        double sourceLocalX = Math.clamp(
+                point.x() - placement.sourceTileX() * 16.0, 0.25, 15.75);
+        double sourceLocalZ = Math.clamp(
+                point.z() - placement.sourceTileZ() * 16.0, 0.25, 15.75);
+        double targetX = (placement.chunkX() << 4)
+                + (placement.flipX() ? 16.0 - sourceLocalX : sourceLocalX);
+        double targetZ = (placement.chunkZ() << 4)
+                + (placement.flipZ() ? 16.0 - sourceLocalZ : sourceLocalZ);
+        return new HighwayRoadTarget(
+                targetX,
+                targetZ,
+                placement.flipX() ? -point.tangentX() : point.tangentX(),
+                placement.flipZ() ? -point.tangentZ() : point.tangentZ(),
+                Math.clamp(point.width() * 0.5, 3.5, 6.0),
+                point.kind());
+    }
+
+    private static HighwayFeeder createHighwayFeeder(
+            MegacityLayout.Edge edge,
+            District district,
+            double mergeProgress,
+            MegacityLayout.CurvePoint merge,
+            HighwayRoadTarget target
+    ) {
+        double targetDx = target.x() - merge.x();
+        double targetDz = target.z() - merge.z();
+        double directLength = Math.max(1.0, Math.hypot(targetDx, targetDz));
+
+        double tangentX = merge.tangentX();
+        double tangentZ = merge.tangentZ();
+        double tangentLength = Math.max(1.0, Math.hypot(tangentX, tangentZ));
+        tangentX /= tangentLength;
+        tangentZ /= tangentLength;
+        if (targetDx * tangentX + targetDz * tangentZ < 0.0) {
+            tangentX = -tangentX;
+            tangentZ = -tangentZ;
+        }
+        double targetTangentX = target.tangentX();
+        double targetTangentZ = target.tangentZ();
+        if (targetDx * targetTangentX + targetDz * targetTangentZ < 0.0) {
+            targetTangentX = -targetTangentX;
+            targetTangentZ = -targetTangentZ;
+        }
+        double firstHandle = Math.min(46.0, directLength * 0.32);
+        double secondHandle = Math.min(34.0, directLength * 0.26);
+        return new HighwayFeeder(
+                edge, district, mergeProgress,
+                merge.x(), merge.z(),
+                merge.x() + tangentX * firstHandle,
+                merge.z() + tangentZ * firstHandle,
+                target.x() - targetTangentX * secondHandle,
+                target.z() - targetTangentZ * secondHandle,
+                target.x(), target.z(), target.halfWidth(), target.road());
+    }
+
+    private static OsmRoadSample.RoadKind osmAtlasRoadAt(
+            MegacityLayout activeLayout,
+            MegacityLayout.Location location,
+            int worldX,
+            int worldZ
+    ) {
+        Optional<ArnisPatchLibrary.Placement> selected = ArnisPatchLibrary.select(
+                activeLayout, Math.floorDiv(worldX, 16), Math.floorDiv(worldZ, 16));
+        if (selected.isEmpty()) return OsmRoadSample.RoadKind.NONE;
+        ArnisPatchLibrary.Placement placement = selected.get();
+        if (placement.patch().district() != location.district()
+                || !placement.patch().placementZones().contains(location.zone())) {
+            return OsmRoadSample.RoadKind.NONE;
+        }
+        int localX = Math.floorMod(worldX, 16);
+        int localZ = Math.floorMod(worldZ, 16);
+        int sourceX = RoadDebugOverlayService.sourceCoordinate(
+                placement.sourceTileX(), localX, placement.flipX());
+        int sourceZ = RoadDebugOverlayService.sourceCoordinate(
+                placement.sourceTileZ(), localZ, placement.flipZ());
+        return OsmRoadSample.forAtlas(location.district(), location.zone())
+                .map(sample -> sample.roadAt(sourceX, sourceZ))
+                .orElse(OsmRoadSample.RoadKind.NONE);
+    }
+
+    private static double feederClearance(HighwayFeeder feeder, int worldX, int worldZ) {
+        double maximumHalfWidth = Math.max(
+                HIGHWAY_FEEDER_START_HALF_WIDTH + 1.5, feeder.endHalfWidth());
+        if (worldX + 0.5 < Math.min(
+                        Math.min(feeder.startX(), feeder.control1X()),
+                        Math.min(feeder.control2X(), feeder.endX())) - maximumHalfWidth
+                || worldX + 0.5 > Math.max(
+                        Math.max(feeder.startX(), feeder.control1X()),
+                        Math.max(feeder.control2X(), feeder.endX())) + maximumHalfWidth
+                || worldZ + 0.5 < Math.min(
+                        Math.min(feeder.startZ(), feeder.control1Z()),
+                        Math.min(feeder.control2Z(), feeder.endZ())) - maximumHalfWidth
+                || worldZ + 0.5 > Math.max(
+                        Math.max(feeder.startZ(), feeder.control1Z()),
+                        Math.max(feeder.control2Z(), feeder.endZ())) + maximumHalfWidth) {
+            return Double.MAX_VALUE;
+        }
+        double best = Double.MAX_VALUE;
+        double previousX = feeder.startX();
+        double previousZ = feeder.startZ();
+        for (int step = 1; step <= 28; step++) {
+            double t = step / 28.0;
+            double inverse = 1.0 - t;
+            double x = inverse * inverse * inverse * feeder.startX()
+                    + 3.0 * inverse * inverse * t * feeder.control1X()
+                    + 3.0 * inverse * t * t * feeder.control2X()
+                    + t * t * t * feeder.endX();
+            double z = inverse * inverse * inverse * feeder.startZ()
+                    + 3.0 * inverse * inverse * t * feeder.control1Z()
+                    + 3.0 * inverse * t * t * feeder.control2Z()
+                    + t * t * t * feeder.endZ();
+            double segmentProgress = (step - 0.5) / 28.0;
+            best = Math.min(best, distanceToSegment(
+                    worldX + 0.5, worldZ + 0.5, previousX, previousZ, x, z)
+                    - highwayFeederHalfWidth(feeder, segmentProgress));
+            previousX = x;
+            previousZ = z;
+        }
+        return best;
+    }
+
+    private static double highwayFeederHalfWidth(HighwayFeeder feeder, double progress) {
+        double t = Math.clamp(progress, 0.0, 1.0);
+        double smooth = t * t * (3.0 - 2.0 * t);
+        double width = HIGHWAY_FEEDER_START_HALF_WIDTH
+                + (feeder.endHalfWidth() - HIGHWAY_FEEDER_START_HALF_WIDTH) * smooth;
+        double mouthFlare = 1.5 * Math.max(0.0, 1.0 - t / 0.22);
+        return width + mouthFlare;
+    }
+
+    private static double distanceToSegment(
+            double pointX, double pointZ,
+            double firstX, double firstZ,
+            double secondX, double secondZ) {
+        double dx = secondX - firstX;
+        double dz = secondZ - firstZ;
+        double lengthSquared = dx * dx + dz * dz;
+        if (lengthSquared < 0.0001) return Math.hypot(pointX - firstX, pointZ - firstZ);
+        double progress = Math.clamp(
+                ((pointX - firstX) * dx + (pointZ - firstZ) * dz) / lengthSquared,
+                0.0, 1.0);
+        return Math.hypot(
+                pointX - (firstX + dx * progress),
+                pointZ - (firstZ + dz * progress));
     }
 
     private static ParkSitePlan parkSitePlan(
@@ -2493,6 +2917,85 @@ public final class NeonCityGenerator {
     public static long contentSeed() { return FIXED_CITY_SEED; }
     static MegacityLayout fixedLayout() { return MegacityLayout.create(FIXED_CITY_SEED); }
     static String generatorFingerprint() { return GENERATOR_FINGERPRINT; }
+    public static AtlasRoadClass atlasRoadAt(int worldX, int worldZ) {
+        MegacityLayout activeLayout = layoutInitialized ? layout : fixedLayout();
+        MegacityLayout.Location location = activeLayout.locate(worldX, worldZ);
+        return publicRoadClass(osmAtlasRoadAt(
+                activeLayout, location, worldX, worldZ));
+    }
+
+    public static boolean isAtlasTrafficRoadAt(int worldX, int worldZ) {
+        return atlasRoadAt(worldX, worldZ).supportsTraffic();
+    }
+
+    /** Finds the nearest reflected primary/secondary OSM centerline around a world position. */
+    public static Optional<AtlasRoadPoint> nearestAtlasTrafficRoad(
+            double worldX, double worldZ, double radius) {
+        if (radius < 0.0) return Optional.empty();
+        MegacityLayout activeLayout = layoutInitialized ? layout : fixedLayout();
+        int minChunkX = Math.floorDiv((int) Math.floor(worldX - radius), 16);
+        int maxChunkX = Math.floorDiv((int) Math.floor(worldX + radius), 16);
+        int minChunkZ = Math.floorDiv((int) Math.floor(worldZ - radius), 16);
+        int maxChunkZ = Math.floorDiv((int) Math.floor(worldZ + radius), 16);
+        AtlasRoadPoint nearest = null;
+        double nearestDistanceSquared = radius * radius;
+        for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
+            for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
+                ArnisPatchLibrary.Placement placement = ArnisPatchLibrary.select(
+                        activeLayout, chunkX, chunkZ).orElse(null);
+                if (placement == null) continue;
+                MegacityLayout.Zone zone = placement.patch().placementZones().stream()
+                        .findFirst().orElse(null);
+                if (zone == null) continue;
+                OsmRoadSample.Sample sample = OsmRoadSample.forAtlas(
+                        placement.patch().district(), zone).orElse(null);
+                if (sample == null) continue;
+                for (OsmRoadSample.CenterlinePoint point : sample.arterialCenterlines(
+                        placement.sourceTileX(), placement.sourceTileZ())) {
+                    AtlasRoadPoint candidate = transformAtlasRoadPoint(placement, point);
+                    double dx = candidate.x() - worldX;
+                    double dz = candidate.z() - worldZ;
+                    double distanceSquared = dx * dx + dz * dz;
+                    if (distanceSquared <= nearestDistanceSquared) {
+                        nearest = candidate;
+                        nearestDistanceSquared = distanceSquared;
+                    }
+                }
+            }
+        }
+        return Optional.ofNullable(nearest);
+    }
+
+    private static AtlasRoadPoint transformAtlasRoadPoint(
+            ArnisPatchLibrary.Placement placement,
+            OsmRoadSample.CenterlinePoint point
+    ) {
+        double sourceLocalX = Math.clamp(
+                point.x() - placement.sourceTileX() * 16.0, 0.25, 15.75);
+        double sourceLocalZ = Math.clamp(
+                point.z() - placement.sourceTileZ() * 16.0, 0.25, 15.75);
+        return new AtlasRoadPoint(
+                (placement.chunkX() << 4)
+                        + (placement.flipX() ? 16.0 - sourceLocalX : sourceLocalX),
+                (placement.chunkZ() << 4)
+                        + (placement.flipZ() ? 16.0 - sourceLocalZ : sourceLocalZ),
+                placement.flipX() ? -point.tangentX() : point.tangentX(),
+                placement.flipZ() ? -point.tangentZ() : point.tangentZ(),
+                point.width(),
+                publicRoadClass(point.kind()));
+    }
+
+    private static AtlasRoadClass publicRoadClass(OsmRoadSample.RoadKind road) {
+        return switch (road) {
+            case NONE -> AtlasRoadClass.NONE;
+            case LOCAL -> AtlasRoadClass.LOCAL;
+            case SERVICE -> AtlasRoadClass.SERVICE;
+            case SECONDARY -> AtlasRoadClass.SECONDARY;
+            case PRIMARY -> AtlasRoadClass.PRIMARY;
+            case MOTORWAY -> AtlasRoadClass.MOTORWAY;
+        };
+    }
+
     public static District districtAt(int worldX, int worldZ) {
         return UCorpPortGeneration.plan(layout).isManagedAt(worldX, worldZ)
                 ? District.U_CORP

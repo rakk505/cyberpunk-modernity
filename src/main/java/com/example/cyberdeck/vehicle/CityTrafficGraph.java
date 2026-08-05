@@ -44,7 +44,12 @@ final class CityTrafficGraph {
     private CityTrafficGraph() {
     }
 
-    record NodeKey(int x, int z, int headingBin) {
+    enum Network {
+        HIGHWAY,
+        ATLAS
+    }
+
+    record NodeKey(int x, int z, int headingBin, Network network) {
     }
 
     record LaneNode(
@@ -52,20 +57,25 @@ final class CityTrafficGraph {
             Vec3 position,
             float yaw,
             float cruisingThrottle,
-            NeonCityGenerator.RoadClass roadClass) {
+            NeonCityGenerator.RoadClass roadClass,
+            Network network) {
     }
 
     record LaneArc(LaneNode target, int score, float turnDegrees) {
     }
 
     static LaneNode enter(ServerLevel level, Vec3 position, float preferredYaw) {
+        RoadProfile origin = roadProfile(
+                Mth.floor(position.x), Mth.floor(position.z));
+        if (origin.network() == null) return null;
         LaneNode best = null;
         int bestScore = Integer.MIN_VALUE;
         for (int step = 0; step < HEADING_BINS; step++) {
             float yaw = binYaw(step);
             float difference = Math.abs(Mth.wrapDegrees(yaw - preferredYaw));
             if (difference > 100.0F) continue;
-            LaneNode candidate = compileNode(level, position.x, position.z, yaw);
+            LaneNode candidate = compileNode(
+                    level, position.x, position.z, yaw, origin.network());
             if (candidate == null) continue;
             int score = roadScore(level, candidate.position(), candidate.yaw(), 28)
                     - Math.round(difference * 0.08F);
@@ -104,13 +114,15 @@ final class CityTrafficGraph {
         BlockPos loaded = new BlockPos(Mth.floor(laneX), sample.groundY() + 1, Mth.floor(laneZ));
         if (!level.hasChunkAt(loaded)) return null;
         float yaw = (float) Math.toDegrees(Math.atan2(-forwardX, forwardZ));
-        NodeKey key = new NodeKey(loaded.getX(), loaded.getZ(), headingBin(yaw));
+        NodeKey key = new NodeKey(
+                loaded.getX(), loaded.getZ(), headingBin(yaw), Network.HIGHWAY);
         return new LaneNode(
                 key,
                 new Vec3(laneX, sample.groundY() + 1.0, laneZ),
                 yaw,
                 (float) Mth.lerp(taper, 0.30, 0.62),
-                sample.roadClass());
+                sample.roadClass(),
+                Network.HIGHWAY);
     }
 
     static List<LaneArc> successors(ServerLevel level, LaneNode node) {
@@ -124,11 +136,12 @@ final class CityTrafficGraph {
             double radians = Math.toRadians(yaw);
             double rawX = node.position().x - Math.sin(radians) * NODE_SPACING;
             double rawZ = node.position().z + Math.cos(radians) * NODE_SPACING;
-            LaneNode target = compileNode(level, rawX, rawZ, yaw);
+            LaneNode target = compileNode(level, rawX, rawZ, yaw, node.network());
             if (target == null || target.key().equals(node.key()) || !added.add(target.key())) {
                 continue;
             }
-            int connecting = connectingRoadScore(level, node.position(), target.position());
+            int connecting = connectingRoadScore(
+                    level, node.position(), target.position(), node.network());
             if (connecting < 3) continue;
             int score = connecting * 12
                     + roadScore(level, target.position(), target.yaw(), 24)
@@ -188,7 +201,7 @@ final class CityTrafficGraph {
         double targetDistance = horizontalDistance(target.position(), destination);
         score += Mth.floor((currentDistance - targetDistance) * 1.8);
 
-        boolean highway = NeonCityGenerator.isHighwayRoadClass(target.roadClass());
+        boolean highway = target.network() == Network.HIGHWAY;
         if (highwayTrip) {
             score += highway ? 52 : -70;
         } else if (currentDistance > 280.0 && highway) {
@@ -202,9 +215,9 @@ final class CityTrafficGraph {
     }
 
     private static LaneNode compileNode(
-            ServerLevel level, double rawX, double rawZ, float yaw) {
-        NeonCityGenerator.UrbanSample raw = sample(rawX, rawZ);
-        if (!isNavigableRoad(raw.roadClass())) return null;
+            ServerLevel level, double rawX, double rawZ, float yaw, Network network) {
+        RoadProfile raw = roadProfile(Mth.floor(rawX), Mth.floor(rawZ));
+        if (raw.network() != network) return null;
 
         double radians = Math.toRadians(yaw);
         double rightX = Math.cos(radians);
@@ -212,11 +225,13 @@ final class CityTrafficGraph {
         int minimum = 0;
         int maximum = 0;
         for (int offset = -1; offset >= -HALF_ROAD_SCAN; offset--) {
-            if (!sameRoadDeck(raw, rawX + rightX * offset, rawZ + rightZ * offset)) break;
+            if (!sameRoadDeck(
+                    raw, rawX + rightX * offset, rawZ + rightZ * offset, network)) break;
             minimum = offset;
         }
         for (int offset = 1; offset <= HALF_ROAD_SCAN; offset++) {
-            if (!sameRoadDeck(raw, rawX + rightX * offset, rawZ + rightZ * offset)) break;
+            if (!sameRoadDeck(
+                    raw, rawX + rightX * offset, rawZ + rightZ * offset, network)) break;
             maximum = offset;
         }
         double width = maximum - minimum;
@@ -224,13 +239,14 @@ final class CityTrafficGraph {
                 + Mth.clamp(width * 0.20, 0.7, 2.4);
         double laneX = rawX + rightX * laneOffset;
         double laneZ = rawZ + rightZ * laneOffset;
-        NeonCityGenerator.UrbanSample lane = sample(laneX, laneZ);
-        if (!isNavigableRoad(lane.roadClass())) return null;
+        RoadProfile lane = roadProfile(Mth.floor(laneX), Mth.floor(laneZ));
+        if (lane.network() != network) return null;
 
         NodeKey key = new NodeKey(
                 Mth.floor(laneX + 0.5),
                 Mth.floor(laneZ + 0.5),
-                headingBin(yaw));
+                headingBin(yaw),
+                network);
         LaneNode cached = NODES.get(key);
         if (cached != null) return cached;
         BlockPos loaded = new BlockPos(key.x(), lane.groundY() + 1, key.z());
@@ -239,20 +255,22 @@ final class CityTrafficGraph {
                 key,
                 new Vec3(laneX, lane.groundY() + 1.0, laneZ),
                 binYaw(key.headingBin()),
-                cruisingThrottle(lane.roadClass()),
-                lane.roadClass());
+                cruisingThrottle(lane),
+                lane.roadClass(),
+                network);
         NODES.put(key, node);
         return node;
     }
 
-    private static int connectingRoadScore(ServerLevel level, Vec3 from, Vec3 to) {
+    private static int connectingRoadScore(
+            ServerLevel level, Vec3 from, Vec3 to, Network network) {
         int score = 0;
         for (int step = 1; step <= 5; step++) {
             double progress = step / 5.0;
             int x = Mth.floor(Mth.lerp(progress, from.x, to.x));
             int z = Mth.floor(Mth.lerp(progress, from.z, to.z));
-            NeonCityGenerator.UrbanSample sample = NeonCityGenerator.sample(x, z);
-            if (!isNavigableRoad(sample.roadClass())
+            RoadProfile sample = roadProfile(x, z);
+            if (sample.network() != network
                     || !level.hasChunkAt(new BlockPos(x, sample.groundY(), z))) {
                 return 0;
             }
@@ -266,13 +284,15 @@ final class CityTrafficGraph {
         double radians = Math.toRadians(yaw);
         double forwardX = -Math.sin(radians);
         double forwardZ = Math.cos(radians);
-        int groundY = sample(origin.x, origin.z).groundY();
+        RoadProfile originRoad = roadProfile(Mth.floor(origin.x), Mth.floor(origin.z));
+        if (originRoad.network() == null) return 0;
+        int groundY = originRoad.groundY();
         int score = 0;
         for (int step = 4; step <= distance; step += 4) {
             int x = Mth.floor(origin.x + forwardX * step);
             int z = Mth.floor(origin.z + forwardZ * step);
-            NeonCityGenerator.UrbanSample sample = NeonCityGenerator.sample(x, z);
-            if (!isNavigableRoad(sample.roadClass())
+            RoadProfile sample = roadProfile(x, z);
+            if (sample.network() != originRoad.network()
                     || Math.abs(sample.groundY() - groundY) > 2
                     || !level.hasChunkAt(new BlockPos(x, sample.groundY(), z))) {
                 break;
@@ -283,9 +303,9 @@ final class CityTrafficGraph {
     }
 
     private static boolean sameRoadDeck(
-            NeonCityGenerator.UrbanSample origin, double x, double z) {
-        NeonCityGenerator.UrbanSample sample = sample(x, z);
-        return isNavigableRoad(sample.roadClass())
+            RoadProfile origin, double x, double z, Network network) {
+        RoadProfile sample = roadProfile(Mth.floor(x), Mth.floor(z));
+        return sample.network() == network
                 && Math.abs(sample.groundY() - origin.groundY()) <= 2;
     }
 
@@ -293,12 +313,44 @@ final class CityTrafficGraph {
         return RoadsideVehicleSpawns.isMovingTrafficRoad(roadClass);
     }
 
+    static boolean isNavigableAt(int x, int z) {
+        return roadProfile(x, z).network() != null;
+    }
+
+    static boolean isAtlasTrafficAt(int x, int z) {
+        return roadProfile(x, z).network() == Network.ATLAS;
+    }
+
     private static NeonCityGenerator.UrbanSample sample(double x, double z) {
         return NeonCityGenerator.sample(Mth.floor(x), Mth.floor(z));
     }
 
-    private static float cruisingThrottle(NeonCityGenerator.RoadClass roadClass) {
-        return switch (roadClass) {
+    private record RoadProfile(
+            NeonCityGenerator.RoadClass roadClass,
+            NeonCityGenerator.AtlasRoadClass atlasRoadClass,
+            int groundY,
+            Network network
+    ) {}
+
+    private static RoadProfile roadProfile(int x, int z) {
+        NeonCityGenerator.UrbanSample sample = NeonCityGenerator.sample(x, z);
+        if (NeonCityGenerator.isHighwayRoadClass(sample.roadClass())) {
+            return new RoadProfile(
+                    sample.roadClass(), NeonCityGenerator.AtlasRoadClass.NONE,
+                    sample.groundY(), Network.HIGHWAY);
+        }
+        NeonCityGenerator.AtlasRoadClass atlas = NeonCityGenerator.atlasRoadAt(x, z);
+        return new RoadProfile(
+                sample.roadClass(), atlas, sample.groundY(),
+                atlas.supportsTraffic() ? Network.ATLAS : null);
+    }
+
+    private static float cruisingThrottle(RoadProfile road) {
+        if (road.network() == Network.ATLAS) {
+            return road.atlasRoadClass() == NeonCityGenerator.AtlasRoadClass.PRIMARY
+                    ? 0.54F : 0.46F;
+        }
+        return switch (road.roadClass()) {
             case INTERDISTRICT_ROAD, BRIDGE -> 0.70F;
             case DISTRICT_BOULEVARD -> 0.60F;
             default -> 0.48F;

@@ -268,7 +268,14 @@ public final class NeonCityCommand {
                 .then(Commands.literal("off")
                         .executes(context -> disableRoadOverlay(context.getSource())))
                 .then(Commands.literal("status")
-                        .executes(context -> roadOverlayStatus(context.getSource())));
+                        .executes(context -> roadOverlayStatus(context.getSource())))
+                .then(Commands.literal("junction")
+                        .then(Commands.argument("district", StringArgumentType.greedyString())
+                                .suggests((context, builder) ->
+                                        SharedSuggestionProvider.suggest(DISTRICT_CODES, builder))
+                                .executes(context -> roadJunction(
+                                        context.getSource(), StringArgumentType.getString(
+                                                context, "district")))));
     }
 
     private static LiteralArgumentBuilder<CommandSourceStack> osmSampleCommands() {
@@ -452,6 +459,27 @@ public final class NeonCityCommand {
                 ? "Road overlay enabled with radius " + radius + "."
                 : "Road overlay disabled. Use /neoncity roads on [radius]."), false);
         return radius;
+    }
+
+    private static int roadJunction(CommandSourceStack source, String code) {
+        Optional<District> district = parseDistrict(code);
+        if (district.isEmpty()) {
+            source.sendFailure(Component.literal("Unknown district code."));
+            return 0;
+        }
+        Optional<NeonCityGenerator.HighwayFeederDebug> feeder =
+                NeonCityGenerator.highwayFeederDebug(district.get());
+        if (feeder.isEmpty()) {
+            source.sendFailure(Component.literal(
+                    "No arterial highway feeder is available for " + district.get().label() + "."));
+            return 0;
+        }
+        NeonCityGenerator.HighwayFeederDebug found = feeder.get();
+        source.sendSuccess(() -> Component.literal(String.format(
+                "%s arterial junction: highway=(%.1f,%.1f), arterial=(%.1f,%.1f), class=%s.",
+                district.get().label(), found.startX(), found.startZ(),
+                found.endX(), found.endZ(), found.targetRoad())), false);
+        return 1;
     }
 
     private static int status(CommandSourceStack source) {

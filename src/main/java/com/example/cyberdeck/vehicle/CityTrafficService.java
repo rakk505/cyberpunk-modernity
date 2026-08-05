@@ -88,8 +88,8 @@ public final class CityTrafficService {
         TrafficVehicle traffic = VehicleApi.findTraffic(vehicle).orElse(null);
         if (traffic == null || !vehicle.getPassengers().isEmpty()
                 || traffic.controllingDriver() != null
-                || !RoadsideVehicleSpawns.isMovingTrafficRoad(NeonCityGenerator.roadAt(
-                        vehicle.getBlockX(), vehicle.getBlockZ()))) return false;
+                || !CityTrafficGraph.isNavigableAt(
+                        vehicle.getBlockX(), vehicle.getBlockZ())) return false;
 
         CityNpc driver = CityNpcEntities.CITY_NPC.get().create(
                 level, EntitySpawnReason.NATURAL);
@@ -140,6 +140,16 @@ public final class CityTrafficService {
         return hasTrafficDriver(vehicle) && (route == null || !route.retirementPending);
     }
 
+    public static boolean isHighwayTraffic(Entity vehicle) {
+        RouteState route = vehicle == null ? null : ROUTES.get(vehicle.getUUID());
+        return route != null && route.highwayTrip;
+    }
+
+    public static boolean isAtlasTraffic(Entity vehicle) {
+        RouteState route = vehicle == null ? null : ROUTES.get(vehicle.getUUID());
+        return route != null && !route.highwayTrip;
+    }
+
     public static int plannedNodeCount(Entity vehicle) {
         RouteState route = vehicle == null ? null : ROUTES.get(vehicle.getUUID());
         return route == null ? 0 : route.route.size();
@@ -149,7 +159,14 @@ public final class CityTrafficService {
         RouteState route = vehicle == null ? null : ROUTES.get(vehicle.getUUID());
         return route != null && route.highwayTrip && !route.route.isEmpty()
                 && route.route.stream().allMatch(node ->
-                        NeonCityGenerator.isHighwayRoadClass(node.roadClass()));
+                        node.network() == CityTrafficGraph.Network.HIGHWAY);
+    }
+
+    public static boolean plannedRouteUsesAtlas(Entity vehicle) {
+        RouteState route = vehicle == null ? null : ROUTES.get(vehicle.getUUID());
+        return route != null && !route.highwayTrip && !route.route.isEmpty()
+                && route.route.stream().allMatch(node ->
+                        node.network() == CityTrafficGraph.Network.ATLAS);
     }
 
     public static boolean plannedRouteIncludesHighwayJunction(Entity vehicle) {
@@ -209,15 +226,6 @@ public final class CityTrafficService {
         ROUTES.remove(vehicle.getUUID());
     }
 
-    /** Converts legacy local-road traffic into an unoccupied parked vehicle. */
-    private static void convertToParked(Entity vehicle, TrafficVehicle traffic) {
-        traffic.setTrafficInput(0.0F, 0.0F, true);
-        for (Entity passenger : java.util.List.copyOf(vehicle.getPassengers())) {
-            if (isTrafficDriver(passenger)) passenger.discard();
-        }
-        vehicle.getPersistentData().remove(TRAFFIC_VEHICLE_KEY);
-    }
-
     @SubscribeEvent
     public static void onLevelTick(LevelTickEvent.Post event) {
         if (!(event.getLevel() instanceof ServerLevel level)
@@ -253,15 +261,6 @@ public final class CityTrafficService {
                 continue;
             }
             RouteState route = entry.getValue();
-            if (!route.highwayTrip) {
-                if (route.route.isEmpty() && initializeRoute(level, vehicle, route)) {
-                    route.retirementPending = false;
-                } else {
-                    convertToParked(vehicle, traffic);
-                    routes.remove();
-                    continue;
-                }
-            }
             if (route.retirementPending) {
                 traffic.setTrafficInput(0.0F, 0.0F, true);
                 if (canRetireOutOfSight(level, vehicle)) {
@@ -426,18 +425,53 @@ public final class CityTrafficService {
 
     private static boolean initializeRoute(
             ServerLevel level, Entity vehicle, RouteState route) {
-        if (!RoadsideVehicleSpawns.isMovingTrafficRoad(NeonCityGenerator.roadAt(
-                vehicle.getBlockX(), vehicle.getBlockZ()))) return false;
-        route.highwayTrip = true;
+        int x = vehicle.getBlockX();
+        int z = vehicle.getBlockZ();
+        boolean highway = RoadsideVehicleSpawns.isMovingTrafficRoad(
+                NeonCityGenerator.roadAt(x, z));
+        boolean atlas = CityTrafficGraph.isAtlasTrafficAt(x, z);
+        if (!highway && !atlas) return false;
+        route.highwayTrip = highway;
         if (route.destination == null) chooseDestination(vehicle, route);
         route.route.clear();
-        if (!initializeHighwayRoute(level, vehicle, route)) return false;
-        fillHighwayRoute(level, route);
+        if (highway) {
+            if (!initializeHighwayRoute(level, vehicle, route)) return false;
+            fillHighwayRoute(level, route);
+        } else {
+            route.highwayEdge = null;
+            route.previousHighwayEdge = null;
+            CityTrafficGraph.LaneNode entry = CityTrafficGraph.enter(
+                    level, vehicle.position(), vehicle.getYRot());
+            if (entry == null || entry.network() != CityTrafficGraph.Network.ATLAS) return false;
+            route.route.addLast(entry);
+            fillAtlasRoute(level, route);
+        }
         return !route.route.isEmpty();
     }
 
     private static void fillRoute(ServerLevel level, RouteState route) {
-        fillHighwayRoute(level, route);
+        if (route.highwayTrip) {
+            fillHighwayRoute(level, route);
+        } else {
+            fillAtlasRoute(level, route);
+        }
+    }
+
+    private static void fillAtlasRoute(ServerLevel level, RouteState route) {
+        while (route.route.size() < ROUTE_LOOKAHEAD_NODES && !route.route.isEmpty()) {
+            CityTrafficGraph.LaneNode tail = route.route.peekLast();
+            CityTrafficGraph.NodeKey previous = route.route.size() > 1
+                    ? secondLast(route.route).key() : route.previous;
+            Set<CityTrafficGraph.NodeKey> occupied = new HashSet<>(route.recent);
+            route.route.forEach(node -> occupied.add(node.key()));
+            CityTrafficGraph.LaneNode next = CityTrafficGraph.chooseSuccessor(
+                    level, tail, previous, occupied, route.destination, false, route.random);
+            if (next == null || occupied.contains(next.key())
+                    || next.network() != CityTrafficGraph.Network.ATLAS) {
+                return;
+            }
+            route.route.addLast(next);
+        }
     }
 
     private static boolean initializeHighwayRoute(
@@ -594,25 +628,23 @@ public final class CityTrafficService {
             double progress = step / 5.0;
             int x = Mth.floor(Mth.lerp(progress, vehicle.getX(), target.position().x));
             int z = Mth.floor(Mth.lerp(progress, vehicle.getZ(), target.position().z));
-            NeonCityGenerator.RoadClass roadClass =
-                    NeonCityGenerator.sample(x, z).roadClass();
+            NeonCityGenerator.RoadClass roadClass = NeonCityGenerator.roadAt(x, z);
             if (highwayTrip
                     ? !NeonCityGenerator.isHighwayRoadClass(roadClass)
-                    : !nearNavigableRoad(x, z, roadClass)) {
+                    : !nearNavigableRoad(x, z)) {
                 return false;
             }
         }
         return true;
     }
 
-    private static boolean nearNavigableRoad(
-            int x, int z, NeonCityGenerator.RoadClass center) {
-        if (CityTrafficGraph.isNavigableRoad(center)) return true;
+    private static boolean nearNavigableRoad(int x, int z) {
+        if (CityTrafficGraph.isAtlasTrafficAt(x, z)) return true;
         for (int offset = 1; offset <= 2; offset++) {
-            if (CityTrafficGraph.isNavigableRoad(NeonCityGenerator.roadAt(x + offset, z))
-                    || CityTrafficGraph.isNavigableRoad(NeonCityGenerator.roadAt(x - offset, z))
-                    || CityTrafficGraph.isNavigableRoad(NeonCityGenerator.roadAt(x, z + offset))
-                    || CityTrafficGraph.isNavigableRoad(NeonCityGenerator.roadAt(x, z - offset))) {
+            if (CityTrafficGraph.isAtlasTrafficAt(x + offset, z)
+                    || CityTrafficGraph.isAtlasTrafficAt(x - offset, z)
+                    || CityTrafficGraph.isAtlasTrafficAt(x, z + offset)
+                    || CityTrafficGraph.isAtlasTrafficAt(x, z - offset)) {
                 return true;
             }
         }
