@@ -3,17 +3,73 @@
     {
       "id": "neon_skyline",
       "file": "neon_skyline.mp4",
-      "duration_seconds": 30
+      "duration_seconds": 30,
+      "campaigns": ["general"],
+      "audio": true
     },
     {
       "id": "chrome_cola",
       "file": "chrome_cola.mp4",
-      "duration_seconds": 36
+      "duration_seconds": 36,
+      "campaigns": ["general"],
+      "audio": true
     },
     {
       "id": "orbital_air",
       "file": "orbital_air.mp4",
-      "duration_seconds": 42
+      "duration_seconds": 42,
+      "campaigns": ["general"],
+      "audio": true
+    },
+    {
+      "id": "misanthropic",
+      "file": "misanthropic.mov",
+      "duration_seconds": 30,
+      "fps": 4,
+      "campaigns": ["general"],
+      "audio": false,
+      "loop": true,
+      "pad_color": "black",
+      "source_sha256": "ecef312c4f125e5c5e08a36579690dbf853a66841c274c24e8e20b7d1ab2cd9e"
+    },
+    {
+      "id": "closed_ai",
+      "file": "closed_ai.mov",
+      "duration_seconds": 30,
+      "fps": 4,
+      "campaigns": ["closed_ai"],
+      "audio": false,
+      "loop": true,
+      "pad_color": "white",
+      "source_sha256": "0570dd81195c5cefd43e93114b87e5075defc9e6e0cb2c2edc52a4bb6f1a1799"
+    },
+    {
+      "id": "meta_logo",
+      "generator": "meta_ads_v1",
+      "duration_seconds": 30,
+      "campaigns": ["general", "meta"],
+      "audio": false
+    },
+    {
+      "id": "meta_glasses",
+      "generator": "meta_ads_v1",
+      "duration_seconds": 30,
+      "campaigns": ["general", "meta"],
+      "audio": false
+    },
+    {
+      "id": "meta_ai",
+      "generator": "meta_ads_v1",
+      "duration_seconds": 45,
+      "campaigns": ["general", "meta"],
+      "audio": false
+    },
+    {
+      "id": "meta_future",
+      "generator": "meta_ads_v1",
+      "duration_seconds": 45,
+      "campaigns": ["general", "meta"],
+      "audio": false
     }
   ]
 }

@@ -1,56 +1,114 @@
 {
-  "format": 1,
+  "format": 3,
   "surface": {
     "width": 8,
     "height": 4
   },
-  "total_frames": 864,
-  "total_sheets": 54,
+  "total_frames": 2304,
+  "total_sheets": 146,
   "clips": [
     {
       "id": "neon_skyline",
+      "campaigns": ["general"],
+      "audio": true,
       "duration_ticks": 600,
       "fps": 8,
       "frame_count": 240,
       "sheet_count": 15,
-      "sheet_grid": [
-        4,
-        4
-      ],
-      "frame_size": [
-        160,
-        90
-      ]
+      "sheet_grid": [4, 4],
+      "frame_size": [160, 90]
     },
     {
       "id": "chrome_cola",
+      "campaigns": ["general"],
+      "audio": true,
       "duration_ticks": 720,
       "fps": 8,
       "frame_count": 288,
       "sheet_count": 18,
-      "sheet_grid": [
-        4,
-        4
-      ],
-      "frame_size": [
-        160,
-        90
-      ]
+      "sheet_grid": [4, 4],
+      "frame_size": [160, 90]
     },
     {
       "id": "orbital_air",
+      "campaigns": ["general"],
+      "audio": true,
       "duration_ticks": 840,
       "fps": 8,
       "frame_count": 336,
       "sheet_count": 21,
-      "sheet_grid": [
-        4,
-        4
-      ],
-      "frame_size": [
-        160,
-        90
-      ]
+      "sheet_grid": [4, 4],
+      "frame_size": [160, 90]
+    },
+    {
+      "id": "misanthropic",
+      "campaigns": ["general"],
+      "audio": false,
+      "duration_ticks": 600,
+      "fps": 4,
+      "frame_count": 120,
+      "sheet_count": 8,
+      "sheet_grid": [4, 4],
+      "frame_size": [160, 90]
+    },
+    {
+      "id": "closed_ai",
+      "campaigns": ["closed_ai"],
+      "audio": false,
+      "duration_ticks": 600,
+      "fps": 4,
+      "frame_count": 120,
+      "sheet_count": 8,
+      "sheet_grid": [4, 4],
+      "frame_size": [160, 90]
+    },
+    {
+      "id": "meta_logo",
+      "campaigns": ["general", "meta"],
+      "audio": false,
+      "duration_ticks": 600,
+      "fps": 8,
+      "frame_count": 240,
+      "sheet_count": 15,
+      "sheet_grid": [4, 4],
+      "frame_size": [160, 90],
+      "generator": "meta_ads_v1"
+    },
+    {
+      "id": "meta_glasses",
+      "campaigns": ["general", "meta"],
+      "audio": false,
+      "duration_ticks": 600,
+      "fps": 8,
+      "frame_count": 240,
+      "sheet_count": 15,
+      "sheet_grid": [4, 4],
+      "frame_size": [160, 90],
+      "generator": "meta_ads_v1"
+    },
+    {
+      "id": "meta_ai",
+      "campaigns": ["general", "meta"],
+      "audio": false,
+      "duration_ticks": 900,
+      "fps": 8,
+      "frame_count": 360,
+      "sheet_count": 23,
+      "sheet_grid": [4, 4],
+      "frame_size": [160, 90],
+      "generator": "meta_ads_v1"
+    },
+    {
+      "id": "meta_future",
+      "campaigns": ["general", "meta"],
+      "audio": false,
+      "duration_ticks": 900,
+      "fps": 8,
+      "frame_count": 360,
+      "sheet_count": 23,
+      "sheet_grid": [4, 4],
+      "frame_size": [160, 90],
+      "generator": "meta_ads_v1"
     }
   ]
 }

@@ -11,6 +11,7 @@ import org.jspecify.annotations.Nullable;
 /** Render-thread snapshot for one large advertising display. */
 public final class AdDisplayRenderState extends BlockEntityRenderState {
     public boolean renderable = true;
+    public boolean generatedPlacement;
     public Direction facing = Direction.NORTH;
     public @Nullable FreestandingAdType freestandingType;
     public Direction.Axis longAxis = Direction.Axis.X;

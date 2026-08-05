@@ -64,6 +64,7 @@ public final class AdDisplayRenderer
         }
         state.width = blockEntity.displayWidth();
         state.height = blockEntity.displayHeight();
+        state.generatedPlacement = blockEntity.generatedPlacement();
 
         if (blockEntity.usesLogoAds()) {
             state.texture = blockEntity.currentLogo().texture();
@@ -107,7 +108,7 @@ public final class AdDisplayRenderer
 
         submitSurface(state, poseStack, submitNodeCollector, facing,
                 originX, originZ, state.width, state.height,
-                VIDEO_DEPTH - FRAME_DEPTH, false);
+                VIDEO_DEPTH - FRAME_DEPTH, state.generatedPlacement);
     }
 
     private static void submitFreestanding(
@@ -243,7 +244,7 @@ public final class AdDisplayRenderer
 
     @Override
     public int getViewDistance() {
-        return 128;
+        return 256;
     }
 
     @Override
