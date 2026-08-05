@@ -239,6 +239,10 @@ public final class CyberdeckGameTests {
             DETECTION_DECAY = register(
                     "detection_decay", CyberdeckGameTests::detectionDecaysWithoutSight);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            CYBERPSYCHOSIS_GUN_SOLDIER = register(
+                    "cyberpsychosis_gun_soldier",
+                    CyberdeckGameTests::cyberpsychosisDrivesGunSoldierBerserk);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             CYBERPSYCHO_BALANCE = register(
                     "cyberpsycho_balance", CyberdeckGameTests::cyberpsychoBalance);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
@@ -596,17 +600,17 @@ public final class CyberdeckGameTests {
         helper.assertTrue(seed != FactionSpawns.clusterSeed(8675309L, 42L, -6, 11),
                 "cluster seed must change between spatial cells");
 
-        helper.assertTrue(FactionSpawns.SPAWN_INTERVAL == 1_200
+        helper.assertTrue(FactionSpawns.SPAWN_INTERVAL == 600
                         && FactionSpawns.MIN_SPAWN_DISTANCE == 26
                         && FactionSpawns.MAX_SPAWN_DISTANCE == 46
                         && FactionSpawns.POPULATION_CELL_SIZE == 128
                         && FactionSpawns.NEARBY_RADIUS == 72.0,
-                "ambient patrol timing and range must be reliable but half the original rate");
+                "ambient patrol timing and range must stay reliable at the boosted spawn rate");
         helper.assertTrue(FactionSpawns.SMALL_PATROL_SIZE == 3
                         && FactionSpawns.LARGE_PATROL_SIZE == 5
-                        && FactionSpawns.NEARBY_CAP == 10
-                        && FactionSpawns.LOADED_WORLD_CAP == 20
-                        && FactionSpawns.MAX_REACTIVE_AMBIENT_POPULATION == 44,
+                        && FactionSpawns.NEARBY_CAP == 16
+                        && FactionSpawns.LOADED_WORLD_CAP == 40
+                        && FactionSpawns.MAX_REACTIVE_AMBIENT_POPULATION == 92,
                 "ambient patrol population must remain bounded for small multiplayer servers");
 
         FakePlayer spawnDriver = new FakePlayer(
@@ -3711,6 +3715,105 @@ public final class CyberdeckGameTests {
         }
     }
 
+    /**
+     * The Cyberpsychosis quickhack must drive a faction soldier berserk. A melee soldier already
+     * reacted to a raw setTarget, but a gun-armed soldier's ranged attack refuses to fire unless it
+     * is "triggered" (provoked) — so the hack must put the soldier into the triggered + cyberpsychotic
+     * state that unblocks the ranged path. This asserts that state change (the fix); without it, gun
+     * corpo soldiers ignored the hack entirely.
+     */
+    private static void cyberpsychosisDrivesGunSoldierBerserk(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        level.getServer().setDifficulty(net.minecraft.world.Difficulty.NORMAL, true);
+        FactionEnemy soldier = FactionEntities.FACTION_ENEMY.get().create(
+                level, EntitySpawnReason.COMMAND);
+        FactionEnemy victim = FactionEntities.FACTION_ENEMY.get().create(
+                level, EntitySpawnReason.COMMAND);
+        helper.assertTrue(soldier != null && victim != null,
+                "cyberpsychosis test could not create soldiers");
+        if (soldier == null || victim == null) {
+            return;
+        }
+        // A gun-armed soldier: the case that used to silently ignore the hack.
+        FactionSquads.equipBallisticTier(soldier, "light");
+        BlockPos soldierPos = helper.absolutePos(new BlockPos(3, 2, 1));
+        BlockPos victimPos = helper.absolutePos(new BlockPos(3, 2, 3));
+        soldier.snapTo(soldierPos.getX() + 0.5, soldierPos.getY(), soldierPos.getZ() + 0.5,
+                0.0F, 0.0F);
+        victim.snapTo(victimPos.getX() + 0.5, victimPos.getY(), victimPos.getZ() + 0.5,
+                0.0F, 0.0F);
+        soldier.setNoGravity(true);
+        victim.setNoGravity(true);
+        helper.assertTrue(level.addFreshEntity(soldier) && level.addFreshEntity(victim),
+                "cyberpsychosis test could not add soldiers");
+
+        helper.assertFalse(soldier.isTriggered(),
+                "a fresh soldier must be passive before the hack");
+        helper.assertFalse(soldier.isCyberpsychotic(),
+                "a fresh soldier must not be cyberpsychotic before the hack");
+
+        FakePlayer caster = new FakePlayer(
+                level, new GameProfile(UUID.randomUUID(), "cyberpsychosis_caster"));
+        SkillExecutor.execute(Skill.CYBERPSYCHOSIS, caster, soldier, level);
+
+        helper.assertTrue(soldier.isCyberpsychotic(),
+                "cyberpsychosis must mark a faction soldier cyberpsychotic");
+        helper.assertTrue(soldier.isTriggered(),
+                "cyberpsychosis must trigger the soldier so a gun-armed one will actually fire");
+        helper.assertTrue(soldier.getTarget() == victim,
+                "cyberpsychosis must retarget the soldier onto the nearby mob");
+
+        // Gunfire normally passes through squadmates; a cyberpsychotic soldier must be able to
+        // actually shoot its own faction, or the hack would look like it does nothing.
+        helper.assertFalse(GunFiring.canHitTarget(victim, soldier),
+                "a normal soldier's gunfire must pass through a squadmate");
+        helper.assertTrue(GunFiring.canHitTarget(soldier, victim),
+                "a cyberpsychotic soldier's gunfire must be able to hit a squadmate");
+
+        // A wanted-response cop (excision agent) is re-locked onto its wanted player every tick.
+        // Cyberpsychosis must override that so it turns on nearby mobs instead of the player.
+        FactionEnemy cop = FactionEntities.FACTION_ENEMY.get().create(
+                level, EntitySpawnReason.EVENT);
+        FactionEnemy copVictim = FactionEntities.FACTION_ENEMY.get().create(
+                level, EntitySpawnReason.EVENT);
+        helper.assertTrue(cop != null && copVictim != null,
+                "cyberpsychosis test could not create cop fixtures");
+        if (cop == null || copVictim == null) {
+            return;
+        }
+        BlockPos copPos = helper.absolutePos(new BlockPos(7, 2, 1));
+        BlockPos copVictimPos = helper.absolutePos(new BlockPos(7, 2, 3));
+        cop.snapTo(copPos.getX() + 0.5, copPos.getY(), copPos.getZ() + 0.5, 0.0F, 0.0F);
+        copVictim.snapTo(copVictimPos.getX() + 0.5, copVictimPos.getY(),
+                copVictimPos.getZ() + 0.5, 0.0F, 0.0F);
+        cop.setNoGravity(true);
+        copVictim.setNoGravity(true);
+        helper.assertTrue(level.addFreshEntity(cop) && level.addFreshEntity(copVictim),
+                "cyberpsychosis test could not add cop fixtures");
+
+        FakePlayer wanted = new FakePlayer(
+                level, new GameProfile(UUID.randomUUID(), "cyberpsychosis_wanted"));
+        wanted.snapTo(copPos.getX() + 0.5, copPos.getY(), copPos.getZ() + 24.5, 0.0F, 0.0F);
+        wanted.getAbilities().invulnerable = false;
+        wanted.setInvulnerable(false);
+        level.addNewPlayer(wanted);
+
+        cop.deployAsExcision(wanted);
+        helper.assertTrue(cop.getTarget() == wanted,
+                "an excision cop must start locked onto its wanted player");
+        cop.aiStep();
+        helper.assertTrue(cop.getTarget() == wanted,
+                "an excision cop re-locks onto its wanted player every tick");
+
+        SkillExecutor.execute(Skill.CYBERPSYCHOSIS, caster, cop, level);
+        cop.aiStep();
+        helper.assertTrue(cop.isCyberpsychotic(),
+                "cyberpsychosis must turn an excision cop cyberpsychotic");
+        helper.assertTrue(cop.getTarget() == copVictim,
+                "a cyberpsychotic cop must attack the nearby mob, not re-lock onto its wanted player");
+        helper.succeed();
+    }
+
     private static void registerGameTests(RegisterGameTestsEvent event) {
         Holder<TestEnvironmentDefinition<?>> environment = event.registerEnvironment(
                 Identifier.fromNamespaceAndPath(Cyberdeck.MODID, "pure"),
@@ -3768,6 +3871,7 @@ public final class CyberdeckGameTests {
                 FREESTANDING_AD_STRUCTURES, arena);
         registerInstance(event, "detection_crouch", DETECTION_CROUCH, arena);
         registerInstance(event, "detection_decay", DETECTION_DECAY, arena);
+        registerInstance(event, "cyberpsychosis_gun_soldier", CYBERPSYCHOSIS_GUN_SOLDIER, arena);
         registerInstance(event, "cyberpsycho_balance", CYBERPSYCHO_BALANCE, data);
         registerInstance(event, "throwable_distraction", THROWABLE_DISTRACTION, arena);
         // The melee close-in test needs solid ground so the soldier can actually path toward

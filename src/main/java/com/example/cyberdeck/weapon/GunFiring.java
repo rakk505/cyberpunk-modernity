@@ -282,7 +282,10 @@ public final class GunFiring {
         }
         if (shooter instanceof FactionEnemy soldier
                 && living instanceof FactionEnemy ally
-                && soldier.isCombatAlly(ally)) {
+                && soldier.isCombatAlly(ally)
+                && !soldier.isCyberpsychotic()) {
+            // Normally a soldier's gunfire passes through squadmates; a cyberpsychotic one has no
+            // such restraint and will shoot its own faction.
             return false;
         }
         if (shooter instanceof KangTaoTurret turret) {

@@ -63,6 +63,8 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
             SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Boolean> DATA_TRIGGERED =
             SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Boolean> DATA_CYBERPSYCHOTIC =
+            SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<Long> DATA_GUN_RELOAD_START_TICK =
             SynchedEntityData.defineId(FactionEnemy.class, EntityDataSerializers.LONG);
     private static final EntityDataAccessor<Long> DATA_GUN_RELOAD_END_TICK =
@@ -225,6 +227,7 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         super.defineSynchedData(entityData);
         entityData.define(DATA_FACTION, Faction.ARASAKA.ordinal());
         entityData.define(DATA_TRIGGERED, false);
+        entityData.define(DATA_CYBERPSYCHOTIC, false);
         entityData.define(DATA_GUN_RELOAD_START_TICK, -1L);
         entityData.define(DATA_GUN_RELOAD_END_TICK, -1L);
         entityData.define(DATA_LAST_GUN_SHOT_TICK, -1L);
@@ -619,6 +622,26 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         this.getEntityData().set(DATA_TRIGGERED, value);
     }
 
+    /** True while the Cyberpsychosis quickhack has driven this soldier berserk. */
+    public boolean isCyberpsychotic() {
+        return this.getEntityData().get(DATA_CYBERPSYCHOTIC);
+    }
+
+    /**
+     * Drives this soldier berserk toward {@code target}: it engages regardless of whether the
+     * player provoked it (so gun-armed soldiers actually fire) and ignores friendly-fire holds, so
+     * it attacks anyone nearby — including its own squad — exactly like a melee cyberpsycho already
+     * does. Stays hostile until it dies.
+     */
+    public void makeCyberpsychotic(LivingEntity target) {
+        this.getEntityData().set(DATA_CYBERPSYCHOTIC, true);
+        setTriggered(true);
+        if (target != null) {
+            this.setTarget(target);
+            this.setAggressive(true);
+        }
+    }
+
     /** Current detection level (0..{@link #DETECTION_THRESHOLD}). Synced for the client HUD. */
     public int getDetection() {
         return this.getEntityData().get(DATA_DETECTION);
@@ -709,7 +732,12 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
             tickGunReload(level);
         }
         tickTacticalManeuver(level);
-        if (isExcision()) {
+        if (isCyberpsychotic()) {
+            // Berserk from the Cyberpsychosis quickhack: ignore assigned excision/trauma orders and
+            // normal player detection so a cop keeps attacking whatever nearby mob it was turned on,
+            // instead of re-locking onto its wanted target every tick.
+            this.setAggressive(this.getTarget() != null);
+        } else if (isExcision()) {
             maintainAssignedAggro(level, excisionTargetId, true);
         } else if (isTraumaTeam()) {
             maintainAssignedAggro(level, traumaTargetId, traumaAllowsCreative);
@@ -727,7 +755,8 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
 
     private void tickEnemyQuickhack(ServerLevel level) {
         if (!isNetrunner() || getEnemyQuickhack() == EnemyQuickhack.NONE
-                || !isTriggered() || isWeaponGlitching()) {
+                || !isTriggered() || isWeaponGlitching() || isCyberpsychotic()) {
+            // A cyberpsychotic netrunner stops hacking the player and just attacks nearby mobs.
             cancelEnemyQuickhackUpload(isWeaponGlitching());
             return;
         }
@@ -1493,6 +1522,10 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
 
     /** Returns a fully-decayed soldier to its peaceful patrol state (clears aggro + target). */
     private void standDown() {
+        // A cyberpsychotic soldier never calms down; it stays berserk until killed.
+        if (isCyberpsychotic()) {
+            return;
+        }
         cancelEnemyQuickhackUpload(false);
         setTriggered(false);
         this.setTarget(null);
@@ -1530,8 +1563,9 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
             return;
         }
         // Never shoot unprovoked: only a triggered soldier engages, and only a real acquired target
-        // with clear line of sight. This stops random/idle firing into empty space.
-        if (!isTriggered() || target != this.getTarget()) {
+        // with clear line of sight. This stops random/idle firing into empty space. A cyberpsychotic
+        // soldier counts as engaged even without player provocation.
+        if ((!isTriggered() && !isCyberpsychotic()) || target != this.getTarget()) {
             return;
         }
         if (isWeaponGlitching() || !canUseConventionalCombat()
@@ -1539,7 +1573,8 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
             return;
         }
         // Hold fire if a squadmate is standing in the shot corridor (friendly-fire prevention).
-        if (allyInLineOfFire(target.getBoundingBox().getCenter())) {
+        // A cyberpsychotic soldier has no such restraint and will shoot through its own squad.
+        if (!isCyberpsychotic() && allyInLineOfFire(target.getBoundingBox().getCenter())) {
             return;
         }
         if (this.getMainHandItem().getItem() instanceof GunItem gunItem) {
@@ -1604,6 +1639,7 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         output.putString("Faction", getFaction().id());
         output.putInt("Detection", getDetection());
         output.putBoolean("Triggered", isTriggered());
+        output.putBoolean("Cyberpsychotic", isCyberpsychotic());
         output.putBoolean("TraumaTeam", isTraumaTeam());
         output.putBoolean("TraumaAllowsCreative", traumaAllowsCreative);
         output.putBoolean("Excision", isExcision());
@@ -1665,6 +1701,8 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         }
         setDetection(input.getIntOr("Detection", 0));
         setTriggered(input.getBooleanOr("Triggered", false));
+        this.getEntityData().set(
+                DATA_CYBERPSYCHOTIC, input.getBooleanOr("Cyberpsychotic", false));
         boolean traumaTeam = input.getBooleanOr("TraumaTeam", false);
         this.getEntityData().set(DATA_TRAUMA_TEAM, traumaTeam);
         traumaAllowsCreative = traumaTeam

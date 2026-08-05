@@ -28,11 +28,11 @@ import net.neoforged.neoforge.event.tick.LevelTickEvent;
  * successful patrols contain exactly three or five soldiers in a bounded formation.
  */
 public final class FactionSpawns {
-    public static final int SPAWN_INTERVAL = 1_200;
+    public static final int SPAWN_INTERVAL = 600;
     public static final int SMALL_PATROL_SIZE = 3;
     public static final int LARGE_PATROL_SIZE = 5;
-    public static final int NEARBY_CAP = 10;
-    public static final int LOADED_WORLD_CAP = 20;
+    public static final int NEARBY_CAP = 16;
+    public static final int LOADED_WORLD_CAP = 40;
     public static final int MAX_REACTIVE_AMBIENT_POPULATION =
             LOADED_WORLD_CAP + Math.floorDiv(LOADED_WORLD_CAP, SMALL_PATROL_SIZE)
                     * FactionSquads.REINFORCEMENT_COUNT;

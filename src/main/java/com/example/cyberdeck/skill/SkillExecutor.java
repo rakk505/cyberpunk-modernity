@@ -160,7 +160,14 @@ public final class SkillExecutor {
                 }
             }
             if (nearest != null) {
-                mob.setTarget(nearest);
+                // A faction soldier needs its full berserk state, otherwise a gun-armed one is
+                // held back by its "only fire when provoked" and friendly-fire guards and never
+                // acts on the hack. Plain mobs just need a target.
+                if (mob instanceof FactionEnemy enemy) {
+                    enemy.makeCyberpsychotic(nearest);
+                } else {
+                    mob.setTarget(nearest);
+                }
                 mob.setLastHurtByMob(nearest);
             }
         }
