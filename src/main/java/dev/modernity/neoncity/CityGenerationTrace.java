@@ -84,6 +84,16 @@ final class CityGenerationTrace {
         return true;
     }
 
+    /** Tags the active trace as a fixed-anchor benchmark so runs are self-documenting/comparable. */
+    static void markBenchmark(int anchorChunkX, int anchorChunkZ, int radius) {
+        Session session = active;
+        if (session == null) return;
+        session.benchmark = true;
+        session.benchmarkAnchorX = anchorChunkX;
+        session.benchmarkAnchorZ = anchorChunkZ;
+        session.benchmarkRadius = radius;
+    }
+
     static void tick(ServerLevel level) {
         Session session = active;
         if (session == null) return;
@@ -531,6 +541,10 @@ final class CityGenerationTrace {
         private long maximumForegroundAllocatedBytes;
         private long foregroundAllocationSamples;
         private int maximumQueueDepth;
+        private boolean benchmark;
+        private int benchmarkAnchorX;
+        private int benchmarkAnchorZ;
+        private int benchmarkRadius;
         private ChunkRecord slowest;
         private ChunkSpan currentSpan;
 
@@ -629,6 +643,15 @@ final class CityGenerationTrace {
             root.addProperty("stop_reason", stopReason);
             root.addProperty("target_seconds", targetSeconds);
             root.addProperty("elapsed_seconds", status.elapsedSeconds());
+            if (benchmark) {
+                JsonObject bench = new JsonObject();
+                bench.addProperty("anchor_chunk_x", benchmarkAnchorX);
+                bench.addProperty("anchor_chunk_z", benchmarkAnchorZ);
+                bench.addProperty("radius", benchmarkRadius);
+                long side = 2L * benchmarkRadius + 1L;
+                bench.addProperty("requested_chunks", side * side);
+                root.add("benchmark", bench);
+            }
 
             JsonObject summary = new JsonObject();
             summary.addProperty("chunks", chunks);

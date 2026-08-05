@@ -250,7 +250,28 @@ public final class NeonCityCommand {
                 .then(Commands.literal("stop")
                         .executes(context -> stopTrace(context.getSource())))
                 .then(Commands.literal("export")
-                        .executes(context -> exportTrace(context.getSource())));
+                        .executes(context -> exportTrace(context.getSource())))
+                .then(Commands.literal("benchmark")
+                        .then(Commands.argument("chunkX", IntegerArgumentType.integer())
+                                .then(Commands.argument("chunkZ", IntegerArgumentType.integer())
+                                        .then(Commands.argument(
+                                                        "radius",
+                                                        IntegerArgumentType.integer(0, 12))
+                                                .then(Commands.argument(
+                                                                "seconds",
+                                                                IntegerArgumentType.integer(
+                                                                        1, 3_600))
+                                                        .executes(context -> benchmarkTrace(
+                                                                context.getSource(),
+                                                                IntegerArgumentType.getInteger(
+                                                                        context, "chunkX"),
+                                                                IntegerArgumentType.getInteger(
+                                                                        context, "chunkZ"),
+                                                                IntegerArgumentType.getInteger(
+                                                                        context, "radius"),
+                                                                IntegerArgumentType.getInteger(
+                                                                        context,
+                                                                        "seconds"))))))));
     }
 
     private static LiteralArgumentBuilder<CommandSourceStack> roadCommands() {
@@ -536,6 +557,45 @@ public final class NeonCityCommand {
         source.sendSuccess(() -> Component.literal(String.format(
                 "Generation trace started for %d seconds.", seconds)), true);
         return 1;
+    }
+
+    private static int benchmarkTrace(
+            CommandSourceStack source, int chunkX, int chunkZ, int radius, int seconds)
+            throws CommandSyntaxException {
+        ServerLevel level = source.getLevel();
+        if (!NeonCityGenerator.isMegacityWorld(level)) {
+            source.sendFailure(Component.literal(
+                    "Generation tracing is only available in a Project Moon Megacity world."));
+            return 0;
+        }
+        ServerPlayer player = source.getPlayerOrException();
+        // Prepare the anchor and teleport there so the chunk system loads its surroundings;
+        // otherwise queued chunks never become loaded-and-stampable.
+        NeonCityGenerator.generateNow(level, chunkX, chunkZ, 0);
+        int blockX = (chunkX << 4) + 8;
+        int blockZ = (chunkZ << 4) + 8;
+        int y = level.getHeight(
+                net.minecraft.world.level.levelgen.Heightmap.Types.WORLD_SURFACE,
+                blockX, blockZ) + 1;
+        BlockPos destination = new BlockPos(blockX, y, blockZ);
+        if (!QuicktimeTravelService.teleportPlayer(player, level, destination)) {
+            source.sendFailure(Component.literal(
+                    "Could not teleport to the benchmark anchor."));
+            return 0;
+        }
+        if (!CityGenerationTrace.start(level, seconds)) {
+            source.sendFailure(Component.literal(
+                    "A generation trace is already active; stop it before starting another."));
+            return 0;
+        }
+        CityGenerationTrace.markBenchmark(chunkX, chunkZ, radius);
+        int added = NeonCityGenerator.enqueueAroundChunk(chunkX, chunkZ, radius);
+        source.sendSuccess(() -> Component.literal(String.format(
+                "Benchmark trace: teleported to chunk (%d,%d), queued %d chunks (radius %d), "
+                        + "tracing %ds. For a clean A/B, run at the SAME anchor in a fresh world "
+                        + "with the SAME seed (already-generated chunks will not regenerate).",
+                chunkX, chunkZ, added, radius, seconds)), true);
+        return added;
     }
 
     private static int stopTrace(CommandSourceStack source) {

@@ -2028,6 +2028,19 @@ public final class NeonCityGenerator {
         return sample(mapLayout, worldX, worldZ, null, false);
     }
 
+    /**
+     * The actual baked OSM road classification for the city map, sampled from the same road
+     * raster world generation uses. Coordinates are atlas-local block coordinates (0..255) within
+     * the district/zone tile, matching the atlas transform the map renderer already computes.
+     * Returns the {@link OsmRoadSample.RoadKind} ordinal (0 = no road, higher = larger road).
+     */
+    public static int mapRoadKind(
+            District district, MegacityLayout.Zone zone, int atlasSourceX, int atlasSourceZ) {
+        return OsmRoadSample.forAtlas(district, zone)
+                .map(sample -> sample.roadAt(atlasSourceX, atlasSourceZ).ordinal())
+                .orElse(0);
+    }
+
     /** Full infrastructure sample for deterministic planners bound to an explicit layout. */
     static UrbanSample topologySample(MegacityLayout activeLayout, int worldX, int worldZ) {
         return sample(activeLayout, worldX, worldZ, new HashMap<>(), true);

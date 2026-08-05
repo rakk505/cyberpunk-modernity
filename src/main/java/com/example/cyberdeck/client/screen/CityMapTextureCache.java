@@ -6,6 +6,7 @@ import com.mojang.blaze3d.platform.NativeImage;
 import dev.modernity.neoncity.CityMapProjection;
 import dev.modernity.neoncity.District;
 import dev.modernity.neoncity.MegacityLayout;
+import dev.modernity.neoncity.NeonCityGenerator;
 import dev.modernity.neoncity.UCorpPortGeneration;
 import java.io.IOException;
 import java.io.InputStream;
@@ -229,6 +230,10 @@ public final class CityMapTextureCache {
             long requestGeneration) {
         District[] districts = District.values();
         UCorpPortGeneration.Plan port = UCorpPortGeneration.plan(layout);
+        double blocksPerPixel = worldCoordinates.length < 2
+                ? 1.0
+                : (worldCoordinates[TEXTURE_SIZE - 1] - worldCoordinates[0])
+                        / (double) (TEXTURE_SIZE - 1);
         for (int pixelZ = 0; pixelZ < TEXTURE_SIZE; pixelZ++) {
             if ((pixelZ & 15) == 0) ensureCurrent(requestGeneration);
             int worldZ = worldCoordinates[pixelZ];
@@ -277,6 +282,12 @@ public final class CityMapTextureCache {
                 }
 
                 MegacityLayout.Node node = layout.node(district);
+                int roadColor = osmRoadColor(
+                        district, zone, node, worldX, worldZ, blocksPerPixel);
+                if (roadColor != 0) {
+                    output.setPixel(pixelX, pixelZ, roadColor);
+                    continue;
+                }
                 int category = atlasCategory(
                         atlas, layout, district, zone, worldX, worldZ);
                 output.setPixel(pixelX, pixelZ, color(
@@ -342,18 +353,9 @@ public final class CityMapTextureCache {
             return 0;
         }
         MegacityLayout.Node node = layout.node(district);
-        AxisMapping tileX = mapAxis(
-                Math.floorDiv(worldX, 16) - Math.floorDiv(node.x(), 16));
-        AxisMapping tileZ = mapAxis(
-                Math.floorDiv(worldZ, 16) - Math.floorDiv(node.z(), 16));
-        int localX = Math.floorMod(worldX, 16);
-        int localZ = Math.floorMod(worldZ, 16);
-        if (tileX.flipped()) localX = 15 - localX;
-        if (tileZ.flipped()) localZ = 15 - localZ;
-        int x = district.ordinal() * ATLAS_DISTRICT_SIZE
-                + tileX.source() * 16 + localX;
+        int x = district.ordinal() * ATLAS_DISTRICT_SIZE + atlasSource(worldX, node.x());
         int zoneOffset = zone == MegacityLayout.Zone.NEST ? 0 : ATLAS_ZONE_HEIGHT;
-        int z = zoneOffset + tileZ.source() * 16 + localZ;
+        int z = zoneOffset + atlasSource(worldZ, node.z());
         return atlas.getPixel(x, z) & 0xFF;
     }
 
@@ -376,8 +378,6 @@ public final class CityMapTextureCache {
         if (zone == MegacityLayout.Zone.BORDER_WALLED) return 0xFF67443C;
         if (zone == MegacityLayout.Zone.BORDER_FOREST) return 0xFF245C38;
         if (zone == MegacityLayout.Zone.BORDER_CLIFF) return 0xFF4A4D50;
-        int routeColor = districtRouteColor(node, normalizedDistance, worldX, worldZ);
-        if (routeColor != 0) return routeColor;
         if (atlasCategory != 0) {
             return switch (atlasCategory) {
                 case 1 -> checker(worldX, worldZ, 0xFF0A3540, 0xFF0C3E49);
@@ -411,34 +411,49 @@ public final class CityMapTextureCache {
         return 0xFF000000 | red << 16 | green << 8 | blue;
     }
 
-    private static int districtRouteColor(
+    /**
+     * Colors a pixel that sits on an actual OSM-baked road, using the same road raster world
+     * generation places. Because one map pixel spans several blocks at citywide zoom (thin streets
+     * are sub-pixel), the pixel's world footprint is supersampled and the largest road found wins,
+     * so streets stay connected instead of aliasing into dots. Returns 0 when no road is present.
+     */
+    private static int osmRoadColor(
+            District district,
+            MegacityLayout.Zone zone,
             MegacityLayout.Node node,
-            double normalizedDistance,
             int worldX,
-            int worldZ) {
-        double dx = worldX - node.x();
-        double dz = worldZ - node.z();
-        double radius = Math.hypot(dx, dz);
-        if (radius < 38.0) return 0xFF36F2DF;
-        if (Math.abs(normalizedDistance - 0.34) < 0.012
-                || Math.abs(normalizedDistance - 0.69) < 0.011) {
-            return 0xFF13B7CC;
+            int worldZ,
+            double blocksPerPixel) {
+        if (zone != MegacityLayout.Zone.NEST && zone != MegacityLayout.Zone.BACKSTREETS) {
+            return 0;
         }
-        int spokes = 4 + Math.floorMod((int) node.identity(), 4);
-        double angle = Math.atan2(dz, dx);
-        double curvedAngle = normalizeAngle(
-                angle + 0.16 * Math.sin(radius / 113.0 + node.identity() * 0.00001));
-        double spokeAngle = Math.PI * 2.0 / spokes;
-        double nearestSpoke = Math.rint(curvedAngle / spokeAngle) * spokeAngle;
-        double angularDistance = Math.abs(normalizeAngle(curvedAngle - nearestSpoke));
-        return angularDistance * Math.max(48.0, radius) < 10.0 ? 0xFF0B8FA1 : 0;
+        int step = Math.max(1, (int) Math.round(blocksPerPixel * 0.4));
+        int best = 0;
+        for (int offsetZ = -1; offsetZ <= 1; offsetZ++) {
+            for (int offsetX = -1; offsetX <= 1; offsetX++) {
+                int sourceX = atlasSource(worldX + offsetX * step, node.x());
+                int sourceZ = atlasSource(worldZ + offsetZ * step, node.z());
+                int kind = NeonCityGenerator.mapRoadKind(district, zone, sourceX, sourceZ);
+                if (kind > best) best = kind;
+            }
+        }
+        return switch (best) {
+            case 5 -> 0xFF16D4E8;
+            case 4 -> 0xFF13B7CC;
+            case 3 -> 0xFF11A6BA;
+            case 2 -> 0xFF0E97A8;
+            case 1 -> 0xFF0B8296;
+            default -> 0;
+        };
     }
 
-    private static double normalizeAngle(double angle) {
-        double wrapped = angle % (Math.PI * 2.0);
-        if (wrapped <= -Math.PI) wrapped += Math.PI * 2.0;
-        if (wrapped > Math.PI) wrapped -= Math.PI * 2.0;
-        return wrapped;
+    /** Atlas-local block coordinate (0..255) for a world coordinate, matching {@link #atlasCategory}. */
+    private static int atlasSource(int world, int nodeCoordinate) {
+        AxisMapping tile = mapAxis(
+                Math.floorDiv(world, 16) - Math.floorDiv(nodeCoordinate, 16));
+        int local = Math.floorMod(world, 16);
+        if (tile.flipped()) local = 15 - local;
+        return tile.source() * 16 + local;
     }
 
     private static void drawConnections(NativeImage image, MegacityLayout layout, int extent) {
