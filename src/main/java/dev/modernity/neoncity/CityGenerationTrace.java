@@ -350,6 +350,7 @@ final class CityGenerationTrace {
         private final long queueNanos;
         private final long loadNanos;
         private final long[] phaseNanos = new long[Phase.values().length];
+        private final long startAllocatedBytes;
         private Phase phase;
         private long phaseStartedNanos;
         private int directBlockChanges;
@@ -368,6 +369,7 @@ final class CityGenerationTrace {
             this.startedNanos = startedNanos;
             this.queueNanos = queueNanos;
             this.loadNanos = loadNanos;
+            this.startAllocatedBytes = currentThreadAllocatedBytes();
         }
 
         void phase(Phase next) {
@@ -386,6 +388,10 @@ final class CityGenerationTrace {
             finished = true;
             long now = System.nanoTime();
             closePhase(now);
+            if (startAllocatedBytes >= 0L) {
+                session.recordForegroundAllocation(
+                        currentThreadAllocatedBytes() - startAllocatedBytes);
+            }
             if (session.currentSpan == this) session.currentSpan = null;
             session.record(new ChunkRecord(
                     chunk.x(), chunk.z(), source, success,
@@ -520,6 +526,10 @@ final class CityGenerationTrace {
         private long adBackfillMaxNanos;
         private final long startingGcCount;
         private final long startingGcMillis;
+        private final long startingAllocatedBytes;
+        private long foregroundAllocatedBytes;
+        private long maximumForegroundAllocatedBytes;
+        private long foregroundAllocationSamples;
         private int maximumQueueDepth;
         private ChunkRecord slowest;
         private ChunkSpan currentSpan;
@@ -537,6 +547,14 @@ final class CityGenerationTrace {
             this.startingAverageTickNanos = startingAverageTickNanos;
             this.startingGcCount = totalGcCount();
             this.startingGcMillis = totalGcMillis();
+            this.startingAllocatedBytes = totalAllocatedBytes();
+        }
+
+        private void recordForegroundAllocation(long bytes) {
+            if (bytes < 0L) return;
+            foregroundAllocationSamples++;
+            foregroundAllocatedBytes += bytes;
+            maximumForegroundAllocatedBytes = Math.max(maximumForegroundAllocatedBytes, bytes);
         }
 
         private void observeTick(long averageTickNanos) {
@@ -605,7 +623,7 @@ final class CityGenerationTrace {
         private JsonObject toJson(boolean running) {
             Status status = status(running);
             JsonObject root = new JsonObject();
-            root.addProperty("schema_version", 3);
+            root.addProperty("schema_version", 4);
             root.addProperty("started_at", startedAt.toString());
             root.addProperty("active", running);
             root.addProperty("stop_reason", stopReason);
@@ -808,6 +826,35 @@ final class CityGenerationTrace {
                     gcCollections == 0L ? 0.0 : gcPauseMillis / (double) gcCollections);
             root.add("server_gc", gc);
 
+            JsonObject allocation = new JsonObject();
+            long endingAllocatedBytes = totalAllocatedBytes();
+            boolean allocationSupported =
+                    startingAllocatedBytes >= 0L && endingAllocatedBytes >= 0L;
+            allocation.addProperty("supported", allocationSupported);
+            if (allocationSupported) {
+                long jvmBytes = Math.max(0L, endingAllocatedBytes - startingAllocatedBytes);
+                double jvmMib = jvmBytes / 1_048_576.0;
+                allocation.addProperty("jvm_allocated_mib", jvmMib);
+                allocation.addProperty(
+                        "jvm_allocated_mib_per_second",
+                        status.elapsedSeconds() <= 0.0 ? 0.0 : jvmMib / status.elapsedSeconds());
+                allocation.addProperty(
+                        "jvm_allocated_kib_per_chunk",
+                        chunks == 0L ? 0.0 : jvmBytes / 1024.0 / chunks);
+            }
+            allocation.addProperty(
+                    "foreground_allocated_mib", foregroundAllocatedBytes / 1_048_576.0);
+            allocation.addProperty(
+                    "foreground_kib_per_chunk_average",
+                    foregroundAllocationSamples == 0L
+                            ? 0.0
+                            : foregroundAllocatedBytes / 1024.0 / foregroundAllocationSamples);
+            allocation.addProperty(
+                    "foreground_kib_per_chunk_maximum",
+                    maximumForegroundAllocatedBytes / 1024.0);
+            allocation.addProperty("foreground_samples", foregroundAllocationSamples);
+            root.add("allocation", allocation);
+
             JsonArray sampleArray = new JsonArray();
             for (ChunkRecord record : records) sampleArray.add(recordJson(record));
             root.add("chunks", sampleArray);
@@ -842,6 +889,32 @@ final class CityGenerationTrace {
 
     private static double millis(long nanos, long count) {
         return count == 0L ? 0.0 : nanos / 1_000_000.0 / count;
+    }
+
+    private static final com.sun.management.ThreadMXBean ALLOCATION_BEAN = resolveAllocationBean();
+
+    private static com.sun.management.ThreadMXBean resolveAllocationBean() {
+        java.lang.management.ThreadMXBean bean = ManagementFactory.getThreadMXBean();
+        if (bean instanceof com.sun.management.ThreadMXBean sunBean
+                && sunBean.isThreadAllocatedMemorySupported()) {
+            if (!sunBean.isThreadAllocatedMemoryEnabled()) {
+                sunBean.setThreadAllocatedMemoryEnabled(true);
+            }
+            return sunBean;
+        }
+        return null;
+    }
+
+    /** Bytes allocated by ALL threads since JVM start, or -1 when unsupported. */
+    private static long totalAllocatedBytes() {
+        return ALLOCATION_BEAN == null ? -1L : ALLOCATION_BEAN.getTotalThreadAllocatedBytes();
+    }
+
+    /** Bytes allocated by the calling (generation) thread since JVM start, or -1 when unsupported. */
+    private static long currentThreadAllocatedBytes() {
+        return ALLOCATION_BEAN == null
+                ? -1L
+                : ALLOCATION_BEAN.getCurrentThreadAllocatedBytes();
     }
 
     private static long totalGcCount() {
