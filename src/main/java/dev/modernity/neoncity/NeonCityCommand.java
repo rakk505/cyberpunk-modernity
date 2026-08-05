@@ -137,7 +137,54 @@ public final class NeonCityCommand {
                                                                 IntegerArgumentType.getInteger(context, "chunkX"),
                                                                 IntegerArgumentType.getInteger(context, "chunkZ"),
                                                                 IntegerArgumentType.getInteger(context, "radius")))))))
+                        .then(Commands.literal("population")
+                                .executes(context -> factionPopulation(context.getSource())))
         );
+    }
+
+    private static int factionPopulation(CommandSourceStack source)
+            throws CommandSyntaxException {
+        ServerLevel level = source.getLevel();
+        ServerPlayer player = source.getPlayerOrException();
+        net.minecraft.world.phys.AABB near = player.getBoundingBox()
+                .inflate(com.example.cyberdeck.faction.FactionSpawns.NEARBY_RADIUS);
+        int soldiersNear = level.getEntitiesOfClass(
+                com.example.cyberdeck.faction.FactionEnemy.class, near,
+                com.example.cyberdeck.faction.FactionEnemy::isAlive).size();
+        int npcsNear = level.getEntitiesOfClass(
+                com.example.cyberdeck.npc.CityNpc.class, near,
+                com.example.cyberdeck.npc.CityNpc::isAlive).size();
+        int soldiersLoaded = 0;
+        int ambientLoaded = 0;
+        int npcsLoaded = 0;
+        for (net.minecraft.world.entity.Entity entity : level.getAllEntities()) {
+            if (entity instanceof com.example.cyberdeck.faction.FactionEnemy soldier
+                    && soldier.isAlive()) {
+                soldiersLoaded++;
+                if (soldier.isAmbientPatrol()) {
+                    ambientLoaded++;
+                }
+            } else if (entity instanceof com.example.cyberdeck.npc.CityNpc npc
+                    && npc.isAlive()) {
+                npcsLoaded++;
+            }
+        }
+        final int soldiersNearFinal = soldiersNear;
+        final int npcsNearFinal = npcsNear;
+        final int soldiersLoadedFinal = soldiersLoaded;
+        final int ambientLoadedFinal = ambientLoaded;
+        final int npcsLoadedFinal = npcsLoaded;
+        source.sendSuccess(() -> Component.literal(String.format(
+                "Corpo soldiers: nearby %d/%d, ambient loaded %d/%d, total loaded %d",
+                soldiersNearFinal, com.example.cyberdeck.faction.FactionSpawns.NEARBY_CAP,
+                ambientLoadedFinal, com.example.cyberdeck.faction.FactionSpawns.LOADED_WORLD_CAP,
+                soldiersLoadedFinal)), false);
+        source.sendSuccess(() -> Component.literal(String.format(
+                "City NPCs: nearby %d/%d, loaded %d/%d",
+                npcsNearFinal, com.example.cyberdeck.npc.CityNpcSpawns.TARGET_NEARBY,
+                npcsLoadedFinal, com.example.cyberdeck.npc.CityNpcSpawns.MAX_LOADED_POPULATION)),
+                false);
+        return soldiersNearFinal;
     }
 
     private static LiteralArgumentBuilder<CommandSourceStack> gigSiteCommands() {

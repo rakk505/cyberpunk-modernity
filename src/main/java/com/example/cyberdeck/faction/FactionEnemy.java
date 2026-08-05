@@ -852,13 +852,20 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         this.getEntityData().set(DATA_ENEMY_QUICKHACK_END, -1L);
     }
 
+    /** Beyond this distance from every player an ambient patrol counts as "away". */
+    private static final double AMBIENT_RETIRE_DISTANCE = 112.0;
+    /** How long (ticks) an ambient patrol may stay "away" before it despawns to free the cap. */
+    private static final int AMBIENT_RETIRE_GRACE_TICKS = 200;
+
     private boolean tickAmbientRetirement(ServerLevel level) {
         if (!isAmbientPatrol()) {
             return false;
         }
-        Player nearby = level.getNearestPlayer(this, 128.0);
+        // Despawn-when-far: patrols the player has left behind retire quickly so they stop holding
+        // the world population cap and new patrols can spawn near the player instead.
+        Player nearby = level.getNearestPlayer(this, AMBIENT_RETIRE_DISTANCE);
         ambientWithoutPlayerTicks = nearby == null ? ambientWithoutPlayerTicks + 1 : 0;
-        if (ambientWithoutPlayerTicks >= 600) {
+        if (ambientWithoutPlayerTicks >= AMBIENT_RETIRE_GRACE_TICKS) {
             discard();
             return true;
         }

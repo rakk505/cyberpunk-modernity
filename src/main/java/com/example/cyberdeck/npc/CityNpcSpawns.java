@@ -24,11 +24,11 @@ import net.neoforged.neoforge.event.tick.LevelTickEvent;
 /** Maintains a bounded, evenly distributed pedestrian population in explicit city presets. */
 public final class CityNpcSpawns {
     private static final int SPAWN_INTERVAL = 60;
-    private static final int TARGET_NEARBY = 18;
+    public static final int TARGET_NEARBY = 18;
     private static final int SPAWN_BATCH = 4;
     private static final int POPULATION_CELL_SIZE = 96;
     private static final int MAX_PER_CELL = 12;
-    private static final int MAX_LOADED_POPULATION = 96;
+    public static final int MAX_LOADED_POPULATION = 96;
     private static final int MAX_PLACEMENT_ATTEMPTS = 20;
     private static final int RETIRE_AFTER_TICKS = 600;
     private static final double RETIRE_DISTANCE = 112.0;
