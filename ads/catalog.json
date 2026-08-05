@@ -74,6 +74,61 @@
       "campaigns": ["general", "meta"],
       "audio": false,
       "source_sha256": "3c25d6ecbd46567b8a25f6ae412bbe87b930c7a6c0f5049bc483df698a93a3b8"
+    },
+    {
+      "id": "vater",
+      "file": "vater.mp4",
+      "duration_seconds": 30,
+      "fps": 8,
+      "campaigns": ["highway"],
+      "audio": false,
+      "loop": true,
+      "pad_color": "black",
+      "source_sha256": "d2ece481ebd62dd45e1c90842d23644d523d08e51c3317087275278e27cfb8cf"
+    },
+    {
+      "id": "gojo",
+      "file": "gojo.mp4",
+      "duration_seconds": 30,
+      "fps": 8,
+      "campaigns": ["highway"],
+      "audio": false,
+      "loop": true,
+      "pad_color": "black",
+      "source_sha256": "36d3fea88b23aad8efdcbf990387f555492cdfecb887c0f96fe96a5d861d04ef"
+    },
+    {
+      "id": "horizon",
+      "file": "horizon.mp4",
+      "duration_seconds": 30,
+      "fps": 8,
+      "campaigns": ["highway"],
+      "audio": false,
+      "loop": true,
+      "pad_color": "black",
+      "source_sha256": "c7420259b558af7e7a1c86384e1990986f20de4c3cfad1cafc19aab8684b1bfc"
+    },
+    {
+      "id": "meta_logo_2",
+      "file": "meta_logo_2.mp4",
+      "duration_seconds": 30,
+      "fps": 8,
+      "campaigns": ["highway"],
+      "audio": false,
+      "loop": true,
+      "pad_color": "black",
+      "source_sha256": "32a0d9c2df0c41762351205de85148e2e1c489eee6d50006c33a73a488e276e1"
+    },
+    {
+      "id": "petrochem",
+      "file": "petrochem.mp4",
+      "duration_seconds": 30,
+      "fps": 8,
+      "campaigns": ["highway"],
+      "audio": false,
+      "loop": true,
+      "pad_color": "black",
+      "source_sha256": "4ffb04f95bdea2e3537bdb8dd648a2a77595a449f57819600098cc3dc582af0a"
     }
   ]
 }

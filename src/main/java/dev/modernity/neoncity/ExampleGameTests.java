@@ -1013,6 +1013,114 @@ public final class ExampleGameTests {
         helper.succeed();
     }
 
+    /**
+     * The highway megascreen sweep must cover the biggest blank rectangle on a facade, refuse to
+     * span a window band or two different wall depths, and only fire beside a connection.
+     */
+    public static void highwayFacadeAds(GameTestHelper helper) {
+        int rows = 40;
+        int[][] depth = new int[16][rows];
+        boolean[][] valid = new boolean[16][rows];
+        // One flat wall two blocks into the chunk, minus a glass band at rows 10-11.
+        for (int column = 0; column < 16; column++) {
+            for (int row = 0; row < rows; row++) {
+                depth[column][row] = 2;
+                valid[column][row] = row < 10 || row > 11;
+            }
+        }
+        List<HighwayFacadeAdGeneration.Candidate> ranked =
+                HighwayFacadeAdGeneration.rankedCandidates(rows, depth, valid);
+        helper.assertTrue(!ranked.isEmpty(), "a blank 16-wide facade must yield a candidate");
+        HighwayFacadeAdGeneration.Candidate best = ranked.get(0);
+        helper.assertValueEqual(best.width(), 16,
+                "the megascreen must span the full width of a blank facade");
+        helper.assertValueEqual(best.height(), rows - 12,
+                "the megascreen must take the taller of the two window-split panels");
+        helper.assertValueEqual(best.row(), 12,
+                "the chosen panel must start above the window band");
+        helper.assertValueEqual(best.depth(), 2, "the chosen panel must sit on the scanned wall");
+        for (HighwayFacadeAdGeneration.Candidate candidate : ranked) {
+            helper.assertTrue(candidate.row() > 11 || candidate.row() + candidate.height() <= 10,
+                    "no candidate may cover the window band");
+        }
+
+        // A stepped facade must not produce one rectangle bridging both wall planes.
+        int[][] stepped = new int[16][rows];
+        boolean[][] steppedValid = new boolean[16][rows];
+        for (int column = 0; column < 16; column++) {
+            for (int row = 0; row < rows; row++) {
+                stepped[column][row] = column < 8 ? 2 : 5;
+                steppedValid[column][row] = true;
+            }
+        }
+        List<HighwayFacadeAdGeneration.Candidate> steppedRanked =
+                HighwayFacadeAdGeneration.rankedCandidates(rows, stepped, steppedValid);
+        helper.assertTrue(!steppedRanked.isEmpty(), "a stepped facade must still yield a panel");
+        for (HighwayFacadeAdGeneration.Candidate candidate : steppedRanked) {
+            helper.assertTrue(candidate.width() == 8,
+                    "a candidate may not bridge two wall depths");
+        }
+
+        // Too little space in either axis must yield nothing at all.
+        int[][] narrowDepth = new int[16][rows];
+        boolean[][] narrowValid = new boolean[16][rows];
+        for (int column = 0; column < 7; column++) {
+            for (int row = 0; row < rows; row++) {
+                narrowDepth[column][row] = 2;
+                narrowValid[column][row] = true;
+            }
+        }
+        helper.assertTrue(
+                HighwayFacadeAdGeneration.rankedCandidates(rows, narrowDepth, narrowValid)
+                        .isEmpty(),
+                "a facade narrower than the minimum display width must be skipped");
+
+        assertHighwayFacing(helper);
+        helper.succeed();
+    }
+
+    /** Chunks beside a connection must face it; the corridor and the back rows must opt out. */
+    private static void assertHighwayFacing(GameTestHelper helper) {
+        MegacityLayout layout = NeonCityGenerator.fixedLayout();
+        int facing = 0;
+        int corridor = 0;
+        int backRow = 0;
+        for (MegacityLayout.Edge edge : layout.edges()) {
+            MegacityLayout.CurvePoint point = MegacityLayout.curvePoint(edge, 0.5);
+            int centerX = (int) Math.round(point.x());
+            int centerZ = (int) Math.round(point.z());
+            // Walk outward across the corridor, the facing band, and the back rows.
+            for (int offset = 0; offset <= 96; offset += 16) {
+                ChunkPos chunk = new ChunkPos(
+                        Math.floorDiv(centerX + offset, 16), Math.floorDiv(centerZ, 16));
+                Direction toHighway =
+                        HighwayFacadeAdGeneration.highwayFacing(layout, chunk).orElse(null);
+                if (toHighway == null) {
+                    if (offset == 0) corridor++;
+                    if (offset >= 80) backRow++;
+                    continue;
+                }
+                facing++;
+                double chunkCenterX = chunk.getMinBlockX() + 7.5;
+                double chunkCenterZ = chunk.getMinBlockZ() + 7.5;
+                MegacityLayout.ConnectionProjection nearest = layout
+                        .nearestConnection(chunkCenterX, chunkCenterZ)
+                        .orElseThrow();
+                double stepped = Math.hypot(
+                        nearest.x() - (chunkCenterX + toHighway.getStepX()),
+                        nearest.z() - (chunkCenterZ + toHighway.getStepZ()));
+                helper.assertTrue(stepped < nearest.distance(),
+                        "the display must face toward the connection, not away from it");
+                helper.assertTrue(nearest.distance()
+                                <= HighwayFacadeAdGeneration.MAX_CENTER_DISTANCE,
+                        "only the near band may be selected for highway megascreens");
+            }
+        }
+        helper.assertTrue(facing > 0, "no chunk was selected as highway-facing");
+        helper.assertTrue(corridor > 0, "chunks centred on the corridor must be skipped");
+        helper.assertTrue(backRow > 0, "chunks far from any connection must be skipped");
+    }
+
     private static void assertDistrictAdCandidate(
             GameTestHelper helper,
             MegacityLayout layout,

@@ -32,6 +32,28 @@ source before processing. Their SHA-256 hashes are respectively
 `0570dd81195c5cefd43e93114b87e5075defc9e6e0cb2c2edc52a4bb6f1a1799`. This records the supplied
 provenance and deterministic inputs; it is not an independent license determination.
 
+The five silent `highway` campaign clips were requested by the project owner on 2026-08-05 and
+downloaded from the source links they supplied. Each source is shorter or longer than the clip
+length, so the processor loops or trims it to exactly 30 seconds, aspect-fits it inside a 160x90
+frame at 8 FPS against a black pad, and verifies its hash before processing:
+
+- `vater`: [FREEDIO: "Water pouring into glass slow motion" royalty free HD stock video footage](https://youtu.be/rl5tNMpW--k), 20s source looped to 30 seconds.
+- `gojo`: [Sound Re-Design: Domain Expansion: Infinite Void - \[Jujutsu Kaisen S2\]](https://youtu.be/HzCeyfNjSbo), 21s source looped to 30 seconds.
+- `horizon`: [manga: "Horizon"\[edit\]](https://youtube.com/shorts/cT1A0Eharo4), 10s source looped to 30 seconds.
+- `meta_logo_2`: [Meta logo animation](https://youtu.be/k-pBdWjVHBM), 7s source looped to 30 seconds.
+- `petrochem`: [Cyberpunk 2077: Petrochem](https://www.youtube.com/shorts/EPCxeL5dOUQ), 58s source trimmed to 30 seconds.
+
+The corresponding inputs are `ads/vater.mp4`, `ads/gojo.mp4`, `ads/horizon.mp4`,
+`ads/meta_logo_2.mp4`, and `ads/petrochem.mp4`, whose SHA-256 hashes are respectively
+`d2ece481ebd62dd45e1c90842d23644d523d08e51c3317087275278e27cfb8cf`,
+`36d3fea88b23aad8efdcbf990387f555492cdfecb887c0f96fe96a5d861d04ef`,
+`c7420259b558af7e7a1c86384e1990986f20de4c3cfad1cafc19aab8684b1bfc`,
+`32a0d9c2df0c41762351205de85148e2e1c489eee6d50006c33a73a488e276e1`, and
+`4ffb04f95bdea2e3537bdb8dd648a2a77595a449f57819600098cc3dc582af0a`. Their audio is discarded. As
+above, this records the supplied provenance and deterministic inputs; it is not an independent
+license determination, and these particular sources are third-party recordings rather than
+owner-supplied or owner-authorized material.
+
 ## Freestanding advertising logos
 
 `src/main/resources/assets/cyberdeck/textures/ad_logos/meta.png`, `closedai.png`, and

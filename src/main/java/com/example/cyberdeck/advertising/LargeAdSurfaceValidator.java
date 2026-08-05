@@ -281,7 +281,8 @@ public final class LargeAdSurfaceValidator {
         UNLOADED
     }
 
-    private static boolean isLuminousFacadeBlock(BlockState state) {
+    /** Sea-lantern facades read as glass by sound type but are valid generated ad supports. */
+    public static boolean isLuminousFacadeBlock(BlockState state) {
         String id = BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
         return id.equals("minecraft:sea_lantern")
                 || id.equals("cyberdeck:camouflaged_sea_lantern");

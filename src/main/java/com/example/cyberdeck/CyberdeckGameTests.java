@@ -1204,6 +1204,19 @@ public final class CyberdeckGameTests {
         helper.assertTrue(AdCampaign.GENERAL.clips().contains(AdClip.MISANTHROPIC)
                         && AdCampaign.GENERAL.clips().containsAll(AdCampaign.META.clips()),
                 "general facades must include Misanthropic and every Meta ad");
+        helper.assertValueEqual(
+                AdCampaign.HIGHWAY.clips(),
+                List.of(AdClip.VATER, AdClip.GOJO, AdClip.HORIZON,
+                        AdClip.META_LOGO_2, AdClip.PETROCHEM),
+                "highway megascreens must rotate through all five roadside ads");
+        helper.assertTrue(AdCampaign.HIGHWAY.clips().stream().noneMatch(
+                        clip -> AdCampaign.GENERAL.clips().contains(clip)),
+                "the roadside campaign must stay separate from the district rotation");
+        helper.assertTrue(AdCampaign.HIGHWAY.clips().stream().allMatch(
+                        clip -> clip.framesPerSecond() == 8
+                                && !clip.audioEnabled()
+                                && clip.durationTicks() == 600),
+                "every roadside ad must be a silent 30-second 8-FPS loop");
         helper.assertTrue(AdClip.MISANTHROPIC.framesPerSecond() == 8
                         && AdClip.CLOSED_AI.framesPerSecond() == 8
                         && !AdClip.MISANTHROPIC.audioEnabled()

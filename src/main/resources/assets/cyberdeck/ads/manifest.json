@@ -4,8 +4,8 @@
     "width": 8,
     "height": 4
   },
-  "total_frames": 2544,
-  "total_sheets": 160,
+  "total_frames": 3744,
+  "total_sheets": 235,
   "clips": [
     {
       "id": "neon_skyline",
@@ -173,6 +173,101 @@
       "fps": 8,
       "frame_count": 360,
       "sheet_count": 23,
+      "sheet_grid": [
+        4,
+        4
+      ],
+      "frame_size": [
+        160,
+        90
+      ]
+    },
+    {
+      "id": "vater",
+      "campaigns": [
+        "highway"
+      ],
+      "audio": false,
+      "duration_ticks": 600,
+      "fps": 8,
+      "frame_count": 240,
+      "sheet_count": 15,
+      "sheet_grid": [
+        4,
+        4
+      ],
+      "frame_size": [
+        160,
+        90
+      ]
+    },
+    {
+      "id": "gojo",
+      "campaigns": [
+        "highway"
+      ],
+      "audio": false,
+      "duration_ticks": 600,
+      "fps": 8,
+      "frame_count": 240,
+      "sheet_count": 15,
+      "sheet_grid": [
+        4,
+        4
+      ],
+      "frame_size": [
+        160,
+        90
+      ]
+    },
+    {
+      "id": "horizon",
+      "campaigns": [
+        "highway"
+      ],
+      "audio": false,
+      "duration_ticks": 600,
+      "fps": 8,
+      "frame_count": 240,
+      "sheet_count": 15,
+      "sheet_grid": [
+        4,
+        4
+      ],
+      "frame_size": [
+        160,
+        90
+      ]
+    },
+    {
+      "id": "meta_logo_2",
+      "campaigns": [
+        "highway"
+      ],
+      "audio": false,
+      "duration_ticks": 600,
+      "fps": 8,
+      "frame_count": 240,
+      "sheet_count": 15,
+      "sheet_grid": [
+        4,
+        4
+      ],
+      "frame_size": [
+        160,
+        90
+      ]
+    },
+    {
+      "id": "petrochem",
+      "campaigns": [
+        "highway"
+      ],
+      "audio": false,
+      "duration_ticks": 600,
+      "fps": 8,
+      "frame_count": 240,
+      "sheet_count": 15,
       "sheet_grid": [
         4,
         4

@@ -55,7 +55,10 @@ public final class NeonCitySavedData extends SavedData {
                     Codec.LONG.listOf()
                             .optionalFieldOf("freestanding_ad_decorated_chunks", List.of())
                             .forGetter(
-                                    NeonCitySavedData::serializedFreestandingAdDecoratedChunks)
+                                    NeonCitySavedData::serializedFreestandingAdDecoratedChunks),
+                    Codec.LONG.listOf()
+                            .optionalFieldOf("highway_ad_decorated_chunks", List.of())
+                            .forGetter(NeonCitySavedData::serializedHighwayAdDecoratedChunks)
             ).apply(instance, NeonCitySavedData::new));
 
     public static final SavedDataType<NeonCitySavedData> TYPE = new SavedDataType<>(
@@ -70,6 +73,7 @@ public final class NeonCitySavedData extends SavedData {
     private final LinkedHashMap<Long, DeferredBanner> pendingBanners;
     private final Set<Long> adDecoratedChunks;
     private final Set<Long> freestandingAdDecoratedChunks;
+    private final Set<Long> highwayAdDecoratedChunks;
 
     public record DeferredBanner(
             int x, int y, int z, int outwardOrdinal, int districtOrdinal) {
@@ -80,7 +84,7 @@ public final class NeonCitySavedData extends SavedData {
 
     public NeonCitySavedData() {
         this(FORMAT_VERSION, NeonCityGenerator.generatorFingerprint(),
-                List.of(), List.of(), AD_SAFETY_VERSION, List.of(), List.of());
+                List.of(), List.of(), AD_SAFETY_VERSION, List.of(), List.of(), List.of());
     }
 
     private NeonCitySavedData(
@@ -90,7 +94,8 @@ public final class NeonCitySavedData extends SavedData {
             List<DeferredBanner> pendingBanners,
             int loadedAdSafetyVersion,
             List<Long> adDecoratedChunks,
-            List<Long> freestandingAdDecoratedChunks) {
+            List<Long> freestandingAdDecoratedChunks,
+            List<Long> highwayAdDecoratedChunks) {
         this.formatVersion = formatVersion;
         this.generatorFingerprint = generatorFingerprint;
         this.generatedChunks = new HashSet<>(generatedChunks);
@@ -104,6 +109,8 @@ public final class NeonCitySavedData extends SavedData {
         this.adDecoratedChunks.retainAll(this.generatedChunks);
         this.freestandingAdDecoratedChunks = new HashSet<>(freestandingAdDecoratedChunks);
         this.freestandingAdDecoratedChunks.retainAll(this.generatedChunks);
+        this.highwayAdDecoratedChunks = new HashSet<>(highwayAdDecoratedChunks);
+        this.highwayAdDecoratedChunks.retainAll(this.generatedChunks);
     }
 
     public int formatVersion() {
@@ -159,6 +166,19 @@ public final class NeonCitySavedData extends SavedData {
         return true;
     }
 
+    public boolean isHighwayAdDecorated(long chunkKey) {
+        return highwayAdDecoratedChunks.contains(chunkKey);
+    }
+
+    public boolean markHighwayAdDecorated(long chunkKey) {
+        if (!generatedChunks.contains(chunkKey)
+                || !highwayAdDecoratedChunks.add(chunkKey)) {
+            return false;
+        }
+        setDirty();
+        return true;
+    }
+
     public List<DeferredBanner> pendingBanners() {
         return List.copyOf(pendingBanners.values());
     }
@@ -201,6 +221,12 @@ public final class NeonCitySavedData extends SavedData {
 
     private List<Long> serializedFreestandingAdDecoratedChunks() {
         ArrayList<Long> chunks = new ArrayList<>(freestandingAdDecoratedChunks);
+        chunks.sort(Long::compare);
+        return chunks;
+    }
+
+    private List<Long> serializedHighwayAdDecoratedChunks() {
+        ArrayList<Long> chunks = new ArrayList<>(highwayAdDecoratedChunks);
         chunks.sort(Long::compare);
         return chunks;
     }

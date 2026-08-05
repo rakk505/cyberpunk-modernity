@@ -28,10 +28,10 @@ SHEET_ROWS = 4
 FRAMES_PER_SHEET = SHEET_COLUMNS * SHEET_ROWS
 MIN_DURATION = 30
 MAX_DURATION = 45
-MAX_TOTAL_FRAMES = 2_544
-MAX_TOTAL_SHEETS = 160
+MAX_TOTAL_FRAMES = 3_744
+MAX_TOTAL_SHEETS = 235
 VALID_ID = re.compile(r"^[a-z0-9_]+$")
-VALID_CAMPAIGNS = frozenset({"general", "meta", "closed_ai"})
+VALID_CAMPAIGNS = frozenset({"general", "meta", "closed_ai", "highway"})
 VALID_PAD_COLORS = frozenset({"black", "white"})
 META_GENERATOR = "meta_ads_v1"
 
