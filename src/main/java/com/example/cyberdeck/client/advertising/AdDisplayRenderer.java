@@ -112,9 +112,11 @@ public final class AdDisplayRenderer
         float originX = 0.5F - right.getStepX() * 0.5F - facing.getStepX() * FRAME_DEPTH;
         float originZ = 0.5F - right.getStepZ() * 0.5F - facing.getStepZ() * FRAME_DEPTH;
 
+        // Every wall display fills its face. Letterboxing hand-placed screens to a fixed aspect
+        // left wide bands of bare frame around the clip; the surround is now just a thin border.
         submitSurface(state, poseStack, submitNodeCollector, facing,
                 originX, originZ, state.width, state.height,
-                VIDEO_DEPTH - FRAME_DEPTH, state.generatedPlacement);
+                VIDEO_DEPTH - FRAME_DEPTH, true);
     }
 
     private static void submitFreestanding(

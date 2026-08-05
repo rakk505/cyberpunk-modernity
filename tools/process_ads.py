@@ -35,6 +35,8 @@ VALID_CAMPAIGNS = frozenset({"general", "meta", "closed_ai", "highway", "highway
 VALID_ORIENTATIONS = frozenset({"landscape", "portrait"})
 VALID_PAD_COLORS = frozenset({"black", "white"})
 META_GENERATOR = "meta_ads_v1"
+# Neutral bezel grey for the border left visible around every clip.
+FRAME_COLOR = (110, 110, 110)
 
 
 def run(command: list[str], input_bytes: bytes | None = None) -> None:
@@ -50,13 +52,15 @@ def sha256(path: Path) -> str:
 
 
 def write_frame_texture(path: Path, ffmpeg: str) -> None:
+    """Plain neutral-grey surround.
+
+    The clip is drawn over this quad and now fills everything inside the border, so the only
+    part that stays visible is a thin edge. A flat grey reads as a screen bezel; the previous
+    cyan corners and near-black interior showed through as decoration in their own right.
+    """
     pixels = bytearray()
-    for y in range(16):
-        for x in range(16):
-            border = x < 2 or x > 13 or y < 2 or y > 13
-            corner = (x < 4 or x > 11) and (y < 4 or y > 11)
-            color = (15, 229, 210) if corner else ((18, 25, 34) if border else (5, 7, 10))
-            pixels.extend(color)
+    for _ in range(16 * 16):
+        pixels.extend(FRAME_COLOR)
     path.parent.mkdir(parents=True, exist_ok=True)
     run([
         ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
