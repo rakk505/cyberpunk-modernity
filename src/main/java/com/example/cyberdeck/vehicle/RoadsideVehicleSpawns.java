@@ -238,7 +238,7 @@ public final class RoadsideVehicleSpawns {
             RandomSource random) {
         if (nearest == null) return null;
         MegacityLayout.Edge edge = nearest.edge();
-        double edgeLength = Math.max(1.0, Math.hypot(
+        double edgeLength = Math.max(1.0, CityTrafficGraph.planarLength(
                 edge.second().x() - edge.first().x(),
                 edge.second().z() - edge.first().z()));
         Vec3 look = player.getLookAngle();
@@ -247,7 +247,7 @@ public final class RoadsideVehicleSpawns {
             double distance;
             if (focus.driving()) {
                 double tangentLength = Math.max(1.0,
-                        Math.hypot(nearest.tangentX(), nearest.tangentZ()));
+                        CityTrafficGraph.planarLength(nearest.tangentX(), nearest.tangentZ()));
                 double along = focus.forward().x * nearest.tangentX() / tangentLength
                         + focus.forward().z * nearest.tangentZ() / tangentLength;
                 direction = along >= 0.0 ? 1.0 : -1.0;
@@ -260,7 +260,7 @@ public final class RoadsideVehicleSpawns {
                     nearest.progress() + direction * distance / edgeLength, 0.02, 0.98);
             MegacityLayout.CurvePoint point = MegacityLayout.curvePoint(edge, progress);
             double tangentLength = Math.max(1.0,
-                    Math.hypot(point.tangentX(), point.tangentZ()));
+                    CityTrafficGraph.planarLength(point.tangentX(), point.tangentZ()));
             double forwardX = point.tangentX() / tangentLength;
             double forwardZ = point.tangentZ() / tangentLength;
             if (random.nextBoolean()) {
@@ -272,8 +272,8 @@ public final class RoadsideVehicleSpawns {
             double fromPlayerX = laneX - player.getX();
             double fromPlayerZ = laneZ - player.getZ();
             double dot = (fromPlayerX * look.x + fromPlayerZ * look.z)
-                    / Math.max(0.01, Math.hypot(fromPlayerX, fromPlayerZ)
-                            * Math.hypot(look.x, look.z));
+                    / Math.max(0.01, CityTrafficGraph.planarLength(fromPlayerX, fromPlayerZ)
+                            * CityTrafficGraph.planarLength(look.x, look.z));
             if (!focus.driving() && dot > 0.25) continue;
 
             int x = Mth.floor(laneX);
@@ -308,7 +308,7 @@ public final class RoadsideVehicleSpawns {
                     probeX, probeZ, ATLAS_ROAD_SEARCH_RADIUS).orElse(null);
             if (road == null) continue;
             double tangentLength = Math.max(
-                    0.001, Math.hypot(road.tangentX(), road.tangentZ()));
+                    0.001, CityTrafficGraph.planarLength(road.tangentX(), road.tangentZ()));
             double forwardX = road.tangentX() / tangentLength;
             double forwardZ = road.tangentZ() / tangentLength;
             if (random.nextBoolean()) {
@@ -325,8 +325,8 @@ public final class RoadsideVehicleSpawns {
             double fromPlayerX = laneX - player.getX();
             double fromPlayerZ = laneZ - player.getZ();
             double dot = (fromPlayerX * look.x + fromPlayerZ * look.z)
-                    / Math.max(0.01, Math.hypot(fromPlayerX, fromPlayerZ)
-                            * Math.hypot(look.x, look.z));
+                    / Math.max(0.01, CityTrafficGraph.planarLength(fromPlayerX, fromPlayerZ)
+                            * CityTrafficGraph.planarLength(look.x, look.z));
             if (!focus.driving() && dot > 0.25) continue;
             int surfaceY = loadedSurfaceY(level, x, z, 3);
             if (surfaceY == UNAVAILABLE_SURFACE_Y) continue;
@@ -354,7 +354,7 @@ public final class RoadsideVehicleSpawns {
         if (road == null || road.width() < MIN_PARKING_ROAD_WIDTH) return null;
 
         double tangentLength = Math.max(
-                0.001, Math.hypot(road.tangentX(), road.tangentZ()));
+                0.001, CityTrafficGraph.planarLength(road.tangentX(), road.tangentZ()));
         double forwardX = road.tangentX() / tangentLength;
         double forwardZ = road.tangentZ() / tangentLength;
         float yaw = (float) Math.toDegrees(Math.atan2(-forwardX, forwardZ));

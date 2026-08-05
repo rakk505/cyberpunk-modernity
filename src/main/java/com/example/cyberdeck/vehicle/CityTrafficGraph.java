@@ -88,6 +88,18 @@ final class CityTrafficGraph {
         return best;
     }
 
+    /**
+     * Planar length of a road-space vector.
+     *
+     * <p>Deliberately not {@link Math#hypot}, which is specified to avoid intermediate overflow
+     * and underflow and pays roughly an order of magnitude for the privilege. Traffic maths works
+     * in block coordinates, where the squares cannot come close to overflowing a double, so the
+     * direct form is both correct and far cheaper on a path that runs per vehicle per tick.</p>
+     */
+    static double planarLength(double dx, double dz) {
+        return Math.sqrt(dx * dx + dz * dz);
+    }
+
     static LaneNode highwayNode(
             ServerLevel level,
             MegacityLayout.Edge edge,
@@ -95,14 +107,14 @@ final class CityTrafficGraph {
             boolean forward) {
         MegacityLayout.CurvePoint point = MegacityLayout.curvePoint(edge, progress);
         double tangentLength = Math.max(1.0,
-                Math.hypot(point.tangentX(), point.tangentZ()));
+                planarLength(point.tangentX(), point.tangentZ()));
         double forwardX = point.tangentX() / tangentLength;
         double forwardZ = point.tangentZ() / tangentLength;
         if (!forward) {
             forwardX = -forwardX;
             forwardZ = -forwardZ;
         }
-        double edgeLength = Math.max(1.0, Math.hypot(
+        double edgeLength = Math.max(1.0, planarLength(
                 edge.second().x() - edge.first().x(),
                 edge.second().z() - edge.first().z()));
         double endpointDistance = Math.min(progress, 1.0 - progress) * edgeLength;
@@ -218,7 +230,7 @@ final class CityTrafficGraph {
     }
 
     private static double horizontalDistance(Vec3 first, Vec3 second) {
-        return Math.hypot(first.x - second.x, first.z - second.z);
+        return planarLength(first.x - second.x, first.z - second.z);
     }
 
     private static LaneNode compileNode(

@@ -723,7 +723,7 @@ public final class CityTrafficService {
         route.highwayEdge = projection.edge();
         route.highwayProgress = projection.progress();
         double tangentLength = Math.max(1.0,
-                Math.hypot(projection.tangentX(), projection.tangentZ()));
+                CityTrafficGraph.planarLength(projection.tangentX(), projection.tangentZ()));
         double tangentX = projection.tangentX() / tangentLength;
         double tangentZ = projection.tangentZ() / tangentLength;
         double yawRadians = Math.toRadians(vehicle.getYRot());
@@ -740,7 +740,7 @@ public final class CityTrafficService {
             MegacityLayout.CurvePoint current = MegacityLayout.curvePoint(
                     route.highwayEdge, route.highwayProgress);
             double derivative = Math.max(1.0,
-                    Math.hypot(current.tangentX(), current.tangentZ()));
+                    CityTrafficGraph.planarLength(current.tangentX(), current.tangentZ()));
             double delta = HIGHWAY_NODE_SPACING / derivative;
             double nextProgress = route.highwayProgress
                     + (route.highwayForward ? delta : -delta);
@@ -895,7 +895,7 @@ public final class CityTrafficService {
 
     private static boolean hasPhysicalClearance(
             ServerLevel level, Entity vehicle, double dx, double dz) {
-        double length = Math.max(0.001, Math.hypot(dx, dz));
+        double length = Math.max(0.001, CityTrafficGraph.planarLength(dx, dz));
         double distance = Math.min(3.0, length);
         AABB ahead = vehicle.getBoundingBox().move(
                 dx / length * distance, 0.25, dz / length * distance);

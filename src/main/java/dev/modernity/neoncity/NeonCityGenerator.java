@@ -2422,11 +2422,17 @@ public final class NeonCityGenerator {
         return List.copyOf(feeders);
     }
 
+    /** Squared planar distance, for the spacing tests that only compare against a threshold. */
+    private static double squaredDistance(double dx, double dz) {
+        return dx * dx + dz * dz;
+    }
+
     private static boolean separatedMerge(
             List<HighwayFeeder> feeders, MegacityLayout.CurvePoint merge) {
-        return feeders.stream().noneMatch(feeder -> Math.hypot(
+        // Compared squared: the spacing test never needs the distance itself.
+        return feeders.stream().noneMatch(feeder -> squaredDistance(
                 feeder.startX() - merge.x(), feeder.startZ() - merge.z())
-                < MIN_HIGHWAY_FEEDER_SPACING);
+                < MIN_HIGHWAY_FEEDER_SPACING * MIN_HIGHWAY_FEEDER_SPACING);
     }
 
     private static Optional<HighwayRoadTarget> findHighwayRoadTarget(
@@ -2475,10 +2481,11 @@ public final class NeonCityGenerator {
                     double direct = Math.hypot(dx, dz);
                     if (direct < HIGHWAY_CLEARANCE_RADIUS + 8.0
                             || direct > HIGHWAY_FEEDER_SEARCH_RADIUS
-                            || existing.stream().anyMatch(feeder -> Math.hypot(
+                            || existing.stream().anyMatch(feeder -> squaredDistance(
                                     feeder.endX() - candidate.x(),
                                     feeder.endZ() - candidate.z())
-                                    < MIN_HIGHWAY_FEEDER_SPACING)) {
+                                    < MIN_HIGHWAY_FEEDER_SPACING
+                                            * MIN_HIGHWAY_FEEDER_SPACING)) {
                         continue;
                     }
                     int targetX = (int) Math.floor(candidate.x());
