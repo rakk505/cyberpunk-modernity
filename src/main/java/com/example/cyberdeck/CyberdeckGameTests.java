@@ -1270,6 +1270,13 @@ public final class CyberdeckGameTests {
         helper.assertTrue(AdCampaign.S_CORP.clips().stream().noneMatch(
                         clip -> AdCampaign.GENERAL.clips().contains(clip)),
                 "the S Corp campaign must stay out of the general rotation");
+        // A facade placed before a district owned a campaign keeps the old one until the ledger
+        // forces a re-audit, so the audit must be willing to restamp an existing display.
+        helper.assertTrue(
+                AdCampaign.byId("s_corp").orElse(null) == AdCampaign.S_CORP
+                        && AdCampaign.byId("highway_tall").orElse(null)
+                                == AdCampaign.HIGHWAY_TALL,
+                "every campaign must round-trip through its persisted id");
         helper.assertTrue(AdCampaign.GENERAL.clips().contains(AdClip.MISANTHROPIC)
                         && AdCampaign.GENERAL.clips().containsAll(AdCampaign.META.clips()),
                 "general facades must include Misanthropic and every Meta ad");

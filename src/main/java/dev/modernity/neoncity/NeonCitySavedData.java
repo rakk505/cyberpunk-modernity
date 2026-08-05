@@ -24,8 +24,13 @@ import net.minecraft.world.level.saveddata.SavedDataType;
  */
 public final class NeonCitySavedData extends SavedData {
     public static final int FORMAT_VERSION = 1;
-    /** Forces one safe facade re-audit when the generated-surface catalog changes. */
-    static final int AD_SAFETY_VERSION = 2;
+    /**
+     * Forces one safe facade re-audit when the generated-surface catalog changes, or when the
+     * campaign a district owns changes. A display stores its campaign when it is placed, and a
+     * decorated chunk is never revisited, so introducing a district campaign leaves every existing
+     * facade advertising the previous one until this bumps.
+     */
+    static final int AD_SAFETY_VERSION = 3;
     /**
      * Forces one safe re-scan of highway facades when the scan itself gets smarter. A chunk that
      * found nothing under an older, narrower scan is recorded as done and would otherwise never be
