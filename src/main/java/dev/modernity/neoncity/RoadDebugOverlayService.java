@@ -3,6 +3,7 @@ package dev.modernity.neoncity;
 import com.example.cyberdeck.Cyberdeck;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.DustParticleOptions;
@@ -83,7 +84,8 @@ public final class RoadDebugOverlayService {
 
                 BlockPos loadedProbe = new BlockPos(x, center.getY(), z);
                 if (!level.hasChunkAt(loadedProbe)) continue;
-                DustParticleOptions particle = particleFor(NeonCityGenerator.roadAt(x, z));
+                NeonCityGenerator.RoadClass proceduralRoad = NeonCityGenerator.roadAt(x, z);
+                DustParticleOptions particle = particleAt(x, z, proceduralRoad);
                 if (particle == null) continue;
 
                 int surfaceY = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
@@ -103,6 +105,53 @@ public final class RoadDebugOverlayService {
                 if (++emitted >= MAX_PARTICLES_PER_PASS) return;
             }
         }
+    }
+
+    private static DustParticleOptions particleAt(
+            int worldX, int worldZ, NeonCityGenerator.RoadClass proceduralRoad) {
+        if (NeonCityGenerator.overridesArnis(proceduralRoad)) {
+            return particleFor(proceduralRoad);
+        }
+        int chunkX = Math.floorDiv(worldX, 16);
+        int chunkZ = Math.floorDiv(worldZ, 16);
+        Optional<ArnisPatchLibrary.Placement> selected =
+                NeonCityGenerator.arnisPlacementAt(chunkX, chunkZ);
+        if (selected.isPresent()) {
+            ArnisPatchLibrary.Placement placement = selected.get();
+            MegacityLayout.Location location = NeonCityGenerator.layout().locate(worldX, worldZ);
+            MegacityLayout.Zone zone = location.zone();
+            if (location.district() == placement.patch().district()
+                    && placement.patch().placementZones().contains(zone)) {
+                int localX = Math.floorMod(worldX, 16);
+                int localZ = Math.floorMod(worldZ, 16);
+                int sourceX = sourceCoordinate(
+                        placement.sourceTileX(), localX, placement.flipX());
+                int sourceZ = sourceCoordinate(
+                        placement.sourceTileZ(), localZ, placement.flipZ());
+                OsmRoadSample.RoadKind osmRoad = OsmRoadSample.forAtlas(
+                                placement.patch().district(), zone)
+                        .map(sample -> sample.roadAt(sourceX, sourceZ))
+                        .orElse(OsmRoadSample.RoadKind.NONE);
+                DustParticleOptions osmParticle = particleFor(osmRoad);
+                if (osmParticle != null) return osmParticle;
+            }
+        }
+        return particleFor(proceduralRoad);
+    }
+
+    static int sourceCoordinate(int sourceTile, int destinationLocal, boolean flipped) {
+        return sourceTile * 16 + (flipped ? 15 - destinationLocal : destinationLocal);
+    }
+
+    static DustParticleOptions particleFor(OsmRoadSample.RoadKind roadKind) {
+        return switch (roadKind) {
+            case MOTORWAY -> new DustParticleOptions(0xD946EF, 0.85F);
+            case PRIMARY -> new DustParticleOptions(0x00E5FF, 0.8F);
+            case SECONDARY -> new DustParticleOptions(0xFFD21A, 0.75F);
+            case SERVICE -> new DustParticleOptions(0xFFFFFF, 0.65F);
+            case LOCAL -> new DustParticleOptions(0x35E06F, 0.7F);
+            default -> null;
+        };
     }
 
     static DustParticleOptions particleFor(NeonCityGenerator.RoadClass roadClass) {

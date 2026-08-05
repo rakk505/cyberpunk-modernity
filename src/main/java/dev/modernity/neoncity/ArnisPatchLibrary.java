@@ -359,6 +359,15 @@ public final class ArnisPatchLibrary {
                 .filter(atlas -> atlas.supports(zone)).count();
     }
 
+    /** Ordered source tiles for debug/export tooling; index is {@code z * 16 + x}. */
+    public static List<Patch> atlasTiles(District district, MegacityLayout.Zone zone) {
+        return ATLASES.getOrDefault(district, List.of()).stream()
+                .filter(atlas -> atlas.supports(zone))
+                .findFirst()
+                .map(Atlas::tiles)
+                .orElse(List.of());
+    }
+
     /** Find a nearby selected tile for operator diagnostics. */
     public static Optional<Placement> findNearest(
             MegacityLayout layout, District district, int maxRadiusChunks) {

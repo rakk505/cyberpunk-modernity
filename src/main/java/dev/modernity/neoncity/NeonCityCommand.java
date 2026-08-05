@@ -46,6 +46,7 @@ public final class NeonCityCommand {
                         .then(traceCommands())
                         .then(pregenCommands())
                         .then(roadCommands())
+                        .then(osmSampleCommands())
                         .then(Commands.literal("locate")
                                 .then(Commands.argument("x", IntegerArgumentType.integer())
                                         .then(Commands.argument("z", IntegerArgumentType.integer())
@@ -270,6 +271,153 @@ public final class NeonCityCommand {
                         .executes(context -> roadOverlayStatus(context.getSource())));
     }
 
+    private static LiteralArgumentBuilder<CommandSourceStack> osmSampleCommands() {
+        return Commands.literal("osm_sample")
+                .then(Commands.literal("list")
+                        .executes(context -> listOsmSamples(context.getSource())))
+                .then(Commands.literal("load")
+                        .executes(context -> osmSampleLoadWarning(
+                                context.getSource(), "singapore"))
+                        .then(Commands.literal("confirm")
+                                .executes(context -> startOsmSampleLoad(
+                                        context.getSource(), "singapore")))
+                        .then(Commands.argument("sample", StringArgumentType.word())
+                                .suggests((context, builder) -> SharedSuggestionProvider.suggest(
+                                        OsmRoadSample.suggestions(), builder))
+                                .executes(context -> osmSampleLoadWarning(
+                                        context.getSource(), StringArgumentType.getString(
+                                                context, "sample")))
+                                .then(Commands.literal("confirm")
+                                        .executes(context -> startOsmSampleLoad(
+                                                context.getSource(),
+                                                StringArgumentType.getString(
+                                                        context, "sample"))))))
+                .then(Commands.literal("cancel")
+                        .executes(context -> cancelOsmSampleLoad(context.getSource())))
+                .then(Commands.literal("status")
+                        .executes(context -> osmSampleStatus(context.getSource())))
+                .then(Commands.literal("overlay")
+                        .then(Commands.literal("on")
+                                .executes(context -> enableOsmSampleOverlay(
+                                        context.getSource(),
+                                        ArnisOsmDebugService.DEFAULT_OVERLAY_RADIUS))
+                                .then(Commands.argument("radius", IntegerArgumentType.integer(
+                                                ArnisOsmDebugService.MIN_OVERLAY_RADIUS,
+                                                ArnisOsmDebugService.MAX_OVERLAY_RADIUS))
+                                        .executes(context -> enableOsmSampleOverlay(
+                                                context.getSource(),
+                                                IntegerArgumentType.getInteger(
+                                                        context, "radius")))))
+                        .then(Commands.literal("off")
+                                .executes(context -> disableOsmSampleOverlay(
+                                        context.getSource())))
+                        .then(Commands.literal("status")
+                                .executes(context -> osmSampleOverlayStatus(
+                                        context.getSource()))));
+    }
+
+    private static int listOsmSamples(CommandSourceStack source) {
+        source.sendSuccess(() -> Component.literal("Available OSM samples ("
+                + OsmRoadSample.samples().size() + "): "
+                + String.join(", ", OsmRoadSample.samples().stream()
+                        .map(OsmRoadSample.Sample::id).toList())), false);
+        return OsmRoadSample.samples().size();
+    }
+
+    private static int osmSampleLoadWarning(CommandSourceStack source, String sampleName) {
+        var sample = OsmRoadSample.find(sampleName);
+        if (sample.isEmpty()) {
+            source.sendFailure(Component.literal("Unknown OSM sample '" + sampleName
+                    + "'. Use /neoncity osm_sample list."));
+            return 0;
+        }
+        source.sendFailure(Component.literal(
+                "Loading " + sample.get().name() + " (" + sample.get().id()
+                        + ") permanently replaces every block above Y=67 in the aligned "
+                        + "16x16-chunk region containing you. Run /neoncity osm_sample load "
+                        + sampleName + " confirm to proceed."));
+        return 0;
+    }
+
+    private static int startOsmSampleLoad(CommandSourceStack source, String sampleName)
+            throws CommandSyntaxException {
+        var sample = OsmRoadSample.find(sampleName);
+        if (sample.isEmpty()) {
+            source.sendFailure(Component.literal("Unknown OSM sample '" + sampleName
+                    + "'. Use /neoncity osm_sample list."));
+            return 0;
+        }
+        ServerPlayer player = source.getPlayerOrException();
+        if (!ArnisOsmDebugService.start(player, sample.get())) {
+            source.sendFailure(Component.literal(
+                    "An OSM atlas load is already active or the sample atlas is unavailable."));
+            return 0;
+        }
+        ArnisOsmDebugService.Status status = ArnisOsmDebugService.status();
+        source.sendSuccess(() -> Component.literal(String.format(
+                "Loading %s (%s) into chunks (%d,%d)..(%d,%d), "
+                        + "one tile per tick.",
+                status.sampleName(), status.sampleId(),
+                status.originChunkX(), status.originChunkZ(),
+                status.originChunkX() + 15, status.originChunkZ() + 15)), true);
+        return 1;
+    }
+
+    private static int cancelOsmSampleLoad(CommandSourceStack source) {
+        boolean cancelled = ArnisOsmDebugService.cancel();
+        source.sendSuccess(() -> Component.literal(cancelled
+                ? "OSM atlas load cancelled. Already replaced chunks are not restored."
+                : "No OSM atlas load is active."), true);
+        return cancelled ? 1 : 0;
+    }
+
+    private static int osmSampleStatus(CommandSourceStack source) {
+        ArnisOsmDebugService.Status status = ArnisOsmDebugService.status();
+        source.sendSuccess(() -> Component.literal(status.active()
+                ? String.format("OSM atlas load active: %s, %d/%d tiles at origin chunk (%d,%d).",
+                        status.sampleId(), status.completed(), status.total(),
+                        status.originChunkX(), status.originChunkZ())
+                : "No OSM atlas load is active."), false);
+        return status.completed();
+    }
+
+    private static int enableOsmSampleOverlay(CommandSourceStack source, int radius)
+            throws CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        ArnisOsmDebugService.enableOverlay(player, radius);
+        ArnisOsmDebugService.OverlayStatus status =
+                ArnisOsmDebugService.overlayStatus(player);
+        source.sendSuccess(() -> Component.literal(String.format(
+                "OSM overlay enabled for %s at atlas origin chunk (%d,%d), radius %d. "
+                        + "Red=blocked, over one-block step, or missing headroom; "
+                        + "cyan=primary; yellow=secondary; "
+                        + "green=local; white=service; magenta=trunk.",
+                status.sampleId(), status.originChunkX(), status.originChunkZ(),
+                status.radius())), false);
+        return 1;
+    }
+
+    private static int disableOsmSampleOverlay(CommandSourceStack source)
+            throws CommandSyntaxException {
+        boolean disabled = ArnisOsmDebugService.disableOverlay(source.getPlayerOrException());
+        source.sendSuccess(() -> Component.literal(disabled
+                ? "OSM overlay disabled."
+                : "OSM overlay was not enabled."), false);
+        return disabled ? 1 : 0;
+    }
+
+    private static int osmSampleOverlayStatus(CommandSourceStack source)
+            throws CommandSyntaxException {
+        ArnisOsmDebugService.OverlayStatus status =
+                ArnisOsmDebugService.overlayStatus(source.getPlayerOrException());
+        source.sendSuccess(() -> Component.literal(status.enabled()
+                ? String.format("OSM overlay enabled: sample=%s, origin=(%d,%d), radius=%d.",
+                        status.sampleId(), status.originChunkX(), status.originChunkZ(),
+                        status.radius())
+                : "OSM overlay disabled."), false);
+        return status.enabled() ? 1 : 0;
+    }
+
     private static int enableRoadOverlay(CommandSourceStack source, int radius)
             throws CommandSyntaxException {
         if (!NeonCityGenerator.isMegacityWorld(source.getLevel())) {
@@ -280,9 +428,10 @@ public final class NeonCityCommand {
         ServerPlayer player = source.getPlayerOrException();
         RoadDebugOverlayService.enable(player, radius);
         source.sendSuccess(() -> Component.literal(String.format(
-                "Road overlay enabled (%d blocks). Green=local, cyan=boulevard, "
-                        + "yellow=highway, orange=bridge, magenta=rail, red=highway buffer, "
-                        + "white=plaza, gray=alley.",
+                "Road overlay enabled (%d blocks), including mapped OSM atlas streets. "
+                        + "Green=local, cyan=primary/boulevard, yellow=secondary/highway, "
+                        + "orange=bridge, magenta=motorway/rail, red=highway buffer, "
+                        + "white=service/plaza, gray=alley.",
                 radius)), false);
         return 1;
     }

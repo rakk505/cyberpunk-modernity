@@ -1,0 +1,535 @@
+{
+  "format": "neoncity:arnis_catalog_osm_sources",
+  "source_count": 24,
+  "sources": [
+    {
+      "endpoint": "https://overpass-api.de/api/interpreter",
+      "geographic_bbox": {
+        "max_lat": 47.612,
+        "max_lon": -122.1975,
+        "min_lat": 47.608,
+        "min_lon": -122.204
+      },
+      "license": {
+        "attribution": "OpenStreetMap contributors",
+        "id": "ODbL-1.0",
+        "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+      },
+      "name": "Bellevue downtown",
+      "original_arnis_input_sha256": "ed1f06eec68afe0eeaede6f512afa850491090a6474b4dc5a501727bc0f33a90",
+      "query": "[out:json][timeout:90];way[\"highway\"](47.608,-122.204,47.612,-122.1975);(._;>;);out body;",
+      "slug": "bellevue",
+      "snapshot_file": "provenance/arnis_catalog_sources/bellevue_osm.json",
+      "snapshot_sha256": "bfaa854e04628611ca8cde07ddb2d1339cf6ea146ebd4b62081cd1187391a318",
+      "source_id": "osm-bellevue-district-atlas-v3-16x16",
+      "timestamp_osm_base": "2026-08-05T01:45:58Z"
+    },
+    {
+      "endpoint": "https://overpass.kumi.systems/api/interpreter",
+      "geographic_bbox": {
+        "max_lat": 35.1,
+        "max_lon": 129.034,
+        "min_lat": 35.096,
+        "min_lon": 129.028
+      },
+      "license": {
+        "attribution": "OpenStreetMap contributors",
+        "id": "ODbL-1.0",
+        "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+      },
+      "name": "Busan / Nampo",
+      "original_arnis_input_sha256": "3c7fb1cbb58f3c14ccd420bd6a24d7b64a6d1d0b464e6e78a0189744c3fee41a",
+      "query": "[out:json][timeout:90];way[\"highway\"](35.096,129.028,35.1,129.034);(._;>;);out body;",
+      "slug": "busan_nampo",
+      "snapshot_file": "provenance/arnis_catalog_sources/busan_nampo_osm.json",
+      "snapshot_sha256": "d85f261ae0e2538c46c8762b7de51ebb913f1396b0483411cb43e0299eb60ea7",
+      "source_id": "osm-busan_nampo-district-atlas-v3-16x16",
+      "timestamp_osm_base": "2026-06-12T12:14:17Z"
+    },
+    {
+      "endpoint": "https://overpass-api.de/api/interpreter",
+      "geographic_bbox": {
+        "max_lat": 51.506,
+        "max_lon": -0.0185,
+        "min_lat": 51.502,
+        "min_lon": -0.025
+      },
+      "license": {
+        "attribution": "OpenStreetMap contributors",
+        "id": "ODbL-1.0",
+        "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+      },
+      "name": "London / Canary Wharf",
+      "original_arnis_input_sha256": "764488fd43c79866e000f423ff9df75f25a516bdb2c062e57fa31d4519b45e83",
+      "query": "[out:json][timeout:90];way[\"highway\"](51.502,-0.025,51.506,-0.0185);(._;>;);out body;",
+      "slug": "canary_wharf",
+      "snapshot_file": "provenance/arnis_catalog_sources/canary_wharf_osm.json",
+      "snapshot_sha256": "28ffa956ad6cdcaf07e5ff09a204ecf9df78dc527753b81828c2f7772e6c044b",
+      "source_id": "osm-canary_wharf-district-atlas-v3-16x16",
+      "timestamp_osm_base": "2026-08-05T01:47:01Z"
+    },
+    {
+      "endpoint": "https://overpass-api.de/api/interpreter",
+      "geographic_bbox": {
+        "max_lat": 21.035,
+        "max_lon": 105.854,
+        "min_lat": 21.031,
+        "min_lon": 105.848
+      },
+      "license": {
+        "attribution": "OpenStreetMap contributors",
+        "id": "ODbL-1.0",
+        "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+      },
+      "name": "Hanoi / Old Quarter",
+      "original_arnis_input_sha256": "bc594ba7be270c667594a15802eed19d256a131230320c3528530a435f7670c7",
+      "query": "[out:json][timeout:90];way[\"highway\"](21.031,105.848,21.035,105.854);(._;>;);out body;",
+      "slug": "hanoi_old_quarter",
+      "snapshot_file": "provenance/arnis_catalog_sources/hanoi_old_quarter_osm.json",
+      "snapshot_sha256": "646a1954dd47a2f4b359e418d3f7cc464cc7f34b51cd8383a205a0fc18bcc483",
+      "source_id": "osm-hanoi_old_quarter-district-atlas-v3-16x16",
+      "timestamp_osm_base": "2026-08-05T01:47:01Z"
+    },
+    {
+      "endpoint": "https://overpass.kumi.systems/api/interpreter",
+      "geographic_bbox": {
+        "max_lat": 22.321,
+        "max_lon": 114.1725,
+        "min_lat": 22.317,
+        "min_lon": 114.167
+      },
+      "license": {
+        "attribution": "OpenStreetMap contributors",
+        "id": "ODbL-1.0",
+        "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+      },
+      "name": "Hong Kong / Mong Kok",
+      "original_arnis_input_sha256": "97d5901848034fd21639df75ee045aa1d2ce3191d6973b6eb1ca2cc9eb9d8ae9",
+      "query": "[out:json][timeout:90];way[\"highway\"](22.317,114.167,22.321,114.1725);(._;>;);out body;",
+      "slug": "hong_kong_mong_kok",
+      "snapshot_file": "provenance/arnis_catalog_sources/hong_kong_mong_kok_osm.json",
+      "snapshot_sha256": "b8c262eb54863191d09b30c28ee841fad0eae3b90dc1cfc593812a6967a64271",
+      "source_id": "osm-hong_kong_mong_kok-district-atlas-v3-16x16",
+      "timestamp_osm_base": "2026-05-31T22:37:44Z"
+    },
+    {
+      "endpoint": "https://overpass-api.de/api/interpreter",
+      "geographic_bbox": {
+        "max_lat": -6.225,
+        "max_lon": 106.812,
+        "min_lat": -6.229,
+        "min_lon": 106.806
+      },
+      "license": {
+        "attribution": "OpenStreetMap contributors",
+        "id": "ODbL-1.0",
+        "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+      },
+      "name": "Jakarta / SCBD",
+      "original_arnis_input_sha256": "d6a74b30f7d4a0670ee84522e8e529070a259824d45eb28af40617edeab7e847",
+      "query": "[out:json][timeout:90];way[\"highway\"](-6.229,106.806,-6.225,106.812);(._;>;);out body;",
+      "slug": "jakarta_scbd",
+      "snapshot_file": "provenance/arnis_catalog_sources/jakarta_scbd_osm.json",
+      "snapshot_sha256": "5b2490fc749a6bdd88118b3e95863ce8d7dfd0075ed8c1faad87cc9f2a8b6651",
+      "source_id": "osm-jakarta_scbd-district-atlas-v3-16x16",
+      "timestamp_osm_base": "2026-08-05T01:47:57Z"
+    },
+    {
+      "endpoint": "https://overpass-api.de/api/interpreter",
+      "geographic_bbox": {
+        "max_lat": 42.365,
+        "max_lon": -71.085,
+        "min_lat": 42.361,
+        "min_lon": -71.091
+      },
+      "license": {
+        "attribution": "OpenStreetMap contributors",
+        "id": "ODbL-1.0",
+        "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+      },
+      "name": "Cambridge / Kendall Square",
+      "original_arnis_input_sha256": "b9299c4df9935249f0f46f2ed2a41487beda1e6064c172797868b4f93c463df3",
+      "query": "[out:json][timeout:90];way[\"highway\"](42.361,-71.091,42.365,-71.085);(._;>;);out body;",
+      "slug": "kendall_square",
+      "snapshot_file": "provenance/arnis_catalog_sources/kendall_square_osm.json",
+      "snapshot_sha256": "612623dc1713c25a98ef25b08bd81b53f81cd122ef917d240e39b6865086cf71",
+      "source_id": "osm-kendall_square-district-atlas-v3-16x16",
+      "timestamp_osm_base": "2026-08-05T01:47:57Z"
+    },
+    {
+      "endpoint": "https://overpass.kumi.systems/api/interpreter",
+      "geographic_bbox": {
+        "max_lat": 51.537,
+        "max_lon": -0.1215,
+        "min_lat": 51.533,
+        "min_lon": -0.128
+      },
+      "license": {
+        "attribution": "OpenStreetMap contributors",
+        "id": "ODbL-1.0",
+        "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+      },
+      "name": "London / King's Cross",
+      "original_arnis_input_sha256": "4db54d49da049f5287be74714e42570f94f6795c0b366f4618eb3b05e0e58842",
+      "query": "[out:json][timeout:90];way[\"highway\"](51.533,-0.128,51.537,-0.1215);(._;>;);out body;",
+      "slug": "london_kings_cross",
+      "snapshot_file": "provenance/arnis_catalog_sources/london_kings_cross_osm.json",
+      "snapshot_sha256": "010d613a513fac9a2df3c90c95e22c078d217a7d342108f928a2176452c2f082",
+      "source_id": "osm-london_kings_cross-district-atlas-v3-16x16",
+      "timestamp_osm_base": "2026-06-01T08:52:28Z"
+    },
+    {
+      "endpoint": "https://overpass-api.de/api/interpreter",
+      "geographic_bbox": {
+        "max_lat": 40.754,
+        "max_lon": -73.974,
+        "min_lat": 40.75,
+        "min_lon": -73.98
+      },
+      "license": {
+        "attribution": "OpenStreetMap contributors",
+        "id": "ODbL-1.0",
+        "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+      },
+      "name": "New York / Midtown East",
+      "original_arnis_input_sha256": "4f6d5e7e840069c4a23929e01cfda91701d84460a1a57d6f83b557f816fa7b0e",
+      "query": "[out:json][timeout:90];way[\"highway\"](40.75,-73.98,40.754,-73.974);(._;>;);out body;",
+      "slug": "manhattan_midtown",
+      "snapshot_file": "provenance/arnis_catalog_sources/manhattan_midtown_osm.json",
+      "snapshot_sha256": "b343c156959a9418c836c967daa1f27438f468d39fa729b525c4b4b36453eda2",
+      "source_id": "osm-manhattan_midtown-district-atlas-v3-16x16",
+      "timestamp_osm_base": "2026-08-05T01:49:58Z"
+    },
+    {
+      "endpoint": "https://overpass-api.de/api/interpreter",
+      "geographic_bbox": {
+        "max_lat": 19.436,
+        "max_lon": -99.132,
+        "min_lat": 19.432,
+        "min_lon": -99.1375
+      },
+      "license": {
+        "attribution": "OpenStreetMap contributors",
+        "id": "ODbL-1.0",
+        "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+      },
+      "name": "Mexico City / Centro Historico",
+      "original_arnis_input_sha256": "02d0a4fd0a5fe392037cb112e6f25c3c18bc1f286a0bb1ef06bc32ffddf73d62",
+      "query": "[out:json][timeout:90];way[\"highway\"](19.432,-99.1375,19.436,-99.132);(._;>;);out body;",
+      "slug": "mexico_city_centro",
+      "snapshot_file": "provenance/arnis_catalog_sources/mexico_city_centro_osm.json",
+      "snapshot_sha256": "f8fc59d96149c45172a9edc1c1d5f5a778127e7fd68608a66f23139850e80f86",
+      "source_id": "osm-mexico_city_centro-district-atlas-v3-16x16",
+      "timestamp_osm_base": "2026-08-05T01:49:58Z"
+    },
+    {
+      "endpoint": "https://overpass-api.de/api/interpreter",
+      "geographic_bbox": {
+        "max_lat": 25.783,
+        "max_lon": -80.1295,
+        "min_lat": 25.779,
+        "min_lon": -80.135
+      },
+      "license": {
+        "attribution": "OpenStreetMap contributors",
+        "id": "ODbL-1.0",
+        "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+      },
+      "name": "Miami Beach / Art Deco Historic District",
+      "original_arnis_input_sha256": "268f062c15f21071f9964aa6516941cdfd92739fc073f721e0a7aaf9a6fc7950",
+      "query": "[out:json][timeout:90];way[\"highway\"](25.779,-80.135,25.783,-80.1295);(._;>;);out body;",
+      "slug": "miami_beach",
+      "snapshot_file": "provenance/arnis_catalog_sources/miami_beach_osm.json",
+      "snapshot_sha256": "0edcaeea2c0dd9fdee60d3f679f0bfe98abc9371c81eec7258938385e1b58b6a",
+      "source_id": "osm-miami_beach-district-atlas-v3-16x16",
+      "timestamp_osm_base": "2026-08-05T01:51:05Z"
+    },
+    {
+      "endpoint": "https://overpass-api.de/api/interpreter",
+      "geographic_bbox": {
+        "max_lat": 34.67,
+        "max_lon": 135.504,
+        "min_lat": 34.666,
+        "min_lon": 135.498
+      },
+      "license": {
+        "attribution": "OpenStreetMap contributors",
+        "id": "ODbL-1.0",
+        "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+      },
+      "name": "Osaka / Namba",
+      "original_arnis_input_sha256": "0a940c246290ed3500e0025a3dc27e6be4e0f69329fe3c8984c1224fcd352e59",
+      "query": "[out:json][timeout:90];way[\"highway\"](34.666,135.498,34.67,135.504);(._;>;);out body;",
+      "slug": "osaka_namba",
+      "snapshot_file": "provenance/arnis_catalog_sources/osaka_namba_osm.json",
+      "snapshot_sha256": "65261c3945ffd8e0a6a0834f0df85d6f54bb2d1706af5a5ef50ad16e10fd50eb",
+      "source_id": "osm-osaka_namba-district-atlas-v3-16x16",
+      "timestamp_osm_base": "2026-08-05T01:52:05Z"
+    },
+    {
+      "endpoint": "https://overpass-api.de/api/interpreter",
+      "geographic_bbox": {
+        "max_lat": 37.445,
+        "max_lon": -122.1605,
+        "min_lat": 37.441,
+        "min_lon": -122.1665
+      },
+      "license": {
+        "attribution": "OpenStreetMap contributors",
+        "id": "ODbL-1.0",
+        "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+      },
+      "name": "Palo Alto / University Avenue",
+      "original_arnis_input_sha256": "276f9a291a9205d5771d54fe11d7336412ef7bff0b1057b1ce44413ba4a41744",
+      "query": "[out:json][timeout:90];way[\"highway\"](37.441,-122.1665,37.445,-122.1605);(._;>;);out body;",
+      "slug": "palo_alto",
+      "snapshot_file": "provenance/arnis_catalog_sources/palo_alto_osm.json",
+      "snapshot_sha256": "eb5ac50f25a70606c4422df1616dc49058d3e2f40174cd1f9429ce2baccbab7b",
+      "source_id": "osm-palo_alto-district-atlas-v3-16x16",
+      "timestamp_osm_base": "2026-08-05T01:52:05Z"
+    },
+    {
+      "endpoint": "https://overpass-api.de/api/interpreter",
+      "geographic_bbox": {
+        "max_lat": 48.872,
+        "max_lon": 2.3355,
+        "min_lat": 48.868,
+        "min_lon": 2.329
+      },
+      "license": {
+        "attribution": "OpenStreetMap contributors",
+        "id": "ODbL-1.0",
+        "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+      },
+      "name": "Paris / Opera",
+      "original_arnis_input_sha256": "babe8e1ad0d8c3234ddd7a8b4076351c5bd51861ddffd3d29882ea4902cba0f5",
+      "query": "[out:json][timeout:90];way[\"highway\"](48.868,2.329,48.872,2.3355);(._;>;);out body;",
+      "slug": "paris_opera",
+      "snapshot_file": "provenance/arnis_catalog_sources/paris_opera_osm.json",
+      "snapshot_sha256": "67292837657e63d07f17099fc682d5ec1c23eca965079846c48b0a79e58c020a",
+      "source_id": "osm-paris_opera-district-atlas-v3-16x16",
+      "timestamp_osm_base": "2026-08-05T01:53:04Z"
+    },
+    {
+      "endpoint": "https://overpass-api.de/api/interpreter",
+      "geographic_bbox": {
+        "max_lat": 45.526,
+        "max_lon": -122.6785,
+        "min_lat": 45.522,
+        "min_lon": -122.6845
+      },
+      "license": {
+        "attribution": "OpenStreetMap contributors",
+        "id": "ODbL-1.0",
+        "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+      },
+      "name": "Portland / Pearl District",
+      "original_arnis_input_sha256": "bcbd066fc21f7484628540ca91c846f40d62306fef19b687ad60107b69991555",
+      "query": "[out:json][timeout:90];way[\"highway\"](45.522,-122.6845,45.526,-122.6785);(._;>;);out body;",
+      "slug": "portland_pearl",
+      "snapshot_file": "provenance/arnis_catalog_sources/portland_pearl_osm.json",
+      "snapshot_sha256": "7662b95b56ec06c3744e66da7ef1ffe0dace5cbd295a80dba29a14fc13e947f6",
+      "source_id": "osm-portland_pearl-district-atlas-v3-16x16",
+      "timestamp_osm_base": "2026-08-05T01:53:04Z"
+    },
+    {
+      "endpoint": "https://overpass.kumi.systems/api/interpreter",
+      "geographic_bbox": {
+        "max_lat": 41.901,
+        "max_lon": 12.481,
+        "min_lat": 41.897,
+        "min_lon": 12.475
+      },
+      "license": {
+        "attribution": "OpenStreetMap contributors",
+        "id": "ODbL-1.0",
+        "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+      },
+      "name": "Rome / historic center",
+      "original_arnis_input_sha256": "fd8e995673b909a2ae614b4689511170d7205c9c52c9eb4aa8d1ab6c26966f1c",
+      "query": "[out:json][timeout:90];way[\"highway\"](41.897,12.475,41.901,12.481);(._;>;);out body;",
+      "slug": "rome_centro",
+      "snapshot_file": "provenance/arnis_catalog_sources/rome_centro_osm.json",
+      "snapshot_sha256": "d7837d8ecadedeca4be28d710fa4c3ff06611358958a45efb397ac507f99f1c0",
+      "source_id": "osm-rome_centro-district-atlas-v3-16x16",
+      "timestamp_osm_base": "2026-06-01T08:52:28Z"
+    },
+    {
+      "endpoint": "https://overpass-api.de/api/interpreter",
+      "geographic_bbox": {
+        "max_lat": 51.897,
+        "max_lon": 4.445,
+        "min_lat": 51.893,
+        "min_lon": 4.438
+      },
+      "license": {
+        "attribution": "OpenStreetMap contributors",
+        "id": "ODbL-1.0",
+        "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+      },
+      "name": "Rotterdam / Waalhaven",
+      "original_arnis_input_sha256": "b940d8644108d3ac9a6a9d5a11f12dfc6787ffb8afcb55c2214ef1198b825b1e",
+      "query": "[out:json][timeout:90];way[\"highway\"](51.893,4.438,51.897,4.445);(._;>;);out body;",
+      "slug": "rotterdam_port",
+      "snapshot_file": "provenance/arnis_catalog_sources/rotterdam_port_osm.json",
+      "snapshot_sha256": "5a5a6ef1bbf0609fcaf58fe74d426ef66095dce04a68805f293db4094f5952db",
+      "source_id": "osm-rotterdam_port-district-atlas-v3-16x16",
+      "timestamp_osm_base": "2026-08-05T01:54:02Z"
+    },
+    {
+      "endpoint": "https://overpass-api.de/api/interpreter",
+      "geographic_bbox": {
+        "max_lat": 37.5032,
+        "max_lon": 127.04,
+        "min_lat": 37.4992,
+        "min_lon": 127.0345
+      },
+      "license": {
+        "attribution": "OpenStreetMap contributors",
+        "id": "ODbL-1.0",
+        "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+      },
+      "name": "Seoul / Gangnam",
+      "original_arnis_input_sha256": "8df4bbf2726c52992673ad58c27a5e3eb915a44fd0160c7fbbabe0becb39e590",
+      "query": "[out:json][timeout:90];way[\"highway\"](37.4992,127.0345,37.5032,127.04);(._;>;);out body;",
+      "slug": "seoul_gangnam",
+      "snapshot_file": "provenance/arnis_catalog_sources/seoul_gangnam_osm.json",
+      "snapshot_sha256": "d408ab5ad908f0a9be97f5ad3c5c2ab18264381ade016bea4e892d3918d9b93a",
+      "source_id": "osm-seoul_gangnam-district-atlas-v3-16x16",
+      "timestamp_osm_base": "2026-08-05T01:55:05Z"
+    },
+    {
+      "endpoint": "https://overpass.kumi.systems/api/interpreter",
+      "geographic_bbox": {
+        "max_lat": 22.541,
+        "max_lon": 114.058,
+        "min_lat": 22.537,
+        "min_lon": 114.052
+      },
+      "license": {
+        "attribution": "OpenStreetMap contributors",
+        "id": "ODbL-1.0",
+        "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+      },
+      "name": "Shenzhen / Futian CBD",
+      "original_arnis_input_sha256": "c393ca3ee29cca5013e595b489b0178bfd22831a482d775deca430f2c221cd5b",
+      "query": "[out:json][timeout:90];way[\"highway\"](22.537,114.052,22.541,114.058);(._;>;);out body;",
+      "slug": "shenzhen_futian",
+      "snapshot_file": "provenance/arnis_catalog_sources/shenzhen_futian_osm.json",
+      "snapshot_sha256": "b67e49b4fe04c9a725dd64000d2d324c86943b2840a7226dcbd62208c0997cb2",
+      "source_id": "osm-shenzhen_futian-district-atlas-v3-16x16",
+      "timestamp_osm_base": "2026-05-06T03:25:00Z"
+    },
+    {
+      "endpoint": "https://overpass-api.de/api/interpreter",
+      "geographic_bbox": {
+        "max_lat": 59.334,
+        "max_lon": 18.0685,
+        "min_lat": 59.33,
+        "min_lon": 18.062
+      },
+      "license": {
+        "attribution": "OpenStreetMap contributors",
+        "id": "ODbL-1.0",
+        "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+      },
+      "name": "Stockholm / Norrmalm",
+      "original_arnis_input_sha256": "850d7b155de7e48672c4b2441440e072ffb1224a853bd0cec6f38f58096c66df",
+      "query": "[out:json][timeout:90];way[\"highway\"](59.33,18.062,59.334,18.0685);(._;>;);out body;",
+      "slug": "stockholm_norrmalm",
+      "snapshot_file": "provenance/arnis_catalog_sources/stockholm_norrmalm_osm.json",
+      "snapshot_sha256": "fe027e32a597a77015c1c4081bf7284600d0b4ce877a185da7bacb3411201ae2",
+      "source_id": "osm-stockholm_norrmalm-district-atlas-v3-16x16",
+      "timestamp_osm_base": "2026-08-05T01:56:04Z"
+    },
+    {
+      "endpoint": "https://overpass-api.de/api/interpreter",
+      "geographic_bbox": {
+        "max_lat": 35.695,
+        "max_lon": 139.702,
+        "min_lat": 35.691,
+        "min_lon": 139.6965
+      },
+      "license": {
+        "attribution": "OpenStreetMap contributors",
+        "id": "ODbL-1.0",
+        "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+      },
+      "name": "Tokyo / Shinjuku",
+      "original_arnis_input_sha256": "85d3e3801c76a7f1365dc1e4b7c05fb90ad45ed142d8d4ca8084df2a99ad0644",
+      "query": "[out:json][timeout:90];way[\"highway\"](35.691,139.6965,35.695,139.702);(._;>;);out body;",
+      "slug": "tokyo_shinjuku",
+      "snapshot_file": "provenance/arnis_catalog_sources/tokyo_shinjuku_osm.json",
+      "snapshot_sha256": "e429da94f381426bf2893604d1a860a05d05cb94a63cbfac2be4afcbe9e372b7",
+      "source_id": "osm-tokyo_shinjuku-district-atlas-v3-16x16",
+      "timestamp_osm_base": "2026-08-05T01:56:04Z"
+    },
+    {
+      "endpoint": "https://overpass.kumi.systems/api/interpreter",
+      "geographic_bbox": {
+        "max_lat": 43.651,
+        "max_lon": -79.378,
+        "min_lat": 43.647,
+        "min_lon": -79.384
+      },
+      "license": {
+        "attribution": "OpenStreetMap contributors",
+        "id": "ODbL-1.0",
+        "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+      },
+      "name": "Toronto / Financial District",
+      "original_arnis_input_sha256": "315ef792f47d7c58593cab8db630f68bb6f5187f9f35a7d20b689f5e1cd8cf9a",
+      "query": "[out:json][timeout:90];way[\"highway\"](43.647,-79.384,43.651,-79.378);(._;>;);out body;",
+      "slug": "toronto_financial",
+      "snapshot_file": "provenance/arnis_catalog_sources/toronto_financial_osm.json",
+      "snapshot_sha256": "198da4c684e85503273b8b57e79ad16540d87421ace9d70ab96ecdb20d149cfd",
+      "source_id": "osm-toronto_financial-district-atlas-v3-16x16",
+      "timestamp_osm_base": "2026-07-02T16:51:45Z"
+    },
+    {
+      "endpoint": "https://overpass.kumi.systems/api/interpreter",
+      "geographic_bbox": {
+        "max_lat": 48.21,
+        "max_lon": 16.3755,
+        "min_lat": 48.206,
+        "min_lon": 16.369
+      },
+      "license": {
+        "attribution": "OpenStreetMap contributors",
+        "id": "ODbL-1.0",
+        "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+      },
+      "name": "Vienna / Innere Stadt",
+      "original_arnis_input_sha256": "729e3615688d5a590e88d44aa05a5c3c024ddd7e99ea52eab558b675a1b778a2",
+      "query": "[out:json][timeout:90];way[\"highway\"](48.206,16.369,48.21,16.3755);(._;>;);out body;",
+      "slug": "vienna_innere_stadt",
+      "snapshot_file": "provenance/arnis_catalog_sources/vienna_innere_stadt_osm.json",
+      "snapshot_sha256": "ae6e89f7ded9c00df8b2777a071870cf38d7da60fd9d150cadf272f821b5c676",
+      "source_id": "osm-vienna_innere_stadt-district-atlas-v3-16x16",
+      "timestamp_osm_base": "2026-05-06T03:25:00Z"
+    },
+    {
+      "endpoint": "https://overpass-api.de/api/interpreter",
+      "geographic_bbox": {
+        "max_lat": 47.374,
+        "max_lon": 8.5455,
+        "min_lat": 47.37,
+        "min_lon": 8.539
+      },
+      "license": {
+        "attribution": "OpenStreetMap contributors",
+        "id": "ODbL-1.0",
+        "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+      },
+      "name": "Zurich / Limmat and old town",
+      "original_arnis_input_sha256": "127959c2834dc30ea5d4535c6cb052caa0d2e5b4a62fba504f62de14a6bba416",
+      "query": "[out:json][timeout:90];way[\"highway\"](47.37,8.539,47.374,8.5455);(._;>;);out body;",
+      "slug": "zurich_limmat",
+      "snapshot_file": "provenance/arnis_catalog_sources/zurich_limmat_osm.json",
+      "snapshot_sha256": "358977305c58943ea2dc55e30f183d4320a26955704f4260a9a804412c7c1af1",
+      "source_id": "osm-zurich_limmat-district-atlas-v3-16x16",
+      "timestamp_osm_base": "2026-08-05T01:57:05Z"
+    }
+  ],
+  "version": 1
+}

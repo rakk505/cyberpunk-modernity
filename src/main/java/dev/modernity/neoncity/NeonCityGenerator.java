@@ -1123,6 +1123,11 @@ public final class NeonCityGenerator {
                 chunkX, chunkZ, sampleChunk(chunkX << 4, chunkZ << 4));
     }
 
+    /** Actual atlas placement used by generation, including compatibility rejection. */
+    static Optional<ArnisPatchLibrary.Placement> arnisPlacementAt(int chunkX, int chunkZ) {
+        return usableArnisPlacement(chunkX, chunkZ);
+    }
+
     private static EnumSet<ArnisPatchLibrary.Connector.Edge> interruptedArnisEdges(
             ChunkPos chunk, ArnisPatchLibrary.Placement placement) {
         EnumSet<ArnisPatchLibrary.Connector.Edge> interrupted = EnumSet.noneOf(
@@ -1835,7 +1840,7 @@ public final class NeonCityGenerator {
         }
     }
 
-    private static void scheduleTrackingClientRefresh(ServerLevel level, ChunkPos chunk) {
+    static void scheduleTrackingClientRefresh(ServerLevel level, ChunkPos chunk) {
         if (!hasTrackingClient(level, chunk)) return;
         long key = chunk.pack();
         if (!PENDING_LIGHT_REFRESHES.add(key)) return;

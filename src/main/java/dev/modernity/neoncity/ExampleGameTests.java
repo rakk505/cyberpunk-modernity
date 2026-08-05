@@ -4856,6 +4856,39 @@ public final class ExampleGameTests {
         helper.assertTrue(ArnisPatchLibrary.atlasCount() == expectedAtlasCount,
                 "runtime index must contain exactly 70 district-zone atlases, found "
                         + ArnisPatchLibrary.atlasCount());
+        helper.assertTrue(OsmRoadSample.samples().size() == expectedAtlasCount,
+                "OSM verification catalog must contain all 70 Arnis atlases");
+        helper.assertTrue(OsmRoadSample.find("singapore").orElseThrow()
+                        == OsmRoadSample.find("singapore_raffles_place").orElseThrow(),
+                "OSM verification catalog did not resolve the Singapore alias");
+        helper.assertTrue(OsmRoadSample.find("tokyo").orElseThrow()
+                        == OsmRoadSample.find("tokyo_shinjuku_nest").orElseThrow(),
+                "OSM verification catalog did not resolve the Tokyo alias");
+        helper.assertTrue(OsmRoadSample.samples().stream()
+                        .map(sample -> sample.district().name() + ":" + sample.zone().name())
+                        .distinct().count() == expectedAtlasCount,
+                "OSM verification catalog has missing or duplicate district-zone coverage");
+        helper.assertTrue(OsmRoadSample.samples().stream().allMatch(sample ->
+                        OsmRoadSample.forAtlas(sample.district(), sample.zone()).orElseThrow()
+                                == sample),
+                "OSM atlas lookup does not resolve every district-zone sample");
+        helper.assertTrue(RoadDebugOverlayService.sourceCoordinate(4, 3, false) == 67
+                        && RoadDebugOverlayService.sourceCoordinate(4, 3, true) == 76,
+                "OSM road overlay does not mirror destination columns into source atlases");
+        helper.assertTrue(OsmRoadSample.samples().stream().allMatch(sample ->
+                        ArnisPatchLibrary.atlasTiles(sample.district(), sample.zone()).size()
+                                == ARNIS_TILES_PER_ATLAS),
+                "an OSM verification sample did not resolve its complete 16x16 Arnis atlas");
+        helper.assertTrue(OsmRoadSample.samples().stream().allMatch(sample ->
+                        !sample.roads().isEmpty() && sample.segmentCount() >= 1),
+                "an OSM verification sample did not retain its clipped road centerlines");
+        helper.assertTrue(OsmRoadSample.samples().stream()
+                        .flatMap(sample -> sample.roads().stream())
+                        .allMatch(road -> road.lanes() >= 1 && road.width() >= 3.0)
+                        && OsmRoadSample.samples().stream()
+                                .flatMap(sample -> sample.roads().stream())
+                                .anyMatch(road -> road.width() >= 14.0),
+                "OSM verification samples did not retain usable lane-derived road widths");
 
         Set<String> auditedOpenParkTiles = ArnisPatchLibrary.auditedOpenParkTileIds();
         Map<District, Integer> auditedParkDistricts =
