@@ -35,6 +35,8 @@ public final class CityTrafficService {
     private static final String TRAFFIC_DRIVER_KEY = Cyberdeck.MODID + ":traffic_driver";
     private static final int INPUT_INTERVAL_TICKS = 2;
     private static final int RECONCILE_INTERVAL_TICKS = 100;
+    /** How often driverless vehicles re-evaluate their automatic day/night headlights. */
+    private static final int AUTO_HEADLIGHT_INTERVAL_TICKS = 40;
     private static final int STUCK_REPLAN_TICKS = 100;
     private static final int STUCK_RETIRE_TICKS = 360;
     private static final int UNSAFE_ROUTE_REPLAN_TICKS = 12;
@@ -248,12 +250,36 @@ public final class CityTrafficService {
         JUNCTION_RESERVATIONS.remove(vehicle.getUUID());
     }
 
+    /**
+     * Turns headlights on at night and off during the day for driverless vehicles. A vehicle a
+     * player is actively driving keeps its manual headlight toggle so we never fight the player.
+     */
+    private static void updateAutomaticHeadlights(ServerLevel level) {
+        // Headlights come on whenever it is dark outside — night, and also storms/eclipses.
+        boolean night = !level.isBrightOutside();
+        for (Entity entity : level.getAllEntities()) {
+            if (!(entity instanceof FuelPoweredVehicleEntity vehicle) || !vehicle.isAlive()) {
+                continue;
+            }
+            if (vehicle.getControllingPassenger()
+                    instanceof net.minecraft.world.entity.player.Player) {
+                continue;
+            }
+            if (vehicle.areHeadlightsOn() != night) {
+                vehicle.setHeadlightsOn(night);
+            }
+        }
+    }
+
     @SubscribeEvent
     public static void onLevelTick(LevelTickEvent.Post event) {
         if (!(event.getLevel() instanceof ServerLevel level)
                 || level.getGameTime() % INPUT_INTERVAL_TICKS != 0
                 || !NeonCityGenerator.isMegacityWorld(level)) {
             return;
+        }
+        if (level.getGameTime() % AUTO_HEADLIGHT_INTERVAL_TICKS == 0) {
+            updateAutomaticHeadlights(level);
         }
         if (level.getGameTime() % RECONCILE_INTERVAL_TICKS == 0) {
             for (Entity vehicle : level.getAllEntities()) {
