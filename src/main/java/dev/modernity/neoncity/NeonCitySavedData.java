@@ -26,6 +26,12 @@ public final class NeonCitySavedData extends SavedData {
     public static final int FORMAT_VERSION = 1;
     /** Forces one safe facade re-audit when the generated-surface catalog changes. */
     static final int AD_SAFETY_VERSION = 2;
+    /**
+     * Forces one safe re-scan of highway facades when the scan itself gets smarter. A chunk that
+     * found nothing under an older, narrower scan is recorded as done and would otherwise never be
+     * revisited, so existing saves would keep their bare corridors forever.
+     */
+    static final int HIGHWAY_AD_VERSION = 2;
 
     private static final Codec<DeferredBanner> DEFERRED_BANNER_CODEC =
             RecordCodecBuilder.create(instance -> instance.group(
@@ -55,7 +61,12 @@ public final class NeonCitySavedData extends SavedData {
                     Codec.LONG.listOf()
                             .optionalFieldOf("freestanding_ad_decorated_chunks", List.of())
                             .forGetter(
-                                    NeonCitySavedData::serializedFreestandingAdDecoratedChunks)
+                                    NeonCitySavedData::serializedFreestandingAdDecoratedChunks),
+                    Codec.LONG.listOf()
+                            .optionalFieldOf("highway_ad_decorated_chunks", List.of())
+                            .forGetter(NeonCitySavedData::serializedHighwayAdDecoratedChunks),
+                    Codec.INT.optionalFieldOf("highway_ad_version", 0)
+                            .forGetter(ignored -> HIGHWAY_AD_VERSION)
             ).apply(instance, NeonCitySavedData::new));
 
     public static final SavedDataType<NeonCitySavedData> TYPE = new SavedDataType<>(
@@ -70,6 +81,7 @@ public final class NeonCitySavedData extends SavedData {
     private final LinkedHashMap<Long, DeferredBanner> pendingBanners;
     private final Set<Long> adDecoratedChunks;
     private final Set<Long> freestandingAdDecoratedChunks;
+    private final Set<Long> highwayAdDecoratedChunks;
 
     public record DeferredBanner(
             int x, int y, int z, int outwardOrdinal, int districtOrdinal) {
@@ -80,7 +92,8 @@ public final class NeonCitySavedData extends SavedData {
 
     public NeonCitySavedData() {
         this(FORMAT_VERSION, NeonCityGenerator.generatorFingerprint(),
-                List.of(), List.of(), AD_SAFETY_VERSION, List.of(), List.of());
+                List.of(), List.of(), AD_SAFETY_VERSION, List.of(), List.of(), List.of(),
+                HIGHWAY_AD_VERSION);
     }
 
     private NeonCitySavedData(
@@ -90,7 +103,9 @@ public final class NeonCitySavedData extends SavedData {
             List<DeferredBanner> pendingBanners,
             int loadedAdSafetyVersion,
             List<Long> adDecoratedChunks,
-            List<Long> freestandingAdDecoratedChunks) {
+            List<Long> freestandingAdDecoratedChunks,
+            List<Long> highwayAdDecoratedChunks,
+            int loadedHighwayAdVersion) {
         this.formatVersion = formatVersion;
         this.generatorFingerprint = generatorFingerprint;
         this.generatedChunks = new HashSet<>(generatedChunks);
@@ -104,6 +119,10 @@ public final class NeonCitySavedData extends SavedData {
         this.adDecoratedChunks.retainAll(this.generatedChunks);
         this.freestandingAdDecoratedChunks = new HashSet<>(freestandingAdDecoratedChunks);
         this.freestandingAdDecoratedChunks.retainAll(this.generatedChunks);
+        this.highwayAdDecoratedChunks = loadedHighwayAdVersion >= HIGHWAY_AD_VERSION
+                ? new HashSet<>(highwayAdDecoratedChunks)
+                : new HashSet<>();
+        this.highwayAdDecoratedChunks.retainAll(this.generatedChunks);
     }
 
     public int formatVersion() {
@@ -159,6 +178,19 @@ public final class NeonCitySavedData extends SavedData {
         return true;
     }
 
+    public boolean isHighwayAdDecorated(long chunkKey) {
+        return highwayAdDecoratedChunks.contains(chunkKey);
+    }
+
+    public boolean markHighwayAdDecorated(long chunkKey) {
+        if (!generatedChunks.contains(chunkKey)
+                || !highwayAdDecoratedChunks.add(chunkKey)) {
+            return false;
+        }
+        setDirty();
+        return true;
+    }
+
     public List<DeferredBanner> pendingBanners() {
         return List.copyOf(pendingBanners.values());
     }
@@ -201,6 +233,12 @@ public final class NeonCitySavedData extends SavedData {
 
     private List<Long> serializedFreestandingAdDecoratedChunks() {
         ArrayList<Long> chunks = new ArrayList<>(freestandingAdDecoratedChunks);
+        chunks.sort(Long::compare);
+        return chunks;
+    }
+
+    private List<Long> serializedHighwayAdDecoratedChunks() {
+        ArrayList<Long> chunks = new ArrayList<>(highwayAdDecoratedChunks);
         chunks.sort(Long::compare);
         return chunks;
     }

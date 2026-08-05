@@ -31,6 +31,12 @@ public final class AdDisplayRenderer
     private static final int FULL_BRIGHT = 15_728_880;
     private static final float FRAME_DEPTH = 0.435F;
     private static final float VIDEO_DEPTH = 0.455F;
+    /**
+     * Slack added to every display's culling box. The screens are wall-hugging planes, so a camera
+     * standing level with one is effectively on the surface of a tight box; a block of padding
+     * keeps the frustum decision stable instead of toggling as the player walks along the facade.
+     */
+    private static final double RENDER_BOUNDS_PADDING = 1.0;
     private static final float STREET_FRAME_OUTSET = 0.01F;
     private static final float STREET_VIDEO_OUTSET = 0.025F;
     private static final float BORDER = 0.10F;
@@ -242,6 +248,18 @@ public final class AdDisplayRenderer
                 .setNormal(pose, facing.getStepX(), 0.0F, facing.getStepZ());
     }
 
+    /**
+     * A display's anchor is the bottom corner of a rectangle that can be dozens of blocks wide and
+     * tall, so the section holding that one block is frequently culled while most of the screen is
+     * still in view — the whole advert vanishes and reappears as the player walks past. Rendering
+     * off screen, as beacons do for their beam, ties visibility to the rectangle reported by
+     * {@link #getRenderBoundingBox} rather than to the anchor block's own section.
+     */
+    @Override
+    public boolean shouldRenderOffScreen() {
+        return true;
+    }
+
     @Override
     public int getViewDistance() {
         return 256;
@@ -261,18 +279,24 @@ public final class AdDisplayRenderer
                     anchor.getZ() - 0.1,
                     anchor.getX() + type.sizeX(blockEntity.longAxis()) + 0.1,
                     anchor.getY() + type.height(),
-                    anchor.getZ() + type.sizeZ(blockEntity.longAxis()) + 0.1);
+                    anchor.getZ() + type.sizeZ(blockEntity.longAxis()) + 0.1)
+                    .inflate(RENDER_BOUNDS_PADDING);
         }
         Direction right = LargeAdSurfaceValidator.rightOf(
                 blockEntity.getBlockState().getValue(AdDisplayBlock.FACING));
         BlockPos far = anchor.relative(right, blockEntity.displayWidth() - 1)
                 .above(blockEntity.displayHeight() - 1);
+        // A box drawn exactly around the quad is flush with its own geometry, so a camera level
+        // with the screen and close to the wall sits right on the boundary and the frustum test
+        // flips between visible and culled as the player moves: the display flickers out. Padding
+        // the box costs nothing and keeps it submitted while any part is still on screen.
         return new AABB(
                 Math.min(anchor.getX(), far.getX()),
                 anchor.getY(),
                 Math.min(anchor.getZ(), far.getZ()),
                 Math.max(anchor.getX(), far.getX()) + 1.0,
                 anchor.getY() + blockEntity.displayHeight(),
-                Math.max(anchor.getZ(), far.getZ()) + 1.0);
+                Math.max(anchor.getZ(), far.getZ()) + 1.0)
+                .inflate(RENDER_BOUNDS_PADDING);
     }
 }
