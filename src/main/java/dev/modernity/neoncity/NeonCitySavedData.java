@@ -31,7 +31,7 @@ public final class NeonCitySavedData extends SavedData {
      * found nothing under an older, narrower scan is recorded as done and would otherwise never be
      * revisited, so existing saves would keep their bare corridors forever.
      */
-    static final int HIGHWAY_AD_VERSION = 1;
+    static final int HIGHWAY_AD_VERSION = 2;
 
     private static final Codec<DeferredBanner> DEFERRED_BANNER_CODEC =
             RecordCodecBuilder.create(instance -> instance.group(

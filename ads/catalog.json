@@ -129,6 +129,39 @@
       "loop": true,
       "pad_color": "black",
       "source_sha256": "4ffb04f95bdea2e3537bdb8dd648a2a77595a449f57819600098cc3dc582af0a"
+    },
+    {
+      "id": "eri",
+      "file": "eri.mp4",
+      "duration_seconds": 30,
+      "fps": 8,
+      "campaigns": ["highway"],
+      "audio": false,
+      "loop": true,
+      "pad_color": "black",
+      "source_sha256": "04af3b167329d25c08871d9877cbe8ba6a6fcec04c5f6879aa547ce55aa8500b"
+    },
+    {
+      "id": "hamburger",
+      "file": "hamburger.mp4",
+      "duration_seconds": 30,
+      "fps": 8,
+      "campaigns": ["highway"],
+      "audio": false,
+      "loop": true,
+      "pad_color": "black",
+      "source_sha256": "f2766ba3478ac3c644965b86ff92cfa1e2e76cb75a9b18e5eb52b66c39a082f0"
+    },
+    {
+      "id": "soda",
+      "file": "soda.mp4",
+      "duration_seconds": 30,
+      "fps": 8,
+      "campaigns": ["highway"],
+      "audio": false,
+      "loop": true,
+      "pad_color": "black",
+      "source_sha256": "de752641d28cdd7c19d460f07e735793aea5da445cdd034592c54a962b06ca97"
     }
   ]
 }

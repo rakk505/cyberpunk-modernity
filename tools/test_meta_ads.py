@@ -21,13 +21,17 @@ REPOSITORY = Path(__file__).resolve().parents[1]
 RESOURCES = REPOSITORY / "src/main/resources/assets/cyberdeck"
 META_IDS = ("meta_logo", "meta_glasses", "meta_ai", "meta_future")
 SUPPLIED_IDS = ("misanthropic", "closed_ai")
-HIGHWAY_IDS = ("vater", "gojo", "horizon", "meta_logo_2", "petrochem")
+HIGHWAY_IDS = ("vater", "gojo", "horizon", "meta_logo_2", "petrochem",
+               "eri", "hamburger", "soda")
 HIGHWAY_SOURCE_SHA256 = {
     "vater": "d2ece481ebd62dd45e1c90842d23644d523d08e51c3317087275278e27cfb8cf",
     "gojo": "36d3fea88b23aad8efdcbf990387f555492cdfecb887c0f96fe96a5d861d04ef",
     "horizon": "c7420259b558af7e7a1c86384e1990986f20de4c3cfad1cafc19aab8684b1bfc",
     "meta_logo_2": "32a0d9c2df0c41762351205de85148e2e1c489eee6d50006c33a73a488e276e1",
     "petrochem": "4ffb04f95bdea2e3537bdb8dd648a2a77595a449f57819600098cc3dc582af0a",
+    "eri": "04af3b167329d25c08871d9877cbe8ba6a6fcec04c5f6879aa547ce55aa8500b",
+    "hamburger": "f2766ba3478ac3c644965b86ff92cfa1e2e76cb75a9b18e5eb52b66c39a082f0",
+    "soda": "de752641d28cdd7c19d460f07e735793aea5da445cdd034592c54a962b06ca97",
 }
 SHEET_COUNTS = {
     "meta_logo": 15,
@@ -80,10 +84,10 @@ class MetaAdGeneratorTests(unittest.TestCase):
         catalog_by_id = {clip["id"]: clip for clip in catalog["clips"]}
         manifest_by_id = {clip["id"]: clip for clip in manifest["clips"]}
 
-        self.assertEqual(3_744, process_ads.MAX_TOTAL_FRAMES)
-        self.assertEqual(235, process_ads.MAX_TOTAL_SHEETS)
-        self.assertEqual(3_744, manifest["total_frames"])
-        self.assertEqual(235, manifest["total_sheets"])
+        self.assertEqual(4_464, process_ads.MAX_TOTAL_FRAMES)
+        self.assertEqual(280, process_ads.MAX_TOTAL_SHEETS)
+        self.assertEqual(4_464, manifest["total_frames"])
+        self.assertEqual(280, manifest["total_sheets"])
         self.assertEqual(set(catalog_by_id), set(manifest_by_id))
 
         sounds = json.loads((RESOURCES / "sounds.json").read_text())

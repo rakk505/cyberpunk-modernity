@@ -42,14 +42,20 @@ frame at 8 FPS against a black pad, and verifies its hash before processing:
 - `horizon`: [manga: "Horizon"\[edit\]](https://youtube.com/shorts/cT1A0Eharo4), 10s source looped to 30 seconds.
 - `meta_logo_2`: [Meta logo animation](https://youtu.be/k-pBdWjVHBM), 7s source looped to 30 seconds.
 - `petrochem`: [Cyberpunk 2077: Petrochem](https://www.youtube.com/shorts/EPCxeL5dOUQ), 58s source trimmed to 30 seconds.
+- `eri`: [Eri](https://www.youtube.com/watch?v=PKEx03X3ydM), 74s source trimmed to 30 seconds.
+- `hamburger`: [Hamburger](https://youtu.be/3iJNe0Huw3g), 18s source looped to 30 seconds.
+- `soda`: [Soda](https://youtu.be/3lzuQ-yZ0aA), 50s source trimmed to 30 seconds.
 
 The corresponding inputs are `ads/vater.mp4`, `ads/gojo.mp4`, `ads/horizon.mp4`,
 `ads/meta_logo_2.mp4`, and `ads/petrochem.mp4`, whose SHA-256 hashes are respectively
 `d2ece481ebd62dd45e1c90842d23644d523d08e51c3317087275278e27cfb8cf`,
 `36d3fea88b23aad8efdcbf990387f555492cdfecb887c0f96fe96a5d861d04ef`,
 `c7420259b558af7e7a1c86384e1990986f20de4c3cfad1cafc19aab8684b1bfc`,
-`32a0d9c2df0c41762351205de85148e2e1c489eee6d50006c33a73a488e276e1`, and
-`4ffb04f95bdea2e3537bdb8dd648a2a77595a449f57819600098cc3dc582af0a`. Their audio is discarded. As
+`32a0d9c2df0c41762351205de85148e2e1c489eee6d50006c33a73a488e276e1`,
+`4ffb04f95bdea2e3537bdb8dd648a2a77595a449f57819600098cc3dc582af0a`,
+`04af3b167329d25c08871d9877cbe8ba6a6fcec04c5f6879aa547ce55aa8500b`,
+`f2766ba3478ac3c644965b86ff92cfa1e2e76cb75a9b18e5eb52b66c39a082f0`, and
+`de752641d28cdd7c19d460f07e735793aea5da445cdd034592c54a962b06ca97`. Their audio is discarded. As
 above, this records the supplied provenance and deterministic inputs; it is not an independent
 license determination, and these particular sources are third-party recordings rather than
 owner-supplied or owner-authorized material.

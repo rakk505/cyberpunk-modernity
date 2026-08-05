@@ -17,6 +17,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
@@ -84,6 +86,12 @@ final class HighwayFacadeAdGeneration {
     private static final int MAX_STACKED_SCREENS = 4;
     /** Blank wall left between stacked screens so they read as separate billboards. */
     private static final int SCREEN_GAP = 1;
+    /**
+     * How far past the clip aspect a persisted screen must be before the rescan deletes it as
+     * legacy damage. {@link #stack} splits at twice the ideal height, so this leaves a wide margin
+     * in which a freshly stacked panel is left alone.
+     */
+    private static final int OVERSTRETCH_FACTOR = 4;
 
     /** Outcome of one chunk pass; {@code RETRYABLE} means neighbouring city chunks are not final. */
     enum Result {
@@ -141,6 +149,9 @@ final class HighwayFacadeAdGeneration {
         // Replaying this pass — a regenerated chunk, or the backfill queue revisiting an older
         // save — must adopt the screen that is already on this wall instead of adding a second
         // one beside it. A catalog facade pointing at the highway counts as already served.
+        // Screens left over-stretched by an earlier version are cleared first so the rescan can
+        // replace them with a properly proportioned stack.
+        clearOverstretchedScreens(level, chunk, facing);
         if (hasHighwayFacingDisplay(level, chunk, facing)) {
             return Result.PLACED;
         }
@@ -511,6 +522,52 @@ final class HighwayFacadeAdGeneration {
         }
     }
 
+    /**
+     * Removes highway screens this chunk anchors that {@link #stack} would now break up. An
+     * earlier version could leave a single display covering a whole tower face, which smears one
+     * 16:9 frame over two hundred blocks; deleting it lets the rescan lay down a proper stack.
+     * Only this mod's own roadside screens are touched, never a catalog facade or a player build.
+     */
+    private static void clearOverstretchedScreens(
+            ServerLevel level, ChunkPos chunk, Direction facing) {
+        LevelChunk loaded = level.getChunkSource().getChunkNow(chunk.x(), chunk.z());
+        if (loaded == null) {
+            return;
+        }
+        List<BlockPos> stale = new ArrayList<>();
+        for (BlockEntity blockEntity : loaded.getBlockEntities().values()) {
+            if (!(blockEntity instanceof AdDisplayBlockEntity display)
+                    || display.campaign() != AdCampaign.HIGHWAY
+                    || !display.generatedPlacement()) {
+                continue;
+            }
+            BlockState state = blockEntity.getBlockState();
+            if (!state.is(AdvertisingContent.AD_DISPLAY_ANCHOR.get())
+                    || state.getValue(AdDisplayBlock.FACING) != facing) {
+                continue;
+            }
+            if (isOverstretched(display.displayWidth(), display.displayHeight())) {
+                stale.add(blockEntity.getBlockPos().immutable());
+            }
+        }
+        for (BlockPos position : stale) {
+            LOGGER.debug("[NeonCity] clearing over-stretched highway megascreen at {}", position);
+            level.setBlock(position, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+        }
+    }
+
+    /**
+     * True when a screen is so much taller than the clip aspect that one frame is smeared beyond
+     * recognition. The bar is deliberately far above what {@link #stack} itself splits at, so a
+     * correctly stacked panel is never mistaken for legacy damage and deleted out of a live stack.
+     */
+    static boolean isOverstretched(int width, int height) {
+        int ideal = Math.max(
+                LargeAdSurfaceValidator.MIN_HEIGHT,
+                Math.round(width * (float) CLIP_ASPECT_HEIGHT / CLIP_ASPECT_WIDTH));
+        return height > ideal * OVERSTRETCH_FACTOR;
+    }
+
     /** True when this chunk already anchors a generated screen pointing at the highway. */
     private static boolean hasHighwayFacingDisplay(
             ServerLevel level, ChunkPos chunk, Direction facing) {
@@ -576,12 +633,20 @@ final class HighwayFacadeAdGeneration {
         }
     }
 
+    /**
+     * A display's rectangle is one block thick, so two screens mounted on the same wall a block or
+     * two apart in depth do not intersect geometrically — yet both render, and the viewer sees two
+     * videos fighting in the same space. Inflating along the facing axis makes near-parallel
+     * screens count as a conflict so only one survives.
+     */
     private static BoundingBox bounds(
             BlockPos anchor, Direction facing, int width, int height) {
         BlockPos far = anchor
                 .relative(LargeAdSurfaceValidator.rightOf(facing), width - 1)
                 .above(height - 1);
-        return BoundingBox.fromCorners(anchor, far);
+        int reach = STEP_TOLERANCE + LargeAdSurfaceValidator.GENERATED_FRONT_CLEARANCE;
+        return BoundingBox.fromCorners(
+                anchor.relative(facing, reach), far.relative(facing.getOpposite(), reach));
     }
 
     private static boolean intersectsAny(BoundingBox candidate, List<BoundingBox> occupied) {

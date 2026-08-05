@@ -1207,8 +1207,9 @@ public final class CyberdeckGameTests {
         helper.assertValueEqual(
                 AdCampaign.HIGHWAY.clips(),
                 List.of(AdClip.VATER, AdClip.GOJO, AdClip.HORIZON,
-                        AdClip.META_LOGO_2, AdClip.PETROCHEM),
-                "highway megascreens must rotate through all five roadside ads");
+                        AdClip.META_LOGO_2, AdClip.PETROCHEM,
+                        AdClip.ERI, AdClip.HAMBURGER, AdClip.SODA),
+                "highway megascreens must rotate through every roadside ad");
         helper.assertTrue(AdCampaign.HIGHWAY.clips().stream().noneMatch(
                         clip -> AdCampaign.GENERAL.clips().contains(clip)),
                 "the roadside campaign must stay separate from the district rotation");

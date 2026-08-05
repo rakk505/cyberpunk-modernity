@@ -32,7 +32,10 @@ public enum AdCampaign {
             AdClip.GOJO,
             AdClip.HORIZON,
             AdClip.META_LOGO_2,
-            AdClip.PETROCHEM));
+            AdClip.PETROCHEM,
+            AdClip.ERI,
+            AdClip.HAMBURGER,
+            AdClip.SODA));
 
     private final String id;
     private final List<AdClip> clips;

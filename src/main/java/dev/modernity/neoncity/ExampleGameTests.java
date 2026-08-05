@@ -1175,6 +1175,18 @@ public final class ExampleGameTests {
         helper.assertTrue(
                 panels.get(0).height() * 3 <= tallHeight,
                 "splitting must actually reduce how far one clip is stretched");
+
+        // The legacy cleanup must delete a smeared full-tower screen but never a panel that
+        // stacking itself just produced, or a rescan would eat its own stack one panel at a time.
+        helper.assertTrue(HighwayFacadeAdGeneration.isOverstretched(9, 214),
+                "a full-tower legacy screen must be recognised as over-stretched");
+        for (HighwayFacadeAdGeneration.Placement panel : panels) {
+            helper.assertTrue(
+                    !HighwayFacadeAdGeneration.isOverstretched(panel.width(), panel.height()),
+                    "a freshly stacked panel must never be treated as legacy damage");
+        }
+        helper.assertTrue(!HighwayFacadeAdGeneration.isOverstretched(16, 10),
+                "a screen near the clip aspect must never be treated as legacy damage");
     }
 
     /** Chunks beside a connection must face it; the corridor and the back rows must opt out. */
