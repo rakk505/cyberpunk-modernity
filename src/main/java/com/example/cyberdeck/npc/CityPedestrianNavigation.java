@@ -25,6 +25,17 @@ final class CityPedestrianNavigation extends GroundPathNavigation {
     }
 
     private static final class CityPedestrianNodeEvaluator extends WalkNodeEvaluator {
+        /**
+         * A* visits the same (x,z) columns thousands of times per tick across every navigating NPC,
+         * and the road lookup below is expensive (it audits Arnis tile placements). Without a cache
+         * a crowd of NPCs pathfinding at once (e.g. fleeing gunfire) can blow a single server tick
+         * past the watchdog limit. The road layout is deterministic for a fixed-seed megacity, so a
+         * bounded column cache is safe and collapses the cost to one lookup per column.
+         */
+        private static final int MAX_ROAD_CACHE = 16_384;
+        private static final java.util.concurrent.ConcurrentHashMap<Long, Boolean> ROAD_CACHE =
+                new java.util.concurrent.ConcurrentHashMap<>();
+
         @Override
         public PathType getPathTypeOfMob(PathfindingContext context, int x, int y, int z,
                                          Mob mob) {
@@ -32,12 +43,25 @@ final class CityPedestrianNavigation extends GroundPathNavigation {
             if (mob.level() instanceof ServerLevel level
                     && CityWorlds.kind(level) == CityWorlds.Kind.NEON_MEGACITY
                     && mob.getPathfindingMalus(base) >= 0.0F
-                    && (NeonCityGenerator.isHighwayRoadClass(
-                                    NeonCityGenerator.roadAt(x, z))
-                            || NeonCityGenerator.isAtlasTrafficRoadAt(x, z))) {
+                    && isCautiousRoad(x, z)) {
                 return PathType.DAMAGE_CAUTIOUS;
             }
             return base;
+        }
+
+        private static boolean isCautiousRoad(int x, int z) {
+            long key = ((long) x & 0xFFFFFFFFL) << 32 | ((long) z & 0xFFFFFFFFL);
+            Boolean cached = ROAD_CACHE.get(key);
+            if (cached != null) {
+                return cached;
+            }
+            if (ROAD_CACHE.size() > MAX_ROAD_CACHE) {
+                ROAD_CACHE.clear();
+            }
+            boolean result = NeonCityGenerator.isHighwayRoadClass(NeonCityGenerator.roadAt(x, z))
+                    || NeonCityGenerator.isAtlasTrafficRoadAt(x, z);
+            ROAD_CACHE.put(key, result);
+            return result;
         }
     }
 }

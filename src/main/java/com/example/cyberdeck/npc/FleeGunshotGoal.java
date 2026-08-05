@@ -14,6 +14,8 @@ final class FleeGunshotGoal extends Goal {
     private BlockPos destination;
     private Path route;
     private int repathTicks;
+    /** Gate on {@link CityNpc#tickCount} to cap how often we attempt a (costly) flee pathfind. */
+    private int nextAttemptTick;
 
     FleeGunshotGoal(CityNpc npc, double speed) {
         this.npc = npc;
@@ -23,7 +25,17 @@ final class FleeGunshotGoal extends Goal {
 
     @Override
     public boolean canUse() {
-        return !npc.isEvacuating() && npc.isFleeingGunfire() && chooseDestination();
+        if (npc.isEvacuating() || !npc.isFleeingGunfire()) {
+            return false;
+        }
+        // A flee pathfind is expensive (and a failed one explores the most nodes). Without this
+        // gate every fleeing-but-stuck NPC would run a full A* every tick; under a crowd that alone
+        // can stall the server. Retry at most a few times per second per NPC.
+        if (npc.tickCount < nextAttemptTick) {
+            return false;
+        }
+        nextAttemptTick = npc.tickCount + adjustedTickDelay(10);
+        return chooseDestination();
     }
 
     @Override
