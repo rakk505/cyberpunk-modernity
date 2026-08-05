@@ -119,7 +119,8 @@ public final class LifepathGameTests {
         assertCyberware(helper, merc,
                 mercLeg,
                 "basic_kiroshi_optics_t2",
-                "mantis_blades_t2");
+                "mantis_blades_t2",
+                "zetatech_sandevistan_t2");
         assertCount(helper, merc, WeaponItems.gun(GunType.ASSAULT_RIFLE).get(), 1,
                 "Merc Assault Rifle count");
         assertCount(helper, merc, AmmoItems.item(AmmoType.HEAVY).get(), 300,
