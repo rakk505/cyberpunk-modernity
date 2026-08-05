@@ -802,7 +802,7 @@ public final class ExampleGameTests {
                         && !nativeVehicleVelocity.positionFallback()
                         && Math.abs(nativeVehicleVelocity.movement().x - 1.0) < 1.0E-9
                         && !teleportVelocity.positionFallback()
-                        && NeonCityGenerator.MAX_FOREGROUND_CHUNKS_PER_TICK == 3
+                        && NeonCityGenerator.MAX_FOREGROUND_CHUNKS_PER_TICK == 8
                         && NeonCityGenerator.FOREGROUND_GENERATION_BUDGET_NANOS
                                 == 25_000_000L,
                 "custom-vehicle velocity fallback or foreground generation budget changed");
