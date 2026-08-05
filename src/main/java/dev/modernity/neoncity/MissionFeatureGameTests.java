@@ -289,6 +289,19 @@ final class MissionFeatureGameTests {
         helper.assertTrue(!kaitoBuilding.buildingId().equals(seleneBuilding.buildingId())
                         && !MainlineQuestData.buildingConflicts(kaitoBuilding, seleneBuilding),
                 "Kaito's drop building and Selene's arcology share a physical reservation");
+        // Reserved volumes on different floors never meet, so the volume test alone let two
+        // actors share one tower while the map tools reported two buildings. Identity is the
+        // footprint: overlapping footprints are the same structure whatever floors are used.
+        helper.assertTrue(!MainlineQuestData.sharesBuilding(kaitoBuilding, seleneBuilding),
+                "Kaito and Selene must not be placed in the same physical building");
+        BoundingBox kaitoFootprint = kaitoBuilding.buildingBounds();
+        BoundingBox seleneFootprint = seleneBuilding.buildingBounds();
+        helper.assertTrue(
+                kaitoFootprint.maxX() < seleneFootprint.minX()
+                        || seleneFootprint.maxX() < kaitoFootprint.minX()
+                        || kaitoFootprint.maxZ() < seleneFootprint.minZ()
+                        || seleneFootprint.maxZ() < kaitoFootprint.minZ(),
+                "the two mainline buildings must not overlap in plan, only in height");
 
         StoryMissionCatalog.StoryMission gExecutive =
                 StoryMissionCatalog.definition("m02_assassinate_g_exec");
