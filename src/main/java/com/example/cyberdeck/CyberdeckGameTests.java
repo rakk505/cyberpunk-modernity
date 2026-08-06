@@ -2260,11 +2260,19 @@ public final class CyberdeckGameTests {
         if (civilian == null) {
             return;
         }
+        helper.assertFalse(civilian.isPushable(),
+                "city civilians must bypass vanilla's quadratic crowd-pushing pass");
+        helper.assertTrue(CityNpcSpawns.isAmbientPopulationCandidate(civilian),
+                "an unmarked ordinary civilian must be adopted by the population cap");
         BlockPos position = helper.absolutePos(new BlockPos(1, 2, 1));
         civilian.snapTo(position.getX() + 0.5, position.getY(), position.getZ() + 0.5,
                 0.0F, 0.0F);
         helper.assertTrue(level.addFreshEntity(civilian),
                 "density regression could not add a civilian");
+        int retainedPopulation = CityNpcSpawns.reconcilePopulationNow(level);
+        helper.assertTrue(civilian.isPopulationManaged()
+                        && retainedPopulation <= CityNpcSpawns.maxLoadedPopulation(),
+                "population reconciliation did not adopt and cap an unmarked civilian");
         helper.assertFalse(CityNpcSpawns.hasSpawnSeparation(level, position.offset(3, 0, 0)),
                 "civilian placement accepted a crowded spawn point");
         helper.assertTrue(CityNpcSpawns.hasSpawnSeparation(level, position.offset(24, 0, 0)),
@@ -2272,7 +2280,6 @@ public final class CyberdeckGameTests {
         helper.assertTrue(civilian.getPathfindingMalus(PathType.DAMAGE_CAUTIOUS)
                         == CityNpc.highwayPathMalus(),
                 "civilian navigation lost its highway avoidance cost");
-        civilian.markPopulationManaged(position);
         helper.assertFalse(civilian.shouldBeSaved(),
                 "ambient civilians must not accumulate in saved chunks");
         civilian.discard();

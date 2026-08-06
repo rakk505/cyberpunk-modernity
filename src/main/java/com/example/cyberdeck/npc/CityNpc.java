@@ -323,6 +323,12 @@ public final class CityNpc extends PathfinderMob implements RangedAttackMob {
         return false;
     }
 
+    /** Pedestrian crowds never participate in vanilla's quadratic entity-pushing pass. */
+    @Override
+    public boolean isPushable() {
+        return false;
+    }
+
     @Override
     protected void dropCustomDeathLoot(ServerLevel level, DamageSource source, boolean killedByPlayer) {
         super.dropCustomDeathLoot(level, source, killedByPlayer);

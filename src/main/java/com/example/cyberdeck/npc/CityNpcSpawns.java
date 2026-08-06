@@ -4,6 +4,7 @@ import com.example.cyberdeck.Cyberdeck;
 import com.example.cyberdeck.city.CityWorlds;
 import com.example.cyberdeck.trauma.TraumaTeamEvents;
 import com.example.cyberdeck.vehicle.CityTrafficService;
+import dev.modernity.neoncity.MissionService;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -11,6 +12,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.WeakHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -34,6 +36,33 @@ public final class CityNpcSpawns {
     private static final double RETIRE_DISTANCE = 112.0;
     private static final double NEARBY_RADIUS = 72.0;
     private static final double MIN_SEPARATION = 9.0;
+    private final Map<ServerLevel, Long> lastPreTickReconcile = new WeakHashMap<>();
+
+    /**
+     * Reconciles before entity ticking so legacy or externally spawned crowds cannot reach the
+     * expensive vanilla AI/collision pass before the population cap is applied.
+     */
+    @SubscribeEvent
+    public void onLevelTickPre(LevelTickEvent.Pre event) {
+        if (!(event.getLevel() instanceof ServerLevel level)
+                || level.dimension() != Level.OVERWORLD
+                || !CityWorlds.isCity(level)) {
+            return;
+        }
+        long gameTime = level.getGameTime();
+        Long last = lastPreTickReconcile.get(level);
+        if (last != null && gameTime >= last && gameTime - last < SPAWN_INTERVAL) {
+            return;
+        }
+        lastPreTickReconcile.put(level, gameTime);
+        int before = ambientPopulation(level);
+        int after = reconcilePopulationNow(level);
+        if (before > after) {
+            Cyberdeck.LOGGER.warn(
+                    "Retired {} excess city civilians before entity ticking ({} -> {})",
+                    before - after, before, after);
+        }
+    }
 
     @SubscribeEvent
     public void onLevelTick(LevelTickEvent.Post event) {
@@ -128,11 +157,44 @@ public final class CityNpcSpawns {
     private static List<CityNpc> managedCivilians(ServerLevel level) {
         List<CityNpc> managed = new ArrayList<>();
         for (net.minecraft.world.entity.Entity entity : level.getAllEntities()) {
-            if (entity instanceof CityNpc npc && npc.isAlive() && npc.isPopulationManaged()) {
-                managed.add(npc);
+            if (!(entity instanceof CityNpc npc) || !isAmbientPopulationCandidate(npc)) {
+                continue;
             }
+            if (!npc.isPopulationManaged()) {
+                // Adopt legacy, natural, or third-party civilians into the bounded population.
+                npc.markPopulationManaged(npc.blockPosition());
+            }
+            managed.add(npc);
         }
         return managed;
+    }
+
+    /** Returns whether this NPC belongs to the ambient population rather than protected content. */
+    public static boolean isAmbientPopulationCandidate(CityNpc npc) {
+        return npc != null
+                && npc.isAlive()
+                && !CityTrafficService.isTrafficDriver(npc)
+                && !MissionService.isMissionActor(npc)
+                && !MissionService.isMainlineCharacter(npc)
+                && !npc.isPersistenceRequired()
+                && !npc.hasCustomName();
+    }
+
+    /** Applies the loaded-world and per-cell caps immediately, including to legacy civilians. */
+    public static int reconcilePopulationNow(ServerLevel level) {
+        List<CityNpc> managed = managedCivilians(level);
+        reconcilePopulation(level, managed);
+        return managed.size();
+    }
+
+    private static int ambientPopulation(ServerLevel level) {
+        int count = 0;
+        for (net.minecraft.world.entity.Entity entity : level.getAllEntities()) {
+            if (entity instanceof CityNpc npc && isAmbientPopulationCandidate(npc)) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private static void reconcilePopulation(ServerLevel level, List<CityNpc> managed) {
