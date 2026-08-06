@@ -10,6 +10,7 @@ import com.example.cyberdeck.weapon.AmmoItems;
 import com.example.cyberdeck.weapon.AmmoType;
 import com.example.cyberdeck.weapon.GunType;
 import com.example.cyberdeck.weapon.WeaponItems;
+import com.modernity.vehicle_mod.vehicle_mod;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.world.item.Item;
@@ -20,7 +21,7 @@ import net.minecraft.world.item.trading.ItemCost;
 import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.level.ItemLike;
 
-/** Complete, stable offer lists for the four trading merchant roles. */
+/** Complete, stable offer lists for every trading merchant role. */
 final class MerchantTradeCatalog {
     private static final int MAX_USES = 32_000;
     private static final ArmorType[] ARMOR_TYPES = {
@@ -37,6 +38,7 @@ final class MerchantTradeCatalog {
             case CLOTHING -> clothingOffers();
             case CONSUMABLE -> consumableOffers();
             case QUEST -> List.of();
+            case VEHICLE -> vehicleOffers();
         };
     }
 
@@ -96,6 +98,21 @@ final class MerchantTradeCatalog {
                 offer(Items.HONEY_BOTTLE, 2, 4),
                 offer(Items.MILK_BUCKET, 1, 3),
                 offer(Items.GOLDEN_APPLE, 1, 14));
+    }
+
+    private static List<MerchantOffer> vehicleOffers() {
+        return List.of(
+                offer(vehicle_mod.GASOLINE.get(), 8, 4),
+                offer(vehicle_mod.MOTORBIKE_ITEM.get(), 1, 18),
+                offer(vehicle_mod.CYBERPUNK_MOTORBIKE_ITEM.get(), 1, 24),
+                offer(vehicle_mod.HARLEY_MOTORCYCLE_ITEM.get(), 1, 28),
+                offer(vehicle_mod.DATSUN_240Z_ITEM.get(), 1, 32),
+                offer(vehicle_mod.TURBOWAGON_ITEM.get(), 1, 38),
+                offer(vehicle_mod.JEEP_WRANGLER_ITEM.get(), 1, 42),
+                offer(vehicle_mod.DUNE_BUGGY_ITEM.get(), 1, 46),
+                offer(vehicle_mod.ROAD_ROLLER_ITEM.get(), 1, 50),
+                offer(vehicle_mod.BMW_M3_GTR_ITEM.get(), 1, 56),
+                offer(vehicle_mod.ORANGE_HYPERCAR_ITEM.get(), 1, 64));
     }
 
     private static MerchantOffer offer(ItemLike result, int count, int price) {

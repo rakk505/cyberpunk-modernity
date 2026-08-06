@@ -20,7 +20,7 @@ final class MerchantTruckLibrary {
     private static final String DISTRICT_TAG = "cyberdeck_merchant_district";
     private static final String ANCHOR_TAG = "cyberdeck_merchant_anchor";
     private static final String OFFERS_VERSION_TAG = "cyberdeck_merchant_offers_version";
-    private static final int CURRENT_OFFERS_VERSION = 2;
+    private static final int CURRENT_OFFERS_VERSION = 3;
 
     private MerchantTruckLibrary() {
     }
@@ -30,7 +30,8 @@ final class MerchantTruckLibrary {
         CYBERWARE("Cyberware Merchant", DyeColor.YELLOW),
         CLOTHING("Clothing Merchant", DyeColor.CYAN),
         CONSUMABLE("Food Merchant", DyeColor.BROWN),
-        QUEST("Fixer", DyeColor.BLACK);
+        QUEST("Fixer", DyeColor.BLACK),
+        VEHICLE("Vehicle Dealer", DyeColor.BLUE);
 
         private final String displayName;
         private final DyeColor stallColor;
@@ -148,6 +149,7 @@ final class MerchantTruckLibrary {
             case CLOTHING -> VillagerProfession.LEATHERWORKER;
             case CONSUMABLE -> VillagerProfession.BUTCHER;
             case QUEST -> VillagerProfession.CARTOGRAPHER;
+            case VEHICLE -> VillagerProfession.TOOLSMITH;
         };
     }
 }

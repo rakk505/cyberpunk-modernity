@@ -90,7 +90,8 @@ final class VendorStallLibrary {
                 MerchantTruckLibrary.MerchantRole.GUN,
                 MerchantTruckLibrary.MerchantRole.CYBERWARE,
                 MerchantTruckLibrary.MerchantRole.CLOTHING,
-                MerchantTruckLibrary.MerchantRole.CONSUMABLE
+                MerchantTruckLibrary.MerchantRole.CONSUMABLE,
+                MerchantTruckLibrary.MerchantRole.VEHICLE
         };
         MegacityLayout.Node node = NeonCityGenerator.layout().node(district);
         long hash = MegacityLayout.mix(
@@ -104,7 +105,8 @@ final class VendorStallLibrary {
                 MerchantTruckLibrary.MerchantRole.GUN,
                 MerchantTruckLibrary.MerchantRole.CYBERWARE,
                 MerchantTruckLibrary.MerchantRole.CLOTHING,
-                MerchantTruckLibrary.MerchantRole.CONSUMABLE);
+                MerchantTruckLibrary.MerchantRole.CONSUMABLE,
+                MerchantTruckLibrary.MerchantRole.VEHICLE);
     }
 
     /** Vendors are installed on district entry after live Arnis geometry can be verified. */
