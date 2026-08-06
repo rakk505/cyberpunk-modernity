@@ -265,6 +265,7 @@ public final class ProjectMoonCityModule {
             }
             MissionService.tickCompletedSites(overworld);
             VendorService.maintainAnchors(overworld);
+            com.example.cyberdeck.radio.RadioService.tick(overworld);
             long currentVendorRevision = VendorAnchorData.get(overworld).revision();
             if (currentVendorRevision != vendorRevision) {
                 vendorRevision = currentVendorRevision;
@@ -448,6 +449,7 @@ public final class ProjectMoonCityModule {
         NeonCityCommand.register(event.getDispatcher());
         MissionCommands.register(event.getDispatcher());
         PartyService.registerCommands(event.getDispatcher());
+        com.example.cyberdeck.radio.RadioCommand.register(event.getDispatcher());
     }
 
     private void registerGameTests(RegisterGameTestsEvent event) {

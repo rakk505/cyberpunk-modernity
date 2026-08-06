@@ -136,6 +136,10 @@ public final class CyberdeckNetwork {
                 LifepathSelectionResultPacket.STREAM_CODEC,
                 LifepathSelectionResultPacket::handle);
         registrar.playToClient(
+                RadioTrackPacket.TYPE,
+                RadioTrackPacket.STREAM_CODEC,
+                RadioTrackPacket::handle);
+        registrar.playToClient(
                 NpcVoicelinePacket.TYPE,
                 NpcVoicelinePacket.STREAM_CODEC,
                 NpcVoicelinePacket::handle);

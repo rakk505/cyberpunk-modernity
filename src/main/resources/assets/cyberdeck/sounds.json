@@ -2,49 +2,103 @@
   "weapon.pistol.fire": {
     "subtitle": "subtitles.cyberdeck.weapon.pistol",
     "sounds": [
-      { "name": "cyberdeck:weapons/pistol_1", "attenuation_distance": 80 },
-      { "name": "cyberdeck:weapons/pistol_2", "attenuation_distance": 80 },
-      { "name": "cyberdeck:weapons/pistol_3", "attenuation_distance": 80 }
+      {
+        "name": "cyberdeck:weapons/pistol_1",
+        "attenuation_distance": 80
+      },
+      {
+        "name": "cyberdeck:weapons/pistol_2",
+        "attenuation_distance": 80
+      },
+      {
+        "name": "cyberdeck:weapons/pistol_3",
+        "attenuation_distance": 80
+      }
     ]
   },
   "weapon.heavy_pistol.fire": {
     "subtitle": "subtitles.cyberdeck.weapon.heavy_pistol",
     "sounds": [
-      { "name": "cyberdeck:weapons/heavy_pistol_1", "attenuation_distance": 96 },
-      { "name": "cyberdeck:weapons/heavy_pistol_2", "attenuation_distance": 96 },
-      { "name": "cyberdeck:weapons/heavy_pistol_3", "attenuation_distance": 96 }
+      {
+        "name": "cyberdeck:weapons/heavy_pistol_1",
+        "attenuation_distance": 96
+      },
+      {
+        "name": "cyberdeck:weapons/heavy_pistol_2",
+        "attenuation_distance": 96
+      },
+      {
+        "name": "cyberdeck:weapons/heavy_pistol_3",
+        "attenuation_distance": 96
+      }
     ]
   },
   "weapon.smg.fire": {
     "subtitle": "subtitles.cyberdeck.weapon.smg",
     "sounds": [
-      { "name": "cyberdeck:weapons/smg_1", "attenuation_distance": 96 },
-      { "name": "cyberdeck:weapons/smg_2", "attenuation_distance": 96 },
-      { "name": "cyberdeck:weapons/smg_3", "attenuation_distance": 96 }
+      {
+        "name": "cyberdeck:weapons/smg_1",
+        "attenuation_distance": 96
+      },
+      {
+        "name": "cyberdeck:weapons/smg_2",
+        "attenuation_distance": 96
+      },
+      {
+        "name": "cyberdeck:weapons/smg_3",
+        "attenuation_distance": 96
+      }
     ]
   },
   "weapon.rifle.fire": {
     "subtitle": "subtitles.cyberdeck.weapon.rifle",
     "sounds": [
-      { "name": "cyberdeck:weapons/rifle_1", "attenuation_distance": 128 },
-      { "name": "cyberdeck:weapons/rifle_2", "attenuation_distance": 128 },
-      { "name": "cyberdeck:weapons/rifle_3", "attenuation_distance": 128 }
+      {
+        "name": "cyberdeck:weapons/rifle_1",
+        "attenuation_distance": 128
+      },
+      {
+        "name": "cyberdeck:weapons/rifle_2",
+        "attenuation_distance": 128
+      },
+      {
+        "name": "cyberdeck:weapons/rifle_3",
+        "attenuation_distance": 128
+      }
     ]
   },
   "weapon.shotgun.fire": {
     "subtitle": "subtitles.cyberdeck.weapon.shotgun",
     "sounds": [
-      { "name": "cyberdeck:weapons/shotgun_1", "attenuation_distance": 112 },
-      { "name": "cyberdeck:weapons/shotgun_2", "attenuation_distance": 112 },
-      { "name": "cyberdeck:weapons/shotgun_3", "attenuation_distance": 112 }
+      {
+        "name": "cyberdeck:weapons/shotgun_1",
+        "attenuation_distance": 112
+      },
+      {
+        "name": "cyberdeck:weapons/shotgun_2",
+        "attenuation_distance": 112
+      },
+      {
+        "name": "cyberdeck:weapons/shotgun_3",
+        "attenuation_distance": 112
+      }
     ]
   },
   "weapon.sniper.fire": {
     "subtitle": "subtitles.cyberdeck.weapon.sniper",
     "sounds": [
-      { "name": "cyberdeck:weapons/sniper_1", "attenuation_distance": 160 },
-      { "name": "cyberdeck:weapons/sniper_2", "attenuation_distance": 160 },
-      { "name": "cyberdeck:weapons/sniper_3", "attenuation_distance": 160 }
+      {
+        "name": "cyberdeck:weapons/sniper_1",
+        "attenuation_distance": 160
+      },
+      {
+        "name": "cyberdeck:weapons/sniper_2",
+        "attenuation_distance": 160
+      },
+      {
+        "name": "cyberdeck:weapons/sniper_3",
+        "attenuation_distance": 160
+      }
     ]
   },
   "ad.neon_skyline": {
@@ -74,6 +128,114 @@
         "name": "cyberdeck:ads/orbital_air",
         "stream": true,
         "attenuation_distance": 64
+      }
+    ]
+  },
+  "radio.idle": {
+    "category": "music",
+    "sounds": [
+      {
+        "name": "cyberdeck:radio/idle",
+        "stream": true
+      }
+    ]
+  },
+  "radio.idle2": {
+    "category": "music",
+    "sounds": [
+      {
+        "name": "cyberdeck:radio/idle2",
+        "stream": true
+      }
+    ]
+  },
+  "radio.idle3t": {
+    "category": "music",
+    "sounds": [
+      {
+        "name": "cyberdeck:radio/idle3t",
+        "stream": true
+      }
+    ]
+  },
+  "radio.idle4": {
+    "category": "music",
+    "sounds": [
+      {
+        "name": "cyberdeck:radio/idle4",
+        "stream": true
+      }
+    ]
+  },
+  "radio.drive": {
+    "category": "music",
+    "sounds": [
+      {
+        "name": "cyberdeck:radio/drive",
+        "stream": true
+      }
+    ]
+  },
+  "radio.drive2": {
+    "category": "music",
+    "sounds": [
+      {
+        "name": "cyberdeck:radio/drive2",
+        "stream": true
+      }
+    ]
+  },
+  "radio.drive3": {
+    "category": "music",
+    "sounds": [
+      {
+        "name": "cyberdeck:radio/drive3",
+        "stream": true
+      }
+    ]
+  },
+  "radio.drive4": {
+    "category": "music",
+    "sounds": [
+      {
+        "name": "cyberdeck:radio/drive4",
+        "stream": true
+      }
+    ]
+  },
+  "radio.combat1": {
+    "category": "music",
+    "sounds": [
+      {
+        "name": "cyberdeck:radio/combat1",
+        "stream": true
+      }
+    ]
+  },
+  "radio.combat2": {
+    "category": "music",
+    "sounds": [
+      {
+        "name": "cyberdeck:radio/combat2",
+        "stream": true
+      }
+    ]
+  },
+  "radio.combat3": {
+    "category": "music",
+    "sounds": [
+      {
+        "name": "cyberdeck:radio/combat3",
+        "stream": true
+      }
+    ]
+  },
+  "radio.gcorp": {
+    "category": "music",
+    "sounds": [
+      {
+        "name": "cyberdeck:radio/gcorp",
+        "stream": true
       }
     ]
   }

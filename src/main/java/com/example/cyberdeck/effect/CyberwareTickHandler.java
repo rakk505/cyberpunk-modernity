@@ -150,6 +150,7 @@ public final class CyberwareTickHandler {
             CyberwareEffects.forget(player.getUUID());
             ReactiveCyberware.forget(player.getUUID());
             CyberwareWeaponEffects.forget(player.getUUID());
+            com.example.cyberdeck.radio.RadioService.forget(player.getUUID());
         }
     }
 
@@ -192,6 +193,7 @@ public final class CyberwareTickHandler {
         ChargedJump.clearAll();
         ReactiveCyberware.clearAll();
         SandevistanMechanics.clearAll();
+        com.example.cyberdeck.radio.RadioService.clearAll();
         CyberwareWeaponEffects.clearAll();
     }
 

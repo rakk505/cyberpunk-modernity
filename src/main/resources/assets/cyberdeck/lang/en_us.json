@@ -1,6 +1,5 @@
 {
   "itemGroup.cyberdeck": "Cyberdeck",
-
   "block.cyberdeck.quicktime_station": "Quicktime Station",
   "block.cyberdeck.camouflaged_sea_lantern": "Camouflaged Sea Lantern",
   "block.cyberdeck.freestanding_ad_controller": "Freestanding Ad Controller",
@@ -86,7 +85,6 @@
   "screen.cyberdeck.quicktime.controls": "[UP/DOWN] SELECT   [ENTER] CONFIRM   [ESC] EXIT",
   "screen.cyberdeck.quicktime.initiate": "INITIATE",
   "screen.cyberdeck.quicktime.routing": "ROUTING...",
-
   "screen.cyberdeck.city_map.title": "Project Moon City Map",
   "screen.cyberdeck.journal": "Journal",
   "screen.cyberdeck.city_map.transit": "%s Transit Node",
@@ -96,7 +94,6 @@
   "screen.cyberdeck.city_map.mission.canal": "Canal District Data Dead Drop",
   "screen.cyberdeck.city_map.mission.extraction": "Extraction Zone Missing Crew",
   "screen.cyberdeck.city_map.mission.crossroads": "Electric Crossroads Fixer Signal",
-
   "item.cyberdeck.cyberdeck": "Cyberdeck",
   "item.cyberdeck.sandevistan": "Militech \"Apogee\" Sandevistan",
   "item.cyberdeck.militech_apogee": "Militech \"Apogee\" Sandevistan",
@@ -114,7 +111,6 @@
   "item.cyberdeck.thretevac": "Threat Detector",
   "item.cyberdeck.nano_plating": "Subdermal Nano Plating",
   "item.cyberdeck.optical_camo": "Optical Camo",
-
   "key.category.cyberdeck.main": "Cyberdeck",
   "key.cyberdeck.toggle": "Toggle Cyberdeck Interface",
   "key.cyberdeck.open_cyberware": "Open Cyberware Screen",
@@ -123,7 +119,7 @@
   "key.cyberdeck.navigation_trail": "Show Mission Navigation Trail",
   "key.cyberdeck.sandevistan": "Toggle Sandevistan",
   "key.cyberdeck.arm_cannon": "Fire Arm Cannon",
-    "key.cyberdeck.thretevac": "Activate Circulatory Cyberware",
+  "key.cyberdeck.thretevac": "Activate Circulatory Cyberware",
   "key.cyberdeck.optical_camo": "Toggle Optical Camo",
   "key.cyberdeck.reload": "Reload Gun",
   "key.cyberdeck.use_healing": "Use Healing Consumable",
@@ -135,22 +131,20 @@
   "key.cyberdeck.slide": "Combat Slide",
   "key.cyberdeck.toggle_minimap": "Toggle City Minimap",
   "key.cyberdeck.toggle_merchants": "Toggle Merchant Markers",
-
   "screen.cyberdeck.cyberware": "Cyberware",
   "screen.cyberdeck.slots": "Body Slots",
   "screen.cyberdeck.installed_label": "Installed",
   "screen.cyberdeck.empty": "Empty",
   "screen.cyberdeck.remove": "Remove",
   "screen.cyberdeck.install": "Install",
-
   "message.cyberdeck.installed": "Installed %s",
   "message.cyberdeck.removed": "Removed %s",
-    "message.cyberdeck.already_installed": "%s is already installed",
-    "message.cyberdeck.no_free_socket": "No free unlocked %s socket",
-    "message.cyberdeck.socket_locked": "That cyberware socket is locked",
-    "message.cyberdeck.socket_unlocked": "Unlocked another %s socket via %s",
-    "message.cyberdeck.capacity_exceeded": "Cyberware capacity exceeded: %s/%s",
-    "message.cyberdeck.capacity_remove_blocked": "Cannot remove: remaining loadout would use %s/%s capacity",
+  "message.cyberdeck.already_installed": "%s is already installed",
+  "message.cyberdeck.no_free_socket": "No free unlocked %s socket",
+  "message.cyberdeck.socket_locked": "That cyberware socket is locked",
+  "message.cyberdeck.socket_unlocked": "Unlocked another %s socket via %s",
+  "message.cyberdeck.capacity_exceeded": "Cyberware capacity exceeded: %s/%s",
+  "message.cyberdeck.capacity_remove_blocked": "Cannot remove: remaining loadout would use %s/%s capacity",
   "message.cyberdeck.sandevistan": "Sandevistan engaged",
   "message.cyberdeck.sandevistan_off": "Sandevistan disengaged",
   "message.cyberdeck.sandevistan_recharging": "Sandevistan recharging",
@@ -172,10 +166,9 @@
   "message.cyberdeck.hostile_quickhack.cripple_movement": "HOSTILE QUICKHACK // CRIPPLE MOVEMENT",
   "message.cyberdeck.hostile_quickhack.weapon_glitch": "HOSTILE QUICKHACK // WEAPON GLITCH",
   "message.cyberdeck.hostile_quickhack.blind": "HOSTILE QUICKHACK // BLIND",
-
   "tooltip.cyberdeck.slot": "Slot: %s",
-    "tooltip.cyberdeck.capacity": "Cyberware Capacity: %s",
-    "tooltip.cyberdeck.armor": "Armor: %s",
+  "tooltip.cyberdeck.capacity": "Cyberware Capacity: %s",
+  "tooltip.cyberdeck.armor": "Armor: %s",
   "tooltip.cyberdeck.cyberware.sandevistan": "Slows time for everything but you and boosts your speed.",
   "tooltip.cyberdeck.cyberware.militech_apogee": "Activate at any charge. 85% world slow; +15% headshot damage, Crit Chance, and Crit Damage; kills extend duration 10% and restore 22% Stamina; 6s max; 30s recharge.",
   "tooltip.cyberdeck.cyberware.militech_falcon": "Activate at any charge. 70% world slow; +5% damage, Crit Chance, and Crit Damage; kills extend duration 5% and restore 10% Health; 9s max; 40s recharge.",
@@ -192,7 +185,6 @@
   "tooltip.cyberdeck.cyberware.thretevac": "Highlights nearby hostile mobs.",
   "tooltip.cyberdeck.cyberware.nano_plating": "Projectile protection and a stacked layer of armor.",
   "tooltip.cyberdeck.cyberware.optical_camo": "Turn invisible; mobs lose track of you until you attack.",
-
   "item.cyberdeck.pistol": "Pistol",
   "item.cyberdeck.smg": "SMG",
   "item.cyberdeck.shotgun": "Shotgun",
@@ -208,7 +200,6 @@
   "item.cyberdeck.heavy_ammo": "Heavy Ammo",
   "item.cyberdeck.incendiary_grenade": "Incendiary Grenade",
   "item.cyberdeck.poison_grenade": "Poison Grenade",
-
   "item.cyberdeck.quickhack_head": "Quickhacking",
   "item.cyberdeck.quickhack_overheat": "Overheat",
   "item.cyberdeck.quickhack_cripple_cyberware": "Cripple Movement",
@@ -219,7 +210,6 @@
   "item.cyberdeck.quickhack_detonate": "Detonate",
   "item.cyberdeck.bulletproof_vest": "Bulletproof Vest",
   "tooltip.cyberdeck.bulletproof_vest": "30% projectile and bullet damage reduction",
-
   "item.cyberdeck.light_ballistic_helmet_arasaka": "Light Ballistic Helmet (Arasaka)",
   "item.cyberdeck.light_ballistic_chestplate_arasaka": "Light Ballistic Armor (Arasaka)",
   "item.cyberdeck.light_ballistic_leggings_arasaka": "Light Ballistic Leggings (Arasaka)",
@@ -232,7 +222,6 @@
   "item.cyberdeck.light_ballistic_chestplate_kang_tao": "Light Ballistic Armor (Kang Tao)",
   "item.cyberdeck.light_ballistic_leggings_kang_tao": "Light Ballistic Leggings (Kang Tao)",
   "item.cyberdeck.light_ballistic_boots_kang_tao": "Light Ballistic Boots (Kang Tao)",
-
   "item.cyberdeck.heavy_ballistic_helmet_arasaka": "Heavy Ballistic Helmet (Arasaka)",
   "item.cyberdeck.heavy_ballistic_chestplate_arasaka": "Heavy Ballistic Armor (Arasaka)",
   "item.cyberdeck.heavy_ballistic_leggings_arasaka": "Heavy Ballistic Leggings (Arasaka)",
@@ -245,7 +234,6 @@
   "item.cyberdeck.heavy_ballistic_chestplate_kang_tao": "Heavy Ballistic Armor (Kang Tao)",
   "item.cyberdeck.heavy_ballistic_leggings_kang_tao": "Heavy Ballistic Leggings (Kang Tao)",
   "item.cyberdeck.heavy_ballistic_boots_kang_tao": "Heavy Ballistic Boots (Kang Tao)",
-
   "entity.cyberdeck.faction_enemy": "Corporate Soldier",
   "entity.cyberdeck.faction_enemy.district": "%s Corp. Soldier",
   "entity.cyberdeck.faction_enemy.netrunner": "%s Corp. Netrunner",
@@ -266,16 +254,13 @@
   "item.cyberdeck.data_terminal": "Secured Data Terminal",
   "block.cyberdeck.delivery_terminal": "Contract Delivery Terminal",
   "item.cyberdeck.contract_cargo": "Sealed Contract Cargo",
-
   "message.cyberdeck.no_ammo": "Out of ammo",
-
   "tooltip.cyberdeck.gun.ammo": "Ammo: %s",
   "tooltip.cyberdeck.gun.pistol": "Reliable sidearm. Uses Handgun Ammo.",
   "tooltip.cyberdeck.gun.smg": "High rate of fire. Uses Handgun Ammo.",
   "tooltip.cyberdeck.gun.shotgun": "Devastating up close, weak at range. Uses Shotgun Ammo.",
   "tooltip.cyberdeck.gun.assault_rifle": "Balanced automatic. Uses Heavy Ammo.",
   "tooltip.cyberdeck.gun.sniper": "Hold to steady and fire. Slow but hits hard. Uses Heavy Ammo.",
-
   "item.cyberdeck.overture": "Overture",
   "item.cyberdeck.unity": "Unity",
   "item.cyberdeck.yukimura": "Yukimura",
@@ -339,5 +324,11 @@
   "message.cyberdeck.navigation.no_open_route": "No open route to the active objective.",
   "message.cyberdeck.navigation.unavailable": "Navigation trail unavailable here.",
   "message.cyberdeck.turret_tier_required": "ACCESS DENIED // Turret level %s exceeds installed cyberdeck tier %s.",
-  "message.cyberdeck.device_quickhack_failed": "DEVICE LINK FAILED // Target state changed before execution."
+  "message.cyberdeck.device_quickhack_failed": "DEVICE LINK FAILED // Target state changed before execution.",
+  "commands.cyberdeck.radio.player_only": "Only a player can use the radio.",
+  "commands.cyberdeck.radio.not_leader": "Only your party leader can change the radio.",
+  "commands.cyberdeck.radio.on": "Radio on.",
+  "commands.cyberdeck.radio.off": "Radio off.",
+  "commands.cyberdeck.radio.on_party": "Radio on for your party.",
+  "commands.cyberdeck.radio.off_party": "Radio off for your party."
 }

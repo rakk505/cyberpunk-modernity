@@ -68,6 +68,7 @@ public class Cyberdeck {
         VehicleQuickhackAttachments.ATTACHMENT_TYPES.register(modEventBus);
         DefenseContent.register(modEventBus);
         AdvertisingContent.register(modEventBus);
+        com.example.cyberdeck.radio.RadioContent.register(modEventBus);
 
         // Guns, ammo, grenades, ballistic armor and their entities.
         WeaponItems.ITEMS.register(modEventBus);
