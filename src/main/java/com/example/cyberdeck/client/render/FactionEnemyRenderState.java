@@ -7,6 +7,8 @@ import net.minecraft.world.phys.Vec3;
 
 /** Render snapshot for a faction soldier, including synchronized tactical animation inputs. */
 public final class FactionEnemyRenderState extends HumanoidRenderState {
+    /** Network entity id, so render-time effects can look the live soldier back up cheaply. */
+    public int entityId = -1;
     public boolean cyberpsycho;
     public boolean traumaTeam;
     public boolean excision;

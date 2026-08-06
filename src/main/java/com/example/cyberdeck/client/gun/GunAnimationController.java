@@ -32,6 +32,14 @@ public final class GunAnimationController {
     private boolean clipLoop = true;
 
     private boolean wasReloading;
+    /** Previous frame's swing state, so a melee rig starts a clip on the swing's rising edge. */
+    private boolean wasSwinging;
+    /** Rotates through the authored swing clips so repeated attacks do not look identical. */
+    private int meleeSwingIndex;
+
+    private static final String[] MELEE_SWING_CLIPS = {
+            "melee_stock_1", "melee_stock_2", "melee_stock_3"
+    };
 
     private GunAnimationController() {}
 
@@ -133,6 +141,38 @@ public final class GunAnimationController {
         }
         BedrockAnimationData.Clip clip = animation.clips.get(selected);
         sampledClipTime = clip == null ? 0.0 : Mth.clamp(segmentProgress, 0.0, 1.0) * clip.length;
+    }
+
+    /**
+     * Advance state for a held melee rig. A blade has no magazine and no reload, so the clip is
+     * chosen from the player's own swing instead: each rising edge of the vanilla swing starts the
+     * next authored slash, and the rig returns to idle when that slash finishes.
+     */
+    public void updateMelee(Player player, String itemId, BedrockAnimationData animation) {
+        sampledClipTime = -1.0;
+        if (!itemId.equals(currentGunId)) {
+            currentGunId = itemId;
+            lastMagazine = -1;
+            wasReloading = false;
+            wasSwinging = player.swinging;
+            startClip(firstAvailable(animation, "draw", "static_idle"), animation);
+        }
+
+        boolean swinging = player.swinging;
+        if (swinging && !wasSwinging) {
+            String clip = firstAvailable(
+                    animation, MELEE_SWING_CLIPS[meleeSwingIndex % MELEE_SWING_CLIPS.length]);
+            meleeSwingIndex++;
+            startClip(clip, animation);
+        }
+        wasSwinging = swinging;
+
+        if (!clipLoop) {
+            BedrockAnimationData.Clip clip = animation.clips.get(activeClip);
+            if (clip == null || (clip.length > 0 && clipTime() >= clip.length)) {
+                startClip("static_idle", animation);
+            }
+        }
     }
 
     private void startClip(String clip, BedrockAnimationData animation) {

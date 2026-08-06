@@ -1800,10 +1800,8 @@ public final class ExampleGameTests {
         List<net.minecraft.world.item.Item> gunResults = MerchantTradeCatalog.resultItems(
                 MerchantTruckLibrary.MerchantRole.GUN);
         for (GunType gun : GunType.values()) {
-            if (gun != GunType.MANTIS_BLADE) {
-                helper.assertTrue(gunResults.contains(WeaponItems.gun(gun).get()),
-                        "gun merchant omitted " + gun);
-            }
+            helper.assertTrue(gunResults.contains(WeaponItems.gun(gun).get()),
+                    "gun merchant omitted " + gun);
         }
         for (AmmoType ammo : AmmoType.values()) {
             helper.assertTrue(gunResults.contains(AmmoItems.item(ammo).get()),
@@ -3566,16 +3564,26 @@ public final class ExampleGameTests {
                 site.bounds().minX(), site.bounds().minY(), site.bounds().minZ(),
                 site.bounds().maxX() + 1.0, site.bounds().maxY() + 1.0,
                 site.bounds().maxZ() + 1.0).inflate(2.0);
+        // The mission target is a soldier too now, so it has to be excluded before counting the
+        // detail; otherwise the exec is scored against her own guards' floor quota.
+        java.util.UUID targetId = java.util.UUID.fromString(spawned.actorUuid());
         List<FactionEnemy> guards = MissionService.missionActors(
-                helper.getLevel(), FactionEnemy.class, siteArea,
-                actor -> MissionService.isMissionActor(actor, instanceId));
-        List<Integer> expectedFloorQuotas = List.of(3, 4, 3, 1);
+                        helper.getLevel(), FactionEnemy.class, siteArea,
+                        actor -> MissionService.isMissionActor(actor, instanceId)).stream()
+                .filter(actor -> !actor.getUUID().equals(targetId))
+                .toList();
+        // Read the composition from the catalog rather than pinning numbers here: each mainline
+        // contract now authors its own detail, and this test is about the deployment honouring
+        // whatever that detail says, not about one mission's specific head count.
+        StoryMissionCatalog.StoryMission story =
+                StoryMissionCatalog.definition("m02_assassinate_g_exec");
+        List<Integer> expectedFloorQuotas = MainlineQuestService.floorEnemyQuotas(
+                definition.id(), site.floorYs().size());
+        int expectedGuards = expectedFloorQuotas.stream().mapToInt(Integer::intValue).sum();
         helper.assertTrue(site.floorYs().size() == 4
-                        && definition.guards() == 11
-                        && MainlineQuestService.floorEnemyQuotas(
-                                definition.id(), site.floorYs().size())
-                                .equals(expectedFloorQuotas)
-                        && guards.size() == 11
+                        && definition.guards() == expectedGuards
+                        && expectedFloorQuotas.equals(story.enemiesPerFloor())
+                        && guards.size() == expectedGuards
                         && guards.stream().map(FactionEnemy::blockPosition).distinct().count()
                                 == guards.size()
                         && deployedTurrets
@@ -3592,6 +3600,26 @@ public final class ExampleGameTests {
                                             && minimumHorizontalSpacing(positions) >= 4;
                                 }),
                 "mainline guards lost their authored floor quotas or preferred spacing");
+        // The Voss arcology is defended by roaming cyberpsychos rather than a corporate detail,
+        // and the exec herself is armed, so "reach the penthouse" is not the whole fight.
+        helper.assertTrue(story.defenderKind() == StoryMissionCatalog.DefenderKind.CYBERPSYCHO
+                        && story.defendersRoam(),
+                "the Voss arcology stopped authoring a roaming cyberpsycho detail");
+        List<FactionEnemy> detail = guards;
+        helper.assertTrue(detail.stream().allMatch(guard ->
+                        guard instanceof com.example.cyberdeck.faction.CyberpsychoEntity),
+                "Selene's detail spawned as corporate security instead of cyberpsychos");
+        helper.assertTrue(detail.stream().allMatch(guard -> guard.getPatrolRoute().isEmpty()),
+                "a roaming defender was pinned to a floor patrol route");
+        helper.assertTrue(MainlineQuestService.targetLoadout(definition.id())
+                        .map(StoryMissionCatalog.TargetLoadout::armed).orElse(false),
+                "the Voss contract stopped authoring an armed target");
+        helper.assertTrue(helper.getLevel().getEntity(targetId) instanceof FactionEnemy armedTarget
+                        && armedTarget.getMainHandItem().getItem()
+                                instanceof com.example.cyberdeck.weapon.GunItem
+                        && armedTarget.hasCyberware(
+                                com.example.cyberdeck.faction.EnemyCyberware.SANDEVISTAN),
+                "the assassination target did not deploy armed and chromed");
         helper.assertTrue(MissionService.abandon(player),
                 "multi-floor population test contract could not be cleaned up");
         MissionFeatureGameTests.disconnect(player);
@@ -3639,7 +3667,8 @@ public final class ExampleGameTests {
         MissionSiteData sites = MissionSiteData.get(helper.getLevel());
         String reservationKey = "test:refresh:" + instanceId;
         helper.assertTrue(sites.reserve(reservationKey, site, instanceId),
-                "district refresh test could not reserve its mission building");
+                "district refresh test could not reserve its mission building; blocked by "
+                        + sites.conflictingSiteIds(site, instanceId));
         sites.storeRestoration(instanceId, restoration.save(helper.getLevel()));
 
         MegacityLayout layout = NeonCityGenerator.layout();

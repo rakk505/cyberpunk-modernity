@@ -1,0 +1,7 @@
+{
+  "parent": "cyberdeck:item/ajax_moron_labe_3d",
+  "textures": {
+    "layer0": "cyberdeck:item/tech_ajax_moron_labe_uv",
+    "particle": "cyberdeck:item/tech_ajax_moron_labe_uv"
+  }
+}

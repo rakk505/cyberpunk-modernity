@@ -151,6 +151,18 @@ final class MissionSiteData extends SavedData {
         return false;
     }
 
+    /** Reservation ids whose area blocks {@code site}, so a refused reserve can name the cause. */
+    java.util.List<String> conflictingSiteIds(
+            MissionBuildingPlanner.Site site, UUID instanceId) {
+        if (site == null) return java.util.List.of("<null site>");
+        return reservations.values().stream()
+                .filter(reservation -> !reservation.instanceId().equals(instanceId))
+                .filter(reservation -> reservation.conflicts(site))
+                .map(Reservation::siteId)
+                .sorted()
+                .toList();
+    }
+
     boolean hasReservation(UUID instanceId) {
         return instanceId != null && reservations.values().stream()
                 .anyMatch(reservation -> reservation.instanceId().equals(instanceId));

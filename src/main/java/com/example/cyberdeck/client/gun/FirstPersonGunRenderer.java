@@ -3,6 +3,7 @@ package com.example.cyberdeck.client.gun;
 import com.example.cyberdeck.Cyberdeck;
 import com.example.cyberdeck.client.movement.TacticalFirstPerson;
 import com.example.cyberdeck.weapon.GunItem;
+import com.example.cyberdeck.weapon.MantisBladeItem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 
@@ -34,12 +35,15 @@ public final class FirstPersonGunRenderer {
     @SubscribeEvent
     public static void onRenderHand(RenderHandEvent event) {
         ItemStack stack = event.getItemStack();
-        if (!(stack.getItem() instanceof GunItem gunItem)) {
+        MantisBladeItem blade = stack.getItem() instanceof MantisBladeItem melee ? melee : null;
+        if (!(stack.getItem() instanceof GunItem) && blade == null) {
             return;
         }
-        GunModelRegistry.Entry entry = GunModelRegistry.get(gunItem.gun());
+        GunModelRegistry.Entry entry = blade != null
+                ? GunModelRegistry.get(blade.rig(), blade.rig())
+                : GunModelRegistry.get(((GunItem) stack.getItem()).gun());
         if (entry == null) {
-            return; // No animated model for this gun; leave the vanilla render alone.
+            return; // No animated model for this item; leave the vanilla render alone.
         }
 
         Minecraft mc = Minecraft.getInstance();
@@ -55,9 +59,13 @@ public final class FirstPersonGunRenderer {
         SubmitNodeCollector collector = event.getSubmitNodeCollector();
         int light = event.getPackedLight();
 
-        // Update animation state from cyberdeck's own gun state and sample it onto the bones.
+        // Update animation state from cyberdeck's own weapon state and sample it onto the bones.
         GunAnimationController controller = GunAnimationController.get();
-        controller.update(player, stack, gunItem, entry.animation());
+        if (blade != null) {
+            controller.updateMelee(player, blade.rig(), entry.animation());
+        } else {
+            controller.update(player, stack, (GunItem) stack.getItem(), entry.animation());
+        }
         String clipName = controller.clipName();
         BedrockAnimationData.Clip clip = entry.animation().clips.get(clipName);
         BedrockModel model = entry.model();

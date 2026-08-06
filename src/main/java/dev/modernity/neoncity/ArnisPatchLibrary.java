@@ -44,6 +44,8 @@ public final class ArnisPatchLibrary {
     private static final long SELECTION_SALT = 0x41524E49535A4F4EL;
     private static final int MAX_SELECTION_CACHE = 131_072;
     private static final int EXPECTED_ATLAS_AXIS = 16;
+    /** Every audited patch is exactly one chunk, so a source column flip is a 0..15 reflection. */
+    private static final int PATCH_BLOCK_AXIS = 16;
     private static final int CONSERVATIVE_PARK_MAX_BLOCKS = 320;
     private static final int CONSERVATIVE_PARK_MAX_ABOVE_SURFACE = 2;
     private static final int PARK_ACCESS_LANE_WIDTH = 3;
@@ -192,6 +194,54 @@ public final class ArnisPatchLibrary {
                 patch, chunkX, chunkZ,
                 mappedX.source(), mappedZ.source(),
                 flipX, flipZ, mirror, rotation, selectionHash));
+    }
+
+    /**
+     * Maps one world column back to the atlas column it was stamped from.
+     *
+     * <p>The atlas repeats across a district by reflection, so completely different world
+     * coordinates routinely hold the very same source geometry: the tile east of a mirror line is
+     * the mirror image of the tile west of it. Two structures stamped from one source column are
+     * the same building to anyone looking at them, which is why placement decisions that must
+     * produce visibly distinct buildings compare source columns rather than world coordinates.</p>
+     *
+     * @return {@code catalogId@sourceLocalX,sourceLocalZ}, or empty outside an atlas zone.
+     */
+    public static Optional<String> sourceColumnKey(MegacityLayout layout, int x, int z) {
+        Placement placement = select(layout, Math.floorDiv(x, 16), Math.floorDiv(z, 16))
+                .orElse(null);
+        if (placement == null) return Optional.empty();
+        int localX = Math.floorMod(x, 16);
+        int localZ = Math.floorMod(z, 16);
+        // The three placement branches are exactly "mirror X", "mirror Z", and "mirror both"
+        // (expressed as a 180 degree rotation), so inverting the transform is a per-axis flip.
+        int sourceX = placement.flipX() ? PATCH_BLOCK_AXIS - 1 - localX : localX;
+        int sourceZ = placement.flipZ() ? PATCH_BLOCK_AXIS - 1 - localZ : localZ;
+        return Optional.of(placement.patch().catalogId() + "@" + sourceX + "," + sourceZ);
+    }
+
+    /**
+     * A stable identity for the source geometry a world footprint was stamped from. Reflected
+     * copies of one source structure produce the same key even though their world coordinates
+     * differ, because each corner maps back onto the same source column and the footprint's own
+     * span is reflection-invariant.
+     *
+     * @return empty when any corner falls outside an atlas zone, which means the footprint is not
+     *         (entirely) imported geometry and has no source identity to compare.
+     */
+    public static Optional<String> sourceGeometryKey(
+            MegacityLayout layout, int minX, int minZ, int maxX, int maxZ) {
+        List<String> corners = new ArrayList<>(4);
+        for (int x : new int[]{minX, maxX}) {
+            for (int z : new int[]{minZ, maxZ}) {
+                Optional<String> corner = sourceColumnKey(layout, x, z);
+                if (corner.isEmpty()) return Optional.empty();
+                corners.add(corner.orElseThrow());
+            }
+        }
+        Collections.sort(corners);
+        return Optional.of(String.join("|", corners)
+                + "#" + (maxX - minX) + "x" + (maxZ - minZ));
     }
 
     private static AxisMapping mapAxis(int destinationRelative, int atlasSize) {

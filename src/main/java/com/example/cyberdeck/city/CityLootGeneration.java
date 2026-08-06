@@ -17,7 +17,6 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 
-import java.util.Arrays;
 
 /** Deterministic placement and reward generation for both city cache variants. */
 public final class CityLootGeneration {
@@ -26,9 +25,7 @@ public final class CityLootGeneration {
     private static final Direction[] HORIZONTAL = {
             Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST
     };
-    private static final GunType[] FIREARMS = Arrays.stream(GunType.values())
-            .filter(gun -> gun != GunType.MANTIS_BLADE)
-            .toArray(GunType[]::new);
+    private static final GunType[] FIREARMS = GunType.values();
 
     public enum CacheKind {
         BLACK_LOOT,

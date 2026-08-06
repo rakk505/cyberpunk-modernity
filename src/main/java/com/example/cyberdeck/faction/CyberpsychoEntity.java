@@ -26,40 +26,39 @@ import org.jspecify.annotations.Nullable;
 public final class CyberpsychoEntity extends FactionEnemy {
     private static final float DEFAULT_HEALTH = 75.0F;
     private static final int MAX_CONFIGURED_HEALTH = 180;
-    private static final int HEAL_RECHARGE_TICKS = 400;
-    private static final float HEAL_AMOUNT = 1.0F;
-    /**
-     * Cooldown (ticks) between sandevistan near-teleport dashes so it blinks in bursts rather than
-     * teleport-locking the player. ~2.5s at 20 tps.
-     */
-    private static final int SANDEVISTAN_DASH_COOLDOWN_TICKS = 50;
     /**
      * Possible spawn loadouts. On natural spawn one is picked at random so the sandevistan is an
      * optional variant rather than guaranteed. Subdermal_armor and blood_pump remain common; a
      * variant may also carry optical_camo. An explicit datapack {@code configure()} overrides this.
      */
     private static final List<List<String>> SPAWN_LOADOUTS = List.of(
-            List.of("sandevistan", "subdermal_armor", "blood_pump"),
-            List.of("sandevistan", "blood_pump", "optical_camo"),
-            List.of("subdermal_armor", "blood_pump"),
-            List.of("subdermal_armor", "blood_pump", "optical_camo"),
-            List.of("blood_pump", "optical_camo"));
+            List.of(EnemyCyberware.SANDEVISTAN, EnemyCyberware.SUBDERMAL_ARMOR,
+                    EnemyCyberware.BLOOD_PUMP),
+            List.of(EnemyCyberware.SANDEVISTAN, EnemyCyberware.BLOOD_PUMP,
+                    EnemyCyberware.OPTICAL_CAMO),
+            List.of(EnemyCyberware.SANDEVISTAN, EnemyCyberware.MANTIS_BLADES,
+                    EnemyCyberware.BLOOD_PUMP),
+            List.of(EnemyCyberware.SUBDERMAL_ARMOR, EnemyCyberware.BLOOD_PUMP),
+            List.of(EnemyCyberware.SUBDERMAL_ARMOR, EnemyCyberware.BLOOD_PUMP,
+                    EnemyCyberware.OPTICAL_CAMO),
+            List.of(EnemyCyberware.ARM_CANNON, EnemyCyberware.BLOOD_PUMP,
+                    EnemyCyberware.OPTICAL_CAMO));
+    static final List<String> DEFAULT_LOADOUT = List.of(
+            EnemyCyberware.SANDEVISTAN, EnemyCyberware.SUBDERMAL_ARMOR,
+            EnemyCyberware.BLOOD_PUMP);
 
     /** Set true once {@link #configure} is called so a mission datapack loadout is never overwritten. */
     private boolean explicitlyConfigured;
-    /** Game time of the last sandevistan dash; used to enforce the dash cooldown. */
-    private long lastSandevistanDashTick = Long.MIN_VALUE;
     private final ServerBossEvent bossEvent = new ServerBossEvent(
             UUID.randomUUID(),
             Component.literal("CYBERPSYCHO").withStyle(ChatFormatting.RED),
             BossEvent.BossBarColor.RED,
             BossEvent.BossBarOverlay.NOTCHED_10);
-    private List<String> installedCyberware = List.of(
-            "sandevistan", "subdermal_armor", "blood_pump");
 
     public CyberpsychoEntity(EntityType<? extends CyberpsychoEntity> type, Level level) {
         super(type, level);
         setPersistenceRequired();
+        installCyberware(DEFAULT_LOADOUT);
     }
 
     public static AttributeSupplier.Builder createAttributes() {
@@ -84,23 +83,23 @@ public final class CyberpsychoEntity extends FactionEnemy {
         double maximum = balancedHealth(health);
         getAttribute(Attributes.MAX_HEALTH).setBaseValue(maximum);
         setHealth((float) maximum);
-        installedCyberware = List.copyOf(cyberware);
-        getAttribute(Attributes.ARMOR).setBaseValue(
-                installedCyberware.contains("subdermal_armor") ? 7.0 : 4.0);
-        getAttribute(Attributes.ARMOR_TOUGHNESS).setBaseValue(
-                installedCyberware.contains("subdermal_armor") ? 2.0 : 1.0);
+        installCyberware(cyberware);
         bossEvent.setName(getDisplayName());
+    }
+
+    /**
+     * A boss keeps its own plating curve rather than the elite floor, so an unarmoured
+     * cyberpsycho is meaningfully softer than an armoured one.
+     */
+    private void installCyberware(List<String> cyberware) {
+        setInstalledCyberware(cyberware);
+        boolean armored = hasCyberware(EnemyCyberware.SUBDERMAL_ARMOR);
+        getAttribute(Attributes.ARMOR).setBaseValue(armored ? 7.0 : 4.0);
+        getAttribute(Attributes.ARMOR_TOUGHNESS).setBaseValue(armored ? 2.0 : 1.0);
     }
 
     public static int balancedHealth(int requestedHealth) {
         return Math.max(40, Math.min(MAX_CONFIGURED_HEALTH, requestedHealth));
-    }
-
-    /** Overflow-safe cooldown check; {@link Long#MIN_VALUE} represents "never dashed". */
-    public static boolean isSandevistanDashCooldownReady(long gameTime, long lastDashTick) {
-        return lastDashTick == Long.MIN_VALUE
-                || gameTime < lastDashTick
-                || gameTime - lastDashTick >= SANDEVISTAN_DASH_COOLDOWN_TICKS;
     }
 
     /**
@@ -114,56 +113,20 @@ public final class CyberpsychoEntity extends FactionEnemy {
                                         EntitySpawnReason reason, @Nullable SpawnGroupData spawnData) {
         SpawnGroupData result = super.finalizeSpawn(level, difficulty, reason, spawnData);
         if (!explicitlyConfigured) {
-            List<String> loadout = SPAWN_LOADOUTS.get(getRandom().nextInt(SPAWN_LOADOUTS.size()));
-            installedCyberware = List.copyOf(loadout);
-            getAttribute(Attributes.ARMOR).setBaseValue(
-                    installedCyberware.contains("subdermal_armor") ? 7.0 : 4.0);
-            getAttribute(Attributes.ARMOR_TOUGHNESS).setBaseValue(
-                    installedCyberware.contains("subdermal_armor") ? 2.0 : 1.0);
+            installCyberware(SPAWN_LOADOUTS.get(getRandom().nextInt(SPAWN_LOADOUTS.size())));
             bossEvent.setName(getDisplayName());
         }
         return result;
     }
 
-    public List<String> installedCyberware() {
-        return installedCyberware;
-    }
-
     @Override
     public void aiStep() {
+        // The sandevistan blink, blood pump regeneration and optical camo discharge all live in
+        // EnemyCyberware and run from FactionEnemy.aiStep, so a boss and an augmented mook use one
+        // implementation and read identically in play.
         super.aiStep();
-        if (!(level() instanceof ServerLevel level)) return;
+        if (!(level() instanceof ServerLevel)) return;
         bossEvent.setProgress(getHealth() / getMaxHealth());
-
-        LivingEntity target = getTarget();
-        // Sandevistan is now an optional variant: only dash when it is actually installed, there is a
-        // valid target with line of sight, and the cooldown has elapsed so it cannot teleport-lock
-        // the player. tryStartTacticalManeuver reuses canManeuverAgainst/canTravel, so it will not
-        // fire off a ledge, into lava, or through a wall.
-        long now = level.getGameTime();
-        boolean dashCooldownReady = isSandevistanDashCooldownReady(
-                now, lastSandevistanDashTick);
-        if (target != null && target.isAlive() && isTriggered()
-                && installedCyberware.contains("sandevistan")
-                && dashCooldownReady
-                && tickCount % 15 == 0 && hasLineOfSight(target)) {
-            if (tryStartTacticalManeuver(TacticalManeuver.SANDEVISTAN_DASH, target)) {
-                lastSandevistanDashTick = now;
-            }
-        }
-        if (installedCyberware.contains("blood_pump")
-                && getHealth() < getMaxHealth() && tickCount % HEAL_RECHARGE_TICKS == 0) {
-            heal(HEAL_AMOUNT);
-            level.sendParticles(ParticleTypes.HEART,
-                    getX(), getY() + getBbHeight() * 0.7, getZ(),
-                    4, 0.25, 0.3, 0.25, 0.02);
-        }
-        if (installedCyberware.contains("optical_camo")
-                && getHealth() <= getMaxHealth() * 0.45F && tickCount % 20 == 0) {
-            level.sendParticles(ParticleTypes.ELECTRIC_SPARK,
-                    getX(), getY() + getBbHeight() * 0.55, getZ(),
-                    8, 0.35, 0.7, 0.35, 0.04);
-        }
     }
 
     @Override
@@ -179,25 +142,17 @@ public final class CyberpsychoEntity extends FactionEnemy {
     }
 
     @Override
-    protected void addAdditionalSaveData(ValueOutput output) {
-        super.addAdditionalSaveData(output);
-        output.putString("InstalledCyberware", String.join(",", installedCyberware));
-    }
-
-    @Override
     protected void readAdditionalSaveData(ValueInput input) {
+        // FactionEnemy already restored InstalledCyberware; a boss saved before it carried that
+        // tag falls back to the classic loadout rather than waking up with no chrome at all.
         super.readAdditionalSaveData(input);
-        String saved = input.getStringOr("InstalledCyberware", "");
-        installedCyberware = saved.isBlank()
-                ? List.of("sandevistan", "subdermal_armor", "blood_pump")
-                : List.of(saved.split(","));
+        if (installedCyberware().isEmpty()) setInstalledCyberware(DEFAULT_LOADOUT);
         double maximum = Math.max(40.0, Math.min(MAX_CONFIGURED_HEALTH,
                 getAttribute(Attributes.MAX_HEALTH).getBaseValue()));
         getAttribute(Attributes.MAX_HEALTH).setBaseValue(maximum);
-        getAttribute(Attributes.ARMOR).setBaseValue(
-                installedCyberware.contains("subdermal_armor") ? 7.0 : 4.0);
-        getAttribute(Attributes.ARMOR_TOUGHNESS).setBaseValue(
-                installedCyberware.contains("subdermal_armor") ? 2.0 : 1.0);
+        boolean armored = hasCyberware(EnemyCyberware.SUBDERMAL_ARMOR);
+        getAttribute(Attributes.ARMOR).setBaseValue(armored ? 7.0 : 4.0);
+        getAttribute(Attributes.ARMOR_TOUGHNESS).setBaseValue(armored ? 2.0 : 1.0);
         setHealth(Math.min(getHealth(), (float) maximum));
         bossEvent.setName(getDisplayName());
     }

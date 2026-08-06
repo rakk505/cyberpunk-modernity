@@ -206,6 +206,10 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
     private int ambientWithoutPlayerTicks;
     private boolean reinforcementRollResolved;
     private boolean reinforcementDeployment;
+    /** Chrome this soldier runs; see {@link EnemyCyberware}. Empty for a plain corporate grunt. */
+    private List<String> installedCyberware = List.of();
+    private long lastSandevistanDashTick = Long.MIN_VALUE;
+    private long lastArmCannonTick = Long.MIN_VALUE;
 
     public FactionEnemy(EntityType<? extends FactionEnemy> type, Level level) {
         super(type, level);
@@ -286,6 +290,42 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         this.goalSelector.addGoal(8, new RandomLookAroundGoal(this));
         // Retaliate if attacked even before detection completes.
         this.targetSelector.addGoal(1, new HurtByTargetGoal(this));
+    }
+
+    /** Installed chrome ids, e.g. {@code sandevistan}. Never null; empty means no augments. */
+    public List<String> installedCyberware() {
+        return installedCyberware;
+    }
+
+    /**
+     * Installs a loadout and immediately applies its passive half, so armour, reach, and the
+     * weapon an augmented soldier fights with are correct from the tick it spawns.
+     */
+    public void setInstalledCyberware(List<String> cyberware) {
+        this.installedCyberware = cyberware == null || cyberware.isEmpty()
+                ? List.of()
+                : cyberware.stream().filter(id -> id != null && !id.isBlank()).distinct().toList();
+        EnemyCyberware.applyPassives(this, this.installedCyberware);
+    }
+
+    public boolean hasCyberware(String id) {
+        return installedCyberware.contains(id);
+    }
+
+    long lastSandevistanDashTick() {
+        return lastSandevistanDashTick;
+    }
+
+    void setLastSandevistanDashTick(long tick) {
+        this.lastSandevistanDashTick = tick;
+    }
+
+    long lastArmCannonTick() {
+        return lastArmCannonTick;
+    }
+
+    void setLastArmCannonTick(long tick) {
+        this.lastArmCannonTick = tick;
     }
 
     public Faction getFaction() {
@@ -738,6 +778,7 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
             tickGunReload(level);
         }
         tickTacticalManeuver(level);
+        EnemyCyberware.tick(this, level);
         if (isCyberpsychotic()) {
             // Berserk from the Cyberpsychosis quickhack: ignore assigned excision/trauma orders and
             // normal player detection so a cop keeps attacking whatever nearby mob it was turned on,
@@ -1675,6 +1716,9 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         }
         output.putBoolean("ReinforcementRollResolved", reinforcementRollResolved);
         output.putBoolean("ReinforcementDeployment", reinforcementDeployment);
+        if (!installedCyberware.isEmpty()) {
+            output.putString("InstalledCyberware", String.join(",", installedCyberware));
+        }
         if (traumaTargetId != null) {
             output.putString("TraumaTarget", traumaTargetId.toString());
         }
@@ -1738,6 +1782,13 @@ public class FactionEnemy extends Monster implements RangedAttackMob {
         if (districtId.isEmpty()) {
             assignDistrictFromPosition();
         }
+        String savedCyberware = input.getStringOr("InstalledCyberware", "");
+        // Passives are not reapplied here: the saved attributes already carry them, and running
+        // applyPassives on load would stack armour and reach a little higher every reload.
+        installedCyberware = savedCyberware.isBlank()
+                ? List.of()
+                : java.util.Arrays.stream(savedCyberware.split(","))
+                        .filter(id -> !id.isBlank()).distinct().toList();
         setArchetype(EnemyArchetype.byId(
                 input.getStringOr("EnemyArchetype", EnemyArchetype.CORPORATE.id())));
         setCombatRole(EnemyCombatRole.byId(

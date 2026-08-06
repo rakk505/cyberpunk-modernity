@@ -1000,6 +1000,8 @@ public final class MissionService {
         try {
             Entity target = level.getEntity(UUID.fromString(mission.actorUuid()));
             if (target != null) target.setInvulnerable(false);
+            // An armed target was also held inert so it could not open fire during the approach.
+            if (target instanceof net.minecraft.world.entity.Mob armed) armed.setNoAi(false);
         } catch (IllegalArgumentException ignored) {
             // A missing actor is reconciled by the existing login/deployment recovery path.
         }
@@ -1143,9 +1145,7 @@ public final class MissionService {
             if (!MissionBuildingPlanner.missionTurretsPreserveAccess(level, candidate)) {
                 candidate = MissionBuildingPlanner.withoutMissionTurretPlan(candidate);
             }
-            BlockPos target = mission.type() == MissionCatalog.MissionType.STEAL_DATA
-                    ? candidate.target().above()
-                    : candidate.target();
+            BlockPos target = objectivePosition(mission.type(), candidate);
             ActiveMission prepared = new ActiveMission(
                     mission.definitionId(), mission.type(), mission.title(), mission.briefing(),
                     mission.objective(), mission.targetDistrict(), target, mission.reward(), "",
@@ -1408,6 +1408,22 @@ public final class MissionService {
     private static boolean objectiveUsesUpperFloor(MissionBuildingPlanner.Site site) {
         return site.floorYs().size() < 2
                 || site.target().getY() >= site.floorYs().get(1);
+    }
+
+    /**
+     * Where a deployed objective physically lands inside its planned site. A secured-data terminal
+     * stands one block above the planned floor cell because {@code installDataObjective} converts
+     * that cell into the terminal's support block. Every consumer of the objective position - the
+     * deployment that installs it, the mainline node retarget that re-points the contract at it,
+     * and the terminal's own contract match - has to agree on this, otherwise advancing a story
+     * node silently moves the contract target off the installed terminal and the player is told
+     * their own objective has no matching contract.
+     */
+    static BlockPos objectivePosition(
+            MissionCatalog.MissionType type, MissionBuildingPlanner.Site site) {
+        return type == MissionCatalog.MissionType.STEAL_DATA
+                ? site.target().above()
+                : site.target();
     }
 
     private static long missionInteriorSalt(UUID instanceId, String definitionId) {
@@ -2005,6 +2021,16 @@ public final class MissionService {
             ServerPlayer player,
             MissionCatalog.MissionDefinition definition,
             ActiveMission mission) {
+        boolean mainline = contractContext(player).map(context ->
+                        MainlineQuestService.isActiveMainline(level, context, definition.id()))
+                .orElse(false);
+        if (mainline) {
+            StoryMissionCatalog.TargetLoadout loadout =
+                    MainlineQuestService.targetLoadout(definition.id()).orElse(null);
+            if (loadout != null) {
+                return spawnArmedTarget(level, player, definition, mission, loadout);
+            }
+        }
         CityNpc target = CityNpcEntities.CITY_NPC.get().create(level, EntitySpawnReason.EVENT);
         if (target == null) return null;
         target.snapTo(mission.target().getX() + 0.5, mission.target().getY(),
@@ -2025,6 +2051,60 @@ public final class MissionService {
         target.setCustomName(Component.literal(definition.targetName()).withStyle(ChatFormatting.GOLD));
         target.setCustomNameVisible(true);
         target.setPersistenceRequired();
+        tagActor(target, player, definition, ROLE_TARGET);
+        if (!level.noCollision(target) || !addMissionActor(level, target)) return null;
+        if (!spawnGuards(level, player, definition, mission.target())) {
+            target.discard();
+            return null;
+        }
+        return withActor(mission, target.getUUID());
+    }
+
+    /**
+     * Spawns an assassination target who defends itself. A configured target is a soldier rather
+     * than a no-AI civilian model: it carries the mission's chosen weapon and chrome and fights
+     * once its node opens, so reaching the penthouse is not the last obstacle.
+     */
+    private static ActiveMission spawnArmedTarget(
+            ServerLevel level,
+            ServerPlayer player,
+            MissionCatalog.MissionDefinition definition,
+            ActiveMission mission,
+            StoryMissionCatalog.TargetLoadout loadout) {
+        FactionEnemy target = FactionEntities.FACTION_ENEMY.get().create(
+                level, EntitySpawnReason.EVENT);
+        if (target == null) return null;
+        target.snapTo(mission.target().getX() + 0.5, mission.target().getY(),
+                mission.target().getZ() + 0.5, level.getRandom().nextFloat() * 360.0F, 0.0F);
+        target.finalizeSpawn(level, level.getCurrentDifficultyAt(mission.target()),
+                EntitySpawnReason.EVENT, null);
+        MainlineQuestService.configureGuard(target, definition.id(), 0);
+        if (!loadout.gun().isBlank()) {
+            target.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(
+                    WeaponItems.gun(MissionCatalog.gun(
+                            loadout.gun(), definition.id() + " target")).get()));
+            target.setDropChance(EquipmentSlot.MAINHAND, 0.0F);
+        }
+        if (!loadout.cyberware().isEmpty()) target.setInstalledCyberware(loadout.cyberware());
+        if (loadout.health() > 0) {
+            target.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH)
+                    .setBaseValue(loadout.health());
+        }
+        target.setHealth(target.getMaxHealth());
+        target.setHome(mission.target());
+        target.setPatrolRoute(List.of());
+        MainlineQuestService.targetCharacter(definition.id()).ifPresent(
+                character -> target.setSkinVariant(character.skinVariant()));
+        target.setCustomName(
+                Component.literal(definition.targetName()).withStyle(ChatFormatting.GOLD));
+        target.setCustomNameVisible(true);
+        target.setPersistenceRequired();
+        // Invulnerable and inert until the story reaches the kill node, exactly like the passive
+        // target it replaces; unlockStoryTarget switches both off together.
+        boolean locked = !MainlineQuestService.objectiveReady(
+                player, StoryMissionCatalog.NodeType.ASSASSINATE);
+        target.setInvulnerable(locked);
+        target.setNoAi(locked);
         tagActor(target, player, definition, ROLE_TARGET);
         if (!level.noCollision(target) || !addMissionActor(level, target)) return null;
         if (!spawnGuards(level, player, definition, mission.target())) {
@@ -2343,7 +2423,7 @@ public final class MissionService {
                         : guardsPerFloor + (floorIndex < extraGuards ? 1 : 0);
                 List<FactionEnemy> floorGuards = createGuardsOnRoute(
                         level, player, definition, site, route, floorQuota,
-                        floorIndex, random);
+                        floorIndex, spawned.size(), random);
                 if (floorGuards.size() != floorQuota) {
                     floorGuards.forEach(Entity::discard);
                     spawned.forEach(Entity::discard);
@@ -2368,7 +2448,7 @@ public final class MissionService {
                 if (position == null
                         || position.distSqr(home) > deploymentRadius * deploymentRadius) continue;
                 FactionEnemy guard = createGuard(
-                        level, player, definition, position, List.of(), random);
+                        level, player, definition, position, List.of(), spawned.size(), random);
                 if (guard != null) spawned.add(guard);
             }
         }
@@ -2385,6 +2465,7 @@ public final class MissionService {
             MissionBuildingPlanner.PatrolRoute route,
             int quota,
             int preferredOffset,
+            int detailOffset,
             RandomSource random) {
         if (quota <= 0) return List.of();
         List<BlockPos> waypoints = route.waypoints();
@@ -2408,7 +2489,8 @@ public final class MissionService {
             BlockPos failedPosition = null;
             for (BlockPos position : positions) {
                 FactionEnemy guard = createGuard(
-                        level, player, definition, position, waypoints, random);
+                        level, player, definition, position, waypoints,
+                        detailOffset + guards.size(), random);
                 if (guard == null) {
                     failedPosition = position;
                     break;
@@ -2531,22 +2613,31 @@ public final class MissionService {
             MissionCatalog.MissionDefinition definition,
             BlockPos position,
             List<BlockPos> patrolRoute,
+            int detailIndex,
             RandomSource random) {
-        FactionEnemy guard = FactionEntities.FACTION_ENEMY.get().create(
-                level, EntitySpawnReason.EVENT);
+        boolean mainline = contractContext(player).map(context ->
+                        MainlineQuestService.isActiveMainline(level, context, definition.id()))
+                .orElse(false);
+        boolean cyberpsychoDetail = mainline
+                && MainlineQuestService.usesCyberpsychoDetail(definition.id());
+        FactionEnemy guard = cyberpsychoDetail
+                ? FactionEntities.CYBERPSYCHO.get().create(level, EntitySpawnReason.EVENT)
+                : FactionEntities.FACTION_ENEMY.get().create(level, EntitySpawnReason.EVENT);
         if (guard == null) return null;
         guard.snapTo(position.getX() + 0.5, position.getY(), position.getZ() + 0.5,
                 random.nextFloat() * 360.0F, 0.0F);
         guard.finalizeSpawn(level, level.getCurrentDifficultyAt(position),
                 EntitySpawnReason.EVENT, null);
         guard.setHome(position);
-        guard.setPatrolRoute(patrolRoute);
+        // A roaming defender is given no route at all: PatrolRouteGoal only runs with waypoints,
+        // so an empty route hands it to the free area patrol and it hunts instead of pacing.
+        guard.setPatrolRoute(
+                mainline && MainlineQuestService.defendersRoam(definition.id())
+                        ? List.of() : patrolRoute);
         guard.setPersistenceRequired();
         tagActor(guard, player, definition, ROLE_GUARD);
-        if (contractContext(player).map(context -> MainlineQuestService.isActiveMainline(
-                        level, context, definition.id()))
-                .orElse(false)) {
-            MainlineQuestService.configureGuard(guard, definition.id());
+        if (mainline) {
+            MainlineQuestService.configureGuard(guard, definition.id(), detailIndex);
         } else {
             FactionSquads.equip(guard, Faction.ARASAKA, random);
         }

@@ -47,9 +47,6 @@ final class MerchantTradeCatalog {
     private static List<MerchantOffer> gunOffers() {
         List<MerchantOffer> offers = new ArrayList<>();
         for (GunType gun : GunType.values()) {
-            if (gun == GunType.MANTIS_BLADE) {
-                continue;
-            }
             int price = gun.isTech() ? 38 : 22;
             if (gun == GunType.SNIPER || gun == GunType.GRAD || gun == GunType.TECH_SNIPER
                     || gun == GunType.TECH_GRAD) {

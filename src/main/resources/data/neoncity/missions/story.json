@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "characters": [
     {
       "id": "jerry",
@@ -69,7 +69,7 @@
       "reward_emmies": {"min": 600, "max": 600},
       "street_cred": 15,
       "activation_radius": 112,
-      "guards": 7,
+      "guards": 4,
       "objective_radius": 96,
       "cargo": {"item": "minecraft:music_disc_13", "count": 1},
       "chapter": "Angel Attack",
@@ -116,10 +116,11 @@
       },
       "scale": {
         "floor_count": 3,
-        "enemies_per_floor": [3, 2, 2],
-        "enemy_type": "g_corp_security",
+        "enemies_per_floor": [2, 1, 1],
+        "enemy_type": "bazaar_shakedown_crew",
         "enemy_faction": "kang_tao",
-        "enemy_power": 1.2
+        "enemy_power": 1.2,
+        "defender_kind": "soldier"
       }
     },
     {
@@ -132,7 +133,7 @@
       "reward_emmies": {"min": 1200, "max": 1200},
       "street_cred": 30,
       "activation_radius": 112,
-      "guards": 11,
+      "guards": 2,
       "objective_radius": 96,
       "chapter": "Angel Attack",
       "primary_district": "G",
@@ -178,10 +179,17 @@
       },
       "scale": {
         "floor_count": 4,
-        "enemies_per_floor": [3, 4, 3, 1],
-        "enemy_type": "g_corp_security",
+        "enemies_per_floor": [1, 0, 1, 0],
+        "enemy_type": "voss_pet_cyberpsycho",
         "enemy_faction": "kang_tao",
-        "enemy_power": 1.4
+        "enemy_power": 1.4,
+        "defender_kind": "cyberpsycho",
+        "defenders_roam": true,
+        "target_loadout": {
+          "gun": "3516",
+          "cyberware": ["sandevistan", "subdermal_armor"],
+          "health": 90
+        }
       }
     },
     {
@@ -244,7 +252,9 @@
         "enemies_per_floor": [4, 5, 5, 4, 2],
         "enemy_type": "o_counter_intel",
         "enemy_faction": "militech",
-        "enemy_power": 1.6
+        "enemy_power": 1.6,
+        "defender_kind": "soldier",
+        "elite_fraction": 0.35
       }
     },
     {
@@ -257,7 +267,7 @@
       "reward_emmies": {"min": 1500, "max": 1500},
       "street_cred": 20,
       "activation_radius": 112,
-      "guards": 7,
+      "guards": 4,
       "objective_radius": 96,
       "chapter": "Hedgehog's Dilemma",
       "primary_district": "D",
@@ -304,10 +314,17 @@
       },
       "scale": {
         "floor_count": 3,
-        "enemies_per_floor": [2, 3, 2],
+        "enemies_per_floor": [1, 2, 1],
         "enemy_type": "d_fog_stalker",
         "enemy_faction": "arasaka",
-        "enemy_power": 1.7
+        "enemy_power": 1.7,
+        "defender_kind": "elite",
+        "defenders_roam": true,
+        "target_loadout": {
+          "gun": "grad",
+          "cyberware": ["optical_camo", "blood_pump"],
+          "health": 70
+        }
       }
     },
     {
@@ -326,7 +343,8 @@
         "health": 160,
         "gun": "grad",
         "grenades": 7,
-        "cyberware": ["sandevistan", "subdermal_armor", "blood_pump", "optical_camo"]
+        "cyberware": ["sandevistan", "subdermal_armor", "blood_pump", "optical_camo",
+                      "arm_cannon"]
       },
       "chapter": "Lilliputian Hitcher",
       "primary_district": "D",

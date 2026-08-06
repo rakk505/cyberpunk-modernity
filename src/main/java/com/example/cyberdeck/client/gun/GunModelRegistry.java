@@ -44,19 +44,30 @@ public final class GunModelRegistry {
      * cyan/gunmetal texture atlas.
      */
     public static Entry get(GunType gun) {
-        String gunId = gun.id();
-        Entry cached = CACHE.get(gunId);
+        return get(gun.id(), gun.baseGun().id());
+    }
+
+    /**
+     * Loads any Bedrock rig by id, not only firearms. The mantis blade uses the same geometry,
+     * animation and UV-atlas layout as the ported gun rigs, so it renders through this same path
+     * even though it is a melee weapon rather than a {@link GunType}.
+     *
+     * @param itemId  selects the texture atlas, so tech variants can reskin a shared rig
+     * @param modelId selects the geometry and animation clips
+     */
+    public static Entry get(String itemId, String modelId) {
+        Entry cached = CACHE.get(itemId);
         if (cached != null) {
             return cached;
         }
-        if (Boolean.TRUE.equals(MISSING.get(gunId))) {
+        if (Boolean.TRUE.equals(MISSING.get(itemId))) {
             return null;
         }
-        Entry loaded = load(gun);
+        Entry loaded = load(itemId, modelId);
         if (loaded == null) {
-            MISSING.put(gunId, Boolean.TRUE);
+            MISSING.put(itemId, Boolean.TRUE);
         } else {
-            CACHE.put(gunId, loaded);
+            CACHE.put(itemId, loaded);
         }
         return loaded;
     }
@@ -92,8 +103,7 @@ public final class GunModelRegistry {
         return crouchAnimation;
     }
 
-    private static Entry load(GunType gun) {
-        String modelId = gun.baseGun().id();
+    private static Entry load(String itemId, String modelId) {
         ResourceManager rm = Minecraft.getInstance().getResourceManager();
         Identifier geoId = Identifier.fromNamespaceAndPath(
                 Cyberdeck.MODID, "gun_geo/" + modelId + ".geo.json");
@@ -120,7 +130,7 @@ public final class GunModelRegistry {
         }
 
         Identifier texture = Identifier.fromNamespaceAndPath(
-                Cyberdeck.MODID, "textures/item/" + gun.id() + "_uv.png");
+                Cyberdeck.MODID, "textures/item/" + itemId + "_uv.png");
         return new Entry(model, animation, texture);
     }
 

@@ -99,6 +99,7 @@ public final class FactionEnemyRenderer
     public void extractRenderState(FactionEnemy enemy, FactionEnemyRenderState state,
                                    float partialTick) {
         super.extractRenderState(enemy, state, partialTick);
+        state.entityId = enemy.getId();
         state.cyberpsycho = enemy instanceof CyberpsychoEntity;
         state.traumaTeam = enemy.isTraumaTeam();
         state.excision = enemy.isExcision();

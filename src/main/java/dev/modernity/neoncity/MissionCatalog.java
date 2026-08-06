@@ -24,8 +24,14 @@ public final class MissionCatalog {
     public static final int SCHEMA_VERSION = 1;
     private static final Path CONFIGURATION_PATH = Path.of(
             "config", "cyberdeck", "missions.json");
-    private static final Set<String> SUPPORTED_CYBERWARE = Set.of(
-            "sandevistan", "subdermal_armor", "blood_pump", "optical_camo");
+    /** Every id here has real behaviour behind it in {@code EnemyCyberware}. */
+    static final Set<String> SUPPORTED_CYBERWARE = Set.of(
+            com.example.cyberdeck.faction.EnemyCyberware.SANDEVISTAN,
+            com.example.cyberdeck.faction.EnemyCyberware.SUBDERMAL_ARMOR,
+            com.example.cyberdeck.faction.EnemyCyberware.BLOOD_PUMP,
+            com.example.cyberdeck.faction.EnemyCyberware.OPTICAL_CAMO,
+            com.example.cyberdeck.faction.EnemyCyberware.MANTIS_BLADES,
+            com.example.cyberdeck.faction.EnemyCyberware.ARM_CANNON);
     private static volatile List<MissionDefinition> definitions = loadBundled();
 
     private MissionCatalog() {
@@ -271,10 +277,15 @@ public final class MissionCatalog {
     }
 
     private static GunType parseGun(String id) {
+        return gun(id, "cyberpsycho");
+    }
+
+    /** Resolves a configured firearm id, naming {@code context} in the failure so it is findable. */
+    static GunType gun(String id, String context) {
         for (GunType gun : GunType.values()) {
-            if (gun.id().equals(id) && gun != GunType.MANTIS_BLADE) return gun;
+            if (gun.id().equals(id)) return gun;
         }
-        throw new IllegalArgumentException("invalid cyberpsycho gun " + id);
+        throw new IllegalArgumentException("invalid " + context + " gun " + id);
     }
 
     private static List<MissionDefinition> loadBundled() {

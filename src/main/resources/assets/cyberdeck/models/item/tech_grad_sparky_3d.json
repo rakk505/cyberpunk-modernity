@@ -1,0 +1,7 @@
+{
+  "parent": "cyberdeck:item/grad_sparky_3d",
+  "textures": {
+    "layer0": "cyberdeck:item/tech_grad_sparky_uv",
+    "particle": "cyberdeck:item/tech_grad_sparky_uv"
+  }
+}

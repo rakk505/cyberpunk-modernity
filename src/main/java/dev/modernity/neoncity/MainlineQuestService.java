@@ -2,11 +2,14 @@ package dev.modernity.neoncity;
 
 import com.example.cyberdeck.Cyberdeck;
 import com.example.cyberdeck.city.CityWorlds;
+import com.example.cyberdeck.faction.CyberpsychoEntity;
+import com.example.cyberdeck.faction.EnemyCyberware;
 import com.example.cyberdeck.faction.Faction;
 import com.example.cyberdeck.faction.FactionEnemy;
 import com.example.cyberdeck.npc.CityNpc;
 import com.example.cyberdeck.npc.CityNpcEntities;
 import com.example.cyberdeck.npc.NpcRole;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -33,6 +36,13 @@ final class MainlineQuestService {
     private static final int NPC_SEARCH_RADIUS = 48;
     private static final int MINIMUM_FALLBACK_ENEMIES = 2;
     private static final int STORY_STREET_SEARCH_RADIUS = 256;
+    /**
+     * How far a story NPC's street cell must reach through connected walkable ground before it
+     * counts as a real street. Kept inside the synchronously generated 3x3 chunk neighbourhood so
+     * the audit never depends on chunks the placement did not prepare.
+     */
+    private static final int STORY_STREET_ESCAPE_DISTANCE = 12;
+    private static final int MAX_STORY_STREET_ESCAPE_CELLS = 768;
     private static final int[][] CARDINAL_DIRECTIONS = {
             {1, 0}, {-1, 0}, {0, 1}, {0, -1}
     };
@@ -73,7 +83,7 @@ final class MainlineQuestService {
             MissionBuildingPlanner.Site restored = existing;
             if (validSite(mission, restored)
                     && accepted.stream().noneMatch(site ->
-                            MainlineQuestData.buildingConflicts(site, restored))) {
+                            MainlineQuestData.sameApparentBuilding(site, restored))) {
                 data.putSite(
                         mission.id(), restored,
                         data.isCommittedRecovery(mission.id()));
@@ -83,9 +93,13 @@ final class MainlineQuestService {
             data.removeSite(mission.id());
             if (!validSite(mission, fixed)
                     || accepted.stream().anyMatch(site ->
-                            MainlineQuestData.buildingConflicts(site, fixed))) {
+                            MainlineQuestData.sameApparentBuilding(site, fixed))) {
+                // Leaving the mission unplanned is deliberate: acceptance runs the normal
+                // on-demand atlas discovery, which honours the same separation rule and so lands
+                // the actor in a building the player can tell apart from its neighbour's.
                 Cyberdeck.LOGGER.warn(
-                        "[Mainline] fixed descriptor missing, invalid, or conflicting for {}",
+                        "[Mainline] fixed descriptor missing, invalid, or conflicting for {}; "
+                                + "its building will be selected on demand",
                         mission.id());
                 continue;
             }
@@ -549,7 +563,13 @@ final class MainlineQuestService {
                 .getString(NPC_CHARACTER).orElse("");
     }
 
-    static void configureGuard(FactionEnemy guard, String missionId) {
+    /**
+     * Equips one member of a mission detail.
+     *
+     * @param index position within the detail, used to decide which members are elites so a
+     *              contract's composition is fixed rather than re-rolled on every redeploy
+     */
+    static void configureGuard(FactionEnemy guard, String missionId, int index) {
         StoryMissionCatalog.StoryMission mission;
         try {
             mission = StoryMissionCatalog.definition(missionId);
@@ -561,14 +581,54 @@ final class MainlineQuestService {
         Faction faction = faction(mission.enemyFaction());
         com.example.cyberdeck.faction.FactionSquads.equip(guard, faction, guard.getRandom());
         double power = mission.enemyPower();
-        guard.getAttribute(Attributes.MAX_HEALTH).setBaseValue(24.0 * power);
-        guard.getAttribute(Attributes.ATTACK_DAMAGE).setBaseValue(5.0 * Math.sqrt(power));
+        boolean elite = mission.isElite(index);
+        // An elite is a harder fight because of what it can do, not only because of a bigger
+        // health bar; the multiplier stays modest so the chrome is what the player notices.
+        double scale = elite ? power * 1.35 : power;
+        guard.getAttribute(Attributes.MAX_HEALTH).setBaseValue(24.0 * scale);
+        guard.getAttribute(Attributes.ATTACK_DAMAGE).setBaseValue(5.0 * Math.sqrt(scale));
         if (guard.getAttribute(Attributes.ARMOR) != null) {
             guard.getAttribute(Attributes.ARMOR).setBaseValue(Math.max(
-                    guard.getAttribute(Attributes.ARMOR).getBaseValue(), 2.0 + power * 2.0));
+                    guard.getAttribute(Attributes.ARMOR).getBaseValue(), 2.0 + scale * 2.0));
+        }
+        if (elite && !(guard instanceof CyberpsychoEntity)) {
+            guard.setInstalledCyberware(EnemyCyberware.rollEliteLoadout(guard.getRandom()));
+            guard.setCustomName(Component.literal("ELITE").withStyle(ChatFormatting.GOLD));
         }
         guard.setHealth(guard.getMaxHealth());
         if (power >= 1.5) guard.setGrenadeCount(Math.max(guard.getGrenadeCount(), 1));
+    }
+
+    /** True when this mission's detail is made of cyberpsychos rather than corporate security. */
+    static boolean usesCyberpsychoDetail(String missionId) {
+        try {
+            return StoryMissionCatalog.definition(missionId).defenderKind()
+                    == StoryMissionCatalog.DefenderKind.CYBERPSYCHO;
+        } catch (IllegalArgumentException unknownMission) {
+            return false;
+        }
+    }
+
+    /**
+     * True when this mission's defenders hunt through the whole building instead of holding the
+     * floor they spawned on. Two roaming defenders read as a threat that is looking for you; two
+     * defenders standing on their own floors read as two separate, smaller fights.
+     */
+    static boolean defendersRoam(String missionId) {
+        try {
+            return StoryMissionCatalog.definition(missionId).defendersRoam();
+        } catch (IllegalArgumentException unknownMission) {
+            return false;
+        }
+    }
+
+    static Optional<StoryMissionCatalog.TargetLoadout> targetLoadout(String missionId) {
+        try {
+            return Optional.ofNullable(StoryMissionCatalog.definition(missionId).targetLoadout())
+                    .filter(StoryMissionCatalog.TargetLoadout::armed);
+        } catch (IllegalArgumentException unknownMission) {
+            return Optional.empty();
+        }
     }
 
     static List<Integer> floorEnemyQuotas(String missionId, int floorCount) {
@@ -699,7 +759,7 @@ final class MainlineQuestService {
         return node.type() == StoryMissionCatalog.NodeType.TRAVEL
                         || node.type() == StoryMissionCatalog.NodeType.INFILTRATE
                 ? MissionBuildingPlanner.navigationTarget(site)
-                : site.target();
+                : MissionService.objectivePosition(mission.encounter().type(), site);
     }
 
     static BlockPos nodePosition(
@@ -861,6 +921,7 @@ final class MainlineQuestService {
             return null;
         }
         NeonCityGenerator.generateNow(level, Math.floorDiv(x, 16), Math.floorDiv(z, 16), 1);
+        if (!isOpenStoryStreetColumn(x, z)) return null;
         BlockPos feet = CityWorlds.resolveStreetFeet(
                 level, x, z, NeonCityGenerator.CITY_GROUND_Y + 1);
         if (feet == null || feet.getY() != NeonCityGenerator.CITY_GROUND_Y + 1
@@ -876,7 +937,54 @@ final class MainlineQuestService {
                     level, neighborX, neighborZ, NeonCityGenerator.CITY_GROUND_Y + 1);
             if (neighbor != null && Math.abs(neighbor.getY() - feet.getY()) <= 1) connected++;
         }
-        return connected >= 2 ? feet : null;
+        return connected >= 2 && escapesLocalEnclosure(level, feet) ? feet : null;
+    }
+
+    /**
+     * A planned road class is not proof of open ground. The street classes that do not override
+     * imported geometry keep whatever the Arnis atlas stamped on that column, so a column the
+     * layout calls a local street can be the inside of a building. A retained atlas column only
+     * counts as street when the imported map also puts a road ribbon there.
+     */
+    private static boolean isOpenStoryStreetColumn(int x, int z) {
+        return !NeonCityGenerator.isAtlasStreetColumnAt(x, z)
+                || NeonCityGenerator.isAtlasRoadSurfaceAt(x, z);
+    }
+
+    /**
+     * Rejects a street cell the player cannot walk to. Standing on solid ground under open sky
+     * with walkable neighbours describes a sealed courtyard or a light well just as well as it
+     * describes a street, and a story NPC dropped in one can only be reached by breaking a wall.
+     * Flooding outward over connected walkable cells and demanding real distance is the only test
+     * that tells the two apart.
+     */
+    private static boolean escapesLocalEnclosure(ServerLevel level, BlockPos start) {
+        ArrayDeque<BlockPos> frontier = new ArrayDeque<>();
+        Set<Long> visited = new HashSet<>();
+        frontier.add(start);
+        visited.add(start.asLong());
+        int examined = 0;
+        while (!frontier.isEmpty() && examined < MAX_STORY_STREET_ESCAPE_CELLS) {
+            BlockPos current = frontier.poll();
+            examined++;
+            if (Math.max(Math.abs(current.getX() - start.getX()),
+                    Math.abs(current.getZ() - start.getZ()))
+                    >= STORY_STREET_ESCAPE_DISTANCE) {
+                return true;
+            }
+            for (int[] direction : CARDINAL_DIRECTIONS) {
+                BlockPos next = CityWorlds.resolveStreetFeet(
+                        level, current.getX() + direction[0], current.getZ() + direction[1],
+                        current.getY());
+                if (next == null
+                        || Math.abs(next.getY() - current.getY()) > 1
+                        || !visited.add(next.asLong())) {
+                    continue;
+                }
+                frontier.add(next);
+            }
+        }
+        return false;
     }
 
     private static boolean publicStoryRoad(NeonCityGenerator.RoadClass road) {

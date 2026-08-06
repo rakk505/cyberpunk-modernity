@@ -1,0 +1,7 @@
+{
+  "parent": "cyberdeck:item/overture_rosco_3d",
+  "textures": {
+    "layer0": "cyberdeck:item/tech_overture_rosco_uv",
+    "particle": "cyberdeck:item/tech_overture_rosco_uv"
+  }
+}

@@ -165,6 +165,9 @@ public final class CyberdeckGameTests {
             WEAPON_SOUND_PROFILES = register(
                     "weapon_sound_profiles", CyberdeckGameTests::weaponSoundProfiles);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
+            WEAPON_ASSET_COVERAGE = register(
+                    "weapon_asset_coverage", CyberdeckGameTests::weaponAssetCoverage);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
             LARGE_AD_SURFACE = register(
                     "large_ad_surface", CyberdeckGameTests::largeAdSurface);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>
@@ -1087,18 +1090,75 @@ public final class CyberdeckGameTests {
     }
 
     private static void gunshotRadius(GameTestHelper helper) {
-        helper.assertTrue(GunshotAlerts.hearingRadius(GunType.MANTIS_BLADE) == 0.0,
-                "Mantis Blade attacks must not emit a gunshot alert");
+        // The mantis blade is no longer a GunType at all, so silence is structural rather than a
+        // zero-radius special case: it never reaches this alert path.
+        helper.assertTrue(java.util.Arrays.stream(GunType.values())
+                        .noneMatch(gun -> gun.id().equals("mantis_blade")),
+                "the mantis blade must not be registered as a firearm");
         for (GunType gun : GunType.values()) {
-            if (gun != GunType.MANTIS_BLADE) {
-                helper.assertTrue(GunshotAlerts.hearingRadius(gun) > 0.0,
-                        gun.id() + " must emit an audible gunshot alert");
-            }
+            helper.assertTrue(GunshotAlerts.hearingRadius(gun) > 0.0,
+                    gun.id() + " must emit an audible gunshot alert");
         }
         helper.assertTrue(GunshotAlerts.hearingRadius(GunType.SNIPER)
                         > GunshotAlerts.hearingRadius(GunType.PISTOL),
                 "heavy sniper fire should carry farther than a pistol shot");
         helper.succeed();
+    }
+
+    /**
+     * Every registered weapon must ship the four assets its render pipeline reads. Registering a
+     * gun is one line; forgetting its geometry, clips, atlas or item model produces an invisible
+     * or untextured weapon that nothing else in the suite would catch, so the whole roster is
+     * checked against the packaged resources rather than a hand-maintained list.
+     */
+    private static void weaponAssetCoverage(GameTestHelper helper) {
+        List<String> missing = new java.util.ArrayList<>();
+        int animated = 0;
+        for (GunType gun : GunType.values()) {
+            requireAsset(missing, "items/" + gun.id() + ".json");
+            requireAsset(missing, "models/item/" + gun.baseGun().id() + "_3d.json");
+            // The five original firearms predate the Bedrock pipeline and render through the
+            // procedural fallback, so a rig is optional; a partial rig never is.
+            String rig = gun.baseGun().id();
+            if (!hasAsset("gun_geo/" + rig + ".geo.json")) continue;
+            animated++;
+            requireAsset(missing, "gun_anim/" + rig + ".animation.json");
+            requireAsset(missing, "textures/item/" + gun.id() + "_uv.png");
+        }
+        for (String blade : List.of("mantis_blade", "mantis_blade_maxtac")) {
+            requireAsset(missing, "gun_geo/" + blade + ".geo.json");
+            requireAsset(missing, "gun_anim/" + blade + ".animation.json");
+            requireAsset(missing, "textures/item/" + blade + "_uv.png");
+            requireAsset(missing, "items/" + blade + ".json");
+        }
+        helper.assertTrue(missing.isEmpty(), "weapons are missing assets: " + missing);
+        helper.assertTrue(animated >= 66,
+                "only " + animated + " firearms carry an animated Bedrock rig");
+        helper.assertTrue(GunType.values().length >= 76,
+                "the Cyber Armorer roster shrank to " + GunType.values().length + " firearms");
+        // Sound and alert profiles are keyed on the frame, so an unmapped frame throws rather
+        // than silently falling through; touching every weapon proves the mapping is total.
+        for (GunType gun : GunType.values()) {
+            helper.assertTrue(WeaponSounds.fireSound(gun) != null
+                            && WeaponSounds.volume(gun) > 0.0f
+                            && WeaponSounds.basePitch(gun) > 0.0f
+                            && GunshotAlerts.hearingRadius(gun) > 0.0,
+                    gun.id() + " has no firing sound or alert profile");
+        }
+        helper.succeed();
+    }
+
+    private static void requireAsset(List<String> missing, String path) {
+        if (!hasAsset(path)) missing.add(path);
+    }
+
+    private static boolean hasAsset(String path) {
+        try (java.io.InputStream stream = CyberdeckGameTests.class.getResourceAsStream(
+                "/assets/cyberdeck/" + path)) {
+            return stream != null;
+        } catch (java.io.IOException unreadable) {
+            return false;
+        }
     }
 
     private static void weaponSoundProfiles(GameTestHelper helper) {
@@ -3287,8 +3347,9 @@ public final class CyberdeckGameTests {
     /** Reads the private heal cadence so the balance regression stays locked in. */
     private static int cyberpsychoHealRecharge(GameTestHelper helper) {
         try {
-            java.lang.reflect.Field field = com.example.cyberdeck.faction.CyberpsychoEntity.class
-                    .getDeclaredField("HEAL_RECHARGE_TICKS");
+            // The blood-pump cadence moved to EnemyCyberware so every chromed soldier shares it.
+            java.lang.reflect.Field field = com.example.cyberdeck.faction.EnemyCyberware.class
+                    .getDeclaredField("BLOOD_PUMP_RECHARGE_TICKS");
             field.setAccessible(true);
             return field.getInt(null);
         } catch (ReflectiveOperationException exception) {
@@ -3299,8 +3360,8 @@ public final class CyberdeckGameTests {
 
     private static float cyberpsychoHealAmount(GameTestHelper helper) {
         try {
-            java.lang.reflect.Field field = com.example.cyberdeck.faction.CyberpsychoEntity.class
-                    .getDeclaredField("HEAL_AMOUNT");
+            java.lang.reflect.Field field = com.example.cyberdeck.faction.EnemyCyberware.class
+                    .getDeclaredField("BLOOD_PUMP_HEAL");
             field.setAccessible(true);
             return field.getFloat(null);
         } catch (ReflectiveOperationException exception) {
@@ -3514,16 +3575,14 @@ public final class CyberdeckGameTests {
                 "the sandevistan cap must stay low enough to remain a swept move, not a teleport ("
                         + sandevistanCap + ")");
         helper.assertTrue(
-                com.example.cyberdeck.faction.CyberpsychoEntity
-                        .isSandevistanDashCooldownReady(0L, Long.MIN_VALUE),
+                com.example.cyberdeck.faction.EnemyCyberware
+                        .isCooldownReady(0L, Long.MIN_VALUE, 50),
                 "a never-used sandevistan dash must be immediately ready without long overflow");
         helper.assertFalse(
-                com.example.cyberdeck.faction.CyberpsychoEntity
-                        .isSandevistanDashCooldownReady(49L, 0L),
+                com.example.cyberdeck.faction.EnemyCyberware.isCooldownReady(49L, 0L, 50),
                 "the sandevistan dash cooldown must block early reuse");
         helper.assertTrue(
-                com.example.cyberdeck.faction.CyberpsychoEntity
-                        .isSandevistanDashCooldownReady(50L, 0L),
+                com.example.cyberdeck.faction.EnemyCyberware.isCooldownReady(50L, 0L, 50),
                 "the sandevistan dash must become ready when its cooldown expires");
 
         // Spawn loadouts must offer a sandevistan variant so it is genuinely optional-but-possible.
@@ -3898,6 +3957,7 @@ public final class CyberdeckGameTests {
         registerInstance(event, "district_patrol_loadout", DISTRICT_PATROL_LOADOUT, data);
         registerInstance(event, "enemy_netrunner_contracts", ENEMY_NETRUNNER_CONTRACTS, data);
         registerInstance(event, "gunshot_radius", GUNSHOT_RADIUS, data);
+        registerInstance(event, "weapon_asset_coverage", WEAPON_ASSET_COVERAGE, data);
         registerInstance(event, "mounted_gun_targeting", MOUNTED_GUN_TARGETING, data);
         registerInstance(event, "roadside_vehicle_fuel", ROADSIDE_VEHICLE_FUEL, data);
         registerInstance(event, "traffic_driver_handoff", TRAFFIC_DRIVER_HANDOFF, data);

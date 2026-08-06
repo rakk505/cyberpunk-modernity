@@ -234,12 +234,17 @@ final class MissionFeatureGameTests {
                                 Math.floorDiv(site.target().getX(), 16),
                                 Math.floorDiv(site.target().getZ(), 16)) == null),
                 "a fixed mainline site chunk was loaded before descriptor restore");
-        helper.assertTrue(MainlineQuestService.restoreFixedWorldPlans(helper.getLevel()) == 5
-                        && MainlineQuestService.restoreFixedWorldPlans(helper.getLevel()) == 5
+        int restorable = restorableFixedPlanCount(fixedSites);
+        helper.assertTrue(
+                MainlineQuestService.restoreFixedWorldPlans(helper.getLevel()) == restorable
+                        && MainlineQuestService.restoreFixedWorldPlans(helper.getLevel())
+                                == restorable
                         && NeonCityGenerator.generatedChunks() == generatedBeforeRestore
                         && ArnisBuildingAtlas.compilationRequests() == scansBeforeRestore
-                        && fixedSites.entrySet().stream().allMatch(entry ->
-                                MainlineQuestService.reservedSite(
+                        && fixedSites.entrySet().stream()
+                                .filter(entry -> MainlineQuestService.reservedSite(
+                                        helper.getLevel(), entry.getKey()).isPresent())
+                                .allMatch(entry -> MainlineQuestService.reservedSite(
                                                 helper.getLevel(), entry.getKey())
                                         .map(entry.getValue()::equals).orElse(false))
                         && fixedSites.values().stream().allMatch(site ->
@@ -247,6 +252,24 @@ final class MissionFeatureGameTests {
                                         Math.floorDiv(site.target().getX(), 16),
                                         Math.floorDiv(site.target().getZ(), 16)) == null),
                 "fixed-site restore loaded remote chunks, scanned the atlas, or was not idempotent");
+        List<MissionBuildingPlanner.Site> restoredSites = StoryMissionCatalog.definitions().stream()
+                .map(mission -> MainlineQuestService.reservedSite(
+                        helper.getLevel(), mission.id()).orElse(null))
+                .filter(java.util.Objects::nonNull)
+                .toList();
+        // The invariant the player experiences: no two mainline actors are ever installed in what
+        // reads as one building. A bundled descriptor that would break it is dropped here and the
+        // building is chosen on demand instead, which is why the restored count is derived rather
+        // than hard-coded.
+        for (int first = 0; first < restoredSites.size(); first++) {
+            for (int second = first + 1; second < restoredSites.size(); second++) {
+                helper.assertTrue(!MainlineQuestData.sameApparentBuilding(
+                                restoredSites.get(first), restoredSites.get(second)),
+                        "restored mainline sites " + restoredSites.get(first).id() + " and "
+                                + restoredSites.get(second).id()
+                                + " would read to a player as one building");
+            }
+        }
         MissionBuildingPlanner.Site syntheticRecovery = MainlineBuildingGenerator.createSite(
                 District.G_CORP,
                 "m01_deliver_datashards",
@@ -258,7 +281,8 @@ final class MissionFeatureGameTests {
                 MissionBuildingPlanner.withoutMissionInteriorPlan(syntheticRecovery);
         MainlineQuestData.get(helper.getLevel()).putSite(
                 "m01_deliver_datashards", syntheticRecovery);
-        helper.assertTrue(MainlineQuestService.restoreFixedWorldPlans(helper.getLevel()) == 5
+        helper.assertTrue(MainlineQuestService.restoreFixedWorldPlans(helper.getLevel())
+                                == restorable
                         && MainlineQuestService.reservedSite(
                                         helper.getLevel(), "m01_deliver_datashards")
                                 .map(fixedSites.get("m01_deliver_datashards")::equals)
@@ -266,8 +290,11 @@ final class MissionFeatureGameTests {
                 "synthetic recovery descriptor was not migrated back to the bundled Arnis site");
         MainlineQuestService.commitWorldPlan(
                 helper.getLevel(), "m01_deliver_datashards", syntheticRecovery);
-        helper.assertTrue(MainlineQuestService.restoreFixedWorldPlans(helper.getLevel()) == 5
-                        && MainlineQuestData.get(helper.getLevel())
+        // No count assertion here: the synthetic recovery building stands 30k blocks from the
+        // bundled pair, so accepting it can also free a bundled descriptor the real catalog order
+        // would have rejected. What matters is that the committed recovery itself survives.
+        MainlineQuestService.restoreFixedWorldPlans(helper.getLevel());
+        helper.assertTrue(MainlineQuestData.get(helper.getLevel())
                                 .isCommittedRecovery("m01_deliver_datashards")
                         && MainlineQuestService.reservedSite(
                                         helper.getLevel(), "m01_deliver_datashards")
@@ -302,6 +329,14 @@ final class MissionFeatureGameTests {
                         || kaitoFootprint.maxZ() < seleneFootprint.minZ()
                         || seleneFootprint.maxZ() < kaitoFootprint.minZ(),
                 "the two mainline buildings must not overlap in plan, only in height");
+        // Non-overlapping footprints with distinct ids were never enough. The bundled pair sits
+        // across a nine-block alley in the reflected half of the same atlas tiles, which is to say
+        // Kaito and Selene were installed in two copies of one building on one street. Whichever
+        // of the two conditions holds, the reservation layer has to see it and re-derive.
+        helper.assertTrue(
+                MainlineQuestData.sameApparentBuilding(kaitoBuilding, seleneBuilding)
+                        == (restorable < StoryMissionCatalog.definitions().size()),
+                "apparent-building detection disagrees with how many descriptors restored");
 
         StoryMissionCatalog.StoryMission gExecutive =
                 StoryMissionCatalog.definition("m02_assassinate_g_exec");
@@ -563,18 +598,20 @@ final class MissionFeatureGameTests {
                                 npc -> "kaito_park".equals(
                                         MainlineQuestService.characterId(npc)))
                         .stream().findFirst().orElse(null);
-        helper.assertTrue(deployedDelivery != null
-                        && MissionService.contractContext(stagedPlayer)
+        helper.assertTrue(deployedDelivery != null && deployedSite != null,
+                "m01 did not deploy its building and contract atomically");
+        helper.assertTrue(MissionService.contractContext(stagedPlayer)
                                 .map(MissionService.ContractContext::deployed).orElse(false)
                         && MissionJournalData.get(helper.getLevel())
-                                .deploymentState(stagedInstance).orElse(false)
-                        && deployedSite != null
-                        && kaito != null
-                        && kaito.getBlockY() == deployedSite.floorYs().get(1)
+                                .deploymentState(stagedInstance).orElse(false),
+                "m01 deployed without marking its context and journal deployed");
+        helper.assertTrue(kaito != null,
+                "m01 deployed without placing Kaito inside its building");
+        helper.assertTrue(kaito.getBlockY() == deployedSite.floorYs().get(1)
                         && deployedSite.missionCells(kaito.getBlockY())
                                 .contains(kaito.blockPosition())
                         && contains(deployedSite.buildingBounds(), kaito.blockPosition()),
-                "m01 did not deploy its building, journal, guards, and floor-two Kaito atomically");
+                "Kaito was not placed on his authored level-two stall cell");
         net.minecraft.world.phys.AABB deployedArea = new net.minecraft.world.phys.AABB(
                 deployedSite.bounds().minX(), deployedSite.bounds().minY(),
                 deployedSite.bounds().minZ(), deployedSite.bounds().maxX() + 1.0,
@@ -583,11 +620,15 @@ final class MissionFeatureGameTests {
                 MissionService.missionActors(
                         helper.getLevel(), com.example.cyberdeck.faction.FactionEnemy.class,
                         deployedArea, actor -> MissionService.isMissionActor(actor, stagedInstance));
+        List<Long> authoredDistribution = MainlineQuestService.floorEnemyQuotas(
+                        deliveryStory.id(), deployedSite.floorYs().size()).stream()
+                .map(Long::valueOf).toList();
         helper.assertTrue(deployedSite.floorYs().stream()
                                 .map(floorY -> deliveryGuards.stream()
                                         .filter(guard -> guard.getBlockY() == floorY).count())
-                                .toList().equals(List.of(3L, 2L, 2L)),
-                "m01 did not deploy its authored 3/2/2 guard distribution across all floors");
+                                .toList().equals(authoredDistribution),
+                "m01 did not deploy its authored guard distribution " + authoredDistribution
+                        + " across all floors");
         stagedPlayer.snapTo(
                 kaito.getX(), kaito.getY(), kaito.getZ(), kaito.getYRot(), kaito.getXRot());
         helper.assertTrue(MissionService.interactStoryNpc(stagedPlayer, kaito)
@@ -1054,7 +1095,8 @@ final class MissionFeatureGameTests {
                                 recoverySite, recoveryInstance)
                         && recoverySites.reservedSite(recoveryInstance)
                                 .map(recoverySite::equals).orElse(false),
-                "server reservation did not retain its versioned exact-site descriptor");
+                "server reservation did not retain its versioned exact-site descriptor; blocked by "
+                        + recoverySites.conflictingSiteIds(recoverySite, recoveryInstance));
 
         UUID legacyInstance = UUID.randomUUID();
         MissionBuildingPlanner.Site legacySite = MainlineBuildingGenerator.createSite(
@@ -1277,6 +1319,26 @@ final class MissionFeatureGameTests {
     private static String boundsKey(BoundingBox bounds) {
         return bounds.minX() + "," + bounds.minY() + "," + bounds.minZ()
                 + ".." + bounds.maxX() + "," + bounds.maxY() + "," + bounds.maxZ();
+    }
+
+    /**
+     * How many bundled descriptors survive restore, applying the same accept-in-catalog-order rule
+     * the service uses. Any descriptor that would put a second mission actor into what a player
+     * reads as an already-occupied building is dropped and re-derived on demand instead.
+     */
+    private static int restorableFixedPlanCount(
+            Map<String, MissionBuildingPlanner.Site> fixedSites) {
+        List<MissionBuildingPlanner.Site> accepted = new java.util.ArrayList<>();
+        for (StoryMissionCatalog.StoryMission mission : StoryMissionCatalog.definitions()) {
+            MissionBuildingPlanner.Site fixed = fixedSites.get(mission.id());
+            if (fixed == null
+                    || accepted.stream().anyMatch(site ->
+                            MainlineQuestData.sameApparentBuilding(site, fixed))) {
+                continue;
+            }
+            accepted.add(fixed);
+        }
+        return accepted.size();
     }
 
     private static boolean contains(BoundingBox bounds, net.minecraft.core.BlockPos position) {

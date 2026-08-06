@@ -1,0 +1,7 @@
+{
+  "parent": "cyberdeck:item/yukimura_skippy_3d",
+  "textures": {
+    "layer0": "cyberdeck:item/tech_yukimura_skippy_uv",
+    "particle": "cyberdeck:item/tech_yukimura_skippy_uv"
+  }
+}

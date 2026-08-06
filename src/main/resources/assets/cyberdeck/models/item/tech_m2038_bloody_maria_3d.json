@@ -1,0 +1,7 @@
+{
+  "parent": "cyberdeck:item/m2038_bloody_maria_3d",
+  "textures": {
+    "layer0": "cyberdeck:item/tech_m2038_bloody_maria_uv",
+    "particle": "cyberdeck:item/tech_m2038_bloody_maria_uv"
+  }
+}

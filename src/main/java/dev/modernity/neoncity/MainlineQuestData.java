@@ -30,6 +30,12 @@ import net.minecraft.world.level.saveddata.SavedDataType;
 final class MainlineQuestData extends SavedData {
     private static final String FIXED_SITE_RESOURCE =
             "/data/neoncity/missions/mainline_sites_50520260801.dat";
+    /**
+     * Minimum clear ground between two mainline building footprints. An alley narrower than this
+     * puts two mission actors on one facade, which players read as one building however the atlas
+     * segmented the interiors.
+     */
+    static final int DISTINCT_BUILDING_SEPARATION = 32;
     private static final Codec<StoredPlan> PLAN_CODEC = RecordCodecBuilder.create(instance ->
             instance.group(
                     Codec.STRING.fieldOf("mission").forGetter(StoredPlan::missionId),
@@ -207,9 +213,10 @@ final class MainlineQuestData extends SavedData {
             if (entry.getKey().equals(exceptMissionId)) continue;
             MissionBuildingPlanner.Site reserved = MissionBuildingPlanner.Site.load(
                     entry.getValue()).orElse(null);
-            // sharesBuilding, not buildingConflicts: a second actor may not move into a tower
-            // another mission already occupies, even on a floor nothing has reserved.
-            if (reserved != null && sharesBuilding(reserved, candidate)) return true;
+            // sameApparentBuilding, not buildingConflicts: a second actor may not move into a
+            // tower another mission already occupies, even on a floor nothing has reserved, and
+            // may not move into a structure a player would call the same building either.
+            if (reserved != null && sameApparentBuilding(reserved, candidate)) return true;
         }
         return false;
     }
@@ -407,6 +414,55 @@ final class MainlineQuestData extends SavedData {
         BoundingBox b = second.buildingBounds();
         return a.minX() <= b.maxX() && a.maxX() >= b.minX()
                 && a.minZ() <= b.maxZ() && a.maxZ() >= b.minZ();
+    }
+
+    /**
+     * True when two mainline sites would read to a player as one building, which is a stronger
+     * requirement than "not the same reserved volume".
+     *
+     * <p>Three distinct ways two reservations collapse into one apparent building:</p>
+     * <ol>
+     *   <li>they literally share a structure ({@link #sharesBuilding}),</li>
+     *   <li>their facades are close enough to belong to one complex - two towers separated by a
+     *       nine-block alley on the same street are one address to whoever walks up to them, and</li>
+     *   <li>they were stamped from the same Arnis source geometry. The atlas repeats by
+     *       reflection, so a mission placed just past a mirror line lands in a pixel-perfect copy
+     *       of its neighbour: different coordinates, identical building.</li>
+     * </ol>
+     */
+    static boolean sameApparentBuilding(
+            MissionBuildingPlanner.Site first, MissionBuildingPlanner.Site second) {
+        return sharesBuilding(first, second)
+                || withinDistinctBuildingSeparation(first, second)
+                || sharesSourceGeometry(first, second);
+    }
+
+    private static boolean withinDistinctBuildingSeparation(
+            MissionBuildingPlanner.Site first, MissionBuildingPlanner.Site second) {
+        if (!hasPhysicalBuildingIdentity(first) || !hasPhysicalBuildingIdentity(second)) {
+            return false;
+        }
+        BoundingBox a = first.buildingBounds();
+        BoundingBox b = second.buildingBounds();
+        int gapX = Math.max(0, Math.max(a.minX() - b.maxX(), b.minX() - a.maxX()));
+        int gapZ = Math.max(0, Math.max(a.minZ() - b.maxZ(), b.minZ() - a.maxZ()));
+        return Math.max(gapX, gapZ) < DISTINCT_BUILDING_SEPARATION;
+    }
+
+    private static boolean sharesSourceGeometry(
+            MissionBuildingPlanner.Site first, MissionBuildingPlanner.Site second) {
+        if (!hasPhysicalBuildingIdentity(first) || !hasPhysicalBuildingIdentity(second)) {
+            return false;
+        }
+        Optional<String> a = sourceGeometryKey(first);
+        return a.isPresent() && a.equals(sourceGeometryKey(second));
+    }
+
+    private static Optional<String> sourceGeometryKey(MissionBuildingPlanner.Site site) {
+        BoundingBox bounds = site.buildingBounds();
+        return ArnisPatchLibrary.sourceGeometryKey(
+                NeonCityGenerator.layout(),
+                bounds.minX(), bounds.minZ(), bounds.maxX(), bounds.maxZ());
     }
 
     private static boolean hasPhysicalBuildingIdentity(MissionBuildingPlanner.Site site) {

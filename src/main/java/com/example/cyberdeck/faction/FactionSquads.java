@@ -37,6 +37,8 @@ public final class FactionSquads {
     private static final int MIN_GRENADES = 1;
     private static final int MAX_GRENADES = 2;
     private static final int GENERIC_NETRUNNER_CHANCE = 6;
+    /** 1-in-8 non-netrunner soldiers spawn with an {@link EnemyCyberware} elite loadout. */
+    private static final int AUGMENTED_SOLDIER_CHANCE = 8;
 
     private FactionSquads() {
     }
@@ -102,6 +104,13 @@ public final class FactionSquads {
         if (!(enemy instanceof CyberpsychoEntity)
                 && rng.nextInt(GENERIC_NETRUNNER_CHANCE) == 0) {
             configureGenericNetrunner(enemy, faction, rng);
+            return;
+        }
+        // A minority of ordinary corporate soldiers are chromed. Rare enough that a squad still
+        // reads as conscripts with rifles, common enough that the player cannot assume every
+        // silhouette fights the same way.
+        if (!(enemy instanceof CyberpsychoEntity) && rng.nextInt(AUGMENTED_SOLDIER_CHANCE) == 0) {
+            enemy.setInstalledCyberware(EnemyCyberware.rollEliteLoadout(rng));
         }
     }
 

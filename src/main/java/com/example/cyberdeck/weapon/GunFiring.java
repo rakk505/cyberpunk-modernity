@@ -364,13 +364,7 @@ public final class GunFiring {
     }
 
     private static DamageSource damageSource(LivingEntity shooter, GunType gun) {
-        if (gun.baseGun() != GunType.MANTIS_BLADE) {
-            return shooter.damageSources().source(CyberdeckDamageTypes.BULLET, shooter, shooter);
-        }
-        if (shooter instanceof Player player) {
-            return shooter.damageSources().playerAttack(player);
-        }
-        return shooter.damageSources().mobAttack(shooter);
+        return shooter.damageSources().source(CyberdeckDamageTypes.BULLET, shooter, shooter);
     }
 
     private static float pitchFor(GunType gun, RandomSource rng) {

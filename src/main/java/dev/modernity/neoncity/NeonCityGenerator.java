@@ -1234,6 +1234,8 @@ public final class NeonCityGenerator {
             ArnisFacadeRepair.sealInterruptedEdges(level, chunk, interruptedEdges);
             ArnisFacadeRepair.sealInfrastructureCuts(
                     level, chunk, samples, placement.patch().district());
+            ArnisEntranceRepair.openStreetEntrances(
+                    level, chunk, samples, placement.patch().district());
         }
 
         DistrictWorldFeatures.decorateChunk(level, chunk, samples);
@@ -1343,6 +1345,14 @@ public final class NeonCityGenerator {
                 }
                 ArnisFacadeRepair.sealInfrastructureCuts(
                         level, chunk, samples, patchPlacement.get().patch().district());
+                int doorways = ArnisEntranceRepair.openStreetEntrances(
+                        level, chunk, samples, patchPlacement.get().patch().district());
+                if (doorways > 0) {
+                    LOGGER.debug(
+                            "[NeonCity] opened {} street doorway(s) into sealed Arnis ground "
+                                    + "floors in {}",
+                            doorways, chunk);
+                }
             }
             if (trace != null) trace.phase(CityGenerationTrace.Phase.WORLD_FEATURES);
             DistrictWorldFeatures.decorateChunk(level, chunk, samples);

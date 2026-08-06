@@ -1,0 +1,7 @@
+{
+  "parent": "cyberdeck:item/saratoga_fenrir_3d",
+  "textures": {
+    "layer0": "cyberdeck:item/tech_saratoga_fenrir_uv",
+    "particle": "cyberdeck:item/tech_saratoga_fenrir_uv"
+  }
+}

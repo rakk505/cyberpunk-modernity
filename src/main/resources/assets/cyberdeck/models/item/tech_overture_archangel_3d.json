@@ -1,0 +1,7 @@
+{
+  "parent": "cyberdeck:item/overture_archangel_3d",
+  "textures": {
+    "layer0": "cyberdeck:item/tech_overture_archangel_uv",
+    "particle": "cyberdeck:item/tech_overture_archangel_uv"
+  }
+}

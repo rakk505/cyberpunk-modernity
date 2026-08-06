@@ -25,8 +25,9 @@ public final class GunshotAlerts {
     }
 
     public static double hearingRadius(GunType gun) {
-        return switch (gun) {
-            case MANTIS_BLADE -> 0.0;
+        // Keyed on the frame: an iconic Grad and a Tech Grad are both a sniper report to anyone
+        // within earshot, so neither has to be restated here.
+        return switch (gun.baseGun().family()) {
             case SHOTGUN, M2038, CARNAGE, SNIPER, GRAD -> 64.0;
             case ASSAULT_RIFLE, AJAX, COPPERHEAD, THREE_FIVE_ONE_SIX -> 48.0;
             default -> 36.0;

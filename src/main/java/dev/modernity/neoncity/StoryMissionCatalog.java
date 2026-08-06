@@ -23,7 +23,7 @@ import net.minecraft.resources.Identifier;
 /** Strict, cycle-checked mainline catalog loaded from editable server data. */
 public final class StoryMissionCatalog {
     public static final String RESOURCE = "/data/neoncity/missions/story.json";
-    public static final int SCHEMA_VERSION = 2;
+    public static final int SCHEMA_VERSION = 3;
     private static final Path CONFIGURATION_PATH = Path.of(
             "config", "cyberdeck", "story_missions.json");
     private static volatile Catalog catalog = loadBundled();
@@ -65,6 +65,48 @@ public final class StoryMissionCatalog {
             String district,
             String visualNote,
             int skinVariant) {
+    }
+
+    /** What a mission's defenders actually are, not just how many of them there are. */
+    public enum DefenderKind {
+        /** Ordinary corporate security: faction loadout, faction weapon, patrols its floor. */
+        SOLDIER("soldier"),
+        /** Augmented security. Rolls an {@code EnemyCyberware} loadout on top of the base kit. */
+        ELITE("elite"),
+        /** A full cyberpsycho, boss bar and all, used where two of them replace a whole detail. */
+        CYBERPSYCHO("cyberpsycho");
+
+        private final String id;
+
+        DefenderKind(String id) {
+            this.id = id;
+        }
+
+        public String id() {
+            return id;
+        }
+
+        static DefenderKind parse(String value) {
+            for (DefenderKind kind : values()) {
+                if (kind.id.equals(value)) return kind;
+            }
+            throw new IllegalArgumentException("unknown mainline defender kind " + value);
+        }
+    }
+
+    /**
+     * Weapon and chrome for a story target who fights back. A target without one keeps the classic
+     * behaviour of standing still and waiting to be killed.
+     */
+    public record TargetLoadout(String gun, List<String> cyberware, int health) {
+        public TargetLoadout {
+            gun = gun == null ? "" : gun;
+            cyberware = cyberware == null ? List.of() : List.copyOf(cyberware);
+        }
+
+        public boolean armed() {
+            return !gun.isBlank() || !cyberware.isEmpty();
+        }
     }
 
     public record StoryNode(
@@ -110,6 +152,10 @@ public final class StoryMissionCatalog {
             String enemyType,
             String enemyFaction,
             double enemyPower,
+            DefenderKind defenderKind,
+            double eliteFraction,
+            boolean defendersRoam,
+            TargetLoadout targetLoadout,
             Identifier rewardItem,
             String completionFlag,
             String loreUnlock) {
@@ -118,6 +164,7 @@ public final class StoryMissionCatalog {
             districtsInvolved = List.copyOf(districtsInvolved);
             nodes = List.copyOf(nodes);
             enemiesPerFloor = List.copyOf(enemiesPerFloor);
+            defenderKind = defenderKind == null ? DefenderKind.SOLDIER : defenderKind;
             initiatorCharacterId = safe(initiatorCharacterId);
             targetCharacterId = safe(targetCharacterId);
             enemyType = safe(enemyType);
@@ -142,6 +189,21 @@ public final class StoryMissionCatalog {
 
         public List<StoryNode> readyNodes(Set<String> completedNodes) {
             return nodes.stream().filter(node -> node.ready(completedNodes)).toList();
+        }
+
+        /**
+         * Whether the defender at {@code index} within this mission's detail is an elite. Elites
+         * are spread deterministically across the detail rather than rolled per spawn, so a party
+         * that redeploys the same contract meets the same fight.
+         */
+        public boolean isElite(int index) {
+            if (defenderKind == DefenderKind.ELITE) return true;
+            if (defenderKind != DefenderKind.SOLDIER || eliteFraction <= 0.0) return false;
+            int total = Math.max(1, enemiesPerFloor.stream().mapToInt(Integer::intValue).sum());
+            int elites = (int) Math.round(eliteFraction * total);
+            if (elites <= 0) return false;
+            // Spread by stride so the elites are not all stacked on the first floor.
+            return Math.floorMod(index * elites, total) < elites;
         }
     }
 
@@ -200,8 +262,14 @@ public final class StoryMissionCatalog {
             try (var reader = Files.newBufferedReader(CONFIGURATION_PATH, StandardCharsets.UTF_8)) {
                 configured = JsonParser.parseReader(reader).getAsJsonObject();
             }
-            if (requiredInteger(configured, "schema_version") == 1) {
-                Path backup = CONFIGURATION_PATH.resolveSibling("story_missions.v1.backup.json");
+            // Any config older than the bundled schema is superseded, not just version 1. A
+            // campaign redesign that adds fields would otherwise be invisible on every existing
+            // server: the config file already exists, so the bundled catalog is never copied and
+            // the server keeps running last release's missions while the code expects this one's.
+            int configuredVersion = requiredInteger(configured, "schema_version");
+            if (configuredVersion < SCHEMA_VERSION) {
+                Path backup = CONFIGURATION_PATH.resolveSibling(
+                        "story_missions.v" + configuredVersion + ".backup.json");
                 if (Files.notExists(backup)) Files.copy(CONFIGURATION_PATH, backup);
                 try (InputStream stream = StoryMissionCatalog.class.getResourceAsStream(RESOURCE)) {
                     if (stream == null) throw new IllegalStateException("missing " + RESOURCE);
@@ -355,6 +423,15 @@ public final class StoryMissionCatalog {
         if (!Double.isFinite(enemyPower) || enemyPower < 1.0 || enemyPower > 4.0) {
             throw new IllegalArgumentException(encounter.id() + " enemy_power outside 1.0..4.0");
         }
+        String defenderKindText = optionalText(scale, "defender_kind");
+        DefenderKind defenderKind = defenderKindText.isBlank()
+                ? DefenderKind.SOLDIER : DefenderKind.parse(defenderKindText);
+        double eliteFraction = optionalDouble(scale, "elite_fraction", 0.0);
+        if (!Double.isFinite(eliteFraction) || eliteFraction < 0.0 || eliteFraction > 1.0) {
+            throw new IllegalArgumentException(encounter.id() + " elite_fraction outside 0.0..1.0");
+        }
+        boolean defendersRoam = optionalBoolean(scale, "defenders_roam", false);
+        TargetLoadout targetLoadout = parseTargetLoadout(encounter, scale);
         Identifier rewardItem = null;
         String rewardItemText = optionalText(value, "reward_item");
         if (!rewardItemText.isBlank()) rewardItem = Identifier.parse(rewardItemText);
@@ -374,9 +451,35 @@ public final class StoryMissionCatalog {
                 bounded(text(scale, "enemy_type"), 1, 64, "enemy_type"),
                 bounded(text(scale, "enemy_faction"), 1, 32, "enemy_faction"),
                 enemyPower,
+                defenderKind,
+                eliteFraction,
+                defendersRoam,
+                targetLoadout,
                 rewardItem,
                 optionalText(value, "completion_flag"),
                 optionalText(value, "lore_unlock"));
+    }
+
+    private static TargetLoadout parseTargetLoadout(
+            MissionCatalog.MissionDefinition encounter, JsonObject scale) {
+        if (!scale.has("target_loadout") || scale.get("target_loadout").isJsonNull()) return null;
+        JsonObject loadout = requiredObject(scale, "target_loadout");
+        String gun = optionalText(loadout, "gun");
+        if (!gun.isBlank()) MissionCatalog.gun(gun, encounter.id() + " target_loadout");
+        List<String> cyberware = loadout.has("cyberware")
+                ? strings(requiredArray(loadout, "cyberware")) : List.of();
+        for (String id : cyberware) {
+            if (!MissionCatalog.SUPPORTED_CYBERWARE.contains(id)) {
+                throw new IllegalArgumentException(
+                        encounter.id() + " target_loadout has unsupported cyberware " + id);
+            }
+        }
+        int health = optionalInteger(loadout, "health", 0);
+        if (health < 0 || health > 400) {
+            throw new IllegalArgumentException(
+                    encounter.id() + " target_loadout health outside 0..400");
+        }
+        return new TargetLoadout(gun, cyberware, health);
     }
 
     private static StoryMission parseLegacyMission(
@@ -402,7 +505,8 @@ public final class StoryMissionCatalog {
         return new StoryMission(
                 encounter, prerequisites, requiredStreetCred, "Mainline", primary,
                 List.of(primary), "", "", List.of(node), node.id(), floors, enemies,
-                "legacy_security", "arasaka", 1.0, null, "", "");
+                "legacy_security", "arasaka", 1.0,
+                DefenderKind.SOLDIER, 0.0, false, null, null, "", "");
     }
 
     private static List<StoryNode> parseNodes(
@@ -614,6 +718,18 @@ public final class StoryMissionCatalog {
             throw new IllegalArgumentException("missing number " + key);
         }
         return value.get(key).getAsDouble();
+    }
+
+    private static double optionalDouble(JsonObject value, String key, double fallback) {
+        return value.has(key) ? requiredDouble(value, key) : fallback;
+    }
+
+    private static boolean optionalBoolean(JsonObject value, String key, boolean fallback) {
+        if (!value.has(key)) return fallback;
+        if (!value.get(key).isJsonPrimitive()) {
+            throw new IllegalArgumentException("missing boolean " + key);
+        }
+        return value.get(key).getAsBoolean();
     }
 
     private static int range(int value, int minimum, int maximum, String label) {

@@ -1,0 +1,7 @@
+{
+  "parent": "cyberdeck:item/unity_her_majesty_3d",
+  "textures": {
+    "layer0": "cyberdeck:item/tech_unity_her_majesty_uv",
+    "particle": "cyberdeck:item/tech_unity_her_majesty_uv"
+  }
+}

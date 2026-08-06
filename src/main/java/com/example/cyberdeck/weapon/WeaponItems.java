@@ -37,6 +37,17 @@ public final class WeaponItems {
         }
     }
 
+    /**
+     * Arm-mounted blades. Registered outside {@link GunType} because it is not a firearm: it takes
+     * no ammunition, has no magazine, and is swung rather than fired.
+     */
+    public static final DeferredItem<Item> MANTIS_BLADE =
+            ITEMS.registerItem("mantis_blade", MantisBladeItem::new);
+    /** MaxTac issue: the same frame, sharpened and swung by people paid to end cyberpsychos. */
+    public static final DeferredItem<Item> MANTIS_BLADE_MAXTAC =
+            ITEMS.registerItem("mantis_blade_maxtac",
+                    props -> new MantisBladeItem(props, "mantis_blade_maxtac", 12.0));
+
     // --- Grenades ---
     public static final DeferredItem<Item> INCENDIARY_GRENADE =
             ITEMS.registerItem(GrenadeType.INCENDIARY.id(),
@@ -98,6 +109,8 @@ public final class WeaponItems {
         for (GunType gun : GunType.values()) {
             list.add(GUNS.get(gun));
         }
+        list.add(MANTIS_BLADE);
+        list.add(MANTIS_BLADE_MAXTAC);
         list.add(INCENDIARY_GRENADE);
         list.add(POISON_GRENADE);
         list.add(BULLETPROOF_VEST);
