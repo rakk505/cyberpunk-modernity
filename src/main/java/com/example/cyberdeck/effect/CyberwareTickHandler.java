@@ -104,10 +104,7 @@ public final class CyberwareTickHandler {
         ActiveAbilities.tickCooldowns();
         // The radio is deliberately not driven from the city module: that runs
         // inside its own tick-count window, and music must play outside the city too.
-        for (net.minecraft.server.level.ServerLevel level
-                : event.getServer().getAllLevels()) {
-            com.example.cyberdeck.radio.RadioService.tick(level);
-        }
+        com.example.cyberdeck.radio.RadioService.tick(event.getServer());
     }
 
     @SubscribeEvent

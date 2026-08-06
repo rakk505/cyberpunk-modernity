@@ -7,7 +7,7 @@ import dev.modernity.neoncity.NeonCityGenerator;
 import dev.modernity.neoncity.PartySavedData;
 import dev.modernity.neoncity.PartyService;
 
-import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.monster.Enemy;
@@ -95,9 +95,18 @@ public final class RadioService {
         NOT_PARTY_LEADER
     }
 
-    /** Drives every active station. Called once per server tick from the city module. */
-    public static void tick(ServerLevel level) {
-        // Counted here rather than tested against getGameTime: the previous version was called
+    /**
+     * Drives every active station. Called once per server tick.
+     *
+     * <p>Deliberately server-wide rather than per-level. The station state below is global, so
+     * running this once per dimension both counted ticks several times over and, worse, let a
+     * dimension with no listeners in it decide that every station was dead — dropping stations
+     * that belonged to players standing in another dimension, which restarted their track from
+     * the beginning a second later. A listener's audience can also straddle dimensions, and only
+     * a server-wide pass can see all of it at once.</p>
+     */
+    public static void tick(MinecraftServer server) {
+        // Counted here rather than tested against getGameTime: an earlier version was called
         // from inside another tick window and the two clocks never lined up, so the station
         // silently never evaluated and nothing ever played.
         if (ENABLED.isEmpty()) {
@@ -106,9 +115,9 @@ public final class RadioService {
         if (++tickCounter % EVALUATE_INTERVAL_TICKS != 0) {
             return;
         }
-        long now = level.getGameTime();
+        long now = server.overworld().getGameTime();
         Set<String> live = new HashSet<>();
-        for (ServerPlayer player : level.players()) {
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             if (!ENABLED.contains(player.getUUID())) {
                 continue;
             }
