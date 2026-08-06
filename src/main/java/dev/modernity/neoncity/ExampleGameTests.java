@@ -20,6 +20,7 @@ import com.example.cyberdeck.weapon.AmmoItems;
 import com.example.cyberdeck.weapon.AmmoType;
 import com.example.cyberdeck.weapon.GunType;
 import com.example.cyberdeck.weapon.WeaponItems;
+import com.modernity.vehicle_mod.vehicle_mod;
 import com.example.cyberdeck.network.OpenCityMapPacket;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -1783,14 +1784,15 @@ public final class ExampleGameTests {
             helper.assertTrue(roles.size() == MerchantTruckLibrary.MerchantRole.values().length
                             && EnumSet.copyOf(roles).equals(
                                     EnumSet.allOf(MerchantTruckLibrary.MerchantRole.class)),
-                    district + " does not plan a fixer and all four trading stalls");
+                    district + " does not plan a fixer and every trading stall");
             distributedRoles.add(VendorStallLibrary.plannedRole(district));
         }
         helper.assertTrue(distributedRoles.containsAll(EnumSet.of(
                         MerchantTruckLibrary.MerchantRole.GUN,
                         MerchantTruckLibrary.MerchantRole.CYBERWARE,
                         MerchantTruckLibrary.MerchantRole.CLOTHING,
-                        MerchantTruckLibrary.MerchantRole.CONSUMABLE)),
+                        MerchantTruckLibrary.MerchantRole.CONSUMABLE,
+                        MerchantTruckLibrary.MerchantRole.VEHICLE)),
                 "deterministic district emphasis does not cover all trading specialties");
         helper.assertTrue(java.util.Arrays.stream(MerchantTruckLibrary.MerchantRole.values())
                         .flatMap(role -> MerchantTradeCatalog.offers(role).stream())
@@ -1830,6 +1832,45 @@ public final class ExampleGameTests {
                                 CyberdeckItems.SLOP.get().getDefaultInstance())
                         && CyberdeckItems.SLOP.get().getDefaultInstance().has(DataComponents.FOOD),
                 "Slop is not an edible, enchanted-looking merchant item");
+
+        List<net.minecraft.world.item.trading.MerchantOffer> vehicleOffers =
+                MerchantTradeCatalog.offers(MerchantTruckLibrary.MerchantRole.VEHICLE);
+        List<net.minecraft.world.item.Item> vehicleResults = MerchantTradeCatalog.resultItems(
+                MerchantTruckLibrary.MerchantRole.VEHICLE);
+        List<net.minecraft.world.item.Item> expectedVehicles = List.of(
+                vehicle_mod.MOTORBIKE_ITEM.get(),
+                vehicle_mod.CYBERPUNK_MOTORBIKE_ITEM.get(),
+                vehicle_mod.HARLEY_MOTORCYCLE_ITEM.get(),
+                vehicle_mod.DATSUN_240Z_ITEM.get(),
+                vehicle_mod.TURBOWAGON_ITEM.get(),
+                vehicle_mod.JEEP_WRANGLER_ITEM.get(),
+                vehicle_mod.DUNE_BUGGY_ITEM.get(),
+                vehicle_mod.ROAD_ROLLER_ITEM.get(),
+                vehicle_mod.BMW_M3_GTR_ITEM.get(),
+                vehicle_mod.ORANGE_HYPERCAR_ITEM.get());
+        helper.assertTrue(vehicleResults.size() == expectedVehicles.size() + 1
+                        && vehicleResults.contains(vehicle_mod.GASOLINE.get())
+                        && vehicleResults.containsAll(expectedVehicles),
+                "vehicle dealer omitted fuel or a registered vehicle placement item");
+        int previousVehiclePrice = 0;
+        for (net.minecraft.world.item.Item vehicle : expectedVehicles) {
+            int price = vehicleOffers.stream()
+                    .filter(offer -> offer.getResult().is(vehicle))
+                    .findFirst()
+                    .orElseThrow()
+                    .getBaseCostA()
+                    .getCount();
+            helper.assertTrue(price > previousVehiclePrice,
+                    "vehicle dealer prices do not increase with vehicle tier");
+            previousVehiclePrice = price;
+        }
+        net.minecraft.world.item.trading.MerchantOffer fuelOffer = vehicleOffers.stream()
+                .filter(offer -> offer.getResult().is(vehicle_mod.GASOLINE.get()))
+                .findFirst()
+                .orElseThrow();
+        helper.assertTrue(fuelOffer.getBaseCostA().getCount() == 4
+                        && fuelOffer.getResult().getCount() == 8,
+                "vehicle dealer fuel bundle price or quantity changed");
 
         BlockPos questAnchor = new BlockPos(-112, 73, 245);
         List<MissionService.MissionOffer> firstOffers = MissionService.offers(
