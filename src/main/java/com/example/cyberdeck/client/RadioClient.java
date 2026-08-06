@@ -42,7 +42,11 @@ public final class RadioClient {
         active = true;
         // Vanilla may have started something before the first packet arrived.
         minecraft.getMusicManager().stopPlaying();
-        playing = SimpleSoundInstance.forUI(RadioContent.sound(track), 1.0F, VOLUME);
+        // forMusic puts the track on the MUSIC channel, which is what vanilla uses,
+        // so it occupies the same slot it is replacing and follows the same slider.
+        playing = new SimpleSoundInstance(
+                RadioContent.sound(track), SoundSource.MUSIC, VOLUME, 1.0F,
+                net.minecraft.util.RandomSource.create(), 0.0, 0.0, 0.0);
         minecraft.getSoundManager().play(playing);
     }
 

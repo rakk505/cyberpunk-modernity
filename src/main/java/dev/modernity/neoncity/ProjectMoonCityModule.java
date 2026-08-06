@@ -265,7 +265,6 @@ public final class ProjectMoonCityModule {
             }
             MissionService.tickCompletedSites(overworld);
             VendorService.maintainAnchors(overworld);
-            com.example.cyberdeck.radio.RadioService.tick(overworld);
             long currentVendorRevision = VendorAnchorData.get(overworld).revision();
             if (currentVendorRevision != vendorRevision) {
                 vendorRevision = currentVendorRevision;

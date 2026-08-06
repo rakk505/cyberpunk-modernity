@@ -45,6 +45,7 @@ public final class RadioService {
     private static final Set<UUID> ENABLED = new HashSet<>();
     /** One station per party id, or per player id when solo. */
     private static final Map<String, Station> STATIONS = new HashMap<>();
+    private static int tickCounter;
 
     private RadioService() {
     }
@@ -96,7 +97,13 @@ public final class RadioService {
 
     /** Drives every active station. Called once per server tick from the city module. */
     public static void tick(ServerLevel level) {
-        if (ENABLED.isEmpty() || level.getGameTime() % EVALUATE_INTERVAL_TICKS != 0) {
+        // Counted here rather than tested against getGameTime: the previous version was called
+        // from inside another tick window and the two clocks never lined up, so the station
+        // silently never evaluated and nothing ever played.
+        if (ENABLED.isEmpty()) {
+            return;
+        }
+        if (++tickCounter % EVALUATE_INTERVAL_TICKS != 0) {
             return;
         }
         long now = level.getGameTime();
