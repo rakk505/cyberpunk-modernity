@@ -11,7 +11,6 @@
 #   MC_SEED        world seed                          (default: 50520260801, the authored city seed)
 #   LEVEL_TYPE     world preset                         (default: cyberdeck:cyberpunk_city)
 #   JVM_XMX/JVM_XMS   heap sizing, tune to instance RAM (defaults: 10G / 4G, sized for a 32GB box)
-#   TS_AUTHKEY     Tailscale auth key for unattended `tailscale up` (optional; omit to run it by hand)
 #
 # What this does:
 #   1. Installs Amazon Corretto 25 (the mod targets Java 25 specifically, see build.gradle)
@@ -21,11 +20,11 @@
 #   5. Drops in the built cyberdeck jar plus the vendored vehicle_mod jar
 #   6. Pre-seeds eula.txt and server.properties with the correct seed/world-type so the
 #      FIRST boot generates the actual megacity instead of a throwaway default world
-#   7. Installs Tailscale so the server never needs a public-facing port/security-group rule
-#   8. Registers a systemd unit with Restart=on-failure so the server survives crashes/reboots
+#   7. Registers a systemd unit with Restart=on-failure so the server survives crashes/reboots
 #
-# This script does not open any inbound port in your AWS security group, and it doesn't need
-# to: connect over the Tailscale IP printed at the end instead of the instance's public IP.
+# This script does NOT open port 25565 for you -- add an inbound rule for it (TCP 25565) on
+# the instance's security group, scoped to your and your friends' IPs if they're static, and
+# connect using the instance's public/Elastic IP.
 
 set -euo pipefail
 
@@ -36,7 +35,6 @@ MC_SEED="${MC_SEED:-50520260801}"
 LEVEL_TYPE="${LEVEL_TYPE:-cyberdeck:cyberpunk_city}"
 JVM_XMX="${JVM_XMX:-10G}"
 JVM_XMS="${JVM_XMS:-4G}"
-TS_AUTHKEY="${TS_AUTHKEY:-}"
 
 SERVICE_USER=minecraft
 SRC_DIR=/opt/cyberdeck-src
@@ -155,19 +153,7 @@ EOF
 chown "$SERVICE_USER":"$SERVICE_USER" "$SERVER_DIR"/eula.txt "$SERVER_DIR"/server.properties "$SERVER_DIR"/user_jvm_args.txt
 chmod +x "$SERVER_DIR/run.sh"
 
-# --- 8. Tailscale, so we never need to open 25565 publicly --------------------
-if ! command -v tailscale >/dev/null 2>&1; then
-    log "Installing Tailscale"
-    curl -fsSL https://tailscale.com/install.sh | sh
-fi
-if [[ -n "$TS_AUTHKEY" ]]; then
-    log "Bringing up Tailscale with the provided auth key"
-    tailscale up --authkey="$TS_AUTHKEY" --ssh
-else
-    log "Tailscale installed but not connected -- run 'sudo tailscale up' and follow the login link"
-fi
-
-# --- 9. systemd service, so it survives crashes and reboots -------------------
+# --- 8. systemd service, so it survives crashes and reboots -------------------
 log "Installing systemd service"
 cat > /etc/systemd/system/cyberdeck.service <<EOF
 [Unit]
@@ -192,11 +178,8 @@ EOF
 systemctl daemon-reload
 systemctl enable --now cyberdeck.service
 
+PUBLIC_IP="$(curl -fsSL --max-time 3 http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null || echo "<check the AWS console>")"
 log "Done. Server is starting under systemd (Restart=on-failure, survives reboots)."
 log "  Status:  systemctl status cyberdeck"
 log "  Logs:    journalctl -u cyberdeck -f"
-if command -v tailscale >/dev/null 2>&1 && tailscale ip -4 >/dev/null 2>&1; then
-    log "  Connect: $(tailscale ip -4) : 25565 (over Tailscale -- no public port needed)"
-else
-    log "  Connect: once Tailscale is up, run 'tailscale ip -4' for the address to give friends"
-fi
+log "  Connect: open TCP 25565 in this instance's security group, then use $PUBLIC_IP : 25565"
