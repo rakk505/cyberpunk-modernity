@@ -19,6 +19,8 @@ import net.minecraft.world.phys.Vec3;
 /** Lazily compiles deterministic city road samples into a streamed directed lane graph. */
 final class CityTrafficGraph {
     private static final int MAX_CACHED_NODES = 12_288;
+    private static final int MAX_CACHED_ROAD_PROFILES = 65_536;
+    private static final int EMPTY_ARC_RETRY_TICKS = 40;
     private static final int HEADING_BINS = 24;
     private static final double NODE_SPACING = 10.0;
     private static final double HIGHWAY_LANE_OFFSET = 4.5;
@@ -41,6 +43,34 @@ final class CityTrafficGraph {
                     return size() > MAX_CACHED_NODES;
                 }
             };
+    private static final Map<CompileKey, LaneNode> COMPILED_NODES =
+            new LinkedHashMap<>(256, 0.75F, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<CompileKey, LaneNode> eldest) {
+                    return size() > MAX_CACHED_NODES;
+                }
+            };
+    private static final Map<NodeKey, Long> EMPTY_ARCS =
+            new LinkedHashMap<>(256, 0.75F, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<NodeKey, Long> eldest) {
+                    return size() > MAX_CACHED_NODES;
+                }
+            };
+    private static final Map<NodeKey, Boolean> JUNCTIONS =
+            new LinkedHashMap<>(256, 0.75F, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<NodeKey, Boolean> eldest) {
+                    return size() > MAX_CACHED_NODES;
+                }
+            };
+    private static final Map<Long, RoadProfile> ROAD_PROFILES =
+            new LinkedHashMap<>(1024, 0.75F, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<Long, RoadProfile> eldest) {
+                    return size() > MAX_CACHED_ROAD_PROFILES;
+                }
+            };
 
     private CityTrafficGraph() {
     }
@@ -51,6 +81,9 @@ final class CityTrafficGraph {
     }
 
     record NodeKey(int x, int z, int headingBin, Network network) {
+    }
+
+    private record CompileKey(long xBits, long zBits, int headingBin, Network network) {
     }
 
     record LaneNode(
@@ -122,8 +155,8 @@ final class CityTrafficGraph {
         double laneOffset = HIGHWAY_LANE_OFFSET * taper;
         double laneX = point.x() + forwardZ * laneOffset;
         double laneZ = point.z() - forwardX * laneOffset;
-        NeonCityGenerator.UrbanSample sample = sample(laneX, laneZ);
-        if (!NeonCityGenerator.isHighwayRoadClass(sample.roadClass())) return null;
+        RoadProfile sample = roadProfile(Mth.floor(laneX), Mth.floor(laneZ));
+        if (sample.network() != Network.HIGHWAY) return null;
         BlockPos loaded = new BlockPos(Mth.floor(laneX), sample.groundY() + 1, Mth.floor(laneZ));
         if (!CityWorlds.hasFullyLoadedChunk(level, loaded)) return null;
         float yaw = (float) Math.toDegrees(Math.atan2(-forwardX, forwardZ));
@@ -141,6 +174,11 @@ final class CityTrafficGraph {
     static List<LaneArc> successors(ServerLevel level, LaneNode node) {
         List<LaneArc> cached = ARCS.get(node.key());
         if (cached != null) return cached;
+        Long retryAt = EMPTY_ARCS.get(node.key());
+        if (retryAt != null) {
+            if (level.getGameTime() < retryAt) return List.of();
+            EMPTY_ARCS.remove(node.key());
+        }
 
         List<LaneArc> candidates = new ArrayList<>();
         Set<NodeKey> added = new LinkedHashSet<>();
@@ -163,15 +201,27 @@ final class CityTrafficGraph {
         }
         candidates.sort(Comparator.comparingInt(LaneArc::score).reversed());
         List<LaneArc> result = List.copyOf(candidates);
-        // An empty result can mean the next chunk is not loaded yet, so do not make it sticky.
-        if (!result.isEmpty()) ARCS.put(node.key(), result);
+        // An empty result can mean the next chunk is not loaded yet. Cache it briefly so a car at
+        // a frontier does not rebuild the same eleven candidates every traffic update.
+        if (result.isEmpty()) {
+            EMPTY_ARCS.put(node.key(), level.getGameTime() + EMPTY_ARC_RETRY_TICKS);
+        } else {
+            EMPTY_ARCS.remove(node.key());
+            ARCS.put(node.key(), result);
+        }
         return result;
     }
 
     static boolean isJunction(ServerLevel level, LaneNode node) {
-        return node.network() == Network.ATLAS
-                && successors(level, node).stream()
-                        .anyMatch(arc -> Math.abs(arc.turnDegrees()) >= 45.0F);
+        if (node.network() != Network.ATLAS) return false;
+        Boolean cached = JUNCTIONS.get(node.key());
+        if (cached != null) return cached;
+        List<LaneArc> successors = successors(level, node);
+        if (successors.isEmpty()) return false;
+        boolean junction = successors.stream()
+                .anyMatch(arc -> Math.abs(arc.turnDegrees()) >= 45.0F);
+        JUNCTIONS.put(node.key(), junction);
+        return junction;
     }
 
     static LaneNode chooseSuccessor(
@@ -235,6 +285,12 @@ final class CityTrafficGraph {
 
     private static LaneNode compileNode(
             ServerLevel level, double rawX, double rawZ, float yaw, Network network) {
+        CompileKey compileKey = new CompileKey(
+                Double.doubleToLongBits(rawX), Double.doubleToLongBits(rawZ),
+                headingBin(yaw), network);
+        LaneNode compiled = COMPILED_NODES.get(compileKey);
+        if (compiled != null) return compiled;
+
         RoadProfile raw = roadProfile(Mth.floor(rawX), Mth.floor(rawZ));
         if (raw.network() != network) return null;
 
@@ -267,7 +323,10 @@ final class CityTrafficGraph {
                 headingBin(yaw),
                 network);
         LaneNode cached = NODES.get(key);
-        if (cached != null) return cached;
+        if (cached != null) {
+            COMPILED_NODES.put(compileKey, cached);
+            return cached;
+        }
         BlockPos loaded = new BlockPos(key.x(), lane.groundY() + 1, key.z());
         if (!CityWorlds.hasFullyLoadedChunk(level, loaded)) return null;
         LaneNode node = new LaneNode(
@@ -278,6 +337,7 @@ final class CityTrafficGraph {
                 lane.roadClass(),
                 network);
         NODES.put(key, node);
+        COMPILED_NODES.put(compileKey, node);
         return node;
     }
 
@@ -340,10 +400,6 @@ final class CityTrafficGraph {
         return roadProfile(x, z).network() == Network.ATLAS;
     }
 
-    private static NeonCityGenerator.UrbanSample sample(double x, double z) {
-        return NeonCityGenerator.sample(Mth.floor(x), Mth.floor(z));
-    }
-
     private record RoadProfile(
             NeonCityGenerator.RoadClass roadClass,
             NeonCityGenerator.AtlasRoadClass atlasRoadClass,
@@ -352,17 +408,28 @@ final class CityTrafficGraph {
     ) {}
 
     private static RoadProfile roadProfile(int x, int z) {
-        NeonCityGenerator.UrbanSample sample = NeonCityGenerator.sample(x, z);
-        if (NeonCityGenerator.isHighwayRoadClass(sample.roadClass())) {
-            return new RoadProfile(
-                    sample.roadClass(), NeonCityGenerator.AtlasRoadClass.NONE,
-                    sample.groundY(), Network.HIGHWAY);
-        }
-        NeonCityGenerator.AtlasRoadClass atlas = NeonCityGenerator.atlasRoadAt(x, z);
-        return new RoadProfile(
-                sample.roadClass(), atlas, sample.groundY(),
-                NeonCityGenerator.isAtlasStreetColumnAt(x, z) && atlas.supportsTraffic()
-                        ? Network.ATLAS : null);
+        long key = ((long) x << 32) ^ (z & 0xFFFF_FFFFL);
+        RoadProfile cached = ROAD_PROFILES.get(key);
+        if (cached != null) return cached;
+        NeonCityGenerator.TrafficRoadSample sample =
+                NeonCityGenerator.trafficRoadSample(x, z);
+        Network network = NeonCityGenerator.isHighwayRoadClass(sample.roadClass())
+                ? Network.HIGHWAY
+                : sample.atlasStreetColumn() && sample.atlasRoadClass().supportsTraffic()
+                        ? Network.ATLAS : null;
+        RoadProfile result = new RoadProfile(
+                sample.roadClass(), sample.atlasRoadClass(), sample.groundY(), network);
+        ROAD_PROFILES.put(key, result);
+        return result;
+    }
+
+    static void clearCaches() {
+        NODES.clear();
+        ARCS.clear();
+        COMPILED_NODES.clear();
+        EMPTY_ARCS.clear();
+        JUNCTIONS.clear();
+        ROAD_PROFILES.clear();
     }
 
     private static float cruisingThrottle(RoadProfile road) {

@@ -230,6 +230,21 @@ public final class NeonCityGenerator {
             long parcelHash
     ) {}
 
+    /**
+     * Combined road lookup for hot traffic code.
+     *
+     * <p>The older traffic path independently requested the urban sample, atlas road class, and
+     * retained Arnis column. That repeated the expensive city-location lookup up to three times
+     * for one block. Keeping these values together lets traffic classify a road with one urban
+     * sample and one atlas lookup.</p>
+     */
+    public record TrafficRoadSample(
+            RoadClass roadClass,
+            AtlasRoadClass atlasRoadClass,
+            int groundY,
+            boolean atlasStreetColumn
+    ) {}
+
     private record Palette(
             BlockState wall,
             BlockState secondary,
@@ -3229,6 +3244,21 @@ public final class NeonCityGenerator {
     public static long contentSeed() { return FIXED_CITY_SEED; }
     static MegacityLayout fixedLayout() { return MegacityLayout.create(FIXED_CITY_SEED); }
     static String generatorFingerprint() { return GENERATOR_FINGERPRINT; }
+
+    public static TrafficRoadSample trafficRoadSample(int worldX, int worldZ) {
+        UrbanSample sample = sample(worldX, worldZ);
+        if (isHighwayRoadClass(sample.roadClass())) {
+            return new TrafficRoadSample(
+                    sample.roadClass(), AtlasRoadClass.NONE, sample.groundY(), false);
+        }
+        MegacityLayout activeLayout = layoutInitialized ? layout : fixedLayout();
+        AtlasRoadClass atlas = publicRoadClass(osmAtlasRoadAt(
+                activeLayout, sample.location(), worldX, worldZ));
+        return new TrafficRoadSample(
+                sample.roadClass(), atlas, sample.groundY(),
+                isAtlasStreetColumnAt(sample, worldX, worldZ));
+    }
+
     public static AtlasRoadClass atlasRoadAt(int worldX, int worldZ) {
         MegacityLayout activeLayout = layoutInitialized ? layout : fixedLayout();
         MegacityLayout.Location location = activeLayout.locate(worldX, worldZ);

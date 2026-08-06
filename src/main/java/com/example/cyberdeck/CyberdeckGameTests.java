@@ -591,6 +591,21 @@ public final class CyberdeckGameTests {
                         && !CityTrafficService.junctionsConflict(
                                 Vec3.ZERO, new Vec3(30.0, 0.0, 0.0)),
                 "junction leases did not separate one crossing from distant crossings");
+
+        UUID first = new UUID(0L, 1L);
+        UUID second = new UUID(0L, 2L);
+        helper.assertTrue(CityTrafficService.junctionRequestPrecedes(
+                        100L, 400.0, second, 102L, 25.0, first),
+                "an older junction request lost FIFO priority to a later nearby car");
+        helper.assertTrue(CityTrafficService.junctionRequestPrecedes(
+                        100L, 25.0, second, 100L, 400.0, first),
+                "same-tick junction requests did not prioritize the nearest car");
+        helper.assertTrue(CityTrafficService.junctionRequestPrecedes(
+                        100L, 25.0, first, 100L, 25.0, second),
+                "equal junction requests did not have deterministic UUID ordering");
+        helper.assertTrue(CityTrafficService.nextStuckTicks(98, true, true) == 0
+                        && CityTrafficService.nextStuckTicks(98, true, false) == 100,
+                "a car intentionally waiting in traffic was treated as route-stuck");
         helper.succeed();
     }
 

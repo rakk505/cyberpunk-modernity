@@ -26,6 +26,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.LevelTickEvent;
 
 /** Supplies bounded city traffic with drivers and road-following input. */
@@ -44,6 +45,7 @@ public final class CityTrafficService {
     private static final int MAX_COURSE_RECOVERIES = 3;
     private static final int RETIRE_INVALID_ROUTE_TICKS = 80;
     private static final int RETIRE_RECOVERY_INTERVAL_TICKS = 40;
+    private static final int TURNAROUND_RETRY_TICKS = 20;
     private static final int ROUTE_LOOKAHEAD_NODES = 8;
     private static final double HIGHWAY_NODE_SPACING = 12.0;
     private static final int RECENT_NODE_LIMIT = 64;
@@ -52,12 +54,16 @@ public final class CityTrafficService {
     private static final double TARGET_REACHED_DISTANCE_SQR = 12.25;
     private static final double OBSTACLE_LOOKAHEAD = 6.0;
     private static final double JUNCTION_APPROACH_DISTANCE_SQR = 24.0 * 24.0;
+    private static final double JUNCTION_GRANT_DISTANCE_SQR = 14.0 * 14.0;
     private static final double JUNCTION_CONFLICT_DISTANCE_SQR = 18.0 * 18.0;
-    private static final double JUNCTION_CLEAR_DISTANCE_SQR = 28.0 * 28.0;
-    private static final int JUNCTION_LEASE_TICKS = 60;
+    private static final double JUNCTION_ENTRY_DISTANCE_SQR = 8.0 * 8.0;
+    private static final double JUNCTION_RELEASE_DISTANCE_SQR = 14.0 * 14.0;
+    private static final int JUNCTION_LEASE_TICKS = 100;
+    private static final int JUNCTION_REQUEST_STALE_TICKS = 20;
     private static final double RETIRE_PROTECTED_RADIUS_SQR = 64.0 * 64.0;
     private static final Map<UUID, RouteState> ROUTES = new HashMap<>();
     private static final Map<UUID, JunctionReservation> JUNCTION_RESERVATIONS = new HashMap<>();
+    private static final Map<UUID, JunctionRequest> JUNCTION_REQUESTS = new HashMap<>();
 
     private CityTrafficService() {
     }
@@ -85,6 +91,7 @@ public final class CityTrafficService {
         private boolean atlasDeadEnd;
         private boolean retirementPending;
         private long nextRecoveryTick;
+        private long nextRouteAttemptTick;
         private Vec3 lastPosition;
         private Vec3 recoveryPosition;
 
@@ -101,7 +108,14 @@ public final class CityTrafficService {
             CityTrafficGraph.LaneNode exit) {
     }
 
-    private record JunctionReservation(Vec3 center, long expiresAt) {
+    private record JunctionReservation(Vec3 center, long expiresAt, boolean entered) {
+    }
+
+    private record JunctionRequest(
+            Vec3 center,
+            long requestedAt,
+            long lastSeen,
+            double distanceAtRequest) {
     }
 
     /** Creates and seats a visible civilian driver for a vehicle already in the level. */
@@ -237,7 +251,7 @@ public final class CityTrafficService {
         VehicleApi.find(vehicle).ifPresent(RemoteControllableVehicle::clearRemoteInput);
         vehicle.getPersistentData().remove(TRAFFIC_VEHICLE_KEY);
         ROUTES.remove(vehicle.getUUID());
-        JUNCTION_RESERVATIONS.remove(vehicle.getUUID());
+        releaseJunction(vehicle.getUUID());
     }
 
     /** Removes a managed driver together with an ambient vehicle being retired. */
@@ -247,7 +261,7 @@ public final class CityTrafficService {
             if (isTrafficDriver(passenger)) passenger.discard();
         }
         ROUTES.remove(vehicle.getUUID());
-        JUNCTION_RESERVATIONS.remove(vehicle.getUUID());
+        releaseJunction(vehicle.getUUID());
     }
 
     /**
@@ -295,13 +309,17 @@ public final class CityTrafficService {
         JUNCTION_RESERVATIONS.entrySet().removeIf(entry ->
                 entry.getValue().expiresAt() < level.getGameTime()
                         || !ROUTES.containsKey(entry.getKey()));
+        JUNCTION_REQUESTS.entrySet().removeIf(entry ->
+                level.getGameTime() - entry.getValue().lastSeen()
+                                > JUNCTION_REQUEST_STALE_TICKS
+                        || !ROUTES.containsKey(entry.getKey()));
         var routes = ROUTES.entrySet().iterator();
         while (routes.hasNext()) {
             Map.Entry<UUID, RouteState> entry = routes.next();
             Entity vehicle = level.getEntity(entry.getKey());
             if (vehicle == null || !vehicle.isAlive()
                     || !vehicle.getPersistentData().getBooleanOr(TRAFFIC_VEHICLE_KEY, false)) {
-                JUNCTION_RESERVATIONS.remove(entry.getKey());
+                releaseJunction(entry.getKey());
                 routes.remove();
                 continue;
             }
@@ -309,7 +327,7 @@ public final class CityTrafficService {
             Entity driver = trafficDriver(vehicle);
             if (traffic == null || !isManagedPair(vehicle, driver)) {
                 vehicle.getPersistentData().remove(TRAFFIC_VEHICLE_KEY);
-                JUNCTION_RESERVATIONS.remove(entry.getKey());
+                releaseJunction(entry.getKey());
                 routes.remove();
                 continue;
             }
@@ -318,7 +336,7 @@ public final class CityTrafficService {
                 traffic.setTrafficInput(0.0F, 0.0F, true);
                 if (canRetireOutOfSight(level, vehicle)) {
                     discardManagedVehicle(vehicle);
-                    JUNCTION_RESERVATIONS.remove(entry.getKey());
+                    releaseJunction(entry.getKey());
                     routes.remove();
                 } else if (level.getGameTime() >= route.nextRecoveryTick) {
                     route.nextRecoveryTick = level.getGameTime()
@@ -335,6 +353,14 @@ public final class CityTrafficService {
                         + RETIRE_RECOVERY_INTERVAL_TICKS;
             }
         }
+    }
+
+    @SubscribeEvent
+    public static void onServerStopped(ServerStoppedEvent ignoredEvent) {
+        ROUTES.clear();
+        JUNCTION_RESERVATIONS.clear();
+        JUNCTION_REQUESTS.clear();
+        CityTrafficGraph.clearCaches();
     }
 
     private static void discardManagedVehicle(Entity vehicle) {
@@ -361,9 +387,10 @@ public final class CityTrafficService {
         route.unsafeRouteTicks = 0;
         route.courseRecoveries = 0;
         route.atlasDeadEnd = false;
+        route.nextRouteAttemptTick = 0L;
         route.lastPosition = vehicle.position();
         route.recoveryPosition = vehicle.position();
-        JUNCTION_RESERVATIONS.remove(vehicle.getUUID());
+        releaseJunction(vehicle.getUUID());
         return initializeRoute(level, vehicle, route);
     }
 
@@ -398,11 +425,8 @@ public final class CityTrafficService {
 
         double movedSqr = vehicle.position().distanceToSqr(route.lastPosition);
         route.lastPosition = vehicle.position();
-        if (movedSqr < 0.0016 && Math.abs(traffic.speed()) < 0.03F) {
-            route.stuckTicks += INPUT_INTERVAL_TICKS;
-        } else {
-            route.stuckTicks = 0;
-        }
+        boolean immobile = movedSqr < 0.0016 && Math.abs(traffic.speed()) < 0.03F;
+        if (!immobile) route.stuckTicks = 0;
         if (horizontalDistanceSqr(vehicle.position(), route.recoveryPosition)
                 >= 20.0 * 20.0) {
             route.courseRecoveries = 0;
@@ -410,7 +434,8 @@ public final class CityTrafficService {
         }
 
         if (route.route.isEmpty() && route.atlasDeadEnd
-                && !tryAtlasTurnaround(level, vehicle, route)) {
+                && !tryAtlasTurnaroundWhenDue(level, vehicle, route)) {
+            route.stuckTicks = nextStuckTicks(route.stuckTicks, immobile, false);
             traffic.setTrafficInput(0.0F, 0.0F, true);
             return route.stuckTicks < STUCK_RETIRE_TICKS;
         }
@@ -425,7 +450,8 @@ public final class CityTrafficService {
             rememberVisited(route, route.route.removeFirst());
         }
         if (route.route.isEmpty() && route.atlasDeadEnd) {
-            if (!tryAtlasTurnaround(level, vehicle, route)) {
+            if (!tryAtlasTurnaroundWhenDue(level, vehicle, route)) {
+                route.stuckTicks = nextStuckTicks(route.stuckTicks, immobile, false);
                 traffic.setTrafficInput(0.0F, 0.0F, true);
                 return route.stuckTicks < STUCK_RETIRE_TICKS;
             }
@@ -479,11 +505,14 @@ public final class CityTrafficService {
         boolean gradeClearance = route.highwayTrip && envelopeSafe;
         boolean junctionBlocked = !route.highwayTrip
                 && junctionAdmissionBlocked(level, vehicle, route);
+        boolean obstacleBlocked = hasObstacle(level, vehicle, targetYaw);
         boolean blocked = wallBlocked || unsafeRoute
                 || (!physicalClearance && !gradeClearance)
                 || junctionBlocked
-                || hasObstacle(level, vehicle, targetYaw);
+                || obstacleBlocked;
         route.blockedTicks = blocked ? route.blockedTicks + INPUT_INTERVAL_TICKS : 0;
+        route.stuckTicks = nextStuckTicks(
+                route.stuckTicks, immobile, junctionBlocked || obstacleBlocked);
         if (route.stuckTicks >= STUCK_REPLAN_TICKS
                 && tryChangeCourse(level, vehicle, route)) {
             traffic.setTrafficInput(0.0F, 0.0F, true);
@@ -533,7 +562,9 @@ public final class CityTrafficService {
             route.route.addLast(entry);
             fillAtlasRoute(level, route);
         }
-        return !route.route.isEmpty();
+        boolean initialized = !route.route.isEmpty();
+        if (initialized) route.nextRouteAttemptTick = 0L;
+        return initialized;
     }
 
     private static void fillRoute(ServerLevel level, RouteState route) {
@@ -578,6 +609,7 @@ public final class CityTrafficService {
                 level, vehicle.position(), reverseYaw);
         if (entry == null || entry.network() != CityTrafficGraph.Network.ATLAS) return false;
 
+        releaseJunction(vehicle.getUUID());
         clearCoursePlan(route);
         chooseDestination(vehicle, route);
         route.highwayTrip = false;
@@ -589,7 +621,15 @@ public final class CityTrafficService {
         route.blockedTicks = 0;
         route.invalidRouteTicks = 0;
         route.unsafeRouteTicks = 0;
+        route.nextRouteAttemptTick = 0L;
         return !route.route.isEmpty();
+    }
+
+    private static boolean tryAtlasTurnaroundWhenDue(
+            ServerLevel level, Entity vehicle, RouteState route) {
+        if (level.getGameTime() < route.nextRouteAttemptTick) return false;
+        route.nextRouteAttemptTick = level.getGameTime() + TURNAROUND_RETRY_TICKS;
+        return tryAtlasTurnaround(level, vehicle, route);
     }
 
     private static boolean tryChangeCourse(
@@ -602,6 +642,7 @@ public final class CityTrafficService {
             if (turnedAround) return true;
         }
 
+        releaseJunction(vehicle.getUUID());
         clearCoursePlan(route);
         chooseDestination(vehicle, route);
         boolean rebuilt = initializeRoute(level, vehicle, route);
@@ -630,42 +671,106 @@ public final class CityTrafficService {
 
     private static boolean junctionAdmissionBlocked(
             ServerLevel level, Entity vehicle, RouteState route) {
-        JunctionReservation owned = JUNCTION_RESERVATIONS.get(vehicle.getUUID());
+        UUID vehicleId = vehicle.getUUID();
+        long now = level.getGameTime();
+        JunctionReservation owned = JUNCTION_RESERVATIONS.get(vehicleId);
         if (owned != null) {
-            if (horizontalDistanceSqr(vehicle.position(), owned.center())
-                    > JUNCTION_CLEAR_DISTANCE_SQR) {
-                JUNCTION_RESERVATIONS.remove(vehicle.getUUID());
+            if (owned.expiresAt() < now) {
+                JUNCTION_RESERVATIONS.remove(vehicleId);
                 owned = null;
             } else {
-                JUNCTION_RESERVATIONS.put(vehicle.getUUID(), new JunctionReservation(
-                        owned.center(), level.getGameTime() + JUNCTION_LEASE_TICKS));
+                double distance = horizontalDistanceSqr(vehicle.position(), owned.center());
+                boolean entered = owned.entered() || distance <= JUNCTION_ENTRY_DISTANCE_SQR;
+                if (entered && distance > JUNCTION_RELEASE_DISTANCE_SQR) {
+                    JUNCTION_RESERVATIONS.remove(vehicleId);
+                    owned = null;
+                } else {
+                    JUNCTION_RESERVATIONS.put(vehicleId, new JunctionReservation(
+                            owned.center(), entered
+                                    ? now + JUNCTION_LEASE_TICKS : owned.expiresAt(), entered));
+                    JUNCTION_REQUESTS.remove(vehicleId);
+                    return false;
+                }
             }
         }
 
         JunctionApproach approach = nextJunction(level, route);
-        if (approach == null || horizontalDistanceSqr(
-                vehicle.position(), approach.junction().position())
-                > JUNCTION_APPROACH_DISTANCE_SQR) {
+        if (approach == null) {
+            JUNCTION_REQUESTS.remove(vehicleId);
             return false;
         }
-        if (owned != null && horizontalDistanceSqr(
-                vehicle.position(), owned.center()) <= 8.0 * 8.0) {
+        Vec3 junction = approach.junction().position();
+        double distance = horizontalDistanceSqr(vehicle.position(), junction);
+        if (distance > JUNCTION_APPROACH_DISTANCE_SQR) {
+            JUNCTION_REQUESTS.remove(vehicleId);
             return false;
         }
+
+        JunctionRequest previous = JUNCTION_REQUESTS.get(vehicleId);
+        boolean sameRequest = previous != null
+                && junctionsConflict(previous.center(), junction);
+        JunctionRequest request = new JunctionRequest(
+                junction,
+                sameRequest ? previous.requestedAt() : now,
+                now,
+                sameRequest ? previous.distanceAtRequest() : distance);
+        JUNCTION_REQUESTS.put(vehicleId, request);
+
         for (Map.Entry<UUID, JunctionReservation> entry : JUNCTION_RESERVATIONS.entrySet()) {
-            if (entry.getKey().equals(vehicle.getUUID())
-                    || entry.getValue().expiresAt() < level.getGameTime()) {
+            if (entry.getKey().equals(vehicleId)
+                    || entry.getValue().expiresAt() < now) {
                 continue;
             }
-            if (junctionsConflict(
-                    approach.junction().position(), entry.getValue().center())) {
+            if (junctionsConflict(junction, entry.getValue().center())) {
                 return true;
             }
         }
+
+        // Let all contenders register for one traffic update before selecting the first owner.
+        // This removes HashMap/entity tick order from intersection priority.
+        if (now - request.requestedAt() < INPUT_INTERVAL_TICKS) return true;
+        for (Map.Entry<UUID, JunctionRequest> entry : JUNCTION_REQUESTS.entrySet()) {
+            if (entry.getKey().equals(vehicleId)
+                    || now - entry.getValue().lastSeen() > JUNCTION_REQUEST_STALE_TICKS
+                    || !junctionsConflict(junction, entry.getValue().center())) {
+                continue;
+            }
+            JunctionRequest contender = entry.getValue();
+            if (junctionRequestPrecedes(
+                    contender.requestedAt(), contender.distanceAtRequest(), entry.getKey(),
+                    request.requestedAt(), request.distanceAtRequest(), vehicleId)) {
+                return true;
+            }
+        }
+
+        // The queue winner may roll up to the stop line without locking the whole crossing.
+        if (distance > JUNCTION_GRANT_DISTANCE_SQR) return false;
         if (exitLaneOccupied(level, vehicle, approach.exit())) return true;
-        JUNCTION_RESERVATIONS.put(vehicle.getUUID(), new JunctionReservation(
-                approach.junction().position(), level.getGameTime() + JUNCTION_LEASE_TICKS));
+        JUNCTION_REQUESTS.remove(vehicleId);
+        JUNCTION_RESERVATIONS.put(vehicleId, new JunctionReservation(
+                junction, now + JUNCTION_LEASE_TICKS,
+                distance <= JUNCTION_ENTRY_DISTANCE_SQR));
         return false;
+    }
+
+    public static boolean junctionRequestPrecedes(
+            long firstRequestedAt,
+            double firstDistanceSqr,
+            UUID firstId,
+            long secondRequestedAt,
+            double secondDistanceSqr,
+            UUID secondId) {
+        if (firstRequestedAt != secondRequestedAt) {
+            return firstRequestedAt < secondRequestedAt;
+        }
+        int distanceOrder = Double.compare(firstDistanceSqr, secondDistanceSqr);
+        if (distanceOrder != 0) return distanceOrder < 0;
+        return firstId.compareTo(secondId) < 0;
+    }
+
+    private static void releaseJunction(UUID vehicleId) {
+        JUNCTION_RESERVATIONS.remove(vehicleId);
+        JUNCTION_REQUESTS.remove(vehicleId);
     }
 
     private static JunctionApproach nextJunction(
@@ -861,6 +966,13 @@ public final class CityTrafficService {
         return dx * dx + dz * dz;
     }
 
+    /** Waiting for another road user is intentional and must not trigger route recovery. */
+    public static int nextStuckTicks(
+            int currentTicks, boolean immobile, boolean trafficBlocked) {
+        if (!immobile || trafficBlocked) return 0;
+        return currentTicks + INPUT_INTERVAL_TICKS;
+    }
+
     private static boolean roadEnvelopeSafe(
             ServerLevel level,
             Entity vehicle,
@@ -870,9 +982,9 @@ public final class CityTrafficService {
             double progress = step / 5.0;
             int x = Mth.floor(Mth.lerp(progress, vehicle.getX(), target.position().x));
             int z = Mth.floor(Mth.lerp(progress, vehicle.getZ(), target.position().z));
-            NeonCityGenerator.RoadClass roadClass = NeonCityGenerator.roadAt(x, z);
             if (highwayTrip
-                    ? !NeonCityGenerator.isHighwayRoadClass(roadClass)
+                    ? !NeonCityGenerator.isHighwayRoadClass(
+                            NeonCityGenerator.roadAt(x, z))
                     : !nearNavigableRoad(x, z)) {
                 return false;
             }
