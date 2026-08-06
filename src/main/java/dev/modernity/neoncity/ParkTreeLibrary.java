@@ -18,7 +18,7 @@ import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Vec3i;
 import net.minecraft.resources.Identifier;
-import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.LevelReader;
@@ -85,7 +85,7 @@ final class ParkTreeLibrary {
     }
 
     static int decorateChunk(
-            ServerLevel level,
+            ServerLevelAccessor level,
             ChunkPos chunk,
             NeonCityGenerator.UrbanSample[][] samples) {
         int parkColumns = 0;
@@ -165,7 +165,7 @@ final class ParkTreeLibrary {
 
     /** Places dense forest trees and sparse cliff-top silhouettes on district borders. */
     static int decorateBorderChunk(
-            ServerLevel level,
+            ServerLevelAccessor level,
             ChunkPos chunk,
             NeonCityGenerator.UrbanSample[][] samples) {
         int placed = 0;
@@ -262,12 +262,13 @@ final class ParkTreeLibrary {
     }
 
     static boolean placeTree(
-            ServerLevel level,
+            ServerLevelAccessor level,
             BlockPos base,
             District district,
             TreeAsset tree,
             long placementHash) {
-        StructureTemplate template = level.getStructureManager().get(tree.templateId()).orElse(null);
+        StructureTemplate template = level.getLevel().getStructureManager()
+                .get(tree.templateId()).orElse(null);
         if (template == null) {
             LOGGER.error("[NeonCity] missing park tree template {}", tree.templateId());
             return false;
@@ -345,7 +346,8 @@ final class ParkTreeLibrary {
         return true;
     }
 
-    private static boolean isVolumeClear(ServerLevel level, BlockPos base, TreeAsset tree) {
+    private static boolean isVolumeClear(
+            ServerLevelAccessor level, BlockPos base, TreeAsset tree) {
         BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
         for (int y = 0; y < tree.sizeY(); y++) {
             for (int z = 0; z < tree.sizeZ(); z++) {

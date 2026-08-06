@@ -2,7 +2,7 @@ package dev.modernity.neoncity;
 
 import java.util.List;
 import net.minecraft.core.BlockPos;
-import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Block;
@@ -214,7 +214,7 @@ final class WalledBorderLibrary {
     }
 
     static PlacementMetrics decorateChunk(
-            ServerLevel level,
+            ServerLevelAccessor level,
             ChunkPos chunk,
             NeonCityGenerator.UrbanSample[][] samples) {
         MegacityLayout layout = NeonCityGenerator.layout();
@@ -368,7 +368,7 @@ final class WalledBorderLibrary {
     }
 
     private static int placeWallColumn(
-            ServerLevel level,
+            ServerLevelAccessor level,
             BlockPos.MutableBlockPos cursor,
             ColumnPlan plan,
             int worldX,
@@ -397,7 +397,7 @@ final class WalledBorderLibrary {
     }
 
     private static int placeSlumColumn(
-            ServerLevel level,
+            ServerLevelAccessor level,
             BlockPos.MutableBlockPos cursor,
             ColumnPlan plan,
             int worldX,
@@ -514,7 +514,7 @@ final class WalledBorderLibrary {
     }
 
     private static void clearOwnedColumn(
-            ServerLevel level,
+            ServerLevelAccessor level,
             BlockPos.MutableBlockPos cursor,
             int worldX,
             int groundY,
@@ -554,7 +554,7 @@ final class WalledBorderLibrary {
     }
 
     private static void set(
-            ServerLevel level,
+            ServerLevelAccessor level,
             BlockPos.MutableBlockPos cursor,
             int x,
             int y,

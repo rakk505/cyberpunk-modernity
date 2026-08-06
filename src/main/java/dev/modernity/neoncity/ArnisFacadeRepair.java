@@ -2,7 +2,7 @@ package dev.modernity.neoncity;
 
 import java.util.Set;
 import net.minecraft.core.BlockPos;
-import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.LeavesBlock;
@@ -21,7 +21,7 @@ final class ArnisFacadeRepair {
     }
 
     static int sealInterruptedEdges(
-            ServerLevel level,
+            ServerLevelAccessor level,
             ChunkPos chunk,
             Set<ArnisPatchLibrary.Connector.Edge> interruptedEdges) {
         int changed = 0;
@@ -32,7 +32,7 @@ final class ArnisFacadeRepair {
     }
 
     static int sealInfrastructureCuts(
-            ServerLevel level,
+            ServerLevelAccessor level,
             ChunkPos chunk,
             NeonCityGenerator.UrbanSample[][] samples,
             District selectedDistrict) {
@@ -66,7 +66,7 @@ final class ArnisFacadeRepair {
     }
 
     private static int sealCutFace(
-            ServerLevel level,
+            ServerLevelAccessor level,
             ChunkPos chunk,
             int boundaryX,
             int boundaryZ,
@@ -107,7 +107,7 @@ final class ArnisFacadeRepair {
     }
 
     private static BlockState findCutSourceState(
-            ServerLevel level,
+            ServerLevelAccessor level,
             ChunkPos chunk,
             int boundaryX,
             int boundaryZ,
@@ -141,7 +141,7 @@ final class ArnisFacadeRepair {
     }
 
     private static int sealEdge(
-            ServerLevel level,
+            ServerLevelAccessor level,
             ChunkPos chunk,
             ArnisPatchLibrary.Connector.Edge edge) {
         int minY = NeonCityGenerator.CITY_GROUND_Y + 1;
@@ -192,7 +192,7 @@ final class ArnisFacadeRepair {
     }
 
     private static BlockState findSourceState(
-            ServerLevel level,
+            ServerLevelAccessor level,
             ChunkPos chunk,
             ArnisPatchLibrary.Connector.Edge edge,
             int along,
@@ -217,7 +217,7 @@ final class ArnisFacadeRepair {
     }
 
     private static BlockState findSourceState(
-            ServerLevel level,
+            ServerLevelAccessor level,
             ChunkPos chunk,
             ArnisPatchLibrary.Connector.Edge edge,
             int along,

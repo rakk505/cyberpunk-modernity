@@ -6,7 +6,7 @@ import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Vec3i;
 import net.minecraft.resources.Identifier;
-import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Block;
@@ -198,7 +198,7 @@ final class BorderVillageLibrary {
     }
 
     static int decorateChunk(
-            ServerLevel level,
+            ServerLevelAccessor level,
             ChunkPos chunk,
             NeonCityGenerator.UrbanSample[][] samples) {
         long seed = NeonCityGenerator.layout().seed();
@@ -207,7 +207,7 @@ final class BorderVillageLibrary {
             return 0;
         }
         VillageCandidate candidate = planned.orElseThrow();
-        StructureTemplate template = level.getStructureManager()
+        StructureTemplate template = level.getLevel().getStructureManager()
                 .get(candidate.asset().templateId()).orElse(null);
         if (template == null) {
             LOGGER.error("[NeonCity] missing forest-border village template {}",
@@ -278,7 +278,8 @@ final class BorderVillageLibrary {
                 .addProcessor(BlockIgnoreProcessor.STRUCTURE_AND_AIR);
     }
 
-    static boolean isVolumeClear(ServerLevel level, VillageCandidate candidate) {
+    static boolean isVolumeClear(
+            ServerLevelAccessor level, VillageCandidate candidate) {
         BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
         for (int z = 0; z < candidate.sizeZ(); z++) {
             for (int x = 0; x < candidate.sizeX(); x++) {
@@ -300,7 +301,7 @@ final class BorderVillageLibrary {
         return true;
     }
 
-    private static boolean isForestGround(ServerLevel level, BlockPos position) {
+    private static boolean isForestGround(ServerLevelAccessor level, BlockPos position) {
         BlockState state = level.getBlockState(position);
         return state.is(Blocks.GRASS_BLOCK)
                 || state.is(Blocks.DIRT)

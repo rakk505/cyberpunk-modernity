@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.block.Block;
@@ -49,7 +49,7 @@ final class ArnisEmbeddedLighting {
     }
 
     static int finish(
-            ServerLevel level,
+            ServerLevelAccessor level,
             List<BlockPos> importedGlowstone,
             BoundingBox tileBounds,
             int updateFlags) {

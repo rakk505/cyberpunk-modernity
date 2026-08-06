@@ -10,7 +10,7 @@ import dev.modernity.neoncity.MegacityLayout;
 import dev.modernity.neoncity.NeonCityGenerator;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.ChunkPos;
@@ -70,7 +70,8 @@ public final class CityLootGeneration {
 
     /** Places and initializes one generated cache when its complete footprint is unobstructed. */
     public static boolean place(
-            ServerLevel level, BlockPos position, CacheKind kind, Direction facing, long seed) {
+            ServerLevelAccessor level, BlockPos position, CacheKind kind, Direction facing,
+            long seed) {
         Direction placementFacing = placementFacing(level, position, kind, facing);
         if (placementFacing == null) {
             return false;
@@ -97,7 +98,7 @@ public final class CityLootGeneration {
 
     /** Low-density cache pass for each newly generated Project Moon city chunk. */
     public static boolean decorateMegacityChunk(
-            ServerLevel level,
+            ServerLevelAccessor level,
             ChunkPos chunk,
             NeonCityGenerator.UrbanSample[][] samples) {
         long hash = mix(NeonCityGenerator.layout().seed() ^ CACHE_SALT, chunk.x(), chunk.z());
@@ -158,7 +159,7 @@ public final class CityLootGeneration {
     }
 
     private static Direction placementFacing(
-            ServerLevel level, BlockPos position, CacheKind kind, Direction facing) {
+            ServerLevelAccessor level, BlockPos position, CacheKind kind, Direction facing) {
         if (facing == null || facing.getAxis() == Direction.Axis.Y
                 || !clearColumn(level, position)) {
             return null;
@@ -179,7 +180,7 @@ public final class CityLootGeneration {
     }
 
     private static Direction backingWall(
-            ServerLevel level, BlockPos position, Direction requestedFacing) {
+            ServerLevelAccessor level, BlockPos position, Direction requestedFacing) {
         Direction preferred = requestedFacing.getOpposite();
         Direction[] directions = {
                 preferred,
@@ -197,7 +198,7 @@ public final class CityLootGeneration {
         return null;
     }
 
-    private static boolean clearColumn(ServerLevel level, BlockPos position) {
+    private static boolean clearColumn(ServerLevelAccessor level, BlockPos position) {
         return level.getWorldBorder().isWithinBounds(position)
                 && level.isEmptyBlock(position)
                 && level.isEmptyBlock(position.above())

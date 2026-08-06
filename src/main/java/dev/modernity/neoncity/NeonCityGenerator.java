@@ -26,11 +26,13 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.level.WorldGenRegion;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.LevelReader;
+import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.PoweredRailBlock;
@@ -38,6 +40,7 @@ import net.minecraft.world.level.block.RailBlock;
 import net.minecraft.world.level.block.WeatheringCopper;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.RailShape;
+import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
@@ -76,6 +79,7 @@ public final class NeonCityGenerator {
     private static final int AD_BACKFILL_RADIUS_CHUNKS = 2;
     private static final int MAX_PENDING_AD_BACKFILLS = 256;
     private static final int AD_BACKFILL_RETRY_DELAY_TICKS = 40;
+    private static final int NATIVE_AD_DECORATION_INTERVAL_TICKS = 5;
     public static final int TRAVEL_LOOKAHEAD_TICKS = 100;
     public static final int TRAVEL_CORRIDOR_MARGIN_CHUNKS = 1;
     public static final int TRAVEL_CORRIDOR_SAMPLE_BLOCKS = 8;
@@ -128,6 +132,7 @@ public final class NeonCityGenerator {
     private static final Set<Long> AD_DECORATION_RETRY_PENDING = new HashSet<>();
     private static final Set<Long> HIGHWAY_AD_RETRY_PENDING = new HashSet<>();
     private static final Set<Long> GENERATED = new HashSet<>();
+    private static final Set<Long> NATIVE_GENERATED = ConcurrentHashMap.newKeySet();
     private static final Map<Long, Long> AD_BACKFILL_RETRY_AFTER = new HashMap<>();
     private static final Map<Long, AlleyMaze.Plan> DIAGNOSTIC_ALLEY_PLANS = new HashMap<>();
     private static final Map<Long, Optional<ArnisPatchLibrary.Placement>>
@@ -154,6 +159,9 @@ public final class NeonCityGenerator {
     private static MegacityLayout layout = MegacityLayout.create(FIXED_CITY_SEED);
     private static boolean layoutInitialized;
     private static NeonCitySavedData savedData;
+    private static volatile ServerLevel activeLevel;
+    private static volatile boolean nativeGeneration;
+    private static long lastNativeAdDecorationGameTime = Long.MIN_VALUE;
     private static boolean enabled;
 
     private NeonCityGenerator() {}
@@ -323,21 +331,27 @@ public final class NeonCityGenerator {
             LOGGER.info("[NeonCity] dedicated megacity dimension marker not detected; disabled");
             return false;
         }
-        layout = MegacityLayout.create(FIXED_CITY_SEED);
-        layoutInitialized = true;
-        savedData = level.getDataStorage().computeIfAbsent(NeonCitySavedData.TYPE);
-        if (!savedData.isCompatible(GENERATOR_FINGERPRINT)) {
+        if (!(level.getChunkSource().getGenerator() instanceof MegacityChunkGenerator)) {
             LOGGER.error(
-                    "[NeonCity] generator fingerprint mismatch (world={}, bundled={}); disabled",
-                    savedData.generatorFingerprint(), GENERATOR_FINGERPRINT);
+                    "[NeonCity] megacity dimension is not using cyberdeck:megacity; disabled");
             return false;
         }
-        GENERATED.addAll(savedData.snapshot());
+        savedData = level.getDataStorage().computeIfAbsent(NeonCitySavedData.TYPE);
+        if (!savedData.isCompatible(GENERATOR_FINGERPRINT)) {
+            LOGGER.error("[NeonCity] native generation ledger is incompatible; disabled");
+            savedData = null;
+            return false;
+        }
+        layout = MegacityLayout.create(FIXED_CITY_SEED);
+        layoutInitialized = true;
+        activeLevel = level;
+        nativeGeneration = true;
+        NATIVE_GENERATED.addAll(savedData.snapshot());
         enabled = true;
         LOGGER.info(
-                "[NeonCity] finite fixed city seed={} layout={} minecraft_seed={} restored={} "
-                        + "districts={} edges={}",
-                FIXED_CITY_SEED, layout.seed(), level.getSeed(), GENERATED.size(),
+                "[NeonCity] native chunk generator enabled; fixed city seed={} layout={} "
+                        + "minecraft_seed={} districts={} edges={}",
+                FIXED_CITY_SEED, layout.seed(), level.getSeed(),
                 layout.nodes().size(), layout.edges().size());
         return true;
     }
@@ -375,6 +389,10 @@ public final class NeonCityGenerator {
         CITY_CHUNK_MEMBERSHIP_ORDER.clear();
         PENDING_LIGHT_REFRESHES.clear();
         READY_LIGHT_REFRESHES.clear();
+        NATIVE_GENERATED.clear();
+        activeLevel = null;
+        nativeGeneration = false;
+        lastNativeAdDecorationGameTime = Long.MIN_VALUE;
         lastActiveTravelGameTime = Long.MIN_VALUE;
         CityChunkPlanner.reset();
         ArnisPatchLibrary.clearSelectionCache();
@@ -400,6 +418,11 @@ public final class NeonCityGenerator {
         ServerLevel level = (ServerLevel) player.level();
         int centerChunkX = SectionPos.blockToSectionCoord(player.getBlockX());
         int centerChunkZ = SectionPos.blockToSectionCoord(player.getBlockZ());
+        if (nativeGeneration) {
+            enqueueAdBackfillsAround(
+                    level, centerChunkX, centerChunkZ, AD_BACKFILL_RADIUS_CHUNKS);
+            return 0;
+        }
         long chunkKey = ChunkPos.pack(centerChunkX, centerChunkZ);
         long gameTime = level.getGameTime();
         PlayerEnqueueState previous = PLAYER_ENQUEUE_STATES.get(player.getUUID());
@@ -424,7 +447,7 @@ public final class NeonCityGenerator {
     }
 
     public static int enqueueAroundChunk(int centerChunkX, int centerChunkZ, int radius) {
-        if (!enabled || radius < 0) return 0;
+        if (!enabled || nativeGeneration || radius < 0) return 0;
         int added = 0;
         for (int ring = 0; ring <= radius; ring++) {
             for (int dz = -ring; dz <= ring; dz++) {
@@ -457,6 +480,7 @@ public final class NeonCityGenerator {
 
     /** Promotes a velocity-projected highway corridor ahead of a mounted player. */
     public static int enqueueTravelCorridor(ServerLevel level, ServerPlayer player) {
+        if (nativeGeneration) return 0;
         Entity movementSource = player.getVehicle() != null ? player.getVehicle() : player;
         TravelMotion current = new TravelMotion(
                 movementSource.getUUID(), movementSource.getX(), movementSource.getZ(),
@@ -680,6 +704,22 @@ public final class NeonCityGenerator {
     /** Generate a bounded batch of already-loaded chunks while the current tick has headroom. */
     public static boolean tick(ServerLevel level) {
         drainCompletedLightRefreshes(level);
+        if (nativeGeneration) {
+            if (!enabled || savedData == null
+                    || level.getServer().getAverageTickTimeNanos()
+                            >= CityPriorityPreGenerator.MAX_AVERAGE_TICK_NANOS) {
+                return false;
+            }
+            long gameTime = level.getGameTime();
+            if (lastNativeAdDecorationGameTime != Long.MIN_VALUE
+                    && gameTime >= lastNativeAdDecorationGameTime
+                    && gameTime - lastNativeAdDecorationGameTime
+                            < NATIVE_AD_DECORATION_INTERVAL_TICKS) {
+                return false;
+            }
+            lastNativeAdDecorationGameTime = gameTime;
+            return backfillNextGeneratedAd(level);
+        }
         if (!enabled || savedData == null) return false;
         boolean attemptedAdBackfill = backfillNextGeneratedAd(level);
         scheduleChunkPlanning(level);
@@ -728,7 +768,7 @@ public final class NeonCityGenerator {
             if (level.getGameTime() < retryAfter) return;
             AD_BACKFILL_RETRY_AFTER.remove(key);
         }
-        if (!GENERATED.contains(key)
+        if (!isGeneratedForAdDecoration(level, chunk, key)
                 || savedData == null
                 || (savedData.isAdDecorated(key)
                         && savedData.isFreestandingAdDecorated(key)
@@ -748,7 +788,7 @@ public final class NeonCityGenerator {
             ChunkPos chunk = AD_BACKFILL_PENDING.removeFirst();
             long key = chunk.pack();
             AD_BACKFILL_QUEUED.remove(key);
-            if (!GENERATED.contains(key)
+            if (!isGeneratedForAdDecoration(level, chunk, key)
                     || savedData == null
                     || (savedData.isAdDecorated(key)
                             && savedData.isFreestandingAdDecorated(key)
@@ -840,6 +880,24 @@ public final class NeonCityGenerator {
             return true;
         }
         return false;
+    }
+
+    private static boolean isGeneratedForAdDecoration(
+            ServerLevel level, ChunkPos chunk, long key) {
+        if (!nativeGeneration) {
+            return GENERATED.contains(key);
+        }
+        if (!NATIVE_GENERATED.contains(key)) {
+            if (level.getChunkSource().getChunkNow(chunk.x(), chunk.z()) == null
+                    || !chunkTouchesCity(chunk.x(), chunk.z())) {
+                return false;
+            }
+            NATIVE_GENERATED.add(key);
+        }
+        if (savedData != null) {
+            savedData.markGenerated(key, GENERATOR_FINGERPRINT);
+        }
+        return true;
     }
 
     private static boolean generateFirstLoaded(
@@ -969,7 +1027,29 @@ public final class NeonCityGenerator {
     }
 
     public static int prewarmSpawn(ServerLevel level) {
-        if (!enabled || savedData == null) return 0;
+        if (!enabled) return 0;
+        if (nativeGeneration) {
+            int generated = 0;
+            for (int chunkZ = -SPAWN_PREWARM_RADIUS_CHUNKS;
+                 chunkZ <= SPAWN_PREWARM_RADIUS_CHUNKS; chunkZ++) {
+                for (int chunkX = -SPAWN_PREWARM_RADIUS_CHUNKS;
+                     chunkX <= SPAWN_PREWARM_RADIUS_CHUNKS; chunkX++) {
+                    level.getChunk(chunkX, chunkZ);
+                    long key = ChunkPos.pack(chunkX, chunkZ);
+                    if (chunkTouchesCity(chunkX, chunkZ) && NATIVE_GENERATED.add(key)) {
+                        generated++;
+                    }
+                    if (chunkTouchesCity(chunkX, chunkZ) && savedData != null) {
+                        savedData.markGenerated(key, GENERATOR_FINGERPRINT);
+                        enqueueAdBackfill(level, new ChunkPos(chunkX, chunkZ));
+                    }
+                }
+            }
+            level.setRespawnData(LevelData.RespawnData.of(
+                    level.dimension(), DEFAULT_SPAWN, 0.0F, 0.0F));
+            return generated;
+        }
+        if (savedData == null) return 0;
         int placed = 0;
         for (int chunkZ = -SPAWN_PREWARM_RADIUS_CHUNKS;
              chunkZ <= SPAWN_PREWARM_RADIUS_CHUNKS; chunkZ++) {
@@ -1014,9 +1094,28 @@ public final class NeonCityGenerator {
             int centerChunkZ,
             int radius,
             CityGenerationTrace.Source source) {
-        if (!enabled || savedData == null || !isMegacityWorld(level)) {
+        if (!enabled || !isMegacityWorld(level)) {
             return 0;
         }
+        if (nativeGeneration) {
+            int loaded = 0;
+            for (int chunkZ = centerChunkZ - radius; chunkZ <= centerChunkZ + radius; chunkZ++) {
+                for (int chunkX = centerChunkX - radius;
+                     chunkX <= centerChunkX + radius; chunkX++) {
+                    if (!chunkTouchesCity(chunkX, chunkZ)) continue;
+                    level.getChunk(chunkX, chunkZ);
+                    long key = ChunkPos.pack(chunkX, chunkZ);
+                    NATIVE_GENERATED.add(key);
+                    if (savedData != null) {
+                        savedData.markGenerated(key, GENERATOR_FINGERPRINT);
+                        enqueueAdBackfill(level, new ChunkPos(chunkX, chunkZ));
+                    }
+                    loaded++;
+                }
+            }
+            return loaded;
+        }
+        if (savedData == null) return 0;
         int placed = 0;
         for (int chunkZ = centerChunkZ - radius; chunkZ <= centerChunkZ + radius; chunkZ++) {
             for (int chunkX = centerChunkX - radius; chunkX <= centerChunkX + radius; chunkX++) {
@@ -1076,6 +1175,76 @@ public final class NeonCityGenerator {
         return new ChunkBuildPlan(
                 chunk, samples, placement, interruptedEdges,
                 sampleNanos, System.nanoTime() - planningStarted);
+    }
+
+    /**
+     * Applies the deterministic city overlay while the chunk is still in Minecraft's FEATURES
+     * world-generation stage. All writes go through the bounded {@link WorldGenRegion}; no loaded
+     * {@link ServerLevel} chunk is mutated and no server-tick stamping queue is involved.
+     */
+    static boolean generateWorldgenChunk(WorldGenRegion level, ChunkAccess chunkAccess) {
+        ChunkPos chunk = chunkAccess.getPos();
+        if (!chunkTouchesCity(chunk.x(), chunk.z())) {
+            return false;
+        }
+
+        UrbanSample[][] samples = sampleChunk(chunk.getMinBlockX(), chunk.getMinBlockZ());
+        Optional<ArnisPatchLibrary.Placement> patchPlacement = usableArnisPlacement(
+                chunk.x(), chunk.z(), samples);
+        District patchDistrict = patchPlacement
+                .map(placement -> placement.patch().district())
+                .orElse(null);
+        StructureTemplate patchTemplate = patchPlacement
+                .flatMap(placement -> level.getLevel().getStructureManager()
+                        .get(placement.patch().templateId()))
+                .orElse(null);
+        if (patchPlacement.isPresent() && patchTemplate == null) {
+            throw new IllegalStateException("missing audited Arnis template "
+                    + patchPlacement.orElseThrow().patch().templateId());
+        }
+        if (patchPlacement.isPresent()
+                && !templateMatchesCatalog(patchTemplate, patchPlacement.orElseThrow().patch())) {
+            throw new IllegalStateException("Arnis template size changed for "
+                    + patchPlacement.orElseThrow().patch().templateId());
+        }
+
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        for (int localZ = 0; localZ < 16; localZ++) {
+            for (int localX = 0; localX < 16; localX++) {
+                int x = chunk.getMinBlockX() + localX;
+                int z = chunk.getMinBlockZ() + localZ;
+                UrbanSample sample = samples[localZ + 1][localX + 1];
+                if (patchTemplate != null && keepsArnisColumn(sample, patchDistrict)) {
+                    prepareArnisColumn(level, pos, x, z);
+                } else if (sample.roadClass() != RoadClass.WILDERNESS) {
+                    buildColumn(level, pos, x, z, sample);
+                }
+            }
+        }
+        decorateDistrictEdgeInfrastructure(level, chunk, samples);
+
+        if (patchTemplate != null && patchPlacement.isPresent()) {
+            ArnisPatchLibrary.Placement placement = patchPlacement.orElseThrow();
+            if (!placeArnisPatch(level, chunk, placement, patchTemplate, samples)) {
+                throw new IllegalStateException(
+                        "Arnis template refused native chunk placement in " + chunk);
+            }
+            EnumSet<ArnisPatchLibrary.Connector.Edge> interruptedEdges =
+                    interruptedArnisEdges(chunk, placement);
+            ArnisFacadeRepair.sealInterruptedEdges(level, chunk, interruptedEdges);
+            ArnisFacadeRepair.sealInfrastructureCuts(
+                    level, chunk, samples, placement.patch().district());
+        }
+
+        DistrictWorldFeatures.decorateChunk(level, chunk, samples);
+
+        boolean placedLoot = CityLootGeneration.decorateMegacityChunk(level, chunk, samples);
+        if (!placedLoot) {
+            UrbanCrateGeneration.decorateChunk(level, chunk, samples);
+        }
+
+        NATIVE_GENERATED.add(chunk.pack());
+        return true;
     }
 
     private static boolean generateChunk(
@@ -1390,7 +1559,7 @@ public final class NeonCityGenerator {
                 && size.getZ() == patch.sizeZ();
     }
 
-    private static void prepareArnisColumn(ServerLevel level, BlockPos.MutableBlockPos pos,
+    private static void prepareArnisColumn(ServerLevelAccessor level, BlockPos.MutableBlockPos pos,
                                            int x, int z) {
         int naturalTop = level.getHeight(Heightmap.Types.WORLD_SURFACE, x, z);
         for (int y = CITY_GROUND_Y + 1; y <= Math.min(MAX_BUILD_Y, Math.max(naturalTop + 2, 112)); y++) {
@@ -1402,7 +1571,7 @@ public final class NeonCityGenerator {
         set(level, pos, x, CITY_GROUND_Y, z, Blocks.SMOOTH_STONE.defaultBlockState());
     }
 
-    private static boolean placeArnisPatch(ServerLevel level, ChunkPos chunk,
+    private static boolean placeArnisPatch(ServerLevelAccessor level, ChunkPos chunk,
                                            ArnisPatchLibrary.Placement placement,
                                            StructureTemplate template,
                                            UrbanSample[][] samples) {
@@ -1514,7 +1683,7 @@ public final class NeonCityGenerator {
                 && left.maxZ() == right.maxZ();
     }
 
-    static void buildColumn(ServerLevel level, BlockPos.MutableBlockPos pos,
+    static void buildColumn(ServerLevelAccessor level, BlockPos.MutableBlockPos pos,
                             int x, int z, UrbanSample sample) {
         int naturalTop = level.getHeight(Heightmap.Types.WORLD_SURFACE, x, z);
         int ground = sample.groundY();
@@ -1614,7 +1783,7 @@ public final class NeonCityGenerator {
         return floorMod(x + z, 17) <= 1 && floorMod(x - z, 11) == 0;
     }
 
-    private static void decorateInfrastructure(ServerLevel level, BlockPos.MutableBlockPos pos,
+    private static void decorateInfrastructure(ServerLevelAccessor level, BlockPos.MutableBlockPos pos,
                                                int x, int z, UrbanSample sample) {
         boolean graphHighway = sample.location().onConnection();
         if (graphHighway) {
@@ -1796,7 +1965,7 @@ public final class NeonCityGenerator {
                 || district.boundaryGap() < 0.085;
     }
 
-    private static void decorateOpenGround(ServerLevel level, BlockPos.MutableBlockPos pos,
+    private static void decorateOpenGround(ServerLevelAccessor level, BlockPos.MutableBlockPos pos,
                                            int x, int z, UrbanSample sample) {
         int y = sample.groundY() + 1;
         long hash = mix(layout.seed() ^ DECORATION_SALT, x, z);
@@ -1838,7 +2007,7 @@ public final class NeonCityGenerator {
     }
 
     private static void decorateDistrictEdgeInfrastructure(
-            ServerLevel level,
+            ServerLevelAccessor level,
             ChunkPos chunk,
             UrbanSample[][] samples) {
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
@@ -1857,7 +2026,7 @@ public final class NeonCityGenerator {
     }
 
     private static void decorateExtractionSite(
-            ServerLevel level,
+            ServerLevelAccessor level,
             BlockPos.MutableBlockPos pos,
             int x,
             int y,
@@ -2017,7 +2186,7 @@ public final class NeonCityGenerator {
         };
     }
 
-    private static void set(ServerLevel level, BlockPos.MutableBlockPos pos,
+    private static void set(ServerLevelAccessor level, BlockPos.MutableBlockPos pos,
                             int x, int y, int z, BlockState state) {
         BlockPos.MutableBlockPos target = pos.set(x, y, z);
         if (!level.getBlockState(target).equals(state)) {
@@ -3294,11 +3463,29 @@ public final class NeonCityGenerator {
         }
     }
     public static boolean isEnabled() { return enabled; }
+    public static boolean usesNativeChunkGeneration() { return nativeGeneration; }
     public static boolean isGenerated(ChunkPos chunk) {
+        if (nativeGeneration) {
+            long key = chunk.pack();
+            if (NATIVE_GENERATED.contains(key)) return true;
+            ServerLevel level = activeLevel;
+            if (level != null
+                    && level.getChunkSource().getChunkNow(chunk.x(), chunk.z()) != null
+                    && chunkTouchesCity(chunk.x(), chunk.z())) {
+                NATIVE_GENERATED.add(key);
+                if (savedData != null) {
+                    savedData.markGenerated(key, GENERATOR_FINGERPRINT);
+                }
+                return true;
+            }
+            return false;
+        }
         return GENERATED.contains(chunk.pack());
     }
-    public static int pendingChunks() { return pendingQueueSize(); }
+    public static int pendingChunks() { return nativeGeneration ? 0 : pendingQueueSize(); }
     public static int urgentPendingChunks() { return URGENT_PENDING.size(); }
     public static int nearPendingChunks() { return NEAR_PENDING.size(); }
-    public static int generatedChunks() { return GENERATED.size(); }
+    public static int generatedChunks() {
+        return nativeGeneration ? NATIVE_GENERATED.size() : GENERATED.size();
+    }
 }

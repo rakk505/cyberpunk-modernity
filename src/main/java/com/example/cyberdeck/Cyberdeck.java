@@ -38,6 +38,7 @@ import com.example.cyberdeck.wanted.WantedSystem;
 import com.mojang.logging.LogUtils;
 import dev.modernity.neoncity.ArnisLightingBlocks;
 import dev.modernity.neoncity.MissionBlocks;
+import dev.modernity.neoncity.MegacityChunkGenerators;
 import dev.modernity.neoncity.ProjectMoonCityModule;
 import dev.modernity.neoncity.QuicktimeBlocks;
 import net.neoforged.bus.api.IEventBus;
@@ -87,6 +88,7 @@ public class Cyberdeck {
         QuicktimeBlocks.register(modEventBus);
         MissionBlocks.register(modEventBus);
         ArnisLightingBlocks.register(modEventBus);
+        MegacityChunkGenerators.register(modEventBus);
         ProjectMoonCityModule.bootstrap(modEventBus);
         CityLootBlocks.register(modEventBus);
 

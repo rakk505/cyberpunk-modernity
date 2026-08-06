@@ -9,6 +9,7 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.BarrelBlock;
 import net.minecraft.world.level.block.Block;
@@ -72,7 +73,7 @@ public final class UrbanCrateGeneration {
 
     /** Places at most one crate and never reinitializes loot on an existing managed crate. */
     public static int decorateChunk(
-            ServerLevel level,
+            ServerLevelAccessor level,
             ChunkPos chunk,
             NeonCityGenerator.UrbanSample[][] samples) {
         List<CratePlan> plans = plans(NeonCityGenerator.layout().seed(), chunk, samples);
@@ -136,7 +137,7 @@ public final class UrbanCrateGeneration {
         return Math.floorMod((int) (hash ^ (hash >>> 32)), CHUNK_FREQUENCY) == 0;
     }
 
-    static boolean placePlannedCrate(ServerLevel level, CratePlan plan) {
+    static boolean placePlannedCrate(ServerLevelAccessor level, CratePlan plan) {
         if (!hasFullyLoadedChunk(level, plan.position())
                 || isManagedCrate(level, plan.position())
                 || !canPlace(level, plan)) {
@@ -163,11 +164,13 @@ public final class UrbanCrateGeneration {
         container.setLootTableSeed(plan.lootSeed());
         container.getPersistentData().putBoolean(MANAGED_CRATE_TAG, true);
         container.setChanged();
-        level.sendBlockUpdated(position, barrel, barrel, Block.UPDATE_CLIENTS);
+        if (level instanceof ServerLevel serverLevel) {
+            serverLevel.sendBlockUpdated(position, barrel, barrel, Block.UPDATE_CLIENTS);
+        }
         return true;
     }
 
-    private static boolean canPlace(ServerLevel level, CratePlan plan) {
+    private static boolean canPlace(ServerLevelAccessor level, CratePlan plan) {
         BlockPos position = plan.position();
         BlockState current = level.getBlockState(position);
         BlockState above = level.getBlockState(position.above());
@@ -180,7 +183,7 @@ public final class UrbanCrateGeneration {
         return backingWall(level, plan) != null;
     }
 
-    private static Direction backingWall(ServerLevel level, CratePlan plan) {
+    private static Direction backingWall(ServerLevelAccessor level, CratePlan plan) {
         Direction preferred = plan.facing().getOpposite();
         Direction[] directions = {
                 preferred,
@@ -198,7 +201,7 @@ public final class UrbanCrateGeneration {
         return null;
     }
 
-    static boolean isManagedCrate(ServerLevel level, BlockPos position) {
+    static boolean isManagedCrate(ServerLevelAccessor level, BlockPos position) {
         if (!hasFullyLoadedChunk(level, position)) return false;
         if (!(level.getBlockEntity(position)
                 instanceof RandomizableContainerBlockEntity container)) {
@@ -219,10 +222,10 @@ public final class UrbanCrateGeneration {
         return false;
     }
 
-    private static boolean hasFullyLoadedChunk(ServerLevel level, BlockPos position) {
-        return level.getChunkSource().getChunkNow(
+    private static boolean hasFullyLoadedChunk(ServerLevelAccessor level, BlockPos position) {
+        return level.hasChunk(
                 Math.floorDiv(position.getX(), 16),
-                Math.floorDiv(position.getZ(), 16)) != null;
+                Math.floorDiv(position.getZ(), 16));
     }
 
     private static boolean isEligible(NeonCityGenerator.UrbanSample sample) {

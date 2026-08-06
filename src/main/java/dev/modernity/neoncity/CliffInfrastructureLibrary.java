@@ -19,7 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Vec3i;
 import net.minecraft.resources.Identifier;
-import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Block;
@@ -244,12 +244,12 @@ final class CliffInfrastructureLibrary {
     }
 
     /** Place only this chunk's slice; neighboring chunks reproduce the same global anchor. */
-    static int decorateChunk(ServerLevel level, ChunkPos chunk) {
+    static int decorateChunk(ServerLevelAccessor level, ChunkPos chunk) {
         List<SolarCandidate> candidates = candidatesForChunk(NeonCityGenerator.layout(), chunk);
         if (candidates.isEmpty()) {
             return 0;
         }
-        StructureTemplate template = level.getStructureManager()
+        StructureTemplate template = level.getLevel().getStructureManager()
                 .get(SOLAR_PANEL.templateId()).orElse(null);
         if (template == null) {
             LOGGER.error("[NeonCity] missing cliff solar template {}", SOLAR_PANEL.templateId());
@@ -372,7 +372,7 @@ final class CliffInfrastructureLibrary {
     }
 
     private static boolean isChunkSliceClear(
-            ServerLevel level,
+            ServerLevelAccessor level,
             ChunkPos chunk,
             SolarCandidate candidate) {
         int minX = Math.max(chunk.getMinBlockX(), candidate.minX());
@@ -396,7 +396,7 @@ final class CliffInfrastructureLibrary {
     }
 
     private static boolean placeChunkSlice(
-            ServerLevel level,
+            ServerLevelAccessor level,
             ChunkPos chunk,
             StructureTemplate template,
             SolarCandidate candidate) {
@@ -457,7 +457,7 @@ final class CliffInfrastructureLibrary {
     }
 
     private static void placeSupportPiers(
-            ServerLevel level,
+            ServerLevelAccessor level,
             ChunkPos chunk,
             SolarCandidate candidate) {
         SupportBounds support = candidate.asset().supportBounds();

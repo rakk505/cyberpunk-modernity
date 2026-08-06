@@ -285,7 +285,11 @@ public final class ProjectMoonCityModule {
         int prewarmed = NeonCityGenerator.prewarmSpawn(overworld);
         BlockPos spawn = overworld.getRespawnData().pos();
         int queued = NeonCityGenerator.enqueueAround(spawn.getX(), spawn.getZ());
-        CityPriorityPreGenerator.initialize(overworld);
+        if (NeonCityGenerator.usesNativeChunkGeneration()) {
+            CityPriorityPreGenerator.stop(overworld);
+        } else {
+            CityPriorityPreGenerator.initialize(overworld);
+        }
         generationEnabled = true;
         Cyberdeck.LOGGER.info(
                 "[ProjectMoonCity] finite {}-district generator enabled immediately; restored {} "

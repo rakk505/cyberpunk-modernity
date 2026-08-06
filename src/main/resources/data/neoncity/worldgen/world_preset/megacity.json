@@ -3,7 +3,7 @@
     "minecraft:overworld": {
       "type": "neoncity:megacity_overworld",
       "generator": {
-        "type": "minecraft:noise",
+        "type": "cyberdeck:megacity",
         "biome_source": {
           "type": "minecraft:multi_noise",
           "preset": "minecraft:overworld"

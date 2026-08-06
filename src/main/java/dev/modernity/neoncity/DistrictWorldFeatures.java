@@ -4,6 +4,7 @@ import java.util.Comparator;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityTypes;
@@ -108,7 +109,7 @@ final class DistrictWorldFeatures {
     }
 
     static void decorateChunk(
-            ServerLevel level,
+            ServerLevelAccessor level,
             ChunkPos chunk,
             NeonCityGenerator.UrbanSample[][] samples) {
         long seed = NeonCityGenerator.layout().seed();
@@ -118,11 +119,13 @@ final class DistrictWorldFeatures {
         CliffInfrastructureLibrary.decorateChunk(level, chunk);
         ParkTreeLibrary.decorateBorderChunk(level, chunk, samples);
         placeSnowDrifts(level, chunk, samples, seed);
-        placeFarmWorker(level, chunk, samples, seed);
+        if (level instanceof ServerLevel serverLevel) {
+            placeFarmWorker(serverLevel, chunk, samples, seed);
+        }
     }
 
     private static void placeSnowDrifts(
-            ServerLevel level,
+            ServerLevelAccessor level,
             ChunkPos chunk,
             NeonCityGenerator.UrbanSample[][] samples,
             long seed) {
@@ -229,7 +232,8 @@ final class DistrictWorldFeatures {
         return farmer;
     }
 
-    private static void set(ServerLevel level, int x, int y, int z, BlockState state) {
+    private static void set(
+            ServerLevelAccessor level, int x, int y, int z, BlockState state) {
         level.setBlock(new BlockPos(x, y, z), state, PLACE_FLAGS);
     }
 
